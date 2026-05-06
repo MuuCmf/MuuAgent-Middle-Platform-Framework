@@ -1,0 +1,440 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// AI模型表 - 存储所有AI模型配置
+model Model {
+  id          String   @id @default(uuid())
+  name        String   /// 模型名称
+  code        String   @unique /// 模型唯一标识码
+  type        String   /// 模型类型: llm / embedding / tts / asr / image / multimodal
+  provider    String   /// 提供商: openai / ollama / azure / aliyun / tencent / custom
+  endpoint    String   /// 模型API地址
+  apiKey      String?  /// API密钥
+  weight      Int      @default(1) /// 权重(用于负载均衡)
+  maxTokens   Int      @default(4096) /// 最大Token数
+  temperature Float    @default(0.7) /// 温度参数
+  status      Boolean  @default(true) /// 是否启用
+  description String?  /// 模型描述
+  config      String?  /// 额外配置(JSON格式)
+  tags        String?  /// 模型标签(JSON数组): chat, reasoning, drawing, embedding, voice
+  category    String?  /// 模型分类: general, code, math, creative, professional
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// 关联MCP规则
+  mcpRules    McpRule[]
+  /// 关联调用日志
+  invokeLogs  AiInvokeLog[]
+  /// 关联健康记录
+  healthRecords ModelHealth[]
+
+  @@index([type, status])
+  @@index([provider])
+  @@index([category])
+}
+
+/// 模型参数模板表 - 预设模型调用参数
+model ModelTemplate {
+  id             String   @id @default(uuid())
+  name           String   /// 模板名称
+  code           String   @unique /// 模板唯一标识
+  modelType      String   /// 适配模型类型: llm / embedding / multimodal
+  temperature    Float    @default(0.7) /// 温度参数(0-1)
+  topP           Float    @default(0.7) /// 核采样参数(0-1)
+  contextWindow  Int      @default(8192) /// 上下文窗口大小
+  maxTokens      Int      @default(1000) /// 最大生成长度
+  sceneTag       String?  /// 场景标签: customer_service / creative / vector / multimodal / code
+  description    String?  /// 模板描述
+  remark         String?  /// 备注
+  isDefault      Boolean  @default(false) /// 是否为默认模板
+  status         Boolean  @default(true) /// 是否启用
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([modelType, status])
+  @@index([sceneTag])
+  @@index([isDefault])
+}
+
+/// MCP调度策略表 - 模型控制平面配置
+model McpStrategy {
+  id            String  @id @default(uuid())
+  modelType     String  @unique /// 模型类型
+  strategy      String  @default("weight") /// 调度策略: weight / random / round_robin / failover
+  retryCount    Int     @default(3) /// 重试次数
+  timeout       Int     @default(30000) /// 超时时间(毫秒)
+  fallbackModelId String? /// 降级模型ID
+  enableCircuit Boolean @default(true) /// 是否启用熔断
+  circuitThreshold Int @default(5) /// 熔断错误阈值
+  circuitTimeout   Int @default(300000) /// 熔断恢复时间(毫秒)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// MCP限流熔断规则表 - 单模型级别的限流配置
+model McpRule {
+  id              String  @id @default(uuid())
+  modelId         String  /// 关联模型ID
+  qpsLimit        Int     @default(10) /// QPS限制
+  maxConcurrent   Int     @default(5) /// 最大并发数
+  currentConcurrent Int   @default(0) /// 当前并发数
+  circuitStatus   String  @default("closed") /// 熔断状态: closed / open / half_open
+  errorCount      Int     @default(0) /// 错误计数
+  lastErrorTime   DateTime? /// 最后错误时间
+  circuitOpenTime DateTime? /// 熔断开启时间
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  model Model @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@index([modelId])
+}
+
+/// 技能表 - 可被Agent调用的工具
+model Skill {
+  id          String   @id @default(uuid())
+  name        String   /// 技能名称
+  code        String   @unique /// 技能唯一标识
+  description String   /// 功能描述(给LLM看)
+  type        String   /// 类型: http / function / database / rpc
+  params      String   /// 入参描述(JSON格式)
+  config      String   /// 执行配置(JSON格式)
+  status      Boolean  @default(true) /// 是否启用
+  timeout     Int      @default(30000) /// 超时时间(毫秒)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// 关联调用日志
+  invokeLogs SkillInvokeLog[]
+
+  @@index([type, status])
+}
+
+/// 智能体表 - AI Agent配置
+model Agent {
+  id           String   @id @default(uuid())
+  name         String   /// 智能体名称
+  code         String   @unique /// 智能体唯一标识
+  description  String?  /// 智能体描述
+  systemPrompt String   /// 系统提示词
+  modelId      String?  /// 绑定模型ID
+  skills       String   /// 绑定的技能code列表(JSON数组)
+  maxSteps     Int      @default(5) /// 最大执行步数
+  temperature  Float    @default(0.7) /// 温度参数
+  status       Boolean  @default(true) /// 是否启用
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  /// 关联调用日志
+  invokeLogs AgentInvokeLog[]
+
+  @@index([status])
+}
+
+/// AI调用日志表 - 记录所有AI模型调用
+model AiInvokeLog {
+  id          String   @id @default(uuid())
+  modelId     String?  /// 调用的模型ID
+  modelCode   String   /// 模型标识码
+  modelType   String   /// 模型类型
+  request     String   /// 请求数据(JSON)
+  response    String?  /// 响应数据(JSON)
+  costMs      Int      /// 耗时(毫秒)
+  inputTokens Int?     /// 输入Token数
+  outputTokens Int?    /// 输出Token数
+  success     Boolean  /// 是否成功
+  errorMessage String? /// 错误信息
+  clientIp    String?  /// 客户端IP
+  userAgent   String?  /// 用户代理
+  uid         String?  /// 调用用户唯一标识(透传)
+  createdAt   DateTime @default(now())
+
+  model Model? @relation(fields: [modelId], references: [id])
+
+  @@index([modelId, createdAt])
+  @@index([modelType, createdAt])
+  @@index([success, createdAt])
+  @@index([uid, createdAt])
+}
+
+/// 技能调用日志表 - 记录技能调用
+model SkillInvokeLog {
+  id        String   @id @default(uuid())
+  skillCode String   /// 技能标识码
+  agentId   String?  /// 调用的智能体ID
+  request   String   /// 请求数据(JSON)
+  response  String?  /// 响应数据(JSON)
+  costMs    Int      /// 耗时(毫秒)
+  success   Boolean  /// 是否成功
+  errorMessage String? /// 错误信息
+  uid       String?  /// 调用用户唯一标识(透传)
+  createdAt DateTime @default(now())
+
+  skill Skill @relation(fields: [skillCode], references: [code])
+
+  @@index([skillCode, createdAt])
+  @@index([uid, createdAt])
+}
+
+/// 智能体调用日志表 - 记录Agent对话
+model AgentInvokeLog {
+  id           String   @id @default(uuid())
+  agentId      String   /// 智能体ID
+  conversationId String? /// 会话ID
+  userMessage  String   /// 用户消息
+  agentResponse String? /// 智能体回复
+  steps        String?  /// 执行步骤(JSON)
+  totalCostMs  Int      /// 总耗时(毫秒)
+  success      Boolean  /// 是否成功
+  errorMessage String?  /// 错误信息
+  clientIp     String?  /// 客户端IP
+  uid          String?  /// 调用用户唯一标识(透传)
+  createdAt    DateTime @default(now())
+
+  agent Agent @relation(fields: [agentId], references: [id])
+
+  @@index([agentId, createdAt])
+  @@index([conversationId])
+  @@index([uid, createdAt])
+}
+
+/// 模型健康检查记录表
+model ModelHealth {
+  id           String   @id @default(uuid())
+  modelId      String   /// 模型ID
+  status       String   /// 健康状态: healthy / unhealthy / unknown
+  responseTime Int?     /// 响应时间(毫秒)
+  errorMessage String?  /// 错误信息
+  checkedAt    DateTime @default(now())
+
+  model Model @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@index([modelId, checkedAt])
+}
+
+/// 应用/租户表 - 多租户支持
+model AppTenant {
+  id          String   @id @default(uuid())
+  name        String   /// 应用名称
+  code        String   @unique /// 应用标识
+  apiKey      String   @unique /// API密钥
+  secretKey   String   /// 密钥
+  allowedModels String? /// 允许使用的模型(JSON数组)
+  allowedSkills String? /// 允许使用的技能(JSON数组)
+  qpsLimit    Int      @default(100) /// QPS限制
+  dailyLimit  Int      @default(10000) /// 每日调用限制
+  status      Boolean  @default(true) /// 是否启用
+  expireAt    DateTime? /// 过期时间
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([code])
+  @@index([apiKey])
+}
+
+/// 限流规则表 - 支持多级别限流配置
+model RateLimitRule {
+  id              String   @id @default(uuid())
+  level           String   /// 限流级别: global / app / interface / model
+  target          String   /// 限流目标: global标识全局、appCode、interface路径、modelId
+  qpsLimit        Int      @default(100) /// QPS限制(每秒请求数)
+  concurrentLimit Int      @default(10) /// 并发限制(同时请求数)
+  dailyLimit      Int      @default(10000) /// 每日调用限制
+  burstSize       Int      @default(20) /// 突发流量大小(令牌桶容量)
+  enableQueue     Boolean  @default(false) /// 是否启用队列
+  queueSize       Int      @default(100) /// 队列大小
+  queueTimeout    Int      @default(5000) /// 队列超时时间(毫秒)
+  status          Boolean  @default(true) /// 是否启用
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  /// 关联限流计数器
+  rateLimitCounters RateLimitCounter[]
+
+  @@unique([level, target])
+  @@index([level, status])
+}
+
+/// 限流计数器表 - 实时统计限流数据
+model RateLimitCounter {
+  id                String   @id @default(uuid())
+  ruleId            String   /// 关联限流规则ID
+  currentQps        Int      @default(0) /// 当前QPS
+  currentConcurrent Int      @default(0) /// 当前并发数
+  todayCount        Int      @default(0) /// 今日调用次数
+  lastSecond        Int      @default(0) /// 上一秒时间戳
+  lastResetDate     String   @default("") /// 上次重置日期
+  tokens            Float    @default(100) /// 令牌桶当前令牌数
+  lastTokenUpdate   DateTime @default(now()) /// 上次令牌更新时间
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  /// 关联限流规则
+  rateLimitRule RateLimitRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+}
+
+/// 限流黑名单表 - 记录被限流的请求
+model RateLimitBlacklist {
+  id          String   @id @default(uuid())
+  clientIp    String   /// 客户端IP
+  appId       String?  /// 应用ID
+  reason      String   /// 限流原因
+  blockUntil  DateTime /// 封禁截止时间
+  createdAt   DateTime @default(now())
+
+  @@index([clientIp, blockUntil])
+  @@index([appId, blockUntil])
+}
+
+/// 管理员表 - 中台管理后台用户
+model AdminUser {
+  id          String   @id @default(uuid())
+  username    String   @unique /// 登录账号
+  password    String   /// 加密密码(BCrypt)
+  nickname    String?  /// 昵称
+  email       String?  /// 邮箱
+  phone       String?  /// 手机号
+  role        String   @default("admin") /// 角色: admin / ops / read
+  status      Int      @default(1) /// 状态: 1正常 0禁用
+  lastLoginAt DateTime? /// 最后登录时间
+  lastLoginIp String?  /// 最后登录IP
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([username])
+  @@index([status])
+}
+
+/// 知识库表 - 公共知识库，所有用户可检索
+model KbInfo {
+  id              String   @id @default(uuid())
+  kbName          String   /// 知识库名称
+  kbCode          String   @unique /// 知识库唯一标识
+  
+  /// 配置参数
+  embeddingModel  String   @default("doubao-embedding-v1") /// 向量模型
+  chunkSize       Int      @default(500) /// 切片大小
+  chunkOverlap    Int      @default(100) /// 切片重叠
+  similarityThresh Float   @default(0.7) /// 相似度阈值
+  topN            Int      @default(5) /// 召回条数
+  
+  /// 权限与状态
+  isPublic        Boolean  @default(true) /// 是否公开（公开=所有用户可检索）
+  status          Boolean  @default(true) /// 状态：true=启用，false=禁用
+  description     String?  /// 描述
+  
+  /// 创建者信息（仅用于记录，不做数据隔离）
+  createdBy       String?  /// 创建者uid（记录谁创建的）
+  updatedBy       String?  /// 更新者uid
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isDeleted       Boolean  @default(false) /// 软删除
+
+  documents       KbDocument[]
+  chunks          KbChunk[]
+  retrievalLogs   KbRetrievalLog[]
+  permissions     KbPermission[]
+
+  @@index([kbCode])
+  @@index([isPublic, status])
+  @@index([createdBy])
+}
+
+/// 文档表 - 知识库下的文档
+model KbDocument {
+  id              String   @id @default(uuid())
+  kbId            String   /// 所属知识库ID
+  docName         String   /// 文档名称
+  docCode         String?  /// 文档唯一标识
+  fileType        String   /// 文档类型: pdf/word/txt/md
+  fileUrl         String   /// 文档存储路径
+  fileSizeKb      Int      /// 文档大小
+  
+  /// 状态管理
+  status          Int      @default(0) /// 状态: 0=解析中,1=正常,2=失败,3=禁用
+  totalChunks     Int      @default(0) /// 切片总数
+  
+  /// 创建者信息
+  createdBy       String?  /// 创建者uid
+  updatedBy       String?  /// 更新者uid
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isDeleted       Boolean  @default(false)
+
+  kbInfo          KbInfo   @relation(fields: [kbId], references: [id], onDelete: Cascade)
+  chunks          KbChunk[]
+
+  @@index([kbId, status])
+  @@index([createdBy])
+}
+
+/// 切片表 - 文档切片元数据
+model KbChunk {
+  id              String   @id @default(uuid())
+  kbId            String   /// 所属知识库ID
+  docId           String   /// 所属文档ID
+  content         String   /// 切片文本内容
+  chunkIndex      Int      /// 切片序号
+  vectorId        String?  /// 向量库ID
+  status          Int      @default(0) /// 状态: 0=未向量化,1=已向量化,2=失败
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isDeleted       Boolean  @default(false)
+
+  kbInfo          KbInfo   @relation(fields: [kbId], references: [id], onDelete: Cascade)
+  document        KbDocument @relation(fields: [docId], references: [id], onDelete: Cascade)
+
+  @@index([kbId, docId])
+  @@index([kbId, status])
+  @@index([vectorId])
+}
+
+/// 检索日志表 - 记录检索历史
+model KbRetrievalLog {
+  id              String   @id @default(uuid())
+  kbId            String   /// 知识库ID
+  uid             String?  /// 调用者uid（仅用于日志记录）
+  query           String   /// 查询问题
+  topN            Int      /// 召回条数
+  similarityThresh Float   /// 相似度阈值
+  retrievalCount  Int      @default(0) /// 召回切片数量
+  costTime        Int      /// 检索耗时
+  requestId       String   /// 链路ID
+  clientIp        String?  /// 客户端IP
+  createdAt       DateTime @default(now())
+
+  kbInfo          KbInfo   @relation(fields: [kbId], references: [id], onDelete: Cascade)
+
+  @@index([kbId, createdAt])
+  @@index([uid, createdAt])
+  @@index([requestId])
+}
+
+/// 知识库权限表 - 管理谁可以编辑知识库
+model KbPermission {
+  id              String   @id @default(uuid())
+  kbId            String   /// 知识库ID
+  uid             String   /// 用户ID
+  role            String   /// 角色: owner=所有者,admin=管理员,editor=编辑者
+  permissions     String   /// 权限列表(JSON数组): ["create","read","update","delete"]
+  grantedBy       String?  /// 授权人uid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  kbInfo          KbInfo   @relation(fields: [kbId], references: [id], onDelete: Cascade)
+
+  @@unique([kbId, uid])
+  @@index([kbId])
+  @@index([uid])
+}

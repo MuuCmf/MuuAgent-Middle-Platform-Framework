@@ -1,0 +1,1 @@
+import{a as i}from"./request-Bv5hJLNU.js";const g={getAiLogs(t){return i.get("/admin/log/ai",{params:t})},getAiLogById(t){return i.get(`/admin/log/ai/${t}`)},getStatistics(t,a){return i.get("/admin/log/statistics",{params:{startTime:t,endTime:a}})}};export{g as l};

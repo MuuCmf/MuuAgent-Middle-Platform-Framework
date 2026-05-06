@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: muu_ai_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Root_Pass_2026}
+      MYSQL_DATABASE: muu_ai_platform
+      MYSQL_USER: muu_ai
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-MuAI_2026_Prod_Pass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./deploy/mysql/init:/docker-entrypoint-initdb.d
+      - ./deploy/mysql/conf.d:/etc/mysql/conf.d
+    command: 
+      --default-authentication-plugin=mysql_native_password 
+      --character-set-server=utf8mb4 
+      --collation-server=utf8mb4_unicode_ci
+      --max_connections=1000
+      --innodb_buffer_pool_size=1G
+      --innodb_log_file_size=256M
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-Root_Pass_2026}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - muu_ai_network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: muu_ai_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - muu_ai_network
+
+  # AI 中台服务
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: muu_ai_service
+    restart: always
+    ports:
+      - "3002:3002"
+    environment:
+      DATABASE_URL: mysql://muu_ai:${MYSQL_PASSWORD:-MuAI_2026_Prod_Pass}@mysql:3306/muu_ai_platform?connection_limit=10&pool_timeout=30
+      REDIS_URL: redis://redis:6379
+      API_KEY: ${API_KEY:-MuAI-Prod-2026-Secret-Key-Change-Me}
+      JWT_SECRET: ${JWT_SECRET:-MuAI-JWT-Prod-Secret-Key-Please-Change-Me-64Chars}
+      NODE_ENV: production
+      LOG_LEVEL: warn
+      PORT: 3002
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - muu_ai_network
+
+  # Nginx 反向代理（可选）
+  nginx:
+    image: nginx:alpine
+    container_name: muu_ai_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - muu_ai_network
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  muu_ai_network:
+    driver: bridge

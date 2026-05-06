@@ -1,0 +1,85 @@
+# 依赖
+node_modules/
+**/node_modules/
+
+# 编译输出
+dist/
+build/
+out/
+**/dist/
+**/build/
+
+# 日志
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# 环境变量（敏感信息，不提交）
+.env
+.env.local
+.env.*.local
+.env.production
+**/.env
+**/.env.local
+**/.env.*.local
+**/.env.production
+
+# 数据库文件
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+data/
+
+# 操作系统
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+.trae/
+.codebuddy/
+.agent/
+*.swp
+*.swo
+*~
+*.iml
+
+
+# 测试
+coverage/
+.nyc_output/
+*.lcov
+
+# 临时文件
+tmp/
+temp/
+.cache/
+development_docs/
+
+# Docker
+.docker/
+
+# 备份文件
+*.bak
+*.backup
+*~
+
+# 压缩文件
+*.zip
+*.tar.gz
+*.rar
+
+# 敏感信息
+*.pem
+*.key
+*.crt
+secrets/
