@@ -735,6 +735,7 @@ ${resultText}
     onComplete: (tokenInfo: { inputTokens?: number; outputTokens?: number }) => void,
   ): Promise<void> {
     const axios = require('axios').default;
+    const startTime = Date.now();
 
     const data = {
       model: model.code,
@@ -758,6 +759,9 @@ ${resultText}
 
     let inputTokens: number | undefined;
     let outputTokens: number | undefined;
+    let fullResponse = '';
+    let success = true;
+    let errorMessage: string | null = null;
 
     try {
       const response = await axios.post(endpoint, data, {
@@ -777,6 +781,7 @@ ${resultText}
           buffer = buffer.substring(index + 1);
 
           if (line.trim() === '[DONE]') {
+            await this.saveAiInvokeLog(model, data, fullResponse, startTime, inputTokens, outputTokens, true, null);
             onComplete({ inputTokens, outputTokens });
             return;
           }
@@ -793,6 +798,7 @@ ${resultText}
               }
 
               if (chunkContent) {
+                fullResponse += chunkContent;
                 onChunk(chunkContent);
               }
             } catch (error) {
@@ -802,10 +808,55 @@ ${resultText}
         }
       }
 
+      await this.saveAiInvokeLog(model, data, fullResponse, startTime, inputTokens, outputTokens, true, null);
       onComplete({ inputTokens, outputTokens });
     } catch (error) {
+      success = false;
+      errorMessage = error instanceof Error ? error.message : '调用失败';
       console.error('流式调用LLM失败:', error);
+      await this.saveAiInvokeLog(model, data, fullResponse, startTime, inputTokens, outputTokens, success, errorMessage);
       onComplete({ inputTokens, outputTokens });
+    }
+  }
+
+  /**
+   * 保存AI调用日志
+   * @param model 模型信息
+   * @param requestData 请求数据
+   * @param responseData 响应数据
+   * @param startTime 开始时间
+   * @param inputTokens 输入Token数
+   * @param outputTokens 输出Token数
+   * @param success 是否成功
+   * @param errorMessage 错误信息
+   */
+  private async saveAiInvokeLog(
+    model: Record<string, unknown>,
+    requestData: Record<string, unknown>,
+    responseData: string,
+    startTime: number,
+    inputTokens?: number,
+    outputTokens?: number,
+    success: boolean = true,
+    errorMessage: string | null = null,
+  ): Promise<void> {
+    try {
+      await this.prisma.aiInvokeLog.create({
+        data: {
+          modelId: model.id as string,
+          modelCode: model.code as string,
+          modelType: (model.type as string) || 'llm',
+          request: JSON.stringify(requestData),
+          response: responseData,
+          costMs: Date.now() - startTime,
+          inputTokens,
+          outputTokens,
+          success,
+          errorMessage,
+        },
+      });
+    } catch (error) {
+      console.error('保存AI调用日志失败:', error);
     }
   }
 

@@ -17,6 +17,7 @@ export enum SkillType {
   FUNCTION = 'function',
   DATABASE = 'database',
   RPC = 'rpc',
+  MCP = 'mcp',
 }
 
 /**

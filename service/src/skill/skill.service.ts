@@ -9,6 +9,7 @@ import {
 } from './dto/skill.dto';
 import { Skill } from '@prisma/client';
 import axios from 'axios';
+import { McpClientService } from './mcp-client.service';
 
 /**
  * 技能服务
@@ -19,8 +20,12 @@ export class SkillService {
   /**
    * 构造函数
    * @param prisma Prisma服务
+   * @param mcpClient MCP客户端服务
    */
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mcpClient: McpClientService,
+  ) {}
 
   /**
    * 创建技能
@@ -161,6 +166,9 @@ export class SkillService {
         case SkillType.DATABASE:
           result = await this.executeDatabaseSkill(skill, params);
           break;
+        case SkillType.MCP:
+          result = await this.executeMcpSkill(skill, params);
+          break;
         default:
           throw new HttpException('不支持的技能类型', HttpStatus.BAD_REQUEST);
       }
@@ -267,6 +275,44 @@ export class SkillService {
       connection,
       message: '数据库查询已构建，请使用实际的数据库连接执行',
     };
+  }
+
+  /**
+   * 执行MCP类型技能
+   * @param skill 技能信息
+   * @param params 执行参数
+   * @returns {Promise<Record<string, unknown>>} 执行结果
+   */
+  private async executeMcpSkill(
+    skill: { config: string; timeout: number },
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const config = JSON.parse(skill.config);
+    const { url, apiKey, toolName } = config;
+
+    if (!url) {
+      throw new HttpException('MCP Server URL 未配置', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!toolName) {
+      throw new HttpException('MCP 工具名称未配置', HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await this.mcpClient.quickCall(
+      {
+        url,
+        apiKey,
+        timeout: skill.timeout || 30000,
+      },
+      toolName,
+      params,
+    );
+
+    if (typeof result === 'string') {
+      return { result };
+    }
+
+    return result as Record<string, unknown>;
   }
 
   /**

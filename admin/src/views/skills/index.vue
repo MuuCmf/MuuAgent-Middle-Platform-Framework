@@ -11,6 +11,7 @@
         <li><strong>HTTP类型</strong>：调用外部HTTP API，如天气接口、查询服务等</li>
         <li><strong>函数类型</strong>：内置函数，如获取时间、随机数等</li>
         <li><strong>数据库类型</strong>：执行数据库查询（需配置连接）</li>
+        <li><strong>MCP类型</strong>：调用第三方MCP Server提供的工具，支持Model Context Protocol协议</li>
         <li><strong>功能描述</strong>：给AI看的描述，AI根据描述决定是否调用此技能</li>
         <li><strong>参数描述</strong>：描述技能需要的参数格式，帮助AI正确传参</li>
       </ul>
@@ -86,6 +87,7 @@
             <el-option label="HTTP请求 - 调用外部API" value="http" />
             <el-option label="内置函数 - 系统预设函数" value="function" />
             <el-option label="数据库查询 - 执行SQL" value="database" />
+            <el-option label="MCP工具 - 调用第三方MCP Server" value="mcp" />
           </el-select>
         </el-form-item>
 
@@ -155,6 +157,25 @@
 }</pre>
                 <p style="margin-top: 8px; color: #666; font-size: 12px;">
                   💡 提示：数据库查询需要配置连接信息，建议使用只读权限的数据库用户
+                </p>
+              </div>
+              <div v-else-if="form.type === 'mcp'" class="config-example">
+                <p><strong>MCP工具配置示例：</strong></p>
+                <pre class="code-example">{
+  "url": "http://localhost:8080/mcp",
+  "apiKey": "your-api-key",
+  "toolName": "get_weather"
+}</pre>
+                <p style="margin-top: 8px; color: #666; font-size: 12px;">
+                  💡 配置说明：
+                </p>
+                <ul style="margin: 4px 0; padding-left: 20px; color: #666; font-size: 12px;">
+                  <li><strong>url</strong>：MCP Server 的 HTTP 端点地址</li>
+                  <li><strong>apiKey</strong>：API密钥（可选，如果MCP Server需要认证）</li>
+                  <li><strong>toolName</strong>：要调用的工具名称</li>
+                </ul>
+                <p style="margin-top: 8px; color: #409eff; font-size: 12px;">
+                  🔗 MCP (Model Context Protocol) 是 Anthropic 推出的开放协议，支持连接各种外部工具和数据源
                 </p>
               </div>
             </el-alert>
