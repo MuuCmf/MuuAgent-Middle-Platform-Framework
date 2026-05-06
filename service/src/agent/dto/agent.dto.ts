@@ -43,6 +43,11 @@ export class CreateAgentDto {
   @IsOptional()
   skills?: string;
 
+  @ApiPropertyOptional({ description: '绑定的MCP Server配置(JSON数组)', example: '[{"name":"filesystem","url":"http://localhost:8081/mcp","enabled":true}]' })
+  @IsString()
+  @IsOptional()
+  mcpServers?: string;
+
   @ApiPropertyOptional({ description: '最大执行步数', default: 5 })
   @IsNumber()
   @Min(1)
@@ -91,6 +96,11 @@ export class UpdateAgentDto {
   @IsString()
   @IsOptional()
   skills?: string;
+
+  @ApiPropertyOptional({ description: '绑定的MCP Server配置(JSON数组)' })
+  @IsString()
+  @IsOptional()
+  mcpServers?: string;
 
   @ApiPropertyOptional({ description: '最大执行步数' })
   @IsNumber()

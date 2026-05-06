@@ -11,6 +11,7 @@
         <li><strong>智能体</strong>：具有特定能力的AI助手，可以自动调用技能完成任务</li>
         <li><strong>系统提示词</strong>：定义智能体的角色和行为方式</li>
         <li><strong>绑定技能</strong>：智能体可以调用的技能列表，以JSON数组格式填写</li>
+        <li><strong>MCP Server</strong>：Model Context Protocol Server，提供外部工具和数据源</li>
         <li><strong>最大执行步数</strong>：限制智能体最多执行多少步操作</li>
         <li><strong>温度参数</strong>：控制输出随机性，0-1之间，值越大越随机</li>
       </ul>
@@ -34,7 +35,7 @@
             <el-tag type="info">{{ row.code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="skills" label="绑定技能">
+        <el-table-column prop="skills" label="绑定技能" width="200">
           <template #default="{ row }">
             <template v-if="parseJsonSafe(row.skills).length">
               <el-tag
@@ -45,6 +46,22 @@
                 style="margin-right: 4px"
               >
                 {{ s }}
+              </el-tag>
+            </template>
+            <span v-else style="color: #999">无</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="mcpServers" label="MCP Server" width="200">
+          <template #default="{ row }">
+            <template v-if="parseJsonSafe(row.mcpServers).length">
+              <el-tag
+                v-for="server in parseJsonSafe(row.mcpServers)"
+                :key="server.name"
+                type="success"
+                size="small"
+                style="margin-right: 4px"
+              >
+                {{ server.name }}
               </el-tag>
             </template>
             <span v-else style="color: #999">无</span>
@@ -141,6 +158,51 @@
           </div>
         </el-form-item>
 
+        <el-divider>
+          <el-icon><Connection /></el-icon>
+          MCP Server 绑定
+        </el-divider>
+
+        <el-form-item label="">
+          <div style="width: 100%;">
+            <el-button type="primary" @click="handleAddMcpServer" style="margin-bottom: 12px;">
+              <el-icon><Plus /></el-icon>
+              添加 MCP Server
+            </el-button>
+
+            <div v-if="mcpServers.length === 0" class="no-mcp-servers">
+              <el-empty description="暂未绑定 MCP Server" :image-size="80" />
+            </div>
+
+            <div v-else>
+              <McpServerCard
+                v-for="(config, index) in mcpServers"
+                :key="index"
+                :config="config"
+                @delete="handleDeleteMcpServer(index)"
+                @edit="handleEditMcpServer(index)"
+              />
+            </div>
+
+            <el-alert type="info" :closable="false" style="margin-top: 12px;">
+              <template #title>
+                <strong>💡 MCP Server 说明</strong>
+              </template>
+              <div style="font-size: 13px; line-height: 1.6;">
+                <p><strong>MCP Server</strong>：Model Context Protocol Server，提供外部工具和数据源</p>
+                <p style="margin-top: 8px;"><strong>工具命名规范：</strong></p>
+                <ul style="margin: 8px 0; padding-left: 20px;">
+                  <li>技能工具：<code style="background: #f5f7fa; padding: 2px 6px; border-radius: 3px;">{skillCode}</code></li>
+                  <li>MCP工具：<code style="background: #f5f7fa; padding: 2px 6px; border-radius: 3px;">mcp:{serverName}:{toolName}</code></li>
+                </ul>
+                <p style="margin-top: 8px; color: #666;">
+                  示例：<code style="background: #f5f7fa; padding: 2px 6px; border-radius: 3px;">mcp:filesystem:read_file</code>
+                </p>
+              </div>
+            </el-alert>
+          </div>
+        </el-form-item>
+
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="最大执行步数">
@@ -166,15 +228,24 @@
         </div>
       </template>
     </el-drawer>
+
+    <McpServerConfigDialog
+      v-model="mcpServerDialogVisible"
+      :config="editingMcpServerIndex !== null ? mcpServers[editingMcpServerIndex] : null"
+      @save="handleMcpServerSave"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Connection } from '@element-plus/icons-vue'
 import { useAgentStore, useSkillStore } from '@/stores'
 import type { Agent, AgentForm } from '@/api/agent'
+import type { McpServerConfig } from '@/api/mcp-server'
+import McpServerConfigDialog from '@/components/McpServerConfigDialog.vue'
+import McpServerCard from '@/components/McpServerCard.vue'
 
 const agentStore = useAgentStore()
 const skillStore = useSkillStore()
@@ -189,10 +260,15 @@ const form = ref<AgentForm>({
   code: '',
   systemPrompt: '',
   skills: '[]',
+  mcpServers: '[]',
   maxSteps: 5,
   temperature: 0.7,
   status: true
 })
+
+const mcpServerDialogVisible = ref(false)
+const editingMcpServerIndex = ref<number | null>(null)
+const mcpServers = ref<McpServerConfig[]>([])
 
 const parseJsonSafe = (str: string, defaultValue: any[] = []) => {
   if (!str) return defaultValue
@@ -209,11 +285,13 @@ const resetForm = () => {
     code: '',
     systemPrompt: '',
     skills: '[]',
+    mcpServers: '[]',
     maxSteps: 5,
     temperature: 0.7,
     status: true
   }
   editingAgent.value = null
+  mcpServers.value = []
 }
 
 const handleAdd = () => {
@@ -225,8 +303,10 @@ const handleEdit = (agent: Agent) => {
   editingAgent.value = agent
   form.value = {
     ...agent,
-    skills: Array.isArray(agent.skills) ? JSON.stringify(agent.skills) : agent.skills
+    skills: Array.isArray(agent.skills) ? JSON.stringify(agent.skills) : agent.skills,
+    mcpServers: agent.mcpServers || '[]'
   }
+  mcpServers.value = parseJsonSafe(agent.mcpServers || '[]')
   drawerVisible.value = true
 }
 
@@ -246,6 +326,31 @@ const addSkillToForm = (skillCode: string) => {
   }
 }
 
+const handleAddMcpServer = () => {
+  editingMcpServerIndex.value = null
+  mcpServerDialogVisible.value = true
+}
+
+const handleEditMcpServer = (index: number) => {
+  editingMcpServerIndex.value = index
+  mcpServerDialogVisible.value = true
+}
+
+const handleDeleteMcpServer = (index: number) => {
+  mcpServers.value.splice(index, 1)
+  ElMessage.success('已删除 MCP Server')
+}
+
+const handleMcpServerSave = (config: McpServerConfig) => {
+  if (editingMcpServerIndex.value !== null) {
+    mcpServers.value[editingMcpServerIndex.value] = config
+    ElMessage.success('MCP Server 配置已更新')
+  } else {
+    mcpServers.value.push(config)
+    ElMessage.success('MCP Server 已添加')
+  }
+}
+
 const handleSave = async () => {
   if (!form.value.name || !form.value.code || !form.value.systemPrompt) {
     ElMessage.warning('请填写必填项')
@@ -258,6 +363,8 @@ const handleSave = async () => {
     ElMessage.warning('技能列表格式错误，请使用JSON数组格式')
     return
   }
+
+  form.value.mcpServers = JSON.stringify(mcpServers.value)
 
   try {
     if (editingAgent.value) {
@@ -316,5 +423,13 @@ onMounted(() => {
   overflow-x: auto;
   margin: 8px 0;
   border: 1px solid #e4e7ed;
+}
+
+.no-mcp-servers {
+  padding: 20px;
+  text-align: center;
+  border: 1px dashed #dcdfe6;
+  border-radius: 4px;
+  margin-bottom: 12px;
 }
 </style>

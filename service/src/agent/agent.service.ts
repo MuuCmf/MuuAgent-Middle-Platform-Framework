@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { McpService } from '../mcp/mcp.service';
+import { McpServerService } from '../mcp-server/mcp-server.service';
 import { SkillService } from '../skill/skill.service';
 import { ModelService } from '../model/model.service';
 import {
@@ -22,12 +23,14 @@ export class AgentService {
    * 构造函数
    * @param prisma Prisma服务
    * @param mcpService MCP调度服务
+   * @param mcpServerService MCP Server服务
    * @param skillService 技能服务
    * @param modelService 模型服务
    */
   constructor(
     private prisma: PrismaService,
     private mcpService: McpService,
+    private mcpServerService: McpServerService,
     private skillService: SkillService,
     private modelService: ModelService,
   ) {}
@@ -46,6 +49,7 @@ export class AgentService {
         systemPrompt: dto.systemPrompt,
         modelId: dto.modelId,
         skills: dto.skills || '[]',
+        mcpServers: dto.mcpServers || '[]',
         maxSteps: dto.maxSteps ?? 5,
         temperature: dto.temperature ?? 0.7,
         status: dto.status ?? true,
@@ -186,8 +190,17 @@ export class AgentService {
       ? await this.skillService.getSkillDescriptions(skillCodes)
       : '';
 
+    // 获取绑定的MCP Server工具
+    const mcpServerConfigs = this.mcpServerService.parseMcpServersConfig(agent.mcpServers);
+    const mcpTools = mcpServerConfigs.length > 0
+      ? await this.mcpServerService.discoverAllTools(mcpServerConfigs)
+      : [];
+    const mcpToolDescriptions = mcpTools.length > 0
+      ? this.mcpServerService.buildToolsDescription(mcpTools)
+      : '';
+
     // 构建系统提示词
-    const systemPrompt = this.buildSystemPrompt(agent, skillDescriptions);
+    const systemPrompt = this.buildSystemPrompt(agent, skillDescriptions, mcpToolDescriptions);
 
     // 获取模型
     let model;
@@ -224,23 +237,38 @@ export class AgentService {
           break;
         }
 
-        // 执行技能
+        // 执行工具调用
+        const isMcpTool = (toolCall.skill as string).startsWith('mcp:');
+        const toolType = isMcpTool ? 'MCP工具' : '技能';
+        
         steps.push({
           step: step + 1,
-          action: `调用技能: ${toolCall.skill}`,
+          action: `调用${toolType}: ${toolCall.skill}`,
           result: null,
         });
 
         try {
-          const skillResult = await this.skillService.execute({
-            skillCode: toolCall.skill as string,
-            params: (toolCall.params as Record<string, unknown>) || {},
-          });
+          let toolResult: unknown;
+          
+          if (isMcpTool) {
+            // 调用MCP工具
+            toolResult = await this.mcpServerService.callTool(
+              mcpServerConfigs,
+              toolCall.skill as string,
+              (toolCall.params as Record<string, unknown>) || {},
+            );
+          } else {
+            // 调用技能
+            toolResult = await this.skillService.execute({
+              skillCode: toolCall.skill as string,
+              params: (toolCall.params as Record<string, unknown>) || {},
+            });
+          }
 
-          steps[steps.length - 1].result = skillResult;
+          steps[steps.length - 1].result = toolResult;
 
-          // 将技能结果返回给LLM继续处理
-          const resultText = typeof skillResult === 'object' ? JSON.stringify(skillResult, null, 2) : String(skillResult);
+          // 将工具结果返回给LLM继续处理
+          const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
           currentMessage = `用户问题: ${originalMessage}
 
 【工具调用结果】
@@ -335,8 +363,17 @@ ${resultText}
       ? await this.skillService.getSkillDescriptions(skillCodes)
       : '';
 
+    // 获取绑定的MCP Server工具
+    const mcpServerConfigs = this.mcpServerService.parseMcpServersConfig(agent.mcpServers);
+    const mcpTools = mcpServerConfigs.length > 0
+      ? await this.mcpServerService.discoverAllTools(mcpServerConfigs)
+      : [];
+    const mcpToolDescriptions = mcpTools.length > 0
+      ? this.mcpServerService.buildToolsDescription(mcpTools)
+      : '';
+
     // 构建系统提示词
-    const systemPrompt = this.buildSystemPrompt(agent, skillDescriptions);
+    const systemPrompt = this.buildSystemPrompt(agent, skillDescriptions, mcpToolDescriptions);
 
     // 获取模型
     let model;
@@ -387,26 +424,41 @@ ${resultText}
           break;
         }
 
-        // 需要调用工具，执行技能
+        // 执行工具调用
+        const isMcpTool = (toolCall.skill as string).startsWith('mcp:');
+        const toolType = isMcpTool ? 'MCP工具' : '技能';
+        
         steps.push({
           step: step + 1,
-          action: `调用技能: ${toolCall.skill}`,
+          action: `调用${toolType}: ${toolCall.skill}`,
           result: null,
         });
 
         try {
-          const skillResult = await this.skillService.execute({
-            skillCode: toolCall.skill as string,
-            params: (toolCall.params as Record<string, unknown>) || {},
-          });
+          let toolResult: unknown;
+          
+          if (isMcpTool) {
+            // 调用MCP工具
+            toolResult = await this.mcpServerService.callTool(
+              mcpServerConfigs,
+              toolCall.skill as string,
+              (toolCall.params as Record<string, unknown>) || {},
+            );
+          } else {
+            // 调用技能
+            toolResult = await this.skillService.execute({
+              skillCode: toolCall.skill as string,
+              params: (toolCall.params as Record<string, unknown>) || {},
+            });
+          }
 
-          steps[steps.length - 1].result = skillResult;
+          steps[steps.length - 1].result = toolResult;
 
-          // 发送技能执行结果通知
-          sendChunk({ type: 'tool', skill: toolCall.skill, result: skillResult });
+          // 发送工具执行结果通知
+          sendChunk({ type: 'tool', skill: toolCall.skill, result: toolResult });
 
-          // 将技能结果返回给LLM继续处理
-          const resultText = typeof skillResult === 'object' ? JSON.stringify(skillResult, null, 2) : String(skillResult);
+          // 将工具结果返回给LLM继续处理
+          const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
           currentMessage = `用户问题: ${originalMessage}
 
 【工具调用结果】
@@ -509,8 +561,17 @@ ${resultText}
       ? await this.skillService.getSkillDescriptions(skillCodes)
       : '';
 
+    // 获取绑定的MCP Server工具
+    const mcpServerConfigs = this.mcpServerService.parseMcpServersConfig(agent.mcpServers);
+    const mcpTools = mcpServerConfigs.length > 0
+      ? await this.mcpServerService.discoverAllTools(mcpServerConfigs)
+      : [];
+    const mcpToolDescriptions = mcpTools.length > 0
+      ? this.mcpServerService.buildToolsDescription(mcpTools)
+      : '';
+
     // 构建系统提示词
-    const systemPrompt = this.buildSystemPrompt(agent, skillDescriptions);
+    const systemPrompt = this.buildSystemPrompt(agent, skillDescriptions, mcpToolDescriptions);
 
     // 获取模型
     let model;
@@ -557,32 +618,47 @@ ${resultText}
           break;
         }
 
-        // 需要调用工具，执行技能
+        // 执行工具调用
+        const isMcpTool = (toolCall.skill as string).startsWith('mcp:');
+        const toolType = isMcpTool ? 'MCP工具' : '技能';
+        
         steps.push({
           step: step + 1,
-          action: `调用技能: ${toolCall.skill}`,
+          action: `调用${toolType}: ${toolCall.skill}`,
           result: null,
         });
 
         try {
-          const skillResult = await this.skillService.execute({
-            skillCode: toolCall.skill as string,
-            params: (toolCall.params as Record<string, unknown>) || {},
-          });
+          let toolResult: unknown;
+          
+          if (isMcpTool) {
+            // 调用MCP工具
+            toolResult = await this.mcpServerService.callTool(
+              mcpServerConfigs,
+              toolCall.skill as string,
+              (toolCall.params as Record<string, unknown>) || {},
+            );
+          } else {
+            // 调用技能
+            toolResult = await this.skillService.execute({
+              skillCode: toolCall.skill as string,
+              params: (toolCall.params as Record<string, unknown>) || {},
+            });
+          }
 
-          steps[steps.length - 1].result = skillResult;
+          steps[steps.length - 1].result = toolResult;
 
-          // 发送技能执行结果通知
+          // 发送工具执行结果通知
           observer.next(new MessageEvent('message', { 
             data: JSON.stringify({ 
               type: 'tool', 
               skill: toolCall.skill, 
-              result: skillResult 
+              result: toolResult 
             }) + '\n' 
           }));
 
-          // 将技能结果返回给LLM继续处理
-          const resultText = typeof skillResult === 'object' ? JSON.stringify(skillResult, null, 2) : String(skillResult);
+          // 将工具结果返回给LLM继续处理
+          const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
           currentMessage = `用户问题: ${originalMessage}
 
 【工具调用结果】
@@ -638,25 +714,36 @@ ${resultText}
    * 构建系统提示词
    * @param agent 智能体信息
    * @param skillDescriptions 技能描述
+   * @param mcpToolDescriptions MCP工具描述
    * @returns {string} 完整的系统提示词
    */
-  private buildSystemPrompt(agent: { systemPrompt: string }, skillDescriptions: string): string {
+  private buildSystemPrompt(
+    agent: { systemPrompt: string },
+    skillDescriptions: string,
+    mcpToolDescriptions: string = '',
+  ): string {
     let prompt = agent.systemPrompt;
 
-    if (skillDescriptions) {
-      prompt += `\n\n你可以使用以下工具:\n${skillDescriptions}`;
+    const allToolDescriptions = [skillDescriptions, mcpToolDescriptions].filter(Boolean).join('\n\n');
+
+    if (allToolDescriptions) {
+      prompt += `\n\n你可以使用以下工具:\n${allToolDescriptions}`;
       prompt += `
 
 【重要】工具调用规则：
 1. 如果需要使用工具，请只输出JSON格式的工具调用，不要输出其他任何内容
 2. 如果不需要使用工具，请直接用自然语言回答用户问题，不要输出JSON
 3. JSON格式示例：
-   - 调用工具: {"skill":"工具标识","params":{"参数名":"参数值"}}
+   - 调用技能工具: {"skill":"工具标识","params":{"参数名":"参数值"}}
+   - 调用MCP工具: {"skill":"mcp:服务器名:工具名","params":{"参数名":"参数值"}}
    - 不调用工具: 直接回答，不要输出JSON
 
 示例：
 用户: 现在几点了？
 助手: {"skill":"get_time","params":{}}
+
+用户: 读取文件/test.txt的内容
+助手: {"skill":"mcp:filesystem:read_file","params":{"path":"/test.txt"}}
 
 用户: 你好
 助手: 你好！很高兴为您服务，请问有什么可以帮助您的？`;

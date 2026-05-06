@@ -6,6 +6,7 @@ import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { ModelModule } from './model/model.module';
 import { ModelTemplateModule } from './model-template/model-template.module';
 import { McpModule } from './mcp/mcp.module';
+import { McpServerModule } from './mcp-server/mcp-server.module';
 import { AiModule } from './ai/ai.module';
 import { SkillModule } from './skill/skill.module';
 import { AgentModule } from './agent/agent.module';
@@ -59,6 +60,7 @@ import { TaskModule } from './task/task.module';
     ModelModule,
     ModelTemplateModule,
     McpModule,
+    McpServerModule,
     AiModule,
     SkillModule,
     AgentModule,

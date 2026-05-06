@@ -10,6 +10,7 @@ export interface Agent {
   systemPrompt: string
   modelId?: number
   skills: string
+  mcpServers?: string
   maxSteps: number
   temperature: number
   status: boolean
@@ -24,6 +25,7 @@ export interface AgentForm {
   systemPrompt: string
   modelId?: number
   skills: string
+  mcpServers?: string
   maxSteps: number
   temperature: number
   status: boolean
