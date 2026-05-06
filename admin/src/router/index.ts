@@ -36,7 +36,7 @@ const routes: RouteRecordRaw[] = [
         path: 'skills',
         name: 'Skills',
         component: () => import('@/views/skills/index.vue'),
-        meta: { title: '技能 SKILLS', icon: 'Tools' }
+        meta: { title: '技能', icon: 'Tools' }
       },
       {
         path: 'agents',

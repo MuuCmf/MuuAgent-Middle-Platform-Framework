@@ -72,18 +72,6 @@ export class SkillController {
   }
 
   /**
-   * 查询技能详情
-   * @param id 技能ID
-   * @returns {Promise<Object>} 技能详情
-   */
-  @Get(':id')
-  @ApiOperation({ summary: '查询技能详情' })
-  async findOne(@Param('id') id: string) {
-    const skill = await this.skillService.findOne(id);
-    return success(skill);
-  }
-
-  /**
    * 查询技能列表
    * @param query 查询参数
    * @returns {Promise<Object>} 技能列表
@@ -105,5 +93,17 @@ export class SkillController {
   async execute(@Body() dto: ExecuteSkillDto) {
     const result = await this.skillService.execute(dto);
     return success(result);
+  }
+
+  /**
+   * 查询技能详情
+   * @param id 技能ID
+   * @returns {Promise<Object>} 技能详情
+   */
+  @Get(':id')
+  @ApiOperation({ summary: '查询技能详情' })
+  async findOne(@Param('id') id: string) {
+    const skill = await this.skillService.findOne(id);
+    return success(skill);
   }
 }

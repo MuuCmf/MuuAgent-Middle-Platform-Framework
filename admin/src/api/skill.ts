@@ -44,5 +44,14 @@ export const skillApi = {
   
   delete(id: number): Promise<AxiosResponse> {
     return adminRequest.delete(`/admin/skill/${id}`)
+  },
+  
+  /**
+   * 执行技能测试
+   * @param skillCode 技能标识
+   * @param params 执行参数
+   */
+  execute(skillCode: string, params: Record<string, unknown> = {}): Promise<AxiosResponse> {
+    return adminRequest.post('/admin/skill/execute', { skillCode, params })
   }
 }

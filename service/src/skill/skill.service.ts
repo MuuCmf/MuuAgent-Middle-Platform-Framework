@@ -144,6 +144,7 @@ export class SkillService {
       throw new HttpException('技能已禁用', HttpStatus.FORBIDDEN);
     }
 
+    const params = dto.params || {};
     const startTime = Date.now();
     let result: Record<string, unknown>;
     let success = true;
@@ -152,13 +153,13 @@ export class SkillService {
     try {
       switch (skill.type) {
         case SkillType.HTTP:
-          result = await this.executeHttpSkill(skill, dto.params);
+          result = await this.executeHttpSkill(skill, params);
           break;
         case SkillType.FUNCTION:
-          result = await this.executeFunctionSkill(skill, dto.params);
+          result = await this.executeFunctionSkill(skill, params);
           break;
         case SkillType.DATABASE:
-          result = await this.executeDatabaseSkill(skill, dto.params);
+          result = await this.executeDatabaseSkill(skill, params);
           break;
         default:
           throw new HttpException('不支持的技能类型', HttpStatus.BAD_REQUEST);
@@ -173,7 +174,7 @@ export class SkillService {
     await this.prisma.skillInvokeLog.create({
       data: {
         skillCode: skill.code,
-        request: JSON.stringify(dto.params),
+        request: JSON.stringify(params),
         response: JSON.stringify(result),
         costMs: Date.now() - startTime,
         success,

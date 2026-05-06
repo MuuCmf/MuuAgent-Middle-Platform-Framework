@@ -51,8 +51,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180">
+        <el-table-column label="操作" width="240">
           <template #default="{ row }">
+            <el-button size="small" @click="handleTest(row)">测试</el-button>
             <el-button size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
           </template>
@@ -172,6 +173,65 @@
         </div>
       </template>
     </el-drawer>
+
+    <!-- 测试技能弹窗 -->
+    <el-dialog
+      v-model="testDialogVisible"
+      title="🧪 测试技能"
+      width="600px"
+    >
+      <div class="test-dialog-content">
+        <div class="test-skill-info">
+          <p><strong>技能名称：</strong>{{ testingSkill?.name }}</p>
+          <p><strong>技能标识：</strong><el-tag type="info" size="small">{{ testingSkill?.code }}</el-tag></p>
+          <p><strong>技能类型：</strong><el-tag size="small">{{ testingSkill?.type }}</el-tag></p>
+          <p><strong>功能描述：</strong>{{ testingSkill?.description }}</p>
+        </div>
+
+        <el-divider />
+
+        <el-form label-width="80px">
+          <el-form-item label="测试参数">
+            <el-input
+              v-model="testParams"
+              type="textarea"
+              :rows="5"
+              placeholder='请输入JSON格式的参数，如：{"city": "北京"}'
+            />
+            <div class="test-params-help">
+              <el-alert type="info" :closable="false" style="margin-top: 8px;">
+                <template #title>
+                  <strong>📝 参数说明</strong>
+                </template>
+                <div v-if="testingSkill?.params">
+                  <p style="margin: 0;">该技能定义的参数格式：</p>
+                  <pre class="params-example">{{ testingSkill.params }}</pre>
+                </div>
+                <div v-else>
+                  <p style="margin: 0; color: #999;">该技能无需参数</p>
+                </div>
+              </el-alert>
+            </div>
+          </el-form-item>
+        </el-form>
+
+        <el-divider />
+
+        <div v-if="testResult" class="test-result">
+          <p><strong>执行结果：</strong></p>
+          <pre class="result-content" :class="{ 'is-error': testError }">{{ testResult }}</pre>
+        </div>
+      </div>
+
+      <template #footer>
+        <div style="text-align: right;">
+          <el-button @click="testDialogVisible = false">关闭</el-button>
+          <el-button type="primary" @click="executeTest" :loading="testLoading">
+            执行测试
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -180,6 +240,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useSkillStore } from '@/stores/skill'
+import { skillApi } from '@/api/skill'
 import type { Skill, SkillForm } from '@/api/skill'
 
 const skillStore = useSkillStore()
@@ -197,6 +258,14 @@ const form = ref<SkillForm>({
   config: '{}',
   status: true
 })
+
+// 测试相关
+const testDialogVisible = ref(false)
+const testingSkill = ref<Skill | null>(null)
+const testParams = ref('{}')
+const testResult = ref('')
+const testError = ref(false)
+const testLoading = ref(false)
 
 const resetForm = () => {
   form.value = {
@@ -254,6 +323,48 @@ const handleDelete = async (id: number) => {
   }
 }
 
+/**
+ * 打开测试弹窗
+ */
+const handleTest = (skill: Skill) => {
+  testingSkill.value = skill
+  testParams.value = skill.params || '{}'
+  testResult.value = ''
+  testError.value = false
+  testDialogVisible.value = true
+}
+
+/**
+ * 执行技能测试
+ */
+const executeTest = async () => {
+  if (!testingSkill.value) return
+  
+  let params = {}
+  try {
+    params = JSON.parse(testParams.value)
+  } catch {
+    ElMessage.error('参数格式错误，请输入有效的JSON')
+    return
+  }
+
+  testLoading.value = true
+  testResult.value = ''
+  testError.value = false
+
+  try {
+    const res = await skillApi.execute(testingSkill.value.code, params)
+    testResult.value = JSON.stringify(res.data?.data || res.data, null, 2)
+    ElMessage.success('执行成功')
+  } catch (error: any) {
+    testError.value = true
+    testResult.value = error.response?.data?.message || error.message || '执行失败'
+    ElMessage.error('执行失败')
+  } finally {
+    testLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadSkills()
 })
@@ -291,6 +402,48 @@ onMounted(() => {
     border-radius: 3px;
     color: #409eff;
     font-family: 'Courier New', Courier, monospace;
+  }
+}
+
+.test-dialog-content {
+  .test-skill-info {
+    p {
+      margin: 8px 0;
+      line-height: 1.6;
+    }
+  }
+
+  .test-params-help {
+    .params-example {
+      background: #f5f7fa;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      margin-top: 8px;
+      overflow-x: auto;
+    }
+  }
+
+  .test-result {
+    .result-content {
+      background: #f0f9eb;
+      padding: 12px;
+      border-radius: 4px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      overflow-x: auto;
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #e1f3d8;
+
+      &.is-error {
+        background: #fef0f0;
+        border-color: #fde2e2;
+        color: #f56c6c;
+      }
+    }
   }
 }
 </style>

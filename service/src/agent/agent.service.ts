@@ -198,6 +198,7 @@ export class AgentService {
     }
 
     const steps: Array<{ step: number; action: string; result: unknown }> = [];
+    const originalMessage = dto.message;
     let currentMessage = dto.message;
     let finalResponse = '';
     let success = true;
@@ -223,11 +224,6 @@ export class AgentService {
           break;
         }
 
-        if (toolCall.skill === 'none') {
-          finalResponse = llmResult.response;
-          break;
-        }
-
         // 执行技能
         steps.push({
           step: step + 1,
@@ -244,7 +240,15 @@ export class AgentService {
           steps[steps.length - 1].result = skillResult;
 
           // 将技能结果返回给LLM继续处理
-          currentMessage = `工具执行结果: ${JSON.stringify(skillResult)}\n请根据结果回答用户的问题。`;
+          const resultText = typeof skillResult === 'object' ? JSON.stringify(skillResult, null, 2) : String(skillResult);
+          currentMessage = `用户问题: ${originalMessage}
+
+【工具调用结果】
+工具名称: ${toolCall.skill}
+执行结果:
+${resultText}
+
+请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
         } catch (error) {
           steps[steps.length - 1].result = {
             error: error instanceof Error ? error.message : '执行失败',
@@ -343,6 +347,7 @@ export class AgentService {
     }
 
     const steps: Array<{ step: number; action: string; result: unknown }> = [];
+    const originalMessage = dto.message;
     let currentMessage = dto.message;
     let finalResponse = '';
     let success = true;
@@ -358,10 +363,11 @@ export class AgentService {
       for (let step = 0; step < agent.maxSteps; step++) {
         // 调用LLM（流式）
         let llmResponse = '';
+        const chunks: string[] = [];
         const tokenInfo = await new Promise<{ inputTokens?: number; outputTokens?: number }>((resolve) => {
           this.callLLMStream(model, systemPrompt, currentMessage, agent.temperature, (chunk) => {
             llmResponse += chunk;
-            sendChunk({ type: 'chunk', content: chunk });
+            chunks.push(chunk);
           }, resolve);
         });
 
@@ -373,17 +379,15 @@ export class AgentService {
         const toolCall = this.parseToolCall(llmResponse);
 
         if (!toolCall) {
-          // 不需要调用工具，直接返回
+          // 不需要调用工具，发送缓存的chunk
+          for (const chunk of chunks) {
+            sendChunk({ type: 'chunk', content: chunk });
+          }
           finalResponse = llmResponse;
           break;
         }
 
-        if (toolCall.skill === 'none') {
-          finalResponse = llmResponse;
-          break;
-        }
-
-        // 执行技能
+        // 需要调用工具，执行技能
         steps.push({
           step: step + 1,
           action: `调用技能: ${toolCall.skill}`,
@@ -402,7 +406,15 @@ export class AgentService {
           sendChunk({ type: 'tool', skill: toolCall.skill, result: skillResult });
 
           // 将技能结果返回给LLM继续处理
-          currentMessage = `工具执行结果: ${JSON.stringify(skillResult)}\n请根据结果回答用户的问题。`;
+          const resultText = typeof skillResult === 'object' ? JSON.stringify(skillResult, null, 2) : String(skillResult);
+          currentMessage = `用户问题: ${originalMessage}
+
+【工具调用结果】
+工具名称: ${toolCall.skill}
+执行结果:
+${resultText}
+
+请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
         } catch (error) {
           steps[steps.length - 1].result = {
             error: error instanceof Error ? error.message : '执行失败',
@@ -509,6 +521,7 @@ export class AgentService {
     }
 
     const steps: Array<{ step: number; action: string; result: unknown }> = [];
+    const originalMessage = dto.message;
     let currentMessage = dto.message;
     let finalResponse = '';
     let success = true;
@@ -520,10 +533,11 @@ export class AgentService {
       for (let step = 0; step < agent.maxSteps; step++) {
         // 调用LLM（流式）
         let llmResponse = '';
+        const chunks: string[] = [];
         const tokenInfo = await new Promise<{ inputTokens?: number; outputTokens?: number }>((resolve) => {
           this.callLLMStream(model, systemPrompt, currentMessage, agent.temperature, (chunk) => {
             llmResponse += chunk;
-            observer.next(new MessageEvent('message', { data: JSON.stringify({ type: 'chunk', content: chunk }) + '\n' }));
+            chunks.push(chunk);
           }, resolve);
         });
 
@@ -535,17 +549,15 @@ export class AgentService {
         const toolCall = this.parseToolCall(llmResponse);
 
         if (!toolCall) {
-          // 不需要调用工具，直接返回
+          // 不需要调用工具，发送缓存的chunk
+          for (const chunk of chunks) {
+            observer.next(new MessageEvent('message', { data: JSON.stringify({ type: 'chunk', content: chunk }) + '\n' }));
+          }
           finalResponse = llmResponse;
           break;
         }
 
-        if (toolCall.skill === 'none') {
-          finalResponse = llmResponse;
-          break;
-        }
-
-        // 执行技能
+        // 需要调用工具，执行技能
         steps.push({
           step: step + 1,
           action: `调用技能: ${toolCall.skill}`,
@@ -570,7 +582,15 @@ export class AgentService {
           }));
 
           // 将技能结果返回给LLM继续处理
-          currentMessage = `工具执行结果: ${JSON.stringify(skillResult)}\n请根据结果回答用户的问题。`;
+          const resultText = typeof skillResult === 'object' ? JSON.stringify(skillResult, null, 2) : String(skillResult);
+          currentMessage = `用户问题: ${originalMessage}
+
+【工具调用结果】
+工具名称: ${toolCall.skill}
+执行结果:
+${resultText}
+
+请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
         } catch (error) {
           steps[steps.length - 1].result = {
             error: error instanceof Error ? error.message : '执行失败',
@@ -625,11 +645,21 @@ export class AgentService {
 
     if (skillDescriptions) {
       prompt += `\n\n你可以使用以下工具:\n${skillDescriptions}`;
-      prompt += `\n\n如果需要使用工具，请严格按以下JSON格式输出，不要输出其他内容:
-{"skill":"工具标识","params":{"参数名":"参数值"}}
+      prompt += `
 
-如果不需要使用工具，请输出:
-{"skill":"none"}`;
+【重要】工具调用规则：
+1. 如果需要使用工具，请只输出JSON格式的工具调用，不要输出其他任何内容
+2. 如果不需要使用工具，请直接用自然语言回答用户问题，不要输出JSON
+3. JSON格式示例：
+   - 调用工具: {"skill":"工具标识","params":{"参数名":"参数值"}}
+   - 不调用工具: 直接回答，不要输出JSON
+
+示例：
+用户: 现在几点了？
+助手: {"skill":"get_time","params":{}}
+
+用户: 你好
+助手: 你好！很高兴为您服务，请问有什么可以帮助您的？`;
     }
 
     return prompt;
@@ -786,17 +816,25 @@ export class AgentService {
    */
   private parseToolCall(text: string): Record<string, unknown> | null {
     try {
-      // 尝试提取JSON
-      const jsonMatch = text.match(/\{[\s\S]*?\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed.skill) {
-          return parsed;
-        }
+      const trimmedText = text.trim();
+      
+      // 只有当整个响应是纯JSON对象时才认为是工具调用
+      if (!trimmedText.startsWith('{') || !trimmedText.endsWith('}')) {
+        return null;
       }
+      
+      // 尝试解析整个文本为JSON
+      const parsed = JSON.parse(trimmedText);
+      
+      // 必须包含skill字段才认为是工具调用
+      if (parsed.skill && typeof parsed.skill === 'string') {
+        return parsed;
+      }
+      
+      return null;
     } catch {
-      // 解析失败，返回null
+      // 解析失败，说明不是JSON格式，返回null
+      return null;
     }
-    return null;
   }
 }

@@ -113,8 +113,9 @@ export class ExecuteSkillDto {
   @IsNotEmpty()
   skillCode: string;
 
-  @ApiProperty({ description: '执行参数(JSON格式)', example: '{"city":"北京"}' })
-  params: Record<string, unknown>;
+  @ApiPropertyOptional({ description: '执行参数(JSON格式)', example: '{"city":"北京"}' })
+  @IsOptional()
+  params?: Record<string, unknown>;
 }
 
 /**
