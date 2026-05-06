@@ -113,6 +113,34 @@ export class LogController {
   }
 
   /**
+   * 查询单个Agent调用日志详情
+   * @param id 日志ID
+   * @returns {Promise<Object>} 日志详情
+   */
+  @Get('agent/:id')
+  @ApiOperation({ summary: '查询单个Agent调用日志详情' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 404, description: '日志不存在' })
+  async getAgentLogById(@Param('id') id: string) {
+    const result = await this.logService.getAgentLogById(id);
+    return success(result);
+  }
+
+  /**
+   * 查询单个Skill调用日志详情
+   * @param id 日志ID
+   * @returns {Promise<Object>} 日志详情
+   */
+  @Get('skill/:id')
+  @ApiOperation({ summary: '查询单个Skill调用日志详情' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 404, description: '日志不存在' })
+  async getSkillLogById(@Param('id') id: string) {
+    const result = await this.logService.getSkillLogById(id);
+    return success(result);
+  }
+
+  /**
    * 获取调用统计
    * @param startTime 开始时间
    * @param endTime 结束时间

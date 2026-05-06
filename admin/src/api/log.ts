@@ -47,6 +47,45 @@ export interface Statistics {
   }>
 }
 
+export interface SkillLog {
+  id: string
+  skillId: string
+  skillName: string
+  skillCode: string
+  request: string
+  response?: string
+  costMs: number
+  success: boolean
+  errorMessage?: string
+  clientIp?: string
+  userAgent?: string
+  createdAt: string
+}
+
+export interface AgentLog {
+  id: string
+  agentId: string
+  userMessage?: string
+  agentResponse?: string
+  request: string
+  response?: string
+  steps?: string
+  totalCostMs?: number
+  costMs: number
+  success: boolean
+  errorMessage?: string
+  clientIp?: string
+  userAgent?: string
+  createdAt: string
+  inputTokens?: number
+  outputTokens?: number
+  agent?: {
+    id: string
+    name: string
+    code: string
+  }
+}
+
 export const logApi = {
   /**
    * 获取AI调用日志列表
@@ -73,6 +112,58 @@ export const logApi = {
    */
   getAiLogById(id: string): Promise<AxiosResponse<{ data: Log }>> {
     return adminRequest.get(`/admin/log/ai/${id}`)
+  },
+
+  /**
+   * 获取技能调用日志列表
+   * @param params 查询参数
+   * @returns {Promise<AxiosResponse>} 日志列表响应
+   */
+  getSkillLogs(params?: {
+    skillId?: string
+    skillCode?: string
+    success?: boolean
+    startTime?: string
+    endTime?: string
+    page?: number
+    pageSize?: number
+  }): Promise<AxiosResponse<{ data: { list: SkillLog[]; total: number; page: number; pageSize: number } }>> {
+    return adminRequest.get('/admin/log/skill', { params })
+  },
+
+  /**
+   * 获取Agent调用日志列表
+   * @param params 查询参数
+   * @returns {Promise<AxiosResponse>} 日志列表响应
+   */
+  getAgentLogs(params?: {
+    agentId?: string
+    agentCode?: string
+    success?: boolean
+    startTime?: string
+    endTime?: string
+    page?: number
+    pageSize?: number
+  }): Promise<AxiosResponse<{ data: { list: AgentLog[]; total: number; page: number; pageSize: number } }>> {
+    return adminRequest.get('/admin/log/agent', { params })
+  },
+
+  /**
+   * 获取单个Agent调用日志详情
+   * @param id 日志ID
+   * @returns {Promise<AxiosResponse>} 日志详情响应
+   */
+  getAgentLogById(id: string): Promise<AxiosResponse<{ data: AgentLog }>> {
+    return adminRequest.get(`/admin/log/agent/${id}`)
+  },
+
+  /**
+   * 获取单个Skill调用日志详情
+   * @param id 日志ID
+   * @returns {Promise<AxiosResponse>} 日志详情响应
+   */
+  getSkillLogById(id: string): Promise<AxiosResponse<{ data: SkillLog }>> {
+    return adminRequest.get(`/admin/log/skill/${id}`)
   },
 
   /**

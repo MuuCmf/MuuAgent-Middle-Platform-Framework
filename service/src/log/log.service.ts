@@ -298,6 +298,7 @@ export class LogService {
    */
   async getAgentLogs(params: {
     agentId?: string;
+    agentCode?: string;
     conversationId?: string;
     success?: boolean;
     startTime?: string;
@@ -308,6 +309,7 @@ export class LogService {
   }) {
     const {
       agentId,
+      agentCode,
       conversationId,
       success,
       startTime,
@@ -321,7 +323,17 @@ export class LogService {
     const skip = (page - 1) * pageSize;
     const where: Prisma.AgentInvokeLogWhereInput = {};
 
-    if (agentId) where.agentId = agentId;
+    if (agentId) {
+      where.agentId = agentId;
+    } else if (agentCode) {
+      const agent = await this.prisma.agent.findFirst({
+        where: { code: agentCode },
+        select: { id: true },
+      });
+      if (agent) {
+        where.agentId = agent.id;
+      }
+    }
     if (conversationId) where.conversationId = conversationId;
     if (success !== undefined) where.success = success;
     if (uid) where.uid = uid;
@@ -332,17 +344,89 @@ export class LogService {
       if (endTime) where.createdAt.lte = new Date(endTime);
     }
 
-    const [list, total] = await Promise.all([
+    const [rawList, total] = await Promise.all([
       this.prisma.agentInvokeLog.findMany({
         where,
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
+        include: {
+          agent: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
       }),
       this.prisma.agentInvokeLog.count({ where }),
     ]);
 
+    // 字段映射：将数据库字段转换为前端期望的字段名
+    const list = rawList.map((log) => ({
+      ...log,
+      request: log.userMessage,
+      response: log.agentResponse,
+      costMs: log.totalCostMs,
+      userAgent: undefined,
+      inputTokens: log.inputTokens,
+      outputTokens: log.outputTokens,
+    }));
+
     return { list, total, page, pageSize };
+  }
+
+  /**
+   * 查询单个Agent调用日志详情
+   * @param id 日志ID
+   * @returns {Promise<Object>} 日志详情
+   */
+  async getAgentLogById(id: string) {
+    const log = await this.prisma.agentInvokeLog.findUnique({
+      where: { id },
+      include: {
+        agent: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+      },
+    });
+
+    if (!log) {
+      throw new Error('Agent调用日志不存在');
+    }
+
+    // 字段映射：将数据库字段转换为前端期望的字段名
+    return {
+      ...log,
+      request: log.userMessage,
+      response: log.agentResponse,
+      costMs: log.totalCostMs,
+      userAgent: undefined,
+      inputTokens: log.inputTokens,
+      outputTokens: log.outputTokens,
+    };
+  }
+
+  /**
+   * 查询单个Skill调用日志详情
+   * @param id 日志ID
+   * @returns {Promise<Object>} 日志详情
+   */
+  async getSkillLogById(id: string) {
+    const log = await this.prisma.skillInvokeLog.findUnique({
+      where: { id },
+    });
+
+    if (!log) {
+      throw new Error('Skill调用日志不存在');
+    }
+
+    return log;
   }
 
   /**

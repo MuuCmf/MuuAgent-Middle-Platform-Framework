@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -195,6 +195,8 @@ model AgentInvokeLog {
   errorMessage String?  /// 错误信息
   clientIp     String?  /// 客户端IP
   uid          String?  /// 调用用户唯一标识(透传)
+  inputTokens  Int?     /// 输入token数
+  outputTokens Int?     /// 输出token数
   createdAt    DateTime @default(now())
 
   agent Agent @relation(fields: [agentId], references: [id])

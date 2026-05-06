@@ -187,23 +187,29 @@ export class AgentService {
     let finalResponse = '';
     let success = true;
     let errorMessage: string | null = null;
+    let inputTokens = 0;
+    let outputTokens = 0;
 
     try {
       for (let step = 0; step < agent.maxSteps; step++) {
         // 调用LLM
-        const llmResponse = await this.callLLM(model, systemPrompt, currentMessage, agent.temperature);
+        const llmResult = await this.callLLM(model, systemPrompt, currentMessage, agent.temperature);
+
+        // 累加token用量
+        if (llmResult.inputTokens) inputTokens += llmResult.inputTokens;
+        if (llmResult.outputTokens) outputTokens += llmResult.outputTokens;
 
         // 解析是否需要调用工具
-        const toolCall = this.parseToolCall(llmResponse);
+        const toolCall = this.parseToolCall(llmResult.response);
 
         if (!toolCall) {
           // 不需要调用工具，直接返回
-          finalResponse = llmResponse;
+          finalResponse = llmResult.response;
           break;
         }
 
         if (toolCall.skill === 'none') {
-          finalResponse = llmResponse;
+          finalResponse = llmResult.response;
           break;
         }
 
@@ -254,6 +260,8 @@ export class AgentService {
         errorMessage,
         clientIp,
         uid,
+        inputTokens: inputTokens > 0 ? inputTokens : undefined,
+        outputTokens: outputTokens > 0 ? outputTokens : undefined,
       },
     });
 
@@ -291,14 +299,14 @@ export class AgentService {
    * @param systemPrompt 系统提示词
    * @param userMessage 用户消息
    * @param temperature 温度参数
-   * @returns {Promise<string>} LLM响应
+   * @returns {Promise<{ response: string; inputTokens?: number; outputTokens?: number }>} LLM响应和token信息
    */
   private async callLLM(
     model: Record<string, unknown>,
     systemPrompt: string,
     userMessage: string,
     temperature: number,
-  ): Promise<string> {
+  ): Promise<{ response: string; inputTokens?: number; outputTokens?: number }> {
     try {
       const response = await axios.post(
         model.endpoint as string,
@@ -318,7 +326,17 @@ export class AgentService {
         },
       );
 
-      return response.data.choices?.[0]?.message?.content || '';
+      const content = response.data.choices?.[0]?.message?.content || '';
+      const usage = response.data.usage;
+      let inputTokens: number | undefined;
+      let outputTokens: number | undefined;
+
+      if (usage) {
+        inputTokens = usage.prompt_tokens ?? usage.input_tokens;
+        outputTokens = usage.completion_tokens ?? usage.output_tokens;
+      }
+
+      return { response: content, inputTokens, outputTokens };
     } catch (error) {
       throw new Error(`LLM调用失败: ${error instanceof Error ? error.message : '未知错误'}`);
     }
