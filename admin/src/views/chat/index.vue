@@ -56,9 +56,9 @@
           <el-select v-model="selectedKb" placeholder="请选择知识库" style="width: 250px;">
             <el-option
               v-for="kb in enabledKbs"
-              :key="kb.id"
+              :key="kb.kbId"
               :label="`📚 ${kb.kbName} (${kb.kbCode})`"
-              :value="kb.id"
+              :value="kb.kbId"
             />
           </el-select>
         </el-form-item>
@@ -151,6 +151,22 @@
                   </div>
                 </div>
               </div>
+              <div v-else-if="msg.role === 'assistant' && msg.tools && msg.tools.length > 0">
+                <div v-if="msg.tools.length > 0" class="agent-tools">
+                  <div style="margin-bottom: 8px; color: #667eea; font-weight: 600;">
+                    🛠️ 执行的工具：
+                  </div>
+                  <div
+                    v-for="(tool, tIdx) in msg.tools"
+                    :key="tIdx"
+                    class="tool-result"
+                  >
+                    <div class="tool-name">• {{ tool.skill }}</div>
+                    <div class="tool-content">{{ typeof tool.result === 'object' ? JSON.stringify(tool.result, null, 2) : tool.result }}</div>
+                  </div>
+                </div>
+                <div style="white-space: pre-wrap; margin-top: 12px;">{{ msg.content }}</div>
+              </div>
               <div v-else>{{ msg.content }}</div>
             </div>
           </div>
@@ -185,7 +201,8 @@ import { aiApi } from '@/api/ai'
 import { agentApi } from '@/api/agent'
 import { kbApi } from '@/api/kb'
 import { retrievalApi } from '@/api/retrieval'
-import type { KbInfo, RetrievalItem } from '@/api/retrieval'
+import type { RetrievalItem } from '@/api/retrieval'
+import type { KbInfo } from '@/api/kb'
 
 const modelStore = useModelStore()
 const agentStore = useAgentStore()
@@ -287,9 +304,39 @@ const sendMessage = async () => {
         }
       )
     } else if (chatMode.value === 'agent') {
-      const res = await agentApi.chat(selectedAgent.value!, userMsg)
-      const response = res.data.data?.response || '无响应'
-      chatMessages.value.push({ role: 'assistant', content: response })
+      chatMessages.value.push({ role: 'assistant', content: '', tools: [] })
+      const assistantMsgIndex = chatMessages.value.length - 1
+      
+      await agentApi.streamChat(
+        selectedAgent.value!,
+        userMsg,
+        (content: string) => {
+          chatMessages.value[assistantMsgIndex].content += content
+          nextTick(() => {
+            if (chatMessagesRef.value) {
+              chatMessagesRef.value.scrollTop = chatMessagesRef.value.scrollHeight
+            }
+          })
+        },
+        (skill: string, result: any) => {
+          if (!chatMessages.value[assistantMsgIndex].tools) {
+            chatMessages.value[assistantMsgIndex].tools = []
+          }
+          chatMessages.value[assistantMsgIndex].tools.push({ skill, result })
+          nextTick(() => {
+            if (chatMessagesRef.value) {
+              chatMessagesRef.value.scrollTop = chatMessagesRef.value.scrollHeight
+            }
+          })
+        },
+        (error: any) => {
+          console.error('智能体流式调用错误:', error)
+          chatMessages.value[assistantMsgIndex].content = '调用失败: ' + (error.message || '未知错误')
+        },
+        () => {
+          chatLoading.value = false
+        }
+      )
     } else {
       const payload: any = {
         modelType: 'llm',
@@ -432,6 +479,34 @@ onMounted(() => {
     .source-score {
       color: #52c41a;
       margin-left: 8px;
+    }
+  }
+}
+
+.agent-tools {
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 3px solid #10b981;
+  
+  .tool-result {
+    margin-bottom: 8px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+    
+    .tool-name {
+      font-weight: 600;
+      color: #10b981;
+      margin-bottom: 4px;
+    }
+    
+    .tool-content {
+      font-size: 13px;
+      color: #666;
+      white-space: pre-wrap;
+      word-break: break-all;
     }
   }
 }

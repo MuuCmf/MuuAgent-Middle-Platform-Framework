@@ -135,6 +135,11 @@ export class AgentChatDto {
   @IsString()
   @IsOptional()
   uid?: string;
+
+  @ApiPropertyOptional({ description: '是否流式输出', default: false })
+  @IsBoolean()
+  @IsOptional()
+  stream?: boolean;
 }
 
 /**

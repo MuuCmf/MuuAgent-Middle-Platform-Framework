@@ -143,13 +143,13 @@ model AiInvokeLog {
   modelId     String?  /// 调用的模型ID
   modelCode   String   /// 模型标识码
   modelType   String   /// 模型类型
-  request     String   /// 请求数据(JSON)
-  response    String?  /// 响应数据(JSON)
+  request     String   @db.Text /// 请求数据(JSON)
+  response    String?  @db.Text /// 响应数据(JSON)
   costMs      Int      /// 耗时(毫秒)
   inputTokens Int?     /// 输入Token数
   outputTokens Int?    /// 输出Token数
   success     Boolean  /// 是否成功
-  errorMessage String? /// 错误信息
+  errorMessage String? @db.Text /// 错误信息
   clientIp    String?  /// 客户端IP
   userAgent   String?  /// 用户代理
   uid         String?  /// 调用用户唯一标识(透传)
@@ -168,11 +168,11 @@ model SkillInvokeLog {
   id        String   @id @default(uuid())
   skillCode String   /// 技能标识码
   agentId   String?  /// 调用的智能体ID
-  request   String   /// 请求数据(JSON)
-  response  String?  /// 响应数据(JSON)
+  request   String   @db.Text /// 请求数据(JSON)
+  response  String?  @db.Text /// 响应数据(JSON)
   costMs    Int      /// 耗时(毫秒)
   success   Boolean  /// 是否成功
-  errorMessage String? /// 错误信息
+  errorMessage String? @db.Text /// 错误信息
   uid       String?  /// 调用用户唯一标识(透传)
   createdAt DateTime @default(now())
 
@@ -187,12 +187,12 @@ model AgentInvokeLog {
   id           String   @id @default(uuid())
   agentId      String   /// 智能体ID
   conversationId String? /// 会话ID
-  userMessage  String   /// 用户消息
-  agentResponse String? /// 智能体回复
-  steps        String?  /// 执行步骤(JSON)
+  userMessage  String   @db.Text /// 用户消息
+  agentResponse String? @db.Text /// 智能体回复
+  steps        String?  @db.Text /// 执行步骤(JSON)
   totalCostMs  Int      /// 总耗时(毫秒)
   success      Boolean  /// 是否成功
-  errorMessage String?  /// 错误信息
+  errorMessage String?  @db.Text /// 错误信息
   clientIp     String?  /// 客户端IP
   uid          String?  /// 调用用户唯一标识(透传)
   inputTokens  Int?     /// 输入token数

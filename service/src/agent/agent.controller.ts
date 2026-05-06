@@ -9,6 +9,7 @@ import {
   Query,
   Req,
   UseGuards,
+  Res,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AgentService } from './agent.service';
@@ -22,7 +23,7 @@ import {
   QueryAgentDto,
 } from './dto/agent.dto';
 import { success, page } from '../common/response/api.response';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 
 /**
  * 智能体管理控制器（管理端）
@@ -125,7 +126,7 @@ export class AgentController {
   }
 
   /**
-   * Agent对话
+   * Agent对话（同步）
    * @param dto 对话请求DTO
    * @param req 请求对象
    * @returns {Promise<Object>} 对话结果
@@ -134,7 +135,28 @@ export class AgentController {
   @ApiOperation({ summary: 'Agent对话' })
   async chat(@Body() dto: AgentChatDto, @Req() req: Request) {
     const uid = this.extractUid(req, dto);
-    const result = await this.agentService.chat(dto, req.ip || 'unknown', uid);
+    const result = await this.agentService.syncChat(dto, req.ip || 'unknown', uid);
     return success(result);
+  }
+
+  /**
+   * Agent对话（流式）
+   * @param dto 对话请求DTO
+   * @param req 请求对象
+   * @param res 响应对象
+   */
+  @Post('chat/stream')
+  @ApiOperation({ summary: 'Agent对话（流式）' })
+  async chatStream(@Body() dto: AgentChatDto, @Req() req: Request, @Res() res: Response) {
+    const uid = this.extractUid(req, dto);
+    
+    // 设置响应头
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    // 使用服务端流式响应
+    await this.agentService.streamChatToResponse(dto, req.ip || 'unknown', uid, res);
   }
 }

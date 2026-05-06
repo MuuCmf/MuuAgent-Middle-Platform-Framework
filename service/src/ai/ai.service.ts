@@ -205,9 +205,10 @@ export class AiService {
             timeout: 0,
           });
 
-          let fullResponse = '';
+          const fullResponse: any[] = [];
           let buffer = '';
           let tokenInfo: { inputTokens?: number; outputTokens?: number } = {};
+          let finalResponse: Record<string, unknown> | null = null;
 
           response.data.on('data', (chunk: Buffer) => {
             const text = chunk.toString();
@@ -246,10 +247,12 @@ export class AiService {
                     if (parsed.usage) {
                       tokenInfo = this.extractTokenInfo(parsed);
                     }
+
+                    // 收集响应片段用于日志
+                    fullResponse.push(parsed);
                     
                     // 发送JSON数据（带换行符）
                     const jsonData = JSON.stringify(parsed);
-                    fullResponse += jsonData;
                     observer.next(new MessageEvent('message', { data: jsonData + '\n' }));
                   } catch (e) {
                     // JSON解析失败，跳过
@@ -264,13 +267,19 @@ export class AiService {
             // 记录成功
             await this.mcpService.reportSuccess(model.id);
 
+            // 合并流式响应为一个完整的响应对象
+            if (fullResponse.length > 0) {
+              // 尝试合并所有片段为一个完整响应
+              finalResponse = this.mergeStreamResponses(fullResponse);
+            }
+
             // 记录日志
             await this.saveLog({
               modelId: model.id,
               modelCode: model.code,
               modelType,
               request: JSON.stringify(dto),
-              response: fullResponse,
+              response: finalResponse ? JSON.stringify(finalResponse) : JSON.stringify(fullResponse),
               costMs: Date.now() - startTime,
               success: true,
               clientIp,
@@ -573,6 +582,55 @@ export class AiService {
     }
 
     return {};
+  }
+
+  /**
+   * 合并流式响应片段为完整响应
+   * @param responses 响应片段数组
+   * @returns {Record<string, unknown>} 合并后的完整响应
+   */
+  private mergeStreamResponses(responses: any[]): Record<string, unknown> {
+    if (!responses || responses.length === 0) {
+      return {};
+    }
+
+    // 获取最后一个响应作为基础
+    const lastResponse = responses[responses.length - 1];
+    const merged: Record<string, unknown> = { ...lastResponse };
+
+    // 合并所有choices的delta内容
+    if (lastResponse.choices && Array.isArray(lastResponse.choices)) {
+      const mergedChoices = lastResponse.choices.map((choice: any, index: number) => {
+        const mergedChoice = { ...choice };
+        
+        // 合并所有delta内容
+        if (choice.delta && choice.delta.content !== undefined) {
+          let fullContent = '';
+          responses.forEach((resp) => {
+            if (resp.choices && resp.choices[index] && resp.choices[index].delta) {
+              fullContent += resp.choices[index].delta.content || '';
+            }
+          });
+          mergedChoice.delta = { ...choice.delta, content: fullContent };
+          mergedChoice.message = { ...choice.message, content: fullContent };
+        }
+
+        return mergedChoice;
+      });
+      merged.choices = mergedChoices;
+    }
+
+    // 如果最后一个响应没有usage，但前面的响应有，合并进来
+    if (!merged.usage) {
+      for (const resp of responses) {
+        if (resp.usage) {
+          merged.usage = resp.usage;
+          break;
+        }
+      }
+    }
+
+    return merged;
   }
 
   /**

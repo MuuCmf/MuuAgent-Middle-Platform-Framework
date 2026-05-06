@@ -63,7 +63,7 @@ export const kbApi = {
    * @returns {Promise<AxiosResponse>} 创建结果
    */
   create(data: {
-    uid: string
+    uid?: string
     kbName: string
     kbCode: string
     embeddingModel?: string
@@ -82,7 +82,7 @@ export const kbApi = {
    * @returns {Promise<AxiosResponse>} 更新结果
    */
   update(data: {
-    uid: string
+    uid?: string
     kbId: string
     kbName?: string
     embeddingModel?: string
