@@ -44,7 +44,7 @@ export class VectorService implements OnModuleInit {
       this.logger.log(`Qdrant 客户端连接成功: ${this.config.host}:${this.config.port}`);
     } catch (error) {
       this.logger.error('Qdrant 客户端连接失败:', error);
-      throw error;
+      //throw error;
     }
   }
 

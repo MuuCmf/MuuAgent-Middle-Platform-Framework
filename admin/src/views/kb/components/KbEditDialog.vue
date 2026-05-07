@@ -107,7 +107,7 @@ const rules: FormRules = {
   kbCode: [{ required: true, message: '请输入知识库标识', trigger: 'blur' }],
   embeddingModel: [
     { 
-      validator: (rule, value, callback) => {
+      validator: (_rule, value, callback) => {
         if (formData.retrievalMethod === 'vector' && !value) {
           callback(new Error('请选择向量模型'))
         } else {
