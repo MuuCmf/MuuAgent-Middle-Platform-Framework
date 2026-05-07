@@ -87,12 +87,40 @@ export class RetrievalService {
     // 生成查询向量
     const queryVector = await this.generateEmbedding(dto.query);
 
-    // 使用向量库进行检索
-    const vectorResults = await this.vectorService.searchSimilar(
-      queryVector,
-      topN * 2, // 多取一些结果用于过滤
-      dto.kbId,
-    );
+    // 使用向量库进行检索（添加错误处理）
+    let vectorResults: any[] = [];
+    try {
+      vectorResults = await this.vectorService.searchSimilar(
+        queryVector,
+        topN * 2, // 多取一些结果用于过滤
+        dto.kbId,
+      );
+    } catch (error) {
+      console.log('向量检索异常:', error.data);
+      // 记录错误日志
+      console.error(`向量检索失败: ${error.message}`);
+      // 向量检索失败时返回空结果
+      const costTime = Date.now() - startTime;
+      await this.prisma.kbRetrievalLog.create({
+        data: {
+          kbId: dto.kbId,
+          uid: dto.uid,
+          query: dto.query,
+          topN,
+          similarityThresh,
+          retrievalCount: 0,
+          costTime,
+          requestId,
+        },
+      });
+      return {
+        list: [],
+        total: 0,
+        costTime,
+        cacheHit: false,
+        error: '向量检索服务暂时不可用',
+      };
+    }
 
     // 按相似度阈值过滤
     const filteredResults = vectorResults.filter((result) => result.score >= similarityThresh);

@@ -147,34 +147,47 @@ export class VectorService implements OnModuleInit {
       const name = this.getCollectionName(collectionName);
       this.logger.debug(`搜索相似向量: topK=${topK}, kbId=${kbId || 'all'}`);
 
-      const filter = kbId
-        ? {
-            must: [
-              {
-                key: 'kb_id',
-                match: {
-                  value: kbId,
+      // 尝试搜索，如果集合不存在则自动创建
+      try {
+        const filter = kbId
+          ? {
+              must: [
+                {
+                  key: 'kb_id',
+                  match: {
+                    value: kbId,
+                  },
                 },
-              },
-            ],
-          }
-        : undefined;
+              ],
+            }
+          : undefined;
 
-      const result = await this.client.search(name, {
-        vector: queryVector,
-        limit: topK,
-        filter,
-        with_payload: true,
-        with_vector: false,
-      });
+        const result = await this.client.search(name, {
+          vector: queryVector,
+          limit: topK,
+          filter,
+          with_payload: true,
+          with_vector: false,
+        });
 
-      const results: VectorSearchResult[] = result.map((hit) => ({
-        id: String(hit.id),
-        score: hit.score,
-        payload: hit.payload as unknown as VectorPayload,
-      }));
+        const results: VectorSearchResult[] = result.map((hit) => ({
+          id: String(hit.id),
+          score: hit.score,
+          payload: hit.payload as unknown as VectorPayload,
+        }));
 
-      return results;
+        return results;
+      } catch (searchError: any) {
+        // 记录错误日志
+        this.logger.error(`搜索异常: ${searchError.data?.status?.error || searchError.message}`);
+        // 如果集合不存在，尝试创建后再搜索
+        if (searchError.data && searchError.data?.status?.error?.includes("doesn't exist")) {
+          this.logger.warn(`集合 ${name} 不存在，正在创建...`);
+          await this.initCollection(name);
+          return []; // 新创建的集合为空，返回空结果
+        }
+        throw searchError;
+      }
     } catch (error) {
       this.logger.error('搜索相似向量失败:', error);
       throw error;
