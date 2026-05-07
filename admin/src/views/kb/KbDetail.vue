@@ -2,7 +2,9 @@
   <div class="kb-detail" v-loading="loading">
     <div class="header">
       <el-button @click="handleBack">
-        <el-icon><ArrowLeft /></el-icon>
+        <el-icon>
+          <ArrowLeft />
+        </el-icon>
         返回
       </el-button>
       <h2>{{ kbInfo?.kbName || '知识库详情' }}</h2>
@@ -44,6 +46,10 @@
             <span>配置参数</span>
           </template>
           <div class="info-item">
+            <span class="label">检索方式：</span>
+            <span class="value">{{ kbInfo?.retrievalMethod === 'bm25' ? 'BM25检索' : '向量检索' }}</span>
+          </div>
+          <div class="info-item" v-if="kbInfo?.retrievalMethod !== 'bm25'">
             <span class="label">向量模型：</span>
             <span class="value">{{ kbInfo?.embeddingModel }}</span>
           </div>
@@ -63,10 +69,6 @@
             <span class="label">召回条数：</span>
             <span class="value">{{ kbInfo?.topN }}</span>
           </div>
-          <div class="info-item">
-            <span class="label">检索方式：</span>
-            <span class="value">{{ kbInfo?.retrievalMethod === 'bm25' ? 'BM25检索' : '向量检索' }}</span>
-          </div>
         </el-card>
       </el-col>
 
@@ -75,13 +77,11 @@
           <template #header>
             <div class="card-header">
               <span>文档列表</span>
-              <el-upload
-                :show-file-list="false"
-                :before-upload="handleUpload"
-                accept=".pdf,.doc,.docx,.txt,.md"
-              >
+              <el-upload :show-file-list="false" :before-upload="handleUpload" accept=".pdf,.doc,.docx,.txt,.md">
                 <el-button type="primary" size="small">
-                  <el-icon><Upload /></el-icon>
+                  <el-icon>
+                    <Upload />
+                  </el-icon>
                   上传文档
                 </el-button>
               </el-upload>
@@ -112,13 +112,8 @@
           </el-table>
 
           <div class="pagination">
-            <el-pagination
-              v-model:current-page="currentPage"
-              v-model:page-size="pageSize"
-              :total="total"
-              layout="total, prev, pager, next"
-              @current-change="handlePageChange"
-            />
+            <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :total="total"
+              layout="total, prev, pager, next" @current-change="handlePageChange" />
           </div>
         </el-card>
       </el-col>
@@ -182,12 +177,12 @@ const handleUpload = async (file: File) => {
   try {
     const userStr = localStorage.getItem('admin_user')
     const user = userStr ? JSON.parse(userStr) : null
-    
+
     if (!user?.id) {
       ElMessage.error('用户信息获取失败，请重新登录')
       return false
     }
-    
+
     await documentApi.upload(user.id, kbId, file)
     ElMessage.success('文档上传成功')
     fetchDocumentList()
@@ -205,15 +200,15 @@ const handleDeleteDocument = async (doc: DocumentInfo) => {
       cancelButtonText: '取消',
       type: 'warning'
     })
-    
+
     const userStr = localStorage.getItem('admin_user')
     const user = userStr ? JSON.parse(userStr) : null
-    
+
     if (!user?.id) {
       ElMessage.error('用户信息获取失败，请重新登录')
       return
     }
-    
+
     await documentApi.delete(user.id, kbId, doc.docId)
     ElMessage.success('删除成功')
     fetchDocumentList()
@@ -262,8 +257,7 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .kb-detail {
-  padding: 20px;
-
+  
   .header {
     display: flex;
     align-items: center;

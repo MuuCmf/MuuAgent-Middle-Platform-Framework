@@ -22,17 +22,20 @@ export class KbService {
    * @returns {Promise<any>} 创建结果
    */
   async create(dto: CreateKbDto): Promise<any> {
+    const retrievalMethod = dto.retrievalMethod || 'vector';
     const embeddingModel = dto.embeddingModel || 'doubao-embedding-v1';
     
-    const model = await this.prisma.model.findFirst({
-      where: { 
-        code: embeddingModel, 
-        status: true 
-      }
-    });
+    if (retrievalMethod === 'vector') {
+      const model = await this.prisma.model.findFirst({
+        where: { 
+          code: embeddingModel, 
+          status: true 
+        }
+      });
 
-    if (!model) {
-      throw new BadRequestException('选择的向量模型不存在或未启用');
+      if (!model) {
+        throw new BadRequestException('选择的向量模型不存在或未启用');
+      }
     }
 
     const kb = await this.prisma.kbInfo.create({
@@ -44,7 +47,7 @@ export class KbService {
         chunkOverlap: dto.chunkOverlap || 100,
         similarityThresh: dto.similarityThresh || 0.7,
         topN: dto.topN || 5,
-        retrievalMethod: dto.retrievalMethod || 'vector',
+        retrievalMethod: retrievalMethod,
         description: dto.description,
         createdBy: dto.uid,
       },
@@ -199,7 +202,9 @@ export class KbService {
       throw new NotFoundException('知识库不存在');
     }
 
-    if (dto.embeddingModel) {
+    const retrievalMethod = dto.retrievalMethod || kb.retrievalMethod || 'vector';
+
+    if (dto.embeddingModel && retrievalMethod === 'vector') {
       const model = await this.prisma.model.findFirst({
         where: { 
           code: dto.embeddingModel, 

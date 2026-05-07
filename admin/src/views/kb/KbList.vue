@@ -84,7 +84,7 @@
                 <span class="value number">{{ kb.chunkCount || 0 }}</span>
               </div>
             </div>
-            <div class="info-item">
+            <div class="info-item" v-if="kb.retrievalMethod !== 'bm25'">
               <span class="label">向量模型：</span>
               <span class="value">{{ kb.embeddingModel }}</span>
             </div>
