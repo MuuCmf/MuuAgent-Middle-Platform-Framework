@@ -67,7 +67,7 @@ const formRef = ref<FormInstance>()
 const formData = reactive({
   kbName: '',
   kbCode: '',
-  embeddingModel: 'doubao-embedding-v1',
+  embeddingModel: '',
   chunkSize: 500,
   chunkOverlap: 100,
   similarityThresh: 0.7,
