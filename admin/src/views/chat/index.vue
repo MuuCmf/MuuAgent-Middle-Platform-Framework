@@ -127,7 +127,7 @@
                     :key="rIdx"
                     class="retrieval-result"
                   >
-                    <div class="result-index">{{ rIdx + 1 }}.</div>
+                    <div class="result-index">{{ Number(rIdx) + 1 }}.</div>
                     <div class="result-content">{{ result.content }}</div>
                     <div class="result-meta">
                       <span class="result-source">📄 来源：{{ result.docName }}</span>

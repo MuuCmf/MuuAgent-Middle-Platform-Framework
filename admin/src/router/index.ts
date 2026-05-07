@@ -47,7 +47,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'kb',
         name: 'Kb',
-        meta: { title: 'RAG知识库', icon: 'Collection' },
+        meta: { title: '知识库', icon: 'Collection' },
         redirect: 'kb/list',
         children: [
           {

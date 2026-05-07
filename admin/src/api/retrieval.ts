@@ -18,7 +18,7 @@ export interface RetrievalItem {
  * 检索响应
  */
 export interface RetrievalResponse {
-  results: RetrievalItem[]
+  list: RetrievalItem[]
   query: string
   kbId: string
   total: number
