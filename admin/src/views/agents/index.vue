@@ -5,26 +5,28 @@
       <p class="page-description">创建和管理具有特定能力的AI助手</p>
     </div>
 
-    <div class="help-tip">
-      <div class="help-tip-title">💡 智能体说明</div>
-      <ul>
-        <li><strong>智能体</strong>：具有特定能力的AI助手，可以自动调用技能完成任务</li>
-        <li><strong>系统提示词</strong>：定义智能体的角色和行为方式</li>
-        <li><strong>绑定技能</strong>：智能体可以调用的技能列表，以JSON数组格式填写</li>
-        <li><strong>MCP Server</strong>：Model Context Protocol Server，提供外部工具和数据源</li>
-        <li><strong>最大执行步数</strong>：限制智能体最多执行多少步操作</li>
-        <li><strong>温度参数</strong>：控制输出随机性，0-1之间，值越大越随机</li>
-      </ul>
-    </div>
-
     <div class="card">
       <div class="card-title">
         智能体列表
         <el-tag type="info" size="small">{{ agents.length }} 个</el-tag>
       </div>
-      
+
+      <div class="help-tip">
+        <div class="help-tip-title">💡 智能体说明</div>
+        <ul>
+          <li><strong>智能体</strong>：具有特定能力的AI助手，可以自动调用技能完成任务</li>
+          <li><strong>系统提示词</strong>：定义智能体的角色和行为方式</li>
+          <li><strong>绑定技能</strong>：智能体可以调用的技能列表，以JSON数组格式填写</li>
+          <li><strong>MCP Server</strong>：Model Context Protocol Server，提供外部工具和数据源</li>
+          <li><strong>最大执行步数</strong>：限制智能体最多执行多少步操作</li>
+          <li><strong>温度参数</strong>：控制输出随机性，0-1之间，值越大越随机</li>
+        </ul>
+      </div>
+
       <el-button type="primary" @click="handleAdd" style="margin-bottom: 16px;">
-        <el-icon><Plus /></el-icon>
+        <el-icon>
+          <Plus />
+        </el-icon>
         创建智能体
       </el-button>
 
@@ -38,13 +40,8 @@
         <el-table-column prop="skills" label="绑定技能" width="200">
           <template #default="{ row }">
             <template v-if="parseJsonSafe(row.skills).length">
-              <el-tag
-                v-for="s in parseJsonSafe(row.skills)"
-                :key="s"
-                type="info"
-                size="small"
-                style="margin-right: 4px"
-              >
+              <el-tag v-for="s in parseJsonSafe(row.skills)" :key="s" type="info" size="small"
+                style="margin-right: 4px">
                 {{ s }}
               </el-tag>
             </template>
@@ -54,13 +51,8 @@
         <el-table-column prop="mcpServers" label="MCP Server" width="200">
           <template #default="{ row }">
             <template v-if="parseJsonSafe(row.mcpServers).length">
-              <el-tag
-                v-for="server in parseJsonSafe(row.mcpServers)"
-                :key="server.name"
-                type="success"
-                size="small"
-                style="margin-right: 4px"
-              >
+              <el-tag v-for="server in parseJsonSafe(row.mcpServers)" :key="server.name" type="success" size="small"
+                style="margin-right: 4px">
                 {{ server.name }}
               </el-tag>
             </template>
@@ -83,12 +75,8 @@
       </el-table>
     </div>
 
-    <AgentEditDrawer
-      v-model:visible="drawerVisible"
-      :agent="editingAgent"
-      :available-skills="skills"
-      @save="handleSave"
-    />
+    <AgentEditDrawer v-model:visible="drawerVisible" :agent="editingAgent" :available-skills="skills"
+      @save="handleSave" />
   </div>
 </template>
 
@@ -159,5 +147,4 @@ onMounted(() => {
 })
 </script>
 
-<style lang="scss" scoped>
-</style>
+<style lang="scss" scoped></style>

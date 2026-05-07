@@ -20,6 +20,7 @@ import { PermissionModule } from './permission/permission.module';
 import { VectorModule } from './vector/vector.module';
 import { CacheModule } from './cache/cache.module';
 import { TaskModule } from './task/task.module';
+import { OAuthModule } from './oauth/oauth.module';
 
 /**
  * 应用根模块
@@ -75,6 +76,9 @@ import { TaskModule } from './task/task.module';
 
     // 管理员模块
     AdminModule,
+
+    // OAuth认证模块
+    OAuthModule,
   ],
 })
 export class AppModule {}

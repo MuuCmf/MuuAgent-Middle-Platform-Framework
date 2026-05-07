@@ -443,3 +443,62 @@ model KbPermission {
   @@index([kbId])
   @@index([uid])
 }
+
+/// OAuth客户端
+model OAuthClient {
+  id                String   @id @default(uuid())
+  clientId          String   @unique @default(uuid()) /// 客户端ID
+  clientSecret      String   /// 客户端密钥
+  name              String   /// 客户端名称
+  redirectUris      String   /// 回调地址列表(JSON数组)
+  scopes            String   /// 权限范围(JSON数组)
+  grants            String   @default("[\"authorization_code\",\"refresh_token\"]") /// 授权类型(JSON数组)
+  status            Int      @default(1) /// 状态: 1正常 0禁用
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tokens            OAuthToken[]
+  codes             OAuthCode[]
+
+  @@index([clientId])
+  @@map("oauth_clients")
+}
+
+/// 授权码
+model OAuthCode {
+  id                String   @id @default(uuid())
+  code              String   @unique /// 授权码
+  clientId          String   /// 客户端ID
+  userId            String   /// 用户ID
+  redirectUri       String   /// 回调地址
+  scope             String   /// 权限范围
+  state             String?  /// 状态参数
+  expiresAt         DateTime /// 过期时间
+  createdAt         DateTime @default(now())
+
+  client            OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+
+  @@index([code])
+  @@index([expiresAt])
+  @@map("oauth_codes")
+}
+
+/// 访问令牌
+model OAuthToken {
+  id                String    @id @default(uuid())
+  accessToken       String    @unique /// 访问令牌
+  refreshToken      String?   @unique /// 刷新令牌
+  clientId          String    /// 客户端ID
+  userId            String    /// 用户ID
+  scope             String    /// 权限范围
+  expiresAt         DateTime  /// 访问令牌过期时间
+  refreshExpiresAt  DateTime? /// 刷新令牌过期时间
+  createdAt         DateTime  @default(now())
+
+  client            OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+
+  @@index([accessToken])
+  @@index([refreshToken])
+  @@index([expiresAt])
+  @@map("oauth_tokens")
+}

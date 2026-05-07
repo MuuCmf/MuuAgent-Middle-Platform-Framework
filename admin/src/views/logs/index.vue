@@ -10,52 +10,29 @@
       <p>记录所有AI模型调用、技能执行、智能体对话的历史记录，可用于问题排查和性能分析。</p>
     </div>
 
-    <div class="card">
-      <el-tabs v-model="activeTab" type="card" @tab-change="handleTabChange">
-        <!-- AI调用日志 -->
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+      <!-- AI调用日志 -->
+      <div class="card">
         <el-tab-pane label="🤖 AI调用日志" name="ai">
           <div class="filter-section">
-            <el-input
-              v-model="aiFilters.modelCode"
-              placeholder="模型代码"
-              clearable
-              style="width: 200px"
-              @clear="handleAiSearch"
-              @keyup.enter="handleAiSearch"
-            />
-            <el-select
-              v-model="aiFilters.modelType"
-              placeholder="模型类型"
-              clearable
-              style="width: 150px"
-              @change="handleAiSearch"
-            >
+            <el-input v-model="aiFilters.modelCode" placeholder="模型代码" clearable style="width: 200px"
+              @clear="handleAiSearch" @keyup.enter="handleAiSearch" />
+            <el-select v-model="aiFilters.modelType" placeholder="模型类型" clearable style="width: 150px"
+              @change="handleAiSearch">
               <el-option label="LLM" value="llm" />
               <el-option label="Embedding" value="embedding" />
               <el-option label="图像生成" value="image" />
               <el-option label="语音合成" value="tts" />
               <el-option label="语音识别" value="asr" />
             </el-select>
-            <el-select
-              v-model="aiFilters.success"
-              placeholder="调用状态"
-              clearable
-              style="width: 120px"
-              @change="handleAiSearch"
-            >
+            <el-select v-model="aiFilters.success" placeholder="调用状态" clearable style="width: 120px"
+              @change="handleAiSearch">
               <el-option label="成功" :value="true" />
               <el-option label="失败" :value="false" />
             </el-select>
-            <el-date-picker
-              v-model="aiFilters.timeRange"
-              type="datetimerange"
-              range-separator="至"
-              start-placeholder="开始时间"
-              end-placeholder="结束时间"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              style="width: 360px"
-              @change="handleAiSearch"
-            />
+            <el-date-picker v-model="aiFilters.timeRange" type="datetimerange" range-separator="至"
+              start-placeholder="开始时间" end-placeholder="结束时间" value-format="YYYY-MM-DD HH:mm:ss" style="width: 360px"
+              @change="handleAiSearch" />
             <el-button type="primary" @click="handleAiSearch">查询</el-button>
             <el-button @click="handleAiReset">重置</el-button>
           </div>
@@ -129,49 +106,25 @@
           </el-table>
 
           <div class="pagination-section">
-            <el-pagination
-              v-model:current-page="aiPagination.page"
-              v-model:page-size="aiPagination.pageSize"
-              :page-sizes="[10, 20, 50, 100]"
-              :total="aiPagination.total"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="loadAiLogs"
-              @current-change="loadAiLogs"
-            />
+            <el-pagination v-model:current-page="aiPagination.page" v-model:page-size="aiPagination.pageSize"
+              :page-sizes="[10, 20, 50, 100]" :total="aiPagination.total"
+              layout="total, sizes, prev, pager, next, jumper" @size-change="loadAiLogs" @current-change="loadAiLogs" />
           </div>
         </el-tab-pane>
 
         <!-- Agent调用日志 -->
         <el-tab-pane label="🧠 Agent调用日志" name="agent">
           <div class="filter-section">
-            <el-input
-              v-model="agentFilters.agentCode"
-              placeholder="Agent代码"
-              clearable
-              style="width: 200px"
-              @clear="handleAgentSearch"
-              @keyup.enter="handleAgentSearch"
-            />
-            <el-select
-              v-model="agentFilters.success"
-              placeholder="调用状态"
-              clearable
-              style="width: 120px"
-              @change="handleAgentSearch"
-            >
+            <el-input v-model="agentFilters.agentCode" placeholder="Agent代码" clearable style="width: 200px"
+              @clear="handleAgentSearch" @keyup.enter="handleAgentSearch" />
+            <el-select v-model="agentFilters.success" placeholder="调用状态" clearable style="width: 120px"
+              @change="handleAgentSearch">
               <el-option label="成功" :value="true" />
               <el-option label="失败" :value="false" />
             </el-select>
-            <el-date-picker
-              v-model="agentFilters.timeRange"
-              type="datetimerange"
-              range-separator="至"
-              start-placeholder="开始时间"
-              end-placeholder="结束时间"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              style="width: 360px"
-              @change="handleAgentSearch"
-            />
+            <el-date-picker v-model="agentFilters.timeRange" type="datetimerange" range-separator="至"
+              start-placeholder="开始时间" end-placeholder="结束时间" value-format="YYYY-MM-DD HH:mm:ss" style="width: 360px"
+              @change="handleAgentSearch" />
             <el-button type="primary" @click="handleAgentSearch">查询</el-button>
             <el-button @click="handleAgentReset">重置</el-button>
           </div>
@@ -240,49 +193,26 @@
           </el-table>
 
           <div class="pagination-section">
-            <el-pagination
-              v-model:current-page="agentPagination.page"
-              v-model:page-size="agentPagination.pageSize"
-              :page-sizes="[10, 20, 50, 100]"
-              :total="agentPagination.total"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="loadAgentLogs"
-              @current-change="loadAgentLogs"
-            />
+            <el-pagination v-model:current-page="agentPagination.page" v-model:page-size="agentPagination.pageSize"
+              :page-sizes="[10, 20, 50, 100]" :total="agentPagination.total"
+              layout="total, sizes, prev, pager, next, jumper" @size-change="loadAgentLogs"
+              @current-change="loadAgentLogs" />
           </div>
         </el-tab-pane>
 
         <!-- Skill调用日志 -->
         <el-tab-pane label="⚡ Skill调用日志" name="skill">
           <div class="filter-section">
-            <el-input
-              v-model="skillFilters.skillCode"
-              placeholder="技能代码"
-              clearable
-              style="width: 200px"
-              @clear="handleSkillSearch"
-              @keyup.enter="handleSkillSearch"
-            />
-            <el-select
-              v-model="skillFilters.success"
-              placeholder="调用状态"
-              clearable
-              style="width: 120px"
-              @change="handleSkillSearch"
-            >
+            <el-input v-model="skillFilters.skillCode" placeholder="技能代码" clearable style="width: 200px"
+              @clear="handleSkillSearch" @keyup.enter="handleSkillSearch" />
+            <el-select v-model="skillFilters.success" placeholder="调用状态" clearable style="width: 120px"
+              @change="handleSkillSearch">
               <el-option label="成功" :value="true" />
               <el-option label="失败" :value="false" />
             </el-select>
-            <el-date-picker
-              v-model="skillFilters.timeRange"
-              type="datetimerange"
-              range-separator="至"
-              start-placeholder="开始时间"
-              end-placeholder="结束时间"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              style="width: 360px"
-              @change="handleSkillSearch"
-            />
+            <el-date-picker v-model="skillFilters.timeRange" type="datetimerange" range-separator="至"
+              start-placeholder="开始时间" end-placeholder="结束时间" value-format="YYYY-MM-DD HH:mm:ss" style="width: 360px"
+              @change="handleSkillSearch" />
             <el-button type="primary" @click="handleSkillSearch">查询</el-button>
             <el-button @click="handleSkillReset">重置</el-button>
           </div>
@@ -342,27 +272,17 @@
           </el-table>
 
           <div class="pagination-section">
-            <el-pagination
-              v-model:current-page="skillPagination.page"
-              v-model:page-size="skillPagination.pageSize"
-              :page-sizes="[10, 20, 50, 100]"
-              :total="skillPagination.total"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="loadSkillLogs"
-              @current-change="loadSkillLogs"
-            />
+            <el-pagination v-model:current-page="skillPagination.page" v-model:page-size="skillPagination.pageSize"
+              :page-sizes="[10, 20, 50, 100]" :total="skillPagination.total"
+              layout="total, sizes, prev, pager, next, jumper" @size-change="loadSkillLogs"
+              @current-change="loadSkillLogs" />
           </div>
         </el-tab-pane>
-      </el-tabs>
-    </div>
+      </div>
+    </el-tabs>
 
     <!-- AI日志详情抽屉 -->
-    <el-drawer
-      v-model="aiDetailVisible"
-      title="AI调用日志详情"
-      direction="rtl"
-      size="60%"
-    >
+    <el-drawer v-model="aiDetailVisible" title="AI调用日志详情" direction="rtl" size="60%">
       <div v-if="currentAiLog" class="log-detail">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="日志ID">{{ currentAiLog.id }}</el-descriptions-item>
@@ -396,38 +316,24 @@
 
         <div class="request-section">
           <h4>请求数据</h4>
-          <el-input
-            type="textarea"
-            :model-value="formatJson(currentAiLog.request)"
-            :rows="10"
-            readonly
-          />
+          <el-input type="textarea" :model-value="formatJson(currentAiLog.request)" :rows="10" readonly />
         </div>
 
         <div class="response-section">
           <h4>响应数据</h4>
-          <el-input
-            type="textarea"
-            :model-value="formatJson(currentAiLog.response)"
-            :rows="10"
-            readonly
-          />
+          <el-input type="textarea" :model-value="formatJson(currentAiLog.response)" :rows="10" readonly />
         </div>
       </div>
     </el-drawer>
 
     <!-- Agent日志详情抽屉 -->
-    <el-drawer
-      v-model="agentDetailVisible"
-      title="Agent调用日志详情"
-      direction="rtl"
-      size="60%"
-    >
+    <el-drawer v-model="agentDetailVisible" title="Agent调用日志详情" direction="rtl" size="60%">
       <div v-if="currentAgentLog" class="log-detail">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="日志ID">{{ currentAgentLog.id }}</el-descriptions-item>
           <el-descriptions-item label="调用时间">{{ formatTime(currentAgentLog.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="Agent代码">{{ currentAgentLog.agent?.code || currentAgentLog.agentId }}</el-descriptions-item>
+          <el-descriptions-item label="Agent代码">{{ currentAgentLog.agent?.code || currentAgentLog.agentId
+          }}</el-descriptions-item>
           <el-descriptions-item label="Agent名称">{{ currentAgentLog.agent?.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="耗时">{{ currentAgentLog.costMs }}ms</el-descriptions-item>
           <el-descriptions-item label="输入Token">{{ currentAgentLog.inputTokens || 0 }}</el-descriptions-item>
@@ -450,33 +356,18 @@
 
         <div class="request-section">
           <h4>请求数据</h4>
-          <el-input
-            type="textarea"
-            :model-value="formatJson(currentAgentLog.request)"
-            :rows="10"
-            readonly
-          />
+          <el-input type="textarea" :model-value="formatJson(currentAgentLog.request)" :rows="10" readonly />
         </div>
 
         <div class="response-section">
           <h4>响应数据</h4>
-          <el-input
-            type="textarea"
-            :model-value="formatJson(currentAgentLog.response)"
-            :rows="10"
-            readonly
-          />
+          <el-input type="textarea" :model-value="formatJson(currentAgentLog.response)" :rows="10" readonly />
         </div>
       </div>
     </el-drawer>
 
     <!-- Skill日志详情抽屉 -->
-    <el-drawer
-      v-model="skillDetailVisible"
-      title="Skill调用日志详情"
-      direction="rtl"
-      size="60%"
-    >
+    <el-drawer v-model="skillDetailVisible" title="Skill调用日志详情" direction="rtl" size="60%">
       <div v-if="currentSkillLog" class="log-detail">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="日志ID">{{ currentSkillLog.id }}</el-descriptions-item>
@@ -502,22 +393,12 @@
 
         <div class="request-section">
           <h4>请求数据</h4>
-          <el-input
-            type="textarea"
-            :model-value="formatJson(currentSkillLog.request)"
-            :rows="10"
-            readonly
-          />
+          <el-input type="textarea" :model-value="formatJson(currentSkillLog.request)" :rows="10" readonly />
         </div>
 
         <div class="response-section">
           <h4>响应数据</h4>
-          <el-input
-            type="textarea"
-            :model-value="formatJson(currentSkillLog.response)"
-            :rows="10"
-            readonly
-          />
+          <el-input type="textarea" :model-value="formatJson(currentSkillLog.response)" :rows="10" readonly />
         </div>
       </div>
     </el-drawer>

@@ -5,26 +5,28 @@
       <p class="page-description">管理智能体可调用的技能工具</p>
     </div>
 
-    <div class="help-tip">
-      <div class="help-tip-title">💡 技能管理说明</div>
-      <ul>
-        <li><strong>HTTP类型</strong>：调用外部HTTP API，如天气接口、查询服务等</li>
-        <li><strong>函数类型</strong>：内置函数，如获取时间、随机数等</li>
-        <li><strong>数据库类型</strong>：执行数据库查询（需配置连接）</li>
-        <li><strong>MCP类型</strong>：调用第三方MCP Server提供的工具，支持Model Context Protocol协议</li>
-        <li><strong>功能描述</strong>：给AI看的描述，AI根据描述决定是否调用此技能</li>
-        <li><strong>参数描述</strong>：描述技能需要的参数格式，帮助AI正确传参</li>
-      </ul>
-    </div>
-
     <div class="card">
       <div class="card-title">
         技能列表
         <el-tag type="info" size="small">{{ skills.length }} 个</el-tag>
       </div>
-      
+
+      <div class="help-tip">
+        <div class="help-tip-title">💡 技能管理说明</div>
+        <ul>
+          <li><strong>HTTP类型</strong>：调用外部HTTP API，如天气接口、查询服务等</li>
+          <li><strong>函数类型</strong>：内置函数，如获取时间、随机数等</li>
+          <li><strong>数据库类型</strong>：执行数据库查询（需配置连接）</li>
+          <li><strong>MCP类型</strong>：调用第三方MCP Server提供的工具，支持Model Context Protocol协议</li>
+          <li><strong>功能描述</strong>：给AI看的描述，AI根据描述决定是否调用此技能</li>
+          <li><strong>参数描述</strong>：描述技能需要的参数格式，帮助AI正确传参</li>
+        </ul>
+      </div>
+
       <el-button type="primary" @click="handleAdd" style="margin-bottom: 16px;">
-        <el-icon><Plus /></el-icon>
+        <el-icon>
+          <Plus />
+        </el-icon>
         添加技能
       </el-button>
 
@@ -62,12 +64,7 @@
       </el-table>
     </div>
 
-    <el-drawer
-      v-model="drawerVisible"
-      :title="editingSkill ? '编辑技能' : '添加技能'"
-      direction="rtl"
-      size="600px"
-    >
+    <el-drawer v-model="drawerVisible" :title="editingSkill ? '编辑技能' : '添加技能'" direction="rtl" size="600px">
       <el-form :model="form" label-width="100px">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -92,30 +89,15 @@
         </el-form-item>
 
         <el-form-item label="功能描述" required>
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="3"
-            placeholder="描述此技能的功能，AI会根据此描述决定是否调用"
-          />
+          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="描述此技能的功能，AI会根据此描述决定是否调用" />
         </el-form-item>
 
         <el-form-item label="参数描述">
-          <el-input
-            v-model="form.params"
-            type="textarea"
-            :rows="2"
-            placeholder='描述参数格式，如：{"city": "城市名称，如：北京"}'
-          />
+          <el-input v-model="form.params" type="textarea" :rows="2" placeholder='描述参数格式，如：{"city": "城市名称，如：北京"}' />
         </el-form-item>
 
         <el-form-item label="执行配置">
-          <el-input
-            v-model="form.config"
-            type="textarea"
-            :rows="5"
-            placeholder="根据类型填写不同配置"
-          />
+          <el-input v-model="form.config" type="textarea" :rows="5" placeholder="根据类型填写不同配置" />
           <div class="config-help">
             <el-alert type="info" :closable="false" style="margin-top: 8px;">
               <template #title>
@@ -124,15 +106,15 @@
               <div v-if="form.type === 'http'" class="config-example">
                 <p><strong>HTTP请求配置示例：</strong></p>
                 <pre class="code-example">{
-  "method": "GET",
-  "url": "https://api.example.com/weather",
-  "headers": {
-    "Authorization": "Bearer YOUR_API_KEY"
-  },
-  "params": {
-    "city": "{city}"
-  }
-}</pre>
+              "method": "GET",
+              "url": "https://api.example.com/weather",
+              "headers": {
+              "Authorization": "Bearer YOUR_API_KEY"
+              },
+              "params": {
+              "city": "{city}"
+              }
+              }</pre>
                 <p style="margin-top: 8px; color: #666; font-size: 12px;">
                   💡 提示：使用双花括号包裹参数名作为占位符，如：city 参数写成 "city": "{参数名}"，AI调用时会自动替换
                 </p>
@@ -140,10 +122,10 @@
               <div v-else-if="form.type === 'function'" class="config-example">
                 <p><strong>内置函数配置示例：</strong></p>
                 <pre class="code-example">{
-  "function": "getCurrentTime",
-  "format": "YYYY-MM-DD HH:mm:ss",
-  "timezone": "Asia/Shanghai"
-}</pre>
+              "function": "getCurrentTime",
+              "format": "YYYY-MM-DD HH:mm:ss",
+              "timezone": "Asia/Shanghai"
+              }</pre>
                 <p style="margin-top: 8px; color: #666; font-size: 12px;">
                   💡 可用函数：getCurrentTime（获取当前时间）、getRandomNumber（获取随机数）、formatDate（格式化日期）
                 </p>
@@ -151,10 +133,10 @@
               <div v-else-if="form.type === 'database'" class="config-example">
                 <p><strong>数据库查询配置示例：</strong></p>
                 <pre class="code-example">{
-  "connection": "mysql://user:pass@localhost/db",
-  "query": "SELECT * FROM users WHERE city = '{city}'",
-  "limit": 100
-}</pre>
+              "connection": "mysql://user:pass@localhost/db",
+              "query": "SELECT * FROM users WHERE city = '{city}'",
+              "limit": 100
+              }</pre>
                 <p style="margin-top: 8px; color: #666; font-size: 12px;">
                   💡 提示：数据库查询需要配置连接信息，建议使用只读权限的数据库用户
                 </p>
@@ -162,10 +144,10 @@
               <div v-else-if="form.type === 'mcp'" class="config-example">
                 <p><strong>MCP工具配置示例：</strong></p>
                 <pre class="code-example">{
-  "url": "http://localhost:8080/mcp",
-  "apiKey": "your-api-key",
-  "toolName": "get_weather"
-}</pre>
+              "url": "http://localhost:8080/mcp",
+              "apiKey": "your-api-key",
+              "toolName": "get_weather"
+              }</pre>
                 <p style="margin-top: 8px; color: #666; font-size: 12px;">
                   💡 配置说明：
                 </p>
@@ -196,11 +178,7 @@
     </el-drawer>
 
     <!-- 测试技能弹窗 -->
-    <el-dialog
-      v-model="testDialogVisible"
-      title="🧪 测试技能"
-      width="600px"
-    >
+    <el-dialog v-model="testDialogVisible" title="🧪 测试技能" width="600px">
       <div class="test-dialog-content">
         <div class="test-skill-info">
           <p><strong>技能名称：</strong>{{ testingSkill?.name }}</p>
@@ -213,12 +191,7 @@
 
         <el-form label-width="80px">
           <el-form-item label="测试参数">
-            <el-input
-              v-model="testParams"
-              type="textarea"
-              :rows="5"
-              placeholder='请输入JSON格式的参数，如：{"city": "北京"}'
-            />
+            <el-input v-model="testParams" type="textarea" :rows="5" placeholder='请输入JSON格式的参数，如：{"city": "北京"}' />
             <div class="test-params-help">
               <el-alert type="info" :closable="false" style="margin-top: 8px;">
                 <template #title>
@@ -360,7 +333,7 @@ const handleTest = (skill: Skill) => {
  */
 const executeTest = async () => {
   if (!testingSkill.value) return
-  
+
   let params = {}
   try {
     params = JSON.parse(testParams.value)
@@ -399,7 +372,7 @@ onMounted(() => {
 .config-example {
   p {
     margin: 0 0 8px 0;
-    
+
     &:first-child {
       margin-top: 0;
     }
@@ -416,7 +389,7 @@ onMounted(() => {
   overflow-x: auto;
   margin: 8px 0;
   border: 1px solid #e4e7ed;
-  
+
   code {
     background: #fff;
     padding: 2px 6px;

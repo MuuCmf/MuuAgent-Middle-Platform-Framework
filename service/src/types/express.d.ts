@@ -5,8 +5,9 @@ declare global {
     interface Request {
       admin?: {
         id: string
-        username: string
+        username?: string
         role: string
+        scope?: string
         iat?: number
         exp?: number
       }

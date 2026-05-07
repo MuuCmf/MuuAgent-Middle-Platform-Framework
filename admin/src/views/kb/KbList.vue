@@ -5,32 +5,29 @@
       <p class="page-description">创建和管理知识库，为智能体提供知识检索能力</p>
     </div>
 
-    <div class="help-tip">
-      <div class="help-tip-title">💡 知识库说明</div>
-      <ul>
-        <li><strong>知识库</strong>：存储文档数据，支持向量检索，为智能体提供知识支持</li>
-        <li><strong>向量模型</strong>：将文本转换为向量表示，用于语义相似度计算</li>
-        <li><strong>切片大小</strong>：文档切分的块大小，影响检索精度和效率</li>
-        <li><strong>相似度阈值</strong>：检索结果的最低相似度要求，范围 0-1</li>
-        <li><strong>召回条数</strong>：每次检索返回的最大文档片段数量</li>
-      </ul>
-    </div>
-
     <div class="card">
       <div class="card-title">
         知识库列表
         <el-tag type="info" size="small">{{ total }} 个</el-tag>
       </div>
 
+      <div class="help-tip">
+        <div class="help-tip-title">💡 知识库说明</div>
+        <ul>
+          <li><strong>知识库</strong>：存储文档数据，支持向量检索，为智能体提供知识支持</li>
+          <li><strong>向量模型</strong>：将文本转换为向量表示，用于语义相似度计算</li>
+          <li><strong>切片大小</strong>：文档切分的块大小，影响检索精度和效率</li>
+          <li><strong>相似度阈值</strong>：检索结果的最低相似度要求，范围 0-1</li>
+          <li><strong>召回条数</strong>：每次检索返回的最大文档片段数量</li>
+        </ul>
+      </div>
+
       <div class="filters">
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索知识库名称或标识"
-          style="width: 300px;"
-          @keyup.enter="handleSearch"
-        >
+        <el-input v-model="searchKeyword" placeholder="搜索知识库名称或标识" style="width: 300px;" @keyup.enter="handleSearch">
           <template #prefix>
-            <el-icon><Search /></el-icon>
+            <el-icon>
+              <Search />
+            </el-icon>
           </template>
         </el-input>
         <el-select v-model="statusFilter" placeholder="状态筛选" style="width: 150px;" @change="handleSearch">
@@ -39,11 +36,15 @@
           <el-option label="禁用" :value="false" />
         </el-select>
         <el-button @click="handleSearch">
-          <el-icon><Search /></el-icon>
+          <el-icon>
+            <Search />
+          </el-icon>
           搜索
         </el-button>
         <el-button type="primary" @click="handleCreate">
-          <el-icon><Plus /></el-icon>
+          <el-icon>
+            <Plus />
+          </el-icon>
           创建知识库
         </el-button>
       </div>
@@ -53,7 +54,9 @@
           <template #header>
             <div class="card-header">
               <div class="header-left">
-                <el-icon class="kb-icon"><FolderOpened /></el-icon>
+                <el-icon class="kb-icon">
+                  <FolderOpened />
+                </el-icon>
                 <span class="kb-name">{{ kb.kbName }}</span>
               </div>
               <el-tag :type="kb.status ? 'success' : 'danger'" size="small">
@@ -61,7 +64,7 @@
               </el-tag>
             </div>
           </template>
-          
+
           <div class="card-content">
             <div class="info-item">
               <span class="label">标识：</span>
@@ -94,15 +97,21 @@
           <template #footer>
             <div class="card-footer">
               <el-button size="small" @click="handleView(kb)">
-                <el-icon><View /></el-icon>
+                <el-icon>
+                  <View />
+                </el-icon>
                 查看
               </el-button>
               <el-button size="small" @click="handleEdit(kb)">
-                <el-icon><Edit /></el-icon>
+                <el-icon>
+                  <Edit />
+                </el-icon>
                 编辑
               </el-button>
               <el-button size="small" type="danger" @click="handleDelete(kb)">
-                <el-icon><Delete /></el-icon>
+                <el-icon>
+                  <Delete />
+                </el-icon>
                 删除
               </el-button>
             </div>
@@ -111,23 +120,13 @@
       </div>
 
       <div class="pagination">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[12, 24, 48, 96]"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handlePageChange"
-        />
+        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[12, 24, 48, 96]"
+          :total="total" layout="total, sizes, prev, pager, next, jumper" @size-change="handleSizeChange"
+          @current-change="handlePageChange" />
       </div>
     </div>
 
-    <KbEditDialog 
-      v-model:visible="dialogVisible" 
-      :edit-data="editData"
-      @success="fetchKbList"
-    />
+    <KbEditDialog v-model:visible="dialogVisible" :edit-data="editData" @success="fetchKbList" />
   </div>
 </template>
 
@@ -206,15 +205,15 @@ const handleDelete = async (kb: KbInfo) => {
       cancelButtonText: '取消',
       type: 'warning'
     })
-    
+
     const userStr = localStorage.getItem('admin_user')
     const user = userStr ? JSON.parse(userStr) : null
-    
+
     if (!user?.id) {
       ElMessage.error('用户信息获取失败，请重新登录')
       return
     }
-    
+
     await kbApi.delete(user.id, kb.kbId)
     ElMessage.success('删除成功')
     fetchKbList()

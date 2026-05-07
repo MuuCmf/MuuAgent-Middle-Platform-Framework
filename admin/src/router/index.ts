@@ -81,6 +81,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Logs',
         component: () => import('@/views/logs/index.vue'),
         meta: { title: '调用日志', icon: 'Document' }
+      },
+      {
+        path: 'oauth-clients',
+        name: 'OAuthClients',
+        component: () => import('@/views/oauth-clients/index.vue'),
+        meta: { title: 'OAuth管理', icon: 'Key' }
       }
     ]
   }
