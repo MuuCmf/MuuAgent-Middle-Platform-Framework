@@ -329,6 +329,7 @@ model KbInfo {
   chunkOverlap    Int      @default(100) /// 切片重叠
   similarityThresh Float   @default(0.7) /// 相似度阈值
   topN            Int      @default(5) /// 召回条数
+  retrievalMethod String   @default("vector") /// 检索方式: vector=向量检索, bm25=BM25检索
   
   /// 权限与状态
   isPublic        Boolean  @default(true) /// 是否公开（公开=所有用户可检索）

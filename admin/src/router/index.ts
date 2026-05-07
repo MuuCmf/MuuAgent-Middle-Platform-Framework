@@ -61,12 +61,6 @@ const routes: RouteRecordRaw[] = [
             name: 'KbDetail',
             component: () => import('@/views/kb/KbDetail.vue'),
             meta: { title: '知识库详情' }
-          },
-          {
-            path: 'edit/:id?',
-            name: 'KbEdit',
-            component: () => import('@/views/kb/KbEdit.vue'),
-            meta: { title: '编辑知识库' }
           }
         ]
       },

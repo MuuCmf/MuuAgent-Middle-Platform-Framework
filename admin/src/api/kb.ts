@@ -13,6 +13,7 @@ export interface KbInfo {
   chunkOverlap: number
   similarityThresh: number
   topN: number
+  retrievalMethod: string
   isPublic: boolean
   status: boolean
   description: string
@@ -71,6 +72,7 @@ export const kbApi = {
     chunkOverlap?: number
     similarityThresh?: number
     topN?: number
+    retrievalMethod?: string
     description?: string
   }): Promise<AxiosResponse<ApiResponse<{ kbId: string }>>> {
     return adminRequest.post('/admin/kb', data)
@@ -90,6 +92,7 @@ export const kbApi = {
     chunkOverlap?: number
     similarityThresh?: number
     topN?: number
+    retrievalMethod?: string
     description?: string
     status?: boolean
   }): Promise<AxiosResponse<ApiResponse<boolean>>> {

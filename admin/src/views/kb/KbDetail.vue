@@ -6,10 +6,7 @@
         返回
       </el-button>
       <h2>{{ kbInfo?.kbName || '知识库详情' }}</h2>
-      <div class="actions">
-        <el-button @click="handleEdit">编辑</el-button>
-        <el-button type="danger" @click="handleDelete">删除</el-button>
-      </div>
+
     </div>
 
     <el-row :gutter="20">
@@ -65,6 +62,10 @@
           <div class="info-item">
             <span class="label">召回条数：</span>
             <span class="value">{{ kbInfo?.topN }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">检索方式：</span>
+            <span class="value">{{ kbInfo?.retrievalMethod === 'bm25' ? 'BM25检索' : '向量检索' }}</span>
           </div>
         </el-card>
       </el-col>
@@ -123,6 +124,7 @@
       </el-col>
     </el-row>
   </div>
+
 </template>
 
 <script setup lang="ts">
@@ -174,36 +176,6 @@ const fetchDocumentList = async () => {
 
 const handleBack = () => {
   router.push('/kb/list')
-}
-
-const handleEdit = () => {
-  router.push(`/kb/edit/${kbId}`)
-}
-
-const handleDelete = async () => {
-  try {
-    await ElMessageBox.confirm('确定要删除该知识库吗？删除后无法恢复。', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    
-    const userStr = localStorage.getItem('admin_user')
-    const user = userStr ? JSON.parse(userStr) : null
-    
-    if (!user?.id) {
-      ElMessage.error('用户信息获取失败，请重新登录')
-      return
-    }
-    
-    await kbApi.delete(user.id, kbId)
-    ElMessage.success('删除成功')
-    router.push('/kb/list')
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
-    }
-  }
 }
 
 const handleUpload = async (file: File) => {

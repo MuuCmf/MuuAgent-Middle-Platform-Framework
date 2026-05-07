@@ -267,7 +267,7 @@ const sendMessage = async () => {
         similarityThresh: retrievalThreshold.value
       })
       
-      const results = res.data.data.results || []
+      const results = res.data.data.list || []
       chatMessages.value.push({
         role: 'assistant',
         type: 'retrieval',

@@ -344,9 +344,15 @@ export class AiService {
     await this.mcpService.checkCircuit(model.id);
 
     try {
+      // 构建请求数据（不同提供商格式可能不同）
+      const requestData = this.buildEmbeddingRequestData(model, dto);
+
+      console.log('[Embedding] 请求数据:', JSON.stringify(requestData, null, 2));
+      console.log('[Embedding] 模型信息:', { provider: model.provider, endpoint: model.endpoint });
+
       const response = await axios.post(
         model.endpoint,
-        { input: dto.input },
+        requestData,
         {
           headers: this.buildHeaders(model),
           timeout: 30000,
@@ -354,6 +360,8 @@ export class AiService {
       );
 
       await this.mcpService.reportSuccess(model.id);
+
+      console.log('[Embedding] 响应数据:', JSON.stringify(response.data, null, 2));
 
       // 提取token信息
       const tokenInfo = this.extractTokenInfo(response.data);
@@ -377,11 +385,42 @@ export class AiService {
     } catch (error) {
       await this.mcpService.reportError(model.id);
 
+      // 打印详细错误信息
+      console.error('[Embedding] 调用失败:');
+      if (axios.isAxiosError(error)) {
+        console.error('状态码:', error.response?.status);
+        console.error('响应数据:', JSON.stringify(error.response?.data, null, 2));
+      }
+
       throw new HttpException(
         `Embedding生成失败: ${error instanceof Error ? error.message : '未知错误'}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  /**
+   * 构建Embedding请求数据
+   * @param model 模型信息
+   * @param dto 调用参数
+   * @returns {Record<string, unknown>} 请求数据
+   */
+  private buildEmbeddingRequestData(model: Model, dto: EmbeddingDto): Record<string, unknown> {
+    const provider = model.provider?.toLowerCase();
+
+    // 智谱AI格式
+    if (provider === 'zhipu') {
+      return {
+        model: model.code,
+        input: dto.input,
+      };
+    }
+
+    // OpenAI兼容格式（默认）
+    return {
+      model: model.code,
+      input: dto.input,
+    };
   }
 
   /**

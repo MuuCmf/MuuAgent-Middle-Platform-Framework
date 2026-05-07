@@ -86,6 +86,8 @@ export const retrievalApi = {
     onComplete?: (sources?: any[]) => void
   ): Promise<void> {
     try {
+      console.log('[RAG Stream] 发送请求:', `${appConfig.apiBaseUrl}/kb/chat/rag/stream`, data)
+      
       const response = await fetch(`${appConfig.apiBaseUrl}/kb/chat/rag/stream`, {
         method: 'POST',
         headers: {
@@ -94,6 +96,9 @@ export const retrievalApi = {
         },
         body: JSON.stringify(data)
       })
+
+      console.log('[RAG Stream] 响应状态:', response.status, response.statusText)
+      console.log('[RAG Stream] 响应头:', response.headers)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -113,12 +118,16 @@ export const retrievalApi = {
       while (true) {
         const { done, value } = await reader.read()
         
+        console.log('[RAG Stream] 读取数据:', done ? '完成' : `长度: ${value?.length || 0}`)
+        
         if (done) {
           break
         }
 
         const chunk = decoder.decode(value, { stream: true })
         buffer += chunk
+        
+        console.log('[RAG Stream] 当前缓冲区:', buffer.length, '字符')
         
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
@@ -131,6 +140,7 @@ export const retrievalApi = {
           }
           
           if (!trimmedLine.startsWith('data:')) {
+            console.log('[RAG Stream] 非SSE格式:', trimmedLine)
             continue
           }
           
@@ -139,6 +149,8 @@ export const retrievalApi = {
           if (!dataLine) {
             continue
           }
+          
+          console.log('[RAG Stream] 数据行:', dataLine.substring(0, 100) + (dataLine.length > 100 ? '...' : ''))
           
           if (dataLine === '[DONE]') {
             if (onComplete) onComplete(sources)
@@ -153,17 +165,22 @@ export const retrievalApi = {
 
           try {
             const parsed = JSON.parse(dataLine)
+            console.log('[RAG Stream] 解析结果:', parsed)
             
             if (parsed.sources) {
               sources = parsed.sources
+              console.log('[RAG Stream] 更新sources:', sources.length)
             } else if (parsed.choices && parsed.choices[0]?.delta?.content) {
               onMessage(parsed.choices[0].delta.content)
+              console.log('[RAG Stream] 发送消息:', parsed.choices[0].delta.content.substring(0, 50))
             } else if (parsed.choices && parsed.choices[0]?.message?.content) {
               onMessage(parsed.choices[0].message.content)
             } else if (parsed.message) {
               onMessage(parsed.message)
             } else if (parsed.content) {
               onMessage(parsed.content)
+            } else {
+              console.warn('[RAG Stream] 未匹配任何内容格式:', parsed)
             }
           } catch (parseError) {
             console.warn('RAG流式数据解析失败:', dataLine.substring(0, 100), parseError)

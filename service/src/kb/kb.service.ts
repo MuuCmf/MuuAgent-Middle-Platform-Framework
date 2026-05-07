@@ -44,6 +44,7 @@ export class KbService {
         chunkOverlap: dto.chunkOverlap || 100,
         similarityThresh: dto.similarityThresh || 0.7,
         topN: dto.topN || 5,
+        retrievalMethod: dto.retrievalMethod || 'vector',
         description: dto.description,
         createdBy: dto.uid,
       },
@@ -99,6 +100,7 @@ export class KbService {
           chunkOverlap: true,
           similarityThresh: true,
           topN: true,
+          retrievalMethod: true,
           status: true,
           isPublic: true,
           description: true,
@@ -125,6 +127,7 @@ export class KbService {
         chunkOverlap: item.chunkOverlap,
         similarityThresh: item.similarityThresh,
         topN: item.topN,
+        retrievalMethod: item.retrievalMethod,
         status: item.status,
         isPublic: item.isPublic,
         description: item.description,
@@ -169,6 +172,7 @@ export class KbService {
       chunkOverlap: kb.chunkOverlap,
       similarityThresh: kb.similarityThresh,
       topN: kb.topN,
+      retrievalMethod: kb.retrievalMethod,
       status: kb.status,
       isPublic: kb.isPublic,
       description: kb.description,
@@ -220,6 +224,7 @@ export class KbService {
     if (dto.topN) updateData.topN = dto.topN;
     if (dto.description) updateData.description = dto.description;
     if (dto.status !== undefined) updateData.status = dto.status;
+    if (dto.retrievalMethod) updateData.retrievalMethod = dto.retrievalMethod;
 
     await this.prisma.kbInfo.update({
       where: { id: dto.kbId },

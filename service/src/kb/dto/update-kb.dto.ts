@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsBoolean, IsIn } from 'class-validator';
 
 /**
  * 更新知识库DTO
@@ -51,4 +51,8 @@ export class UpdateKbDto {
   @IsBoolean()
   @IsOptional()
   status?: boolean;
+
+  @IsIn(['vector', 'bm25'])
+  @IsOptional()
+  retrievalMethod?: string;
 }

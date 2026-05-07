@@ -54,45 +54,73 @@ export class DocumentProcessor {
         data: { totalChunks: chunks.length },
       });
 
-      // 批量创建切片记录并生成向量
-      const vectorPayloads = [];
-      const vectors: number[][] = [];
+      // 获取知识库配置的检索方式
+      const kbInfo = await this.prisma.kbInfo.findFirst({
+        where: { id: kbId, isDeleted: false },
+        select: { retrievalMethod: true },
+      });
+      const retrievalMethod = kbInfo?.retrievalMethod || 'vector';
 
-      for (let i = 0; i < chunks.length; i++) {
-        const chunkId = uuidv4();
+      // 如果配置为向量检索，则生成并写入向量
+      if (retrievalMethod === 'vector') {
+        // 批量创建切片记录并生成向量
+        const vectorPayloads = [];
+        const vectors: number[][] = [];
 
-        // 创建切片记录
-        await this.prisma.kbChunk.create({
-          data: {
-            id: chunkId,
-            kbId,
-            docId,
+        for (let i = 0; i < chunks.length; i++) {
+          const chunkId = uuidv4();
+
+          // 创建切片记录
+          await this.prisma.kbChunk.create({
+            data: {
+              id: chunkId,
+              kbId,
+              docId,
+              content: chunks[i],
+              chunkIndex: i,
+              status: 0,
+            },
+          });
+
+          // 生成向量
+          const embeddingResult = await this.generateEmbedding(chunks[i]);
+          vectors.push(embeddingResult);
+
+          // 准备向量payload
+          vectorPayloads.push({
+            kb_id: kbId,
+            doc_id: docId,
+            chunk_id: chunkId,
+            chunk_index: i,
             content: chunks[i],
-            chunkIndex: i,
-            status: 0,
-          },
-        });
+            doc_name: kbId, // 将在写入时从数据库获取
+            kb_name: kb.kbName || '',
+          });
+        }
 
-        // 生成向量
-        const embeddingResult = await this.generateEmbedding(chunks[i]);
-        vectors.push(embeddingResult);
+        // 批量将向量写入 Qdrant
+        if (vectors.length > 0) {
+          await this.vectorService.insertVectors(vectors, vectorPayloads);
+          console.log(`[DocumentProcessor] 文档 ${docId} 的 ${vectors.length} 个向量已写入 Qdrant`);
+        }
+      } else {
+        // BM25检索方式：只创建切片记录，不生成向量
+        for (let i = 0; i < chunks.length; i++) {
+          const chunkId = uuidv4();
 
-        // 准备向量payload
-        vectorPayloads.push({
-          kb_id: kbId,
-          doc_id: docId,
-          chunk_id: chunkId,
-          chunk_index: i,
-          content: chunks[i],
-          doc_name: kbId, // 将在写入时从数据库获取
-          kb_name: kb.kbName || '',
-        });
-      }
-
-      // 批量将向量写入 Qdrant
-      if (vectors.length > 0) {
-        await this.vectorService.insertVectors(vectors, vectorPayloads);
-        console.log(`[DocumentProcessor] 文档 ${docId} 的 ${vectors.length} 个向量已写入 Qdrant`);
+          // 创建切片记录（状态直接设为已完成）
+          await this.prisma.kbChunk.create({
+            data: {
+              id: chunkId,
+              kbId,
+              docId,
+              content: chunks[i],
+              chunkIndex: i,
+              status: 1, // BM25模式直接设为已完成
+            },
+          });
+        }
+        console.log(`[DocumentProcessor] 文档 ${docId} 使用BM25检索方式，跳过向量生成`);
       }
 
       // 更新所有切片状态为已向量化
