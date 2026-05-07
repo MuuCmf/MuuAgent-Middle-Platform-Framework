@@ -48,6 +48,11 @@ export class CreateAgentDto {
   @IsOptional()
   mcpServers?: string;
 
+  @ApiPropertyOptional({ description: '绑定的知识库code列表(JSON数组)', example: '["kb_product","kb_faq"]' })
+  @IsString()
+  @IsOptional()
+  knowledgeBases?: string;
+
   @ApiPropertyOptional({ description: '最大执行步数', default: 5 })
   @IsNumber()
   @Min(1)
@@ -101,6 +106,11 @@ export class UpdateAgentDto {
   @IsString()
   @IsOptional()
   mcpServers?: string;
+
+  @ApiPropertyOptional({ description: '绑定的知识库code列表(JSON数组)' })
+  @IsString()
+  @IsOptional()
+  knowledgeBases?: string;
 
   @ApiPropertyOptional({ description: '最大执行步数' })
   @IsNumber()

@@ -118,19 +118,20 @@ model Skill {
 
 /// 智能体表 - AI Agent配置
 model Agent {
-  id           String   @id @default(uuid())
-  name         String   /// 智能体名称
-  code         String   @unique /// 智能体唯一标识
-  description  String?  /// 智能体描述
-  systemPrompt String   /// 系统提示词
-  modelId      String?  /// 绑定模型ID
-  skills       String   @default("[]") /// 绑定的技能code列表(JSON数组)
-  mcpServers   String?  @default("[]") /// 绑定的MCP Server配置(JSON数组)
-  maxSteps     Int      @default(5) /// 最大执行步数
-  temperature  Float    @default(0.7) /// 温度参数
-  status       Boolean  @default(true) /// 是否启用
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(uuid())
+  name            String   /// 智能体名称
+  code            String   @unique /// 智能体唯一标识
+  description     String?  /// 智能体描述
+  systemPrompt    String   /// 系统提示词
+  modelId         String?  /// 绑定模型ID
+  skills          String   @default("[]") /// 绑定的技能code列表(JSON数组)
+  mcpServers      String?  @default("[]") /// 绑定的MCP Server配置(JSON数组)
+  knowledgeBases  String?  @default("[]") /// 绑定的知识库code列表(JSON数组)
+  maxSteps        Int      @default(5) /// 最大执行步数
+  temperature     Float    @default(0.7) /// 温度参数
+  status          Boolean  @default(true) /// 是否启用
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   /// 关联调用日志
   invokeLogs AgentInvokeLog[]
@@ -386,7 +387,7 @@ model KbChunk {
   id              String   @id @default(uuid())
   kbId            String   /// 所属知识库ID
   docId           String   /// 所属文档ID
-  content         String   /// 切片文本内容
+  content         String   @db.Text /// 切片文本内容
   chunkIndex      Int      /// 切片序号
   vectorId        String?  /// 向量库ID
   status          Int      @default(0) /// 状态: 0=未向量化,1=已向量化,2=失败

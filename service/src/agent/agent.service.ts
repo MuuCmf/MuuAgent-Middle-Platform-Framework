@@ -4,6 +4,7 @@ import { McpService } from '../mcp/mcp.service';
 import { McpServerService } from '../mcp-server/mcp-server.service';
 import { SkillService } from '../skill/skill.service';
 import { ModelService } from '../model/model.service';
+import { AgentKbService } from './agent-kb.service';
 import {
   CreateAgentDto,
   UpdateAgentDto,
@@ -26,6 +27,7 @@ export class AgentService {
    * @param mcpServerService MCP Server服务
    * @param skillService 技能服务
    * @param modelService 模型服务
+   * @param agentKbService 智能体知识库服务
    */
   constructor(
     private prisma: PrismaService,
@@ -33,6 +35,7 @@ export class AgentService {
     private mcpServerService: McpServerService,
     private skillService: SkillService,
     private modelService: ModelService,
+    private agentKbService: AgentKbService,
   ) {}
 
   /**
@@ -50,6 +53,7 @@ export class AgentService {
         modelId: dto.modelId,
         skills: dto.skills || '[]',
         mcpServers: dto.mcpServers || '[]',
+        knowledgeBases: dto.knowledgeBases || '[]',
         maxSteps: dto.maxSteps ?? 5,
         temperature: dto.temperature ?? 0.7,
         status: dto.status ?? true,
@@ -199,8 +203,25 @@ export class AgentService {
       ? this.mcpServerService.buildToolsDescription(mcpTools)
       : '';
 
-    // 构建系统提示词
-    const systemPrompt = this.buildSystemPrompt(agent, skillDescriptions, mcpToolDescriptions);
+    const kbCodes: string[] = JSON.parse(agent.knowledgeBases || '[]');
+    let augmentedPrompt = agent.systemPrompt;
+    let kbSources: any[] = [];
+
+    if (kbCodes.length > 0) {
+      const augmentation = await this.agentKbService.augmentPromptWithKb(
+        agent.id,
+        dto.message,
+        agent.systemPrompt,
+      );
+      augmentedPrompt = augmentation.systemPrompt;
+      kbSources = augmentation.sources;
+    }
+
+    const systemPrompt = this.buildSystemPrompt(
+      { ...agent, systemPrompt: augmentedPrompt },
+      skillDescriptions,
+      mcpToolDescriptions,
+    );
 
     // 获取模型
     let model;
@@ -372,8 +393,25 @@ ${resultText}
       ? this.mcpServerService.buildToolsDescription(mcpTools)
       : '';
 
-    // 构建系统提示词
-    const systemPrompt = this.buildSystemPrompt(agent, skillDescriptions, mcpToolDescriptions);
+    const kbCodes: string[] = JSON.parse(agent.knowledgeBases || '[]');
+    let augmentedPrompt = agent.systemPrompt;
+    let kbSources: any[] = [];
+
+    if (kbCodes.length > 0) {
+      const augmentation = await this.agentKbService.augmentPromptWithKb(
+        agent.id,
+        dto.message,
+        agent.systemPrompt,
+      );
+      augmentedPrompt = augmentation.systemPrompt;
+      kbSources = augmentation.sources;
+    }
+
+    const systemPrompt = this.buildSystemPrompt(
+      { ...agent, systemPrompt: augmentedPrompt },
+      skillDescriptions,
+      mcpToolDescriptions,
+    );
 
     // 获取模型
     let model;
@@ -570,10 +608,26 @@ ${resultText}
       ? this.mcpServerService.buildToolsDescription(mcpTools)
       : '';
 
-    // 构建系统提示词
-    const systemPrompt = this.buildSystemPrompt(agent, skillDescriptions, mcpToolDescriptions);
+    const kbCodes: string[] = JSON.parse(agent.knowledgeBases || '[]');
+    let augmentedPrompt = agent.systemPrompt;
+    let kbSources: any[] = [];
 
-    // 获取模型
+    if (kbCodes.length > 0) {
+      const augmentation = await this.agentKbService.augmentPromptWithKb(
+        agent.id,
+        dto.message,
+        agent.systemPrompt,
+      );
+      augmentedPrompt = augmentation.systemPrompt;
+      kbSources = augmentation.sources;
+    }
+
+    const systemPrompt = this.buildSystemPrompt(
+      { ...agent, systemPrompt: augmentedPrompt },
+      skillDescriptions,
+      mcpToolDescriptions,
+    );
+
     let model;
     if (agent.modelId) {
       model = await this.modelService.findOne(agent.modelId);

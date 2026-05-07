@@ -113,6 +113,55 @@
         </div>
       </el-form-item>
 
+      <el-form-item label="绑定知识库" prop="knowledgeBases">
+        <div style="width: 100%;">
+          <el-button type="primary" @click="handleSelectKbs" style="margin-bottom: 12px;">
+            <el-icon><Plus /></el-icon>
+            选择知识库
+          </el-button>
+          <div class="selected-kbs-display">
+            <div v-if="selectedKbCodes.length === 0" class="no-kbs">
+              <span style="color: #909399;">暂未绑定知识库</span>
+            </div>
+            <div v-else class="kb-tags">
+              <el-tag
+                v-for="code in selectedKbCodes"
+                :key="code"
+                closable
+                @close="removeKb(code)"
+                style="margin: 4px;"
+              >
+                {{ getKbName(code) }} ({{ code }})
+              </el-tag>
+            </div>
+          </div>
+
+          <el-alert type="info" :closable="false" style="margin-top: 12px;">
+            <template #title>
+              <strong>📚 知识库绑定说明</strong>
+            </template>
+            <div class="kb-example">
+              <p><strong>功能说明：</strong></p>
+              <p style="margin: 8px 0; color: #666; font-size: 13px;">
+                绑定知识库后，智能体在回答问题时会自动检索知识库内容，基于知识库信息生成更准确的回答
+              </p>
+              
+              <p style="margin-top: 12px;"><strong>使用场景：</strong></p>
+              <ul style="margin: 8px 0; padding-left: 20px; color: #666; font-size: 13px;">
+                <li>企业知识库问答</li>
+                <li>产品文档查询</li>
+                <li>FAQ自动回复</li>
+                <li>专业知识咨询</li>
+              </ul>
+        
+              <p style="margin-top: 12px; color: #666; font-size: 12px;">
+                💡 提示：智能体会自动从绑定的知识库中检索相关信息来增强回答
+              </p>
+            </div>
+          </el-alert>
+        </div>
+      </el-form-item>
+
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="最大执行步数">
@@ -150,6 +199,12 @@
       :selected-codes="selectedSkillCodes"
       @confirm="handleSkillSelect"
     />
+
+    <KbSelectDialog
+      v-model="kbSelectDialogVisible"
+      :selected-codes="selectedKbCodes"
+      @confirm="handleKbSelect"
+    />
   </el-drawer>
 </template>
 
@@ -161,9 +216,12 @@ import type { FormInstance, FormRules } from 'element-plus'
 import type { Agent, AgentForm } from '@/api/agent'
 import type { McpServerConfig } from '@/api/mcp-server'
 import type { Skill } from '@/api/skill'
+import type { KbInfo } from '@/api/kb'
+import { kbApi } from '@/api/kb'
 import McpServerConfigDialog from './McpServerConfigDialog.vue'
 import McpServerCard from './McpServerCard.vue'
 import SkillSelectDialog from './SkillSelectDialog.vue'
+import KbSelectDialog from './KbSelectDialog.vue'
 
 interface Props {
   visible: boolean
@@ -193,6 +251,7 @@ const form = ref<AgentForm>({
   systemPrompt: '',
   skills: '[]',
   mcpServers: '[]',
+  knowledgeBases: '[]',
   maxSteps: 5,
   temperature: 0.7,
   status: true
@@ -206,6 +265,10 @@ const mcpServers = ref<McpServerConfig[]>([])
 
 const skillSelectDialogVisible = ref(false)
 const selectedSkillCodes = ref<string[]>([])
+
+const kbSelectDialogVisible = ref(false)
+const selectedKbCodes = ref<string[]>([])
+const availableKbs = ref<KbInfo[]>([])
 
 const rules: FormRules = {
   name: [
@@ -227,13 +290,16 @@ watch(() => props.visible, (newVal) => {
         skills: Array.isArray(editingAgent.value.skills) 
           ? JSON.stringify(editingAgent.value.skills) 
           : editingAgent.value.skills,
-        mcpServers: editingAgent.value.mcpServers || '[]'
+        mcpServers: editingAgent.value.mcpServers || '[]',
+        knowledgeBases: editingAgent.value.knowledgeBases || '[]'
       }
       mcpServers.value = parseJsonSafe(editingAgent.value.mcpServers || '[]')
       selectedSkillCodes.value = parseJsonSafe(editingAgent.value.skills || '[]')
+      selectedKbCodes.value = parseJsonSafe(editingAgent.value.knowledgeBases || '[]')
     } else {
       resetForm()
     }
+    loadKbs()
   }
 })
 
@@ -253,18 +319,36 @@ const resetForm = () => {
     systemPrompt: '',
     skills: '[]',
     mcpServers: '[]',
+    knowledgeBases: '[]',
     maxSteps: 5,
     temperature: 0.7,
     status: true
   }
   mcpServers.value = []
   selectedSkillCodes.value = []
+  selectedKbCodes.value = []
   formRef.value?.resetFields()
+}
+
+const loadKbs = async () => {
+  try {
+    const response = await kbApi.getList({ pageSize: 100, status: true })
+    if (response.data.code === 200) {
+      availableKbs.value = response.data.data.list
+    }
+  } catch (error) {
+    console.error('加载知识库列表失败', error)
+  }
 }
 
 const getSkillName = (code: string) => {
   const skill = props.availableSkills.find(s => s.code === code)
   return skill?.name || code
+}
+
+const getKbName = (code: string) => {
+  const kb = availableKbs.value.find(k => k.kbCode === code)
+  return kb?.kbName || code
 }
 
 const handleSelectSkills = () => {
@@ -281,6 +365,23 @@ const removeSkill = (code: string) => {
   if (index > -1) {
     selectedSkillCodes.value.splice(index, 1)
     form.value.skills = JSON.stringify(selectedSkillCodes.value)
+  }
+}
+
+const handleSelectKbs = () => {
+  kbSelectDialogVisible.value = true
+}
+
+const handleKbSelect = (codes: string[]) => {
+  selectedKbCodes.value = codes
+  form.value.knowledgeBases = JSON.stringify(codes)
+}
+
+const removeKb = (code: string) => {
+  const index = selectedKbCodes.value.indexOf(code)
+  if (index > -1) {
+    selectedKbCodes.value.splice(index, 1)
+    form.value.knowledgeBases = JSON.stringify(selectedKbCodes.value)
   }
 }
 
@@ -344,7 +445,8 @@ const handleClose = () => {
 </script>
 
 <style lang="scss" scoped>
-.selected-skills-display {
+.selected-skills-display,
+.selected-kbs-display {
   min-height: 60px;
   border: 1px solid #e4e7ed;
   border-radius: 4px;
@@ -352,14 +454,16 @@ const handleClose = () => {
   background: #fafafa;
 }
 
-.no-skills {
+.no-skills,
+.no-kbs {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 36px;
 }
 
-.skill-tags {
+.skill-tags,
+.kb-tags {
   display: flex;
   flex-wrap: wrap;
 }

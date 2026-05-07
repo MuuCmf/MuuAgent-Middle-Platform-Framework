@@ -11,6 +11,7 @@ export interface Agent {
   modelId?: number
   skills: string
   mcpServers?: string
+  knowledgeBases?: string
   maxSteps: number
   temperature: number
   status: boolean
@@ -26,6 +27,7 @@ export interface AgentForm {
   modelId?: number
   skills: string
   mcpServers?: string
+  knowledgeBases?: string
   maxSteps: number
   temperature: number
   status: boolean
