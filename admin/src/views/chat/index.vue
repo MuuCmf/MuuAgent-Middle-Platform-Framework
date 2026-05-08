@@ -117,10 +117,10 @@
                 </div>
               </div>
               <div v-else-if="msg.role === 'assistant' && msg.reasoningMode !== 'NONE' && (msg.tools && msg.tools.length > 0 || msg.reasoningSteps && msg.reasoningSteps.length > 0)">
-                <!-- 推理步骤（小字形式） -->
-                <div v-if="msg.reasoningSteps && msg.reasoningSteps.length > 0" class="reasoning-steps">
-                  <div v-for="(step, sIdx) in msg.reasoningSteps" :key="sIdx" class="reasoning-step">
-                    <span class="step-type">{{ step.stepType === 'THINK' ? '💭' : step.stepType === 'ACTION' ? '⚡' : '📝' }}</span>
+                <!-- 推理步骤（小字形式）- 过滤掉 final_answer 类型 -->
+                <div v-if="filterReasoningSteps(msg.reasoningSteps).length > 0" class="reasoning-steps">
+                  <div v-for="(step, sIdx) in filterReasoningSteps(msg.reasoningSteps)" :key="sIdx" class="reasoning-step">
+                    <span class="step-type">{{ step.stepType === 'thought' ? '💭' : step.stepType === 'action' ? '⚡' : '📝' }}</span>
                     <span class="step-content">{{ step.thought || step.content }}</span>
                   </div>
                 </div>
@@ -169,6 +169,12 @@ import { kbApi } from '@/api/kb'
 import { retrievalApi } from '@/api/retrieval'
 import type { RetrievalItem } from '@/api/retrieval'
 import type { KbInfo } from '@/api/kb'
+import type { ReasoningStep } from '@/api/agent'
+
+const filterReasoningSteps = (steps?: ReasoningStep[]) => {
+  if (!steps) return []
+  return steps.filter(s => s.stepType !== 'final_answer')
+}
 
 const modelStore = useModelStore()
 const agentStore = useAgentStore()
@@ -279,7 +285,12 @@ const sendMessage = async () => {
         userMsg,
         (content: string) => {
           console.log('[Chat] Received chunk:', content)
-          chatMessages.value[assistantMsgIndex].content += content
+          // 检查是否是重置信号
+          if (content === '\x00') {
+            chatMessages.value[assistantMsgIndex].content = ''
+          } else {
+            chatMessages.value[assistantMsgIndex].content += content
+          }
           nextTick(() => {
             if (chatMessagesRef.value) {
               chatMessagesRef.value.scrollTop = chatMessagesRef.value.scrollHeight

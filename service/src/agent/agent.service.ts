@@ -238,6 +238,7 @@ export class AgentService {
 
     // 准备工具列表
     const tools = await this.prepareTools(agent);
+    console.log('tools工具列表', tools);
 
     // 知识库预检索（auto模式：预检索 + 工具检索）
     let augmentedPrompt = agent.systemPrompt;

@@ -167,8 +167,16 @@ export const agentApi = {
 
             switch (data.type) {
               case 'chunk':
-                console.log('[Frontend] Calling onChunk with:', data.content?.substring(0, 50))
-                onChunk(data.content || '')
+                const content = data.content || ''
+                // 检查是否是重置信号
+                if (content === '\x00') {
+                  console.log('[Frontend] Reset signal received')
+                  // 发送空字符串来清空内容
+                  onChunk('\x00')
+                } else {
+                  console.log('[Frontend] Calling onChunk with:', content.substring(0, 50))
+                  onChunk(content)
+                }
                 break
               case 'tool':
                 onTool(data.skill || '', data.result)

@@ -10,18 +10,7 @@ export class ReActParser {
   static parse(response: string): ReActParseResult {
     const trimmedResponse = response.trim();
 
-    // 检查是否包含 Final Answer
-    const finalAnswerMatch = this.extractFinalAnswer(trimmedResponse);
-    if (finalAnswerMatch) {
-      return {
-        type: StepType.FINAL_ANSWER,
-        thought: this.extractThought(trimmedResponse),
-        finalAnswer: finalAnswerMatch,
-        rawContent: trimmedResponse,
-      };
-    }
-
-    // 检查是否包含 Action
+    // 优先检查 Action（确保工具被执行，而不是跳过到 Final Answer）
     const actionMatch = this.extractAction(trimmedResponse);
     if (actionMatch) {
       return {
@@ -29,6 +18,17 @@ export class ReActParser {
         thought: this.extractThought(trimmedResponse),
         action: actionMatch.action,
         actionInput: actionMatch.actionInput,
+        rawContent: trimmedResponse,
+      };
+    }
+
+    // 检查是否包含 Final Answer
+    const finalAnswerMatch = this.extractFinalAnswer(trimmedResponse);
+    if (finalAnswerMatch) {
+      return {
+        type: StepType.FINAL_ANSWER,
+        thought: this.extractThought(trimmedResponse),
+        finalAnswer: finalAnswerMatch,
         rawContent: trimmedResponse,
       };
     }
@@ -89,30 +89,65 @@ export class ReActParser {
       }
     }
 
-    if (!action) {
-      return null;
-    }
-
-    // 匹配 Action Input
-    const inputPatterns = [
-      /Action Input:\s*(\{[\s\S]*?\})/i,
-      /行动输入:\s*(\{[\s\S]*?\})/,
-    ];
-
     let actionInput: Record<string, unknown> = {};
-    for (const pattern of inputPatterns) {
-      const match = text.match(pattern);
-      if (match) {
-        try {
-          actionInput = JSON.parse(match[1].trim());
-        } catch {
-          actionInput = { raw: match[1].trim() };
+
+    // 如果没有找到标准格式的 Action，尝试解析简化格式
+    if (!action) {
+      const simplifiedMatch = this.extractSimplifiedAction(text);
+      if (simplifiedMatch) {
+        action = simplifiedMatch.action;
+        actionInput = simplifiedMatch.actionInput;
+      } else {
+        return null;
+      }
+    } else {
+      // 匹配 Action Input
+      const inputPatterns = [
+        /Action Input:\s*(\{[\s\S]*?\})/i,
+        /行动输入:\s*(\{[\s\S]*?\})/,
+      ];
+
+      for (const pattern of inputPatterns) {
+        const match = text.match(pattern);
+        if (match) {
+          try {
+            actionInput = JSON.parse(match[1].trim());
+          } catch {
+            actionInput = { raw: match[1].trim() };
+          }
+          break;
         }
-        break;
       }
     }
 
     return { action, actionInput };
+  }
+
+  /**
+   * 提取简化格式的工具调用（如：get_time \n {}）
+   */
+  private static extractSimplifiedAction(text: string): { action: string; actionInput: Record<string, unknown> } | null {
+    const lines = text.trim().split('\n').map(line => line.trim()).filter(line => line);
+    
+    if (lines.length >= 2) {
+      // 第一行可能是工具名称
+      const potentialAction = lines[0].trim();
+      // 第二行可能是 JSON 参数
+      const potentialInput = lines[1].trim();
+      
+      if (potentialInput.startsWith('{') && potentialInput.endsWith('}')) {
+        try {
+          const parsedInput = JSON.parse(potentialInput);
+          if (typeof parsedInput === 'object') {
+            return { action: potentialAction, actionInput: parsedInput };
+          }
+        } catch {
+          // 不是有效的 JSON，继续尝试其他格式
+        }
+      }
+    }
+    
+    return null;
   }
 
   /**

@@ -110,6 +110,7 @@ export class ReActEngine {
 
             // 构建下一步提示
             currentPrompt = ReActPromptBuilder.buildNextPrompt(
+              systemPrompt,
               context.userMessage,
               steps,
             );
@@ -121,6 +122,7 @@ export class ReActEngine {
 
             // 继续尝试其他方案
             currentPrompt = ReActPromptBuilder.buildNextPrompt(
+              systemPrompt,
               context.userMessage,
               steps,
               step.observation,
@@ -221,35 +223,31 @@ export class ReActEngine {
 
         let llmResponse = '';
         let isInFinalAnswer = false;
-        let finalAnswerBuffer = '';
+        let hasSentChunks = false;
 
-        // 流式调用 LLM
+        // 流式调用 LLM（立即发送，真正的流式体验）
         const llmResult = await callLLMStream(
           systemPrompt,
           currentPrompt,
           (chunk: string) => {
             llmResponse += chunk;
 
-            // 检测是否进入 Final Answer 部分
             if (!isInFinalAnswer) {
-              // 检查是否出现了 Final Answer 标记
+              // 检测是否进入 Final Answer 部分
               const finalAnswerIndex = llmResponse.indexOf('Final Answer:');
               if (finalAnswerIndex !== -1) {
                 isInFinalAnswer = true;
-                // 提取 Final Answer: 之后的内容
-                const afterMarker = llmResponse.substring(finalAnswerIndex + 13); // 13 = 'Final Answer:'.length
-                // 只发送新增的部分
-                const newContent = afterMarker.substring(finalAnswerBuffer.length);
-                finalAnswerBuffer = afterMarker;
-                if (newContent) {
-                  callbacks.onChunk(newContent);
+                // 提取并发送 Final Answer: 之后的内容
+                const afterMarker = llmResponse.substring(finalAnswerIndex + 13);
+                if (afterMarker) {
+                  callbacks.onChunk(afterMarker);
+                  hasSentChunks = true;
                 }
               }
             } else {
-              // 已经在 Final Answer 部分，直接发送
-              const newContent = chunk;
-              finalAnswerBuffer += newContent;
-              callbacks.onChunk(newContent);
+              // 已经在 Final Answer 部分，直接流式发送
+              callbacks.onChunk(chunk);
+              hasSentChunks = true;
             }
           },
         );
@@ -261,9 +259,21 @@ export class ReActEngine {
         const parseResult = ReActParser.parse(llmResponse);
         this.logger.debug(`Parse result type: ${parseResult.type}`);
 
+        // 如果不是最终答案但已经发送了内容，需要重置
+        if (parseResult.type !== StepType.FINAL_ANSWER && hasSentChunks) {
+          // 发送重置信号，让前端清空之前发送的内容
+          callbacks.onChunk('\x00');
+          hasSentChunks = false;
+        }
+
         // 处理最终答案
         if (parseResult.type === StepType.FINAL_ANSWER) {
           finalResponse = parseResult.finalAnswer || llmResult.response;
+
+          // 如果没有发送过内容（LLM 没有输出 Final Answer: 标记），发送整个响应
+          if (!hasSentChunks && finalResponse) {
+            callbacks.onChunk(finalResponse);
+          }
 
           const step: ReasoningStep = {
             stepNumber: i + 1,
@@ -311,6 +321,7 @@ export class ReActEngine {
 
             // 构建下一步提示
             currentPrompt = ReActPromptBuilder.buildNextPrompt(
+              systemPrompt,
               context.userMessage,
               steps,
             );
@@ -323,6 +334,7 @@ export class ReActEngine {
 
             // 继续尝试其他方案
             currentPrompt = ReActPromptBuilder.buildNextPrompt(
+              systemPrompt,
               context.userMessage,
               steps,
               step.observation,

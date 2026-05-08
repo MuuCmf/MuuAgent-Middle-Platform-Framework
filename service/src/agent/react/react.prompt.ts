@@ -126,14 +126,15 @@ ${params || '  无参数'}
   }
 
   /**
-   * 构建下一步提示
+   * 构建下一步提示（包含系统上下文）
    */
   static buildNextPrompt(
+    systemPrompt: string,
     userMessage: string,
     steps: ReasoningStep[],
     observation?: string,
   ): string {
-    let prompt = `用户问题: ${userMessage}\n`;
+    let prompt = `${systemPrompt}\n\n用户问题: ${userMessage}\n`;
 
     for (const step of steps) {
       if (step.thought) {
