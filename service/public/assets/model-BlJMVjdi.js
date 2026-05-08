@@ -1,0 +1,1 @@
+import{a as t}from"./request-By_SA0Vb.js";const r={getList(){return t.get("/admin/model")},create(e){return t.post("/admin/model",e)},update(e,d){return t.put(`/admin/model/${e}`,d)},delete(e){return t.delete(`/admin/model/${e}`)}};export{r as m};

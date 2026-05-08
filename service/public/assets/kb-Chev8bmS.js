@@ -1,1 +1,0 @@
-import{a as t}from"./request-jCIINZwP.js";const n={getList(e){return t.get("/admin/kb",{params:e})},getDetail(e){return t.get(`/admin/kb/${e}`)},create(e){return t.post("/admin/kb",e)},update(e){return t.put("/admin/kb",e)},delete(e,a){return t.delete(`/admin/kb/${a}`,{data:{uid:e}})}};export{n as k};

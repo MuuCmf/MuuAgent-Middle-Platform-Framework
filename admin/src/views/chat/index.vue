@@ -117,74 +117,123 @@
                 </div>
               </div>
               <div v-else-if="msg.role === 'assistant' && msg.reasoningMode !== 'NONE' && (msg.tools && msg.tools.length > 0 || msg.reasoningSteps && msg.reasoningSteps.length > 0)">
-                <!-- 优雅推理过程展示 -->
+                <!-- 大厂风格推理过程展示 -->
                 <div v-if="msg.reasoningSteps && filterReasoningSteps(msg.reasoningSteps).length > 0" class="reasoning-container">
                   <div class="reasoning-header">
                     <div class="reasoning-title-row">
                       <span class="reasoning-brain-icon">🧠</span>
-                      <span class="reasoning-title">推理过程</span>
+                      <span class="reasoning-title">思维链</span>
+                      <span class="reasoning-subtitle">Reasoning Process</span>
                     </div>
                     <div class="reasoning-steps-badge">
                       <span class="step-count">{{ filterReasoningSteps(msg.reasoningSteps).length }}</span>
-                      <span class="step-text">步推理</span>
+                      <span class="step-text">步</span>
                     </div>
                   </div>
-                  <div class="reasoning-timeline">
-                    <div v-for="(step, sIdx) in filterReasoningSteps(msg.reasoningSteps)" :key="sIdx" class="timeline-item">
-                      <div class="timeline-marker">
-                        <div class="marker-dot" :class="'marker-' + step.stepType"></div>
-                        <div v-if="sIdx < filterReasoningSteps(msg.reasoningSteps).length - 1" class="marker-line"></div>
+                  
+                  <!-- 流程指示器 -->
+                  <div class="reasoning-flow">
+                    <div class="flow-item" v-for="(step, sIdx) in filterReasoningSteps(msg.reasoningSteps)" :key="sIdx">
+                      <span class="flow-dot" :class="'flow-' + step.stepType"></span>
+                      <span class="flow-label">{{ getStepLabel(step) }}</span>
+                    </div>
+                  </div>
+
+                  <!-- 详细步骤卡片 -->
+                  <div class="reasoning-cards">
+                    <div 
+                      v-for="(step, sIdx) in filterReasoningSteps(msg.reasoningSteps)" 
+                      :key="sIdx" 
+                      class="step-card-wrapper"
+                    >
+                      <!-- 步骤序号 -->
+                      <div class="step-number" :class="'number-' + step.stepType">
+                        <span>{{ sIdx + 1 }}</span>
                       </div>
-                      <div class="timeline-content">
-                        <div class="step-card" :class="'card-' + step.stepType">
-                          <div class="step-card-header">
+                      
+                      <!-- 步骤内容卡片 -->
+                      <div class="step-card" :class="'card-' + step.stepType">
+                        <!-- 卡片头部 -->
+                        <div class="step-card-header">
+                          <div class="step-type-badge" :class="'badge-' + step.stepType">
                             <span class="step-type-icon">
                               <template v-if="step.stepType === 'thought'">💭</template>
                               <template v-else-if="step.stepType === 'action'">⚡</template>
-                              <template v-else>📡</template>
+                              <template v-else>📊</template>
                             </span>
-                            <span class="step-type-label">
+                            <span class="step-type-text">
                               <template v-if="step.stepType === 'thought'">思考</template>
-                              <template v-else-if="step.stepType === 'action'">执行工具</template>
-                              <template v-else>工具返回</template>
+                              <template v-else-if="step.stepType === 'action'">工具调用</template>
+                              <template v-else>执行结果</template>
                             </span>
-                            <span class="step-number-badge">{{ sIdx + 1 }}</span>
                           </div>
-                          <div class="step-card-body">
-                            <template v-if="step.stepType === 'thought'">
-                              <div class="thought-text">{{ formatThoughtContent(step.content) }}</div>
-                            </template>
-                            <template v-else-if="step.stepType === 'action'">
-                              <div class="action-tool-name">
+                          <div class="step-card-actions">
+                            <span class="step-time">步骤 {{ sIdx + 1 }}</span>
+                          </div>
+                        </div>
+                        
+                        <!-- 卡片内容 -->
+                        <div class="step-card-body">
+                          <template v-if="step.stepType === 'thought'">
+                            <div class="thought-content">
+                              <p>{{ formatThoughtContent(step.content) }}</p>
+                            </div>
+                          </template>
+                          <template v-else-if="step.stepType === 'action'">
+                            <div class="action-content">
+                              <div class="action-tool-header">
                                 <span class="tool-icon">🔧</span>
                                 <span class="tool-name">{{ step.toolName || step.action }}</span>
                               </div>
                               <div v-if="step.actionInput || step.toolArgs" class="action-args">
-                                <span class="args-label">参数：</span>
-                                <code class="args-code">{{ formatArgs(step.actionInput || step.toolArgs) }}</code>
+                                <span class="args-label">调用参数</span>
+                                <div class="args-content">
+                                  <code>{{ formatArgs(step.actionInput || step.toolArgs) }}</code>
+                                </div>
                               </div>
-                            </template>
-                            <template v-else>
-                              <div class="observation-result">
-                                <pre class="observation-pre">{{ formatObservation(step.observation || step.toolOutput) }}</pre>
+                              <div v-if="step.content" class="action-thought">
+                                <span class="thought-label">思考依据</span>
+                                <p>{{ formatThoughtContent(step.content) }}</p>
                               </div>
-                            </template>
-                          </div>
+                            </div>
+                          </template>
+                          <template v-else>
+                            <div class="observation-content">
+                              <div class="observation-header">
+                                <span class="result-icon">✅</span>
+                                <span class="result-label">工具 <strong>{{ step.toolName }}</strong> 返回结果</span>
+                              </div>
+                              <div class="observation-data">
+                                <pre>{{ formatObservation(step.content || step.toolOutput) }}</pre>
+                              </div>
+                            </div>
+                          </template>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-                <!-- 最终回答 -->
+                
+                <!-- 最终回答卡片 -->
                 <div class="final-answer-card" v-if="getFinalAnswer(msg.reasoningSteps)">
                   <div class="final-answer-header">
-                    <span class="final-icon">✨</span>
-                    <span class="final-label">最终回答</span>
+                    <div class="final-badge">
+                      <span class="final-icon">🎯</span>
+                      <span class="final-label">最终结论</span>
+                    </div>
+                    <div class="final-confidence">
+                      <span class="confidence-label">置信度</span>
+                      <div class="confidence-bar">
+                        <div class="confidence-fill"></div>
+                      </div>
+                      <span class="confidence-value">高</span>
+                    </div>
                   </div>
                   <div class="final-answer-body">
                     {{ getFinalAnswer(msg.reasoningSteps) }}
                   </div>
                 </div>
+                
                 <!-- 备用：如果没有推理步骤，直接显示内容 -->
                 <div v-else-if="msg.content" style="white-space: pre-wrap;">{{ msg.content }}</div>
               </div>
@@ -223,12 +272,33 @@ import type { ReasoningStep } from '@/api/agent'
 
 const formatThoughtContent = (content?: string) => {
   if (!content) return ''
-  // 移除 Thought: 或 Thought 前缀，并清理多余空白
-  const cleaned = content
+  // 移除 Thought: 前缀和其他格式标记
+  let cleaned = content
     .replace(/^(Thought|Thought:)\s*/i, '')
     .replace(/^[:：]\s*/, '')
     .trim()
+  
+  // 移除 Action:、Action Input:、Observation: 等内部逻辑行
+  cleaned = cleaned.split('\n').filter(line => {
+    const trimmedLine = line.trim()
+    return !trimmedLine.startsWith('Action:') && 
+           !trimmedLine.startsWith('Action Input:') &&
+           !trimmedLine.startsWith('Observation:') &&
+           !trimmedLine.startsWith('Thought:')
+  }).join('\n').trim()
+  
   return cleaned || content.trim()
+}
+
+const formatFinalAnswer = (content?: string) => {
+  if (!content) return ''
+  // 后端已经处理好了答案格式，这里只做简单的清理
+  let cleaned = content.trim()
+  // 移除 Observation: 及其内容（如果后端漏掉了）
+  cleaned = cleaned.replace(/Observation:\s*\{[\s\S]*?\}\s*/g, '')
+  // 清理多余空白
+  cleaned = cleaned.replace(/\n{2,}/g, '\n').trim()
+  return cleaned
 }
 
 const formatArgs = (args: any) => {
@@ -251,7 +321,8 @@ const getFinalAnswer = (steps?: ReasoningStep[]) => {
   if (!steps) return ''
   const finalStep = steps.find(s => s.stepType === 'final_answer')
   if (finalStep) {
-    return (finalStep.content || '').replace(/^(Final Answer|Final Answer:)\s*/i, '').trim()
+    const content = (finalStep.content || '').replace(/^(Final Answer|Final Answer:)\s*/i, '').trim()
+    return formatFinalAnswer(content)
   }
   return ''
 }
@@ -279,6 +350,13 @@ const filterReasoningSteps = (steps?: ReasoningStep[]) => {
   }
   
   return filteredSteps
+}
+
+const getStepLabel = (step: ReasoningStep) => {
+  if (step.stepType === 'thought') return '思考'
+  if (step.stepType === 'action') return step.toolName || '工具调用'
+  if (step.stepType === 'observation') return '结果'
+  return '步骤'
 }
 
 const modelStore = useModelStore()
@@ -427,9 +505,13 @@ const sendMessage = async () => {
         },
         (error: any) => {
           console.error('智能体流式调用错误:', error)
-          chatMessages.value[assistantMsgIndex].content = '调用失败: ' + (error.message || '未知错误')
+          chatMessages.value[assistantMsgIndex].content = '调用失败: ' + (error.message || error)
         },
-        () => {
+        (steps: any[], response?: string) => {
+          // 如果有完整的响应，使用完整响应替换流式内容
+          if (response) {
+            chatMessages.value[assistantMsgIndex].content = response
+          }
           chatLoading.value = false
         }
       )
@@ -638,39 +720,46 @@ onMounted(() => {
   }
 }
 
-/* 优雅推理过程样式 */
+/* 大厂风格推理过程样式 */
 .reasoning-container {
   margin-bottom: 16px;
-  border: 1px solid #e8e8e8;
-  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
   overflow: hidden;
-  background: #fafbfc;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  background: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
 }
 
 .reasoning-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
   color: white;
 }
 
 .reasoning-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .reasoning-brain-icon {
-  font-size: 20px;
+  font-size: 22px;
 }
 
 .reasoning-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.5px;
+}
+
+.reasoning-subtitle {
+  font-size: 12px;
+  opacity: 0.8;
+  font-weight: 400;
+  margin-left: 4px;
 }
 
 .reasoning-steps-badge {
@@ -678,13 +767,14 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
   background: rgba(255, 255, 255, 0.2);
-  padding: 4px 10px;
-  border-radius: 12px;
+  backdrop-filter: blur(4px);
+  padding: 6px 12px;
+  border-radius: 20px;
   font-size: 12px;
 
   .step-count {
     font-weight: 700;
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .step-text {
@@ -692,205 +782,322 @@ onMounted(() => {
   }
 }
 
-.reasoning-timeline {
-  padding: 16px 16px 8px 8px;
+/* 流程指示器 */
+.reasoning-flow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+  overflow-x: auto;
 }
 
-.timeline-item {
+.flow-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  white-space: nowrap;
+}
+
+.flow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+
+  &.flow-thought {
+    background: #8b5cf6;
+  }
+
+  &.flow-action {
+    background: #f59e0b;
+  }
+
+  &.flow-observation {
+    background: #10b981;
+  }
+}
+
+.flow-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* 详细步骤卡片 */
+.reasoning-cards {
+  padding: 16px 20px;
+}
+
+.step-card-wrapper {
   display: flex;
   gap: 12px;
-  margin-bottom: 8px;
-  position: relative;
+  margin-bottom: 16px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 }
 
-.timeline-marker {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 24px;
-}
-
-.marker-dot {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+.step-number {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   font-size: 12px;
-  z-index: 1;
+  font-weight: 700;
+  flex-shrink: 0;
 
-  &.marker-thought {
-    background: linear-gradient(135deg, #f5f3ff 0%, #e0e7ff 100%);
-    border: 2px solid #a5b4fc;
+  &.number-thought {
+    background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+    color: #7c3aed;
   }
 
-  &.marker-action {
+  &.number-action {
     background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    border: 2px solid #fbbf24;
+    color: #d97706;
   }
 
-  &.marker-observation {
+  &.number-observation {
     background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-    border: 2px solid #34d399;
+    color: #059669;
   }
-}
-
-.marker-line {
-  width: 2px;
-  flex: 1;
-  background: linear-gradient(to bottom, #e5e7eb, #f3f4f6);
-  margin-top: 4px;
-  min-height: 20px;
-}
-
-.timeline-content {
-  flex: 1;
-  padding-bottom: 8px;
 }
 
 .step-card {
-  border-radius: 10px;
+  flex: 1;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
   &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
   }
 
   &.card-thought {
-    background: linear-gradient(135deg, #fefefe 0%, #f5f3ff 100%);
-    border: 1px solid #e0e7ff;
+    background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+    border: 1px solid #e9d5ff;
   }
 
   &.card-action {
     background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-    border: 1px solid #fde68a;
+    border: 1px solid #fcd34d;
   }
 
   &.card-observation {
-    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-    border: 1px solid #a7f3d0;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 1px solid #86efac;
   }
 }
 
 .step-card-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.6);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.7);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.step-type-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+
+  &.badge-thought {
+    background: rgba(124, 58, 237, 0.1);
+  }
+
+  &.badge-action {
+    background: rgba(217, 119, 6, 0.1);
+  }
+
+  &.badge-observation {
+    background: rgba(5, 150, 105, 0.1);
+  }
 }
 
 .step-type-icon {
   font-size: 14px;
 }
 
-.step-type-label {
+.step-type-text {
   font-size: 12px;
   font-weight: 600;
   color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
-.step-number-badge {
-  margin-left: auto;
-  font-size: 10px;
-  font-weight: 700;
+.step-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-time {
+  font-size: 11px;
   color: #94a3b8;
-  background: #f1f5f9;
-  padding: 2px 8px;
-  border-radius: 10px;
+  font-weight: 500;
 }
 
 .step-card-body {
-  padding: 12px 14px;
+  padding: 14px 16px;
 }
 
-.thought-text {
-  font-size: 13px;
-  line-height: 1.7;
-  color: #475569;
-  font-style: italic;
+/* 思考内容 */
+.thought-content {
+  p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #374151;
+    font-style: italic;
+    margin: 0;
+  }
 }
 
-.action-tool-name {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
+/* 工具调用内容 */
+.action-content {
+  .action-tool-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
 
   .tool-icon {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .tool-name {
     font-size: 14px;
     font-weight: 600;
     color: #92400e;
-    font-family: 'Monaco', 'Menlo', monospace;
+  }
+
+  .action-args {
+    margin-bottom: 10px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 8px;
+
+    .args-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .args-content {
+      background: white;
+      border-radius: 6px;
+      padding: 8px;
+      overflow-x: auto;
+
+      code {
+        font-size: 12px;
+        color: #374151;
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      }
+    }
+  }
+
+  .action-thought {
+    .thought-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    p {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #4b5563;
+      font-style: italic;
+      margin: 0;
+    }
   }
 }
 
-.action-args {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.7);
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid #fde68a;
+/* 工具返回结果 */
+.observation-content {
+  .observation-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
 
-  .args-label {
-    font-size: 11px;
-    color: #92400e;
-    font-weight: 600;
+    .result-icon {
+      font-size: 14px;
+    }
+
+    .result-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #065f46;
+    }
   }
 
-  .args-code {
-    font-size: 11px;
-    color: #78350f;
-    font-family: 'Monaco', 'Menlo', monospace;
-    white-space: pre-wrap;
-    word-break: break-all;
-  }
-}
+  .observation-data {
+    background: white;
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid #d1fae5;
+    overflow-x: auto;
 
-.observation-result {
-  .observation-pre {
-    font-size: 12px;
-    line-height: 1.6;
-    color: #065f46;
-    font-family: 'Monaco', 'Menlo', monospace;
-    white-space: pre-wrap;
-    word-break: break-all;
-    margin: 0;
-    padding: 0;
-    background: transparent;
+    pre {
+      font-size: 13px;
+      color: #374151;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 0;
+    }
   }
 }
 
 /* 最终回答卡片样式 */
 .final-answer-card {
-  margin-top: 12px;
-  border-radius: 12px;
+  margin-top: 16px;
+  border-radius: 16px;
   overflow: hidden;
   background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
   border: 1px solid #86efac;
-  box-shadow: 0 2px 8px rgba(22, 101, 52, 0.1);
+  box-shadow: 0 4px 16px rgba(22, 101, 52, 0.12);
 }
 
 .final-answer-header {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.7);
+  border-bottom: 1px solid rgba(22, 101, 52, 0.1);
+}
+
+.final-badge {
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.6);
-  border-bottom: 1px solid rgba(22, 101, 52, 0.1);
+  padding: 6px 12px;
+  background: rgba(5, 150, 105, 0.1);
+  border-radius: 20px;
 
   .final-icon {
     font-size: 18px;
@@ -905,9 +1112,54 @@ onMounted(() => {
   }
 }
 
+.final-confidence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 20px;
+
+  .confidence-label {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  .confidence-bar {
+    width: 40px;
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+
+    .confidence-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #34d399);
+      border-radius: 3px;
+      animation: confidenceGrow 0.5s ease-out;
+    }
+  }
+
+  .confidence-value {
+    font-size: 11px;
+    font-weight: 600;
+    color: #059669;
+  }
+}
+
+@keyframes confidenceGrow {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
 .final-answer-body {
-  padding: 16px;
-  font-size: 14px;
+  padding: 18px;
+  font-size: 15px;
   line-height: 1.8;
   color: #14532d;
   white-space: pre-wrap;

@@ -108,7 +108,7 @@ export const agentApi = {
     onTool: (skill: string, result: any) => void,
     onReasoningStep: (step: ReasoningStep) => void,
     onError: (error: any) => void,
-    onComplete: (steps?: any[]) => void
+    onComplete: (steps?: any[], response?: string) => void
   ): Promise<void> {
     try {
       const headers: Record<string, string> = {
@@ -196,7 +196,7 @@ export const agentApi = {
                 onError(new Error(data.content || '未知错误'))
                 return
               case 'done':
-                onComplete(data.steps)
+                onComplete(data.steps, data.response)
                 return
             }
           } catch (parseError) {

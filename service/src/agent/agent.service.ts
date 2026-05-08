@@ -588,8 +588,9 @@ export class AgentService {
         let stepText = '';
         let hasFinalAnswer = false;
         let toolCallDetected: { name: string; args: any } | null = null;
-        let finalAnswerMode = false;
-        let pendingChunk = '';
+        let streamingMode: 'thought' | 'answer' = 'thought';
+        let pendingText = '';
+        let thoughtEnded = false;
 
         await this.aiSdkProvider.streamText({
           model: context.model,
@@ -599,37 +600,57 @@ export class AgentService {
           onChunk: (chunk) => {
             stepText += chunk;
             
-            if (finalAnswerMode) {
-              // 已经进入最终答案模式，直接发送
-              callbacks.onChunk?.(chunk);
-            } else {
+            const testText = pendingText + chunk;
+            
+            // 检查是否到达最终答案标记
+            if (!thoughtEnded) {
               // 检查是否包含 Final Answer 标记
-              const testText = pendingChunk + chunk;
-              const finalAnswerIndex = testText.indexOf('Final Answer:');
-              
-              if (finalAnswerIndex !== -1) {
-                // 找到 Final Answer 标记
-                finalAnswerMode = true;
-                // 只发送 Final Answer: 之后的内容
-                const contentAfter = testText.substring(finalAnswerIndex + 13); // 13 = 'Final Answer:'.length
+              if (testText.includes('Final Answer:')) {
+                thoughtEnded = true;
+                streamingMode = 'answer';
+                const contentAfter = testText.split('Final Answer:').pop() || '';
+                pendingText = contentAfter;
                 if (contentAfter) {
                   callbacks.onChunk?.(contentAfter);
                 }
-                pendingChunk = '';
-              } else {
-                // 检查是否可能是部分匹配
-                const last13Chars = testText.slice(-13);
-                if (last13Chars.length >= 13 || !testText.includes('Final')) {
-                  // 发送除了最后可能不完整的部分
-                  const sendText = testText.slice(0, -Math.min(last13Chars.length, 13));
-                  if (sendText) {
-                    callbacks.onChunk?.(sendText);
+                return;
+              }
+              
+              // 检查是否包含 Action: 标记
+              if (testText.includes('Action:')) {
+                thoughtEnded = true;
+                // 检查 Action: 之后是否有明确答案（"当前时间是" 或 "答案是" 等）
+                const actionIndex = testText.indexOf('Action:');
+                const contentAfterAction = testText.substring(actionIndex + 7); // 7 = 'Action:'.length
+                
+                // 如果 Action: 之后有明确答案，切换到答案模式并发送
+                if (contentAfterAction.includes('当前时间是') || contentAfterAction.includes('答案是')) {
+                  streamingMode = 'answer';
+                  // 提取答案部分
+                  const answerMatch = contentAfterAction.match(/(当前时间是[^]。]+。?|答案是[^]。]+。?)/);
+                  if (answerMatch) {
+                    callbacks.onChunk?.(answerMatch[1]);
+                    pendingText = '';
+                    return;
                   }
-                  pendingChunk = last13Chars;
-                } else {
-                  pendingChunk = testText;
                 }
               }
+              
+              // 还在 thought 阶段，发送 Thought: 之后的内容
+              if (testText.includes('Thought:')) {
+                const thoughtContent = testText.split('Thought:').pop() || '';
+                if (thoughtContent && !thoughtContent.includes('Action:')) {
+                  callbacks.onChunk?.(thoughtContent);
+                  pendingText = '';
+                } else {
+                  pendingText = testText;
+                }
+              } else {
+                pendingText = testText;
+              }
+            } else if (streamingMode === 'answer') {
+              // 答案模式，直接发送
+              callbacks.onChunk?.(chunk);
             }
           },
           onToolCall: (toolCall) => {
@@ -670,10 +691,11 @@ export class AgentService {
           break;
         }
 
-        // 如果没有 Final Answer 但有内容，作为 thought 步骤保存
-        if (stepText.trim()) {
+        // 如果没有 Final Answer 但有内容
+        // 只有当文本不包含 Thought/Action 格式时才作为独立 thought 步骤保存
+        if (stepText.trim() && !stepText.includes('Thought:') && !stepText.includes('Action:')) {
           steps.push({
-            stepNumber: i + 1,
+            stepNumber: steps.length + 1,
             stepType: 'thought',
             content: stepText.trim(),
           });
@@ -682,6 +704,18 @@ export class AgentService {
         if (toolCallDetected && typeof toolCallDetected === 'object') {
           const tc = toolCallDetected as { name: string; args: any };
           try {
+            // 添加 action 步骤（工具调用）
+            const actionStep = {
+              stepNumber: steps.length + 1,
+              stepType: 'action' as const,
+              content: stepText.trim() || `需要调用工具 ${tc.name} 获取相关信息`,
+              toolName: tc.name,
+              toolArgs: tc.args,
+            };
+            steps.push(actionStep);
+            callbacks.onStep?.(actionStep);
+
+            // 执行工具
             const toolResult = await this.executeTool(tc.name, tc.args, context);
 
             callbacks.onToolCall?.({
@@ -694,36 +728,42 @@ export class AgentService {
             messages.push({ role: 'assistant', content: stepText });
             currentPrompt = `工具 ${tc.name} 返回结果:\n${resultText}\n\n请基于以上结果继续回答用户问题。如果已经得到答案，使用 Final Answer 输出最终答案。`;
 
-            // 确保 steps 数组不为空
-            if (steps.length === 0) {
-              steps.push({
-                stepNumber: i + 1,
-                stepType: 'thought',
-                content: stepText.trim() || `调用工具: ${tc.name}`,
-              });
-            }
-            
-            steps[steps.length - 1].observation = resultText;
-            steps[steps.length - 1].toolOutput = toolResult;
-
-            callbacks.onStep?.({
-              ...steps[steps.length - 1],
-              observation: resultText,
+            // 添加 observation 步骤（工具返回）
+            const observationStep = {
+              stepNumber: steps.length + 1,
+              stepType: 'observation' as const,
+              content: resultText,
+              toolName: tc.name,
               toolOutput: toolResult,
-            });
+            };
+            steps.push(observationStep);
+            callbacks.onStep?.(observationStep);
+
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
             
-            // 确保 steps 数组不为空
-            if (steps.length === 0) {
-              steps.push({
-                stepNumber: i + 1,
-                stepType: 'thought',
-                content: stepText.trim() || `调用工具: ${tc.name}`,
-              });
-            }
-            
-            steps[steps.length - 1].observation = `错误: ${errorMsg}`;
+            // 添加 action 步骤（工具调用）
+            const actionStep = {
+              stepNumber: steps.length + 1,
+              stepType: 'action' as const,
+              content: stepText.trim() || `调用工具: ${tc.name}`,
+              toolName: tc.name,
+              toolArgs: tc.args,
+            };
+            steps.push(actionStep);
+            callbacks.onStep?.(actionStep);
+
+            // 添加 observation 步骤（错误信息）
+            const observationStep = {
+              stepNumber: steps.length + 1,
+              stepType: 'observation' as const,
+              content: `错误: ${errorMsg}`,
+              toolName: tc.name,
+              toolOutput: null,
+            };
+            steps.push(observationStep);
+            callbacks.onStep?.(observationStep);
+
             currentPrompt = `工具执行失败: ${errorMsg}\n请尝试其他方式回答用户的问题。`;
           }
         } else if (!stepText.includes('Thought:') && !stepText.includes('Action:')) {
@@ -735,18 +775,44 @@ export class AgentService {
             steps[steps.length - 1].finalAnswer = finalResponse;
           }
           steps.push({
-            stepNumber: i + 1,
+            stepNumber: steps.length + 1,
             stepType: 'final_answer',
             content: finalResponse,
           });
           callbacks.onStep?.({
-            stepNumber: i + 1,
+            stepNumber: steps.length,
             stepType: 'final_answer',
             content: finalResponse,
           });
           break;
         } else {
-          // AI输出了Thought但没有调用工具，继续下一步
+          // AI输出了Thought但没有调用工具
+          // 如果内容看起来像是总结/回答，直接作为最终答案
+          if (stepText.includes('已经得到答案') || stepText.includes('现在的时间') || stepText.includes('答案是') || stepText.includes('无需执行任何工具')) {
+            // 智能提取最终答案
+            const answerText = this.extractFinalAnswer(stepText);
+            finalResponse = answerText;
+            steps.push({
+              stepNumber: steps.length + 1,
+              stepType: 'final_answer',
+              content: finalResponse,
+            });
+            callbacks.onStep?.({
+              stepNumber: steps.length,
+              stepType: 'final_answer',
+              content: finalResponse,
+            });
+            break;
+          }
+          // 否则保存thought并继续（需要清理内部格式标记）
+          const thoughtStep = {
+            stepNumber: steps.length + 1,
+            stepType: 'thought' as const,
+            content: this.extractFinalAnswer(stepText),
+          };
+          steps.push(thoughtStep);
+          callbacks.onStep?.(thoughtStep);
+          
           messages.push({ role: 'assistant', content: stepText });
           currentPrompt = `请继续思考并回答用户问题。如果已经得到答案，使用 Final Answer 输出最终答案。`;
         }
@@ -773,6 +839,7 @@ export class AgentService {
     const toolCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
 
     try {
+      // 尝试解析 JSON 格式的工具调用
       const jsonMatch = text.match(/\{[\s\S]*"Action[\s\S]*":[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
@@ -782,12 +849,71 @@ export class AgentService {
             args: typeof parsed['Action Input'] === 'string' ? JSON.parse(parsed['Action Input']) : parsed['Action Input'],
           });
         }
+      } else {
+        // 尝试解析文本格式的工具调用（GLM4等模型使用这种格式）
+        const actionMatch = text.match(/Action:\s*(\S+)/);
+        const actionInputMatch = text.match(/Action Input:\s*(\{[\s\S]*?\})/);
+        
+        if (actionMatch && actionInputMatch) {
+          const toolName = actionMatch[1].trim();
+          try {
+            const toolArgs = JSON.parse(actionInputMatch[1].trim());
+            toolCalls.push({
+              name: toolName,
+              args: toolArgs,
+            });
+          } catch (e) {
+            this.logger.warn('Failed to parse Action Input JSON');
+          }
+        }
       }
     } catch (e) {
       this.logger.warn('Failed to parse tool call from text');
     }
 
     return { toolCalls };
+  }
+
+  private extractFinalAnswer(text: string): string {
+    const content = text.trim();
+    
+    // 如果包含 "无需执行任何工具" 且之后只有很少内容（用户。），这可能是中间步骤，不是最终答案
+    if (content.includes('无需执行任何工具')) {
+      const afterAction = content.split('无需执行任何工具').pop()?.trim() || '';
+      // 如果 Action: 之后的内容很短（少于10个字符），可能是中间思考，不是答案
+      if (afterAction.length < 10) {
+        // 返回空白，表示这不是有效的最终答案
+        return '';
+      }
+      return afterAction;
+    }
+    
+    // 方法1：如果包含 "当前时间是" 或类似格式，直接提取答案
+    const timeMatch = content.match(/(当前时间是|现在的时间是)([^]。]+。?)/);
+    if (timeMatch) {
+      return (timeMatch[1] + timeMatch[2]).trim() + '。';
+    }
+    
+    // 方法2：如果包含 "答案是" 或类似格式，提取答案
+    const answerMatch = content.match(/(答案是)([^]。「.+?」?)。?/);
+    if (answerMatch) {
+      return (answerMatch[1] + answerMatch[2]).trim() + '。';
+    }
+    
+    // 方法3：如果有 Final Answer: 标记，提取其后的内容
+    if (content.includes('Final Answer:')) {
+      return content.split('Final Answer:').pop()?.trim() || content;
+    }
+    
+    // 方法5：移除 Thought: 和 Action: 标记，保留剩余内容
+    let cleaned = content
+      .replace(/Thought:\s*[\s\S]*?(?=Action:)/g, '')
+      .replace(/Action:\s*[^当][^。]*/g, '')
+      .replace(/Observation:\s*\{[\s\S]*?\}\s*/g, '')
+      .replace(/\n+/g, ' ')
+      .trim();
+    
+    return cleaned || content;
   }
 
   private async executeTool(name: string, args: Record<string, unknown>, context: any): Promise<unknown> {
