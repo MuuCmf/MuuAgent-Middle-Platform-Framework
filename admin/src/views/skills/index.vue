@@ -24,9 +24,7 @@
       </div>
 
       <el-button type="primary" @click="handleAdd" style="margin-bottom: 16px;">
-        <el-icon>
-          <Plus />
-        </el-icon>
+        <el-icon><Plus /></el-icon>
         添加技能
       </el-button>
 
@@ -64,120 +62,12 @@
       </el-table>
     </div>
 
-    <el-drawer v-model="drawerVisible" :title="editingSkill ? '编辑技能' : '添加技能'" direction="rtl" size="600px">
-      <el-form :model="form" label-width="100px">
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="技能名称" required>
-              <el-input v-model="form.name" placeholder="如：获取天气" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="技能标识" required>
-              <el-input v-model="form.code" placeholder="如：get_weather" />
-            </el-form-item>
-          </el-col>
-        </el-row>
+    <SkillEditDrawer
+      v-model:visible="drawerVisible"
+      :skill="editingSkill"
+      @save="handleSave"
+    />
 
-        <el-form-item label="技能类型">
-          <el-select v-model="form.type" style="width: 100%;">
-            <el-option label="HTTP请求 - 调用外部API" value="http" />
-            <el-option label="内置函数 - 系统预设函数" value="function" />
-            <el-option label="数据库查询 - 执行SQL" value="database" />
-            <el-option label="MCP工具 - 调用第三方MCP Server" value="mcp" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="功能描述" required>
-          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="描述此技能的功能，AI会根据此描述决定是否调用" />
-        </el-form-item>
-
-        <el-form-item label="参数描述">
-          <el-input v-model="form.params" type="textarea" :rows="2" placeholder='描述参数格式，如：{"city": "城市名称，如：北京"}' />
-        </el-form-item>
-
-        <el-form-item label="执行配置">
-          <el-input v-model="form.config" type="textarea" :rows="5" placeholder="根据类型填写不同配置" />
-          <div class="config-help">
-            <el-alert type="info" :closable="false" style="margin-top: 8px;">
-              <template #title>
-                <strong>📝 配置说明</strong>
-              </template>
-              <div v-if="form.type === 'http'" class="config-example">
-                <p><strong>HTTP请求配置示例：</strong></p>
-                <pre class="code-example">{
-              "method": "GET",
-              "url": "https://api.example.com/weather",
-              "headers": {
-              "Authorization": "Bearer YOUR_API_KEY"
-              },
-              "params": {
-              "city": "{city}"
-              }
-              }</pre>
-                <p style="margin-top: 8px; color: #666; font-size: 12px;">
-                  💡 提示：使用双花括号包裹参数名作为占位符，如：city 参数写成 "city": "{参数名}"，AI调用时会自动替换
-                </p>
-              </div>
-              <div v-else-if="form.type === 'function'" class="config-example">
-                <p><strong>内置函数配置示例：</strong></p>
-                <pre class="code-example">{
-              "function": "getCurrentTime",
-              "format": "YYYY-MM-DD HH:mm:ss",
-              "timezone": "Asia/Shanghai"
-              }</pre>
-                <p style="margin-top: 8px; color: #666; font-size: 12px;">
-                  💡 可用函数：getCurrentTime（获取当前时间）、getRandomNumber（获取随机数）、formatDate（格式化日期）
-                </p>
-              </div>
-              <div v-else-if="form.type === 'database'" class="config-example">
-                <p><strong>数据库查询配置示例：</strong></p>
-                <pre class="code-example">{
-              "connection": "mysql://user:pass@localhost/db",
-              "query": "SELECT * FROM users WHERE city = '{city}'",
-              "limit": 100
-              }</pre>
-                <p style="margin-top: 8px; color: #666; font-size: 12px;">
-                  💡 提示：数据库查询需要配置连接信息，建议使用只读权限的数据库用户
-                </p>
-              </div>
-              <div v-else-if="form.type === 'mcp'" class="config-example">
-                <p><strong>MCP工具配置示例：</strong></p>
-                <pre class="code-example">{
-              "url": "http://localhost:8080/mcp",
-              "apiKey": "your-api-key",
-              "toolName": "get_weather"
-              }</pre>
-                <p style="margin-top: 8px; color: #666; font-size: 12px;">
-                  💡 配置说明：
-                </p>
-                <ul style="margin: 4px 0; padding-left: 20px; color: #666; font-size: 12px;">
-                  <li><strong>url</strong>：MCP Server 的 HTTP 端点地址</li>
-                  <li><strong>apiKey</strong>：API密钥（可选，如果MCP Server需要认证）</li>
-                  <li><strong>toolName</strong>：要调用的工具名称</li>
-                </ul>
-                <p style="margin-top: 8px; color: #409eff; font-size: 12px;">
-                  🔗 MCP (Model Context Protocol) 是 Anthropic 推出的开放协议，支持连接各种外部工具和数据源
-                </p>
-              </div>
-            </el-alert>
-          </div>
-        </el-form-item>
-
-        <el-form-item label="状态">
-          <el-switch v-model="form.status" />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <div style="text-align: right;">
-          <el-button @click="drawerVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSave">保存</el-button>
-        </div>
-      </template>
-    </el-drawer>
-
-    <!-- 测试技能弹窗 -->
     <el-dialog v-model="testDialogVisible" title="🧪 测试技能" width="600px">
       <div class="test-dialog-content">
         <div class="test-skill-info">
@@ -236,6 +126,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { useSkillStore } from '@/stores/skill'
 import { skillApi } from '@/api/skill'
 import type { Skill, SkillForm } from '@/api/skill'
+import SkillEditDrawer from './components/SkillEditDrawer.vue'
 
 const skillStore = useSkillStore()
 
@@ -243,17 +134,7 @@ const { skills, loading, loadSkills, createSkill, updateSkill, deleteSkill } = s
 
 const drawerVisible = ref(false)
 const editingSkill = ref<Skill | null>(null)
-const form = ref<SkillForm>({
-  name: '',
-  code: '',
-  type: 'http',
-  description: '',
-  params: '{}',
-  config: '{}',
-  status: true
-})
 
-// 测试相关
 const testDialogVisible = ref(false)
 const testingSkill = ref<Skill | null>(null)
 const testParams = ref('{}')
@@ -261,47 +142,21 @@ const testResult = ref('')
 const testError = ref(false)
 const testLoading = ref(false)
 
-const resetForm = () => {
-  form.value = {
-    name: '',
-    code: '',
-    type: 'http',
-    description: '',
-    params: '{}',
-    config: '{}',
-    status: true
-  }
-  editingSkill.value = null
-}
-
 const handleAdd = () => {
-  resetForm()
+  editingSkill.value = null
   drawerVisible.value = true
 }
 
 const handleEdit = (skill: Skill) => {
   editingSkill.value = skill
-  form.value = { ...skill }
   drawerVisible.value = true
 }
 
-const handleSave = async () => {
-  if (!form.value.name || !form.value.code || !form.value.description) {
-    ElMessage.warning('请填写必填项')
-    return
-  }
-
-  try {
-    if (editingSkill.value) {
-      await updateSkill(editingSkill.value.id, form.value)
-      ElMessage.success('更新成功')
-    } else {
-      await createSkill(form.value)
-      ElMessage.success('创建成功')
-    }
-    drawerVisible.value = false
-  } catch (error) {
-    console.error('保存失败', error)
+const handleSave = async (form: SkillForm) => {
+  if (editingSkill.value) {
+    await updateSkill(editingSkill.value.id, form)
+  } else {
+    await createSkill(form)
   }
 }
 
@@ -317,9 +172,6 @@ const handleDelete = async (id: number) => {
   }
 }
 
-/**
- * 打开测试弹窗
- */
 const handleTest = (skill: Skill) => {
   testingSkill.value = skill
   testParams.value = skill.params || '{}'
@@ -328,9 +180,6 @@ const handleTest = (skill: Skill) => {
   testDialogVisible.value = true
 }
 
-/**
- * 执行技能测试
- */
 const executeTest = async () => {
   if (!testingSkill.value) return
 
@@ -365,40 +214,6 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.config-help {
-  margin-top: 8px;
-}
-
-.config-example {
-  p {
-    margin: 0 0 8px 0;
-
-    &:first-child {
-      margin-top: 0;
-    }
-  }
-}
-
-.code-example {
-  background: #f5f7fa;
-  padding: 12px;
-  border-radius: 4px;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  overflow-x: auto;
-  margin: 8px 0;
-  border: 1px solid #e4e7ed;
-
-  code {
-    background: #fff;
-    padding: 2px 6px;
-    border-radius: 3px;
-    color: #409eff;
-    font-family: 'Courier New', Courier, monospace;
-  }
-}
-
 .test-dialog-content {
   .test-skill-info {
     p {

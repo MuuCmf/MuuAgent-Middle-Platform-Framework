@@ -89,6 +89,24 @@ export interface AgentLog {
   }
 }
 
+export interface RetrievalLog {
+  id: string
+  kbId: string
+  uid?: string
+  query: string
+  topN?: number
+  similarityThresh?: number
+  retrievalCount?: number
+  costTime: number
+  requestId?: string
+  clientIp?: string
+  createdAt: string
+  kbInfo?: {
+    id: string
+    kbName: string
+  }
+}
+
 export const logApi = {
   /**
    * 获取AI调用日志列表
@@ -176,6 +194,30 @@ export const logApi = {
    */
   getSkillLogById(id: string): Promise<AxiosResponse<{ data: SkillLog }>> {
     return adminRequest.get(`/admin/log/skill/${id}`)
+  },
+
+  /**
+   * 获取知识库检索日志列表
+   * @param params 查询参数
+   * @returns {Promise<AxiosResponse>} 日志列表响应
+   */
+  getRetrievalLogs(params?: {
+    kbId?: string
+    startTime?: string
+    endTime?: string
+    page?: number
+    pageSize?: number
+  }): Promise<AxiosResponse<{ data: { list: RetrievalLog[]; total: number; page: number; pageSize: number } }>> {
+    return adminRequest.get('/admin/log/retrieval', { params })
+  },
+
+  /**
+   * 获取单个知识库检索日志详情
+   * @param id 日志ID
+   * @returns {Promise<AxiosResponse>} 日志详情响应
+   */
+  getRetrievalLogById(id: string): Promise<AxiosResponse<{ data: RetrievalLog }>> {
+    return adminRequest.get(`/admin/log/retrieval/${id}`)
   },
 
   /**

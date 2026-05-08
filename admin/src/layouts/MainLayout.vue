@@ -7,7 +7,6 @@
           <el-icon><QuestionFilled /></el-icon>
           使用帮助
         </el-button>
-        <ThemeToggle />
         
         <el-divider direction="vertical" />
         

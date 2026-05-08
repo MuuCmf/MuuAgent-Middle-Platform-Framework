@@ -2,7 +2,7 @@
   <div class="login-container">
     <div class="login-box">
       <div class="login-header">
-        <h1>AI 中台管理系统</h1>
+        <h1>MuuAI中台 WEB管理端</h1>
         <p>请登录您的账号</p>
       </div>
       
