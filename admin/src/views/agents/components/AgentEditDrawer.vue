@@ -206,36 +206,7 @@
 
       <el-divider content-position="left">知识库检索配置</el-divider>
 
-      <el-row :gutter="16">
-        <el-col :span="12">
-          <el-form-item label="检索模式">
-            <el-select v-model="form.kbRetrievalMode" placeholder="请选择检索模式" style="width: 100%;">
-              <el-option label="自动模式" value="auto" />
-              <el-option label="工具模式" value="tool" />
-              <el-option label="禁用知识库" value="disabled" />
-            </el-select>
-            <div style="margin-top: 4px; font-size: 12px; color: #909399;">
-              <p v-if="form.kbRetrievalMode === 'auto'" style="margin: 0;">预检索+工具检索，快速响应</p>
-              <p v-else-if="form.kbRetrievalMode === 'tool'" style="margin: 0;">仅作为工具调用，Agent自主决定检索时机</p>
-              <p v-else-if="form.kbRetrievalMode === 'disabled'" style="margin: 0;">不使用知识库</p>
-            </div>
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="检索方式">
-            <el-select v-model="form.kbRetrievalMethod" placeholder="请选择检索方式" style="width: 100%;">
-              <el-option label="自动选择" value="auto" />
-              <el-option label="向量检索" value="vector" />
-              <el-option label="BM25检索" value="bm25" />
-            </el-select>
-            <div style="margin-top: 4px; font-size: 12px; color: #909399;">
-              <p v-if="form.kbRetrievalMethod === 'auto'" style="margin: 0;">自动选择最优方式</p>
-              <p v-else-if="form.kbRetrievalMethod === 'vector'" style="margin: 0;">语义相似度匹配</p>
-              <p v-else-if="form.kbRetrievalMethod === 'bm25'" style="margin: 0;">关键词精确匹配</p>
-            </div>
-          </el-form-item>
-        </el-col>
-      </el-row>
+
 
       <el-form-item label="状态">
         <el-switch v-model="form.status" />
@@ -319,8 +290,7 @@ const form = ref<AgentForm>({
   status: true,
   reasoningMode: 'NONE',
   reasoningPrompt: '',
-  kbRetrievalMode: 'auto',
-  kbRetrievalMethod: 'auto',
+  kbRetrievalMode: 'tool', // 强制使用工具模式
 })
 
 const editingAgent = computed(() => props.agent)
@@ -391,8 +361,7 @@ const resetForm = () => {
     status: true,
     reasoningMode: 'NONE',
     reasoningPrompt: '',
-    kbRetrievalMode: 'auto',
-    kbRetrievalMethod: 'auto',
+    kbRetrievalMode: 'tool', // 强制使用工具模式（后端已固定）
   }
   mcpServers.value = []
   selectedSkillCodes.value = []

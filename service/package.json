@@ -15,6 +15,8 @@
     "init:admin": "ts-node prisma/init-admin.ts"
   },
   "dependencies": {
+    "@ai-sdk/azure": "^3.0.64",
+    "@ai-sdk/openai": "^3.0.63",
     "@nestjs/bull": "^11.0.4",
     "@nestjs/cache-manager": "^3.1.2",
     "@nestjs/common": "^10.3.0",
@@ -27,6 +29,7 @@
     "@nestjs/throttler": "^5.1.1",
     "@prisma/client": "^5.22.0",
     "@qdrant/js-client-rest": "^1.17.0",
+    "ai": "^6.0.176",
     "axios": "^1.6.5",
     "bcrypt": "^6.0.0",
     "bull": "^4.16.5",

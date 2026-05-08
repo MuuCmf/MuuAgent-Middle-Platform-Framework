@@ -25,25 +25,13 @@ import {
 import { success, page } from '../common/response/api.response';
 import { Request, Response } from 'express';
 
-/**
- * 智能体管理控制器（管理端）
- */
 @ApiTags('智能体管理')
 @ApiBearerAuth()
 @UseGuards(AdminGuard)
 @Controller('admin/agent')
 export class AgentAdminController {
-  /**
-   * 构造函数
-   * @param agentService 智能体服务
-   */
   constructor(private readonly agentService: AgentService) {}
 
-  /**
-   * 创建智能体
-   * @param dto 创建智能体DTO
-   * @returns {Promise<Object>} 创建结果
-   */
   @Post()
   @ApiOperation({ summary: '创建智能体' })
   async create(@Body() dto: CreateAgentDto) {
@@ -51,12 +39,6 @@ export class AgentAdminController {
     return success(agent, '智能体创建成功');
   }
 
-  /**
-   * 更新智能体
-   * @param id 智能体ID
-   * @param dto 更新智能体DTO
-   * @returns {Promise<Object>} 更新结果
-   */
   @Put(':id')
   @ApiOperation({ summary: '更新智能体' })
   async update(@Param('id') id: string, @Body() dto: UpdateAgentDto) {
@@ -64,11 +46,6 @@ export class AgentAdminController {
     return success(agent, '智能体更新成功');
   }
 
-  /**
-   * 删除智能体
-   * @param id 智能体ID
-   * @returns {Promise<Object>} 删除结果
-   */
   @Delete(':id')
   @ApiOperation({ summary: '删除智能体' })
   async remove(@Param('id') id: string) {
@@ -76,11 +53,6 @@ export class AgentAdminController {
     return success(null, '智能体删除成功');
   }
 
-  /**
-   * 查询智能体详情
-   * @param id 智能体ID
-   * @returns {Promise<Object>} 智能体详情
-   */
   @Get(':id')
   @ApiOperation({ summary: '查询智能体详情' })
   async findOne(@Param('id') id: string) {
@@ -88,11 +60,6 @@ export class AgentAdminController {
     return success(agent);
   }
 
-  /**
-   * 查询智能体列表
-   * @param query 查询参数
-   * @returns {Promise<Object>} 智能体列表
-   */
   @Get()
   @ApiOperation({ summary: '查询智能体列表' })
   async findAll(@Query() query: QueryAgentDto) {
@@ -101,65 +68,79 @@ export class AgentAdminController {
   }
 }
 
-/**
- * 智能体对话控制器（业务端）
- */
 @ApiTags('智能体对话')
 @ApiBearerAuth('api-key')
 @UseGuards(ApiKeyGuard, RateLimitGuard)
 @Controller('agent')
 export class AgentController {
-  /**
-   * 构造函数
-   * @param agentService 智能体服务
-   */
-  constructor(private readonly agentService: AgentService) {}
+  constructor(
+    private readonly agentService: AgentService,
+  ) {}
 
-  /**
-   * 从请求中提取用户标识
-   * @param req 请求对象
-   * @param dto DTO对象
-   * @returns {string | undefined} 用户标识
-   */
   private extractUid(req: Request, dto: { uid?: string }): string | undefined {
     return dto.uid || (req.headers['x-uid'] as string) || undefined;
   }
 
-  /**
-   * Agent对话（同步）
-   * @param dto 对话请求DTO
-   * @param req 请求对象
-   * @returns {Promise<Object>} 对话结果
-   */
   @Post('chat')
-  @ApiOperation({ summary: 'Agent对话' })
+  @ApiOperation({ summary: 'Agent对话（同步）' })
   async chat(@Body() dto: AgentChatDto, @Req() req: Request) {
     const uid = this.extractUid(req, dto);
     const result = await this.agentService.syncChat(dto, req.ip || 'unknown', uid);
     return success(result);
   }
 
-  /**
-   * Agent对话（流式）
-   * @param dto 对话请求DTO
-   * @param req 请求对象
-   * @param res 响应对象
-   */
   @Post('chat/stream')
   @ApiOperation({ summary: 'Agent对话（流式）' })
   async chatStream(@Body() dto: AgentChatDto, @Req() req: Request, @Res({ passthrough: false }) res: Response) {
     const uid = this.extractUid(req, dto);
-    
-    // 设置响应头
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    // 禁用压缩，确保流式数据实时发送
     res.setHeader('X-Accel-Buffering', 'no');
     res.setHeader('Content-Encoding', 'identity');
-    
-    // 使用服务端流式响应
-    await this.agentService.streamChatToResponse(dto, req.ip || 'unknown', uid, res);
+
+    try {
+      // 获取底层 HTTP 响应对象
+      const httpResponse = res as any;
+      const socket = httpResponse.socket;
+
+      await this.agentService.streamChat(dto, req.ip || 'unknown', uid, {
+        onChunk: (chunk) => {
+          res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
+          // 强制刷新缓冲区，确保数据立即发送到客户端
+          if (socket && socket.writable) {
+            socket.cork?.();
+            socket.uncork?.();
+          }
+        },
+        onStep: (step) => {
+          res.write(`data: ${JSON.stringify({ type: 'reasoning_step', step })}\n\n`);
+          if (socket && socket.writable) {
+            socket.cork?.();
+            socket.uncork?.();
+          }
+        },
+        onToolCall: (toolCall) => {
+          res.write(`data: ${JSON.stringify({ type: 'tool', ...toolCall })}\n\n`);
+          if (socket && socket.writable) {
+            socket.cork?.();
+            socket.uncork?.();
+          }
+        },
+        onDone: (result) => {
+          res.write(`data: ${JSON.stringify({ type: 'done', ...result })}\n\n`);
+          res.end();
+        },
+        onError: (error) => {
+          res.write(`data: ${JSON.stringify({ type: 'error', content: error })}\n\n`);
+          res.end();
+        },
+      });
+    } catch (error) {
+      res.write(`data: ${JSON.stringify({ type: 'error', content: error instanceof Error ? error.message : 'Unknown error' })}\n\n`);
+      res.end();
+    }
   }
 }

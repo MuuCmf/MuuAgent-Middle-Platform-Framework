@@ -86,15 +86,10 @@ export class CreateAgentDto {
 
   // ===== 知识库检索配置 =====
 
-  @ApiPropertyOptional({ description: '知识库检索模式: auto/tool/disabled', default: 'auto', enum: ['auto', 'tool', 'disabled'] })
+  @ApiPropertyOptional({ description: '知识库检索模式', default: 'tool', enum: ['tool'] })
   @IsString()
   @IsOptional()
   kbRetrievalMode?: string;
-
-  @ApiPropertyOptional({ description: '知识库检索方式: auto/vector/bm25', default: 'auto', enum: ['auto', 'vector', 'bm25'] })
-  @IsString()
-  @IsOptional()
-  kbRetrievalMethod?: string;
 }
 
 /**
@@ -169,15 +164,10 @@ export class UpdateAgentDto {
 
   // ===== 知识库检索配置 =====
 
-  @ApiPropertyOptional({ description: '知识库检索模式: auto/tool/disabled', enum: ['auto', 'tool', 'disabled'] })
+  @ApiPropertyOptional({ description: '知识库检索模式', enum: ['tool'] })
   @IsString()
   @IsOptional()
   kbRetrievalMode?: string;
-
-  @ApiPropertyOptional({ description: '知识库检索方式: auto/vector/bm25', enum: ['auto', 'vector', 'bm25'] })
-  @IsString()
-  @IsOptional()
-  kbRetrievalMethod?: string;
 }
 
 /**

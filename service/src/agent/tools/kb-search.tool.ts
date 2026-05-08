@@ -11,7 +11,6 @@ export interface KbSearchToolConfig {
   defaultTopK: number;
   defaultSimilarityThreshold: number;
   allowSpecifyKb: boolean;
-  retrievalMethod: 'auto' | 'vector' | 'bm25';
 }
 
 /**
@@ -27,7 +26,6 @@ export class KbSearchTool {
     defaultTopK: 5,
     defaultSimilarityThreshold: 0.7,
     allowSpecifyKb: true,
-    retrievalMethod: 'auto',
   };
 
   constructor(
@@ -72,11 +70,7 @@ export class KbSearchTool {
             type: 'number',
             description: `可选，相似度阈值(0-1)，默认${this.defaultConfig.defaultSimilarityThreshold}`,
           },
-          retrieval_method: {
-            type: 'string',
-            enum: ['auto', 'vector', 'bm25'],
-            description: `可选，检索方式。auto=自动选择(默认)，vector=向量检索，bm25=文本检索`,
-          },
+
         },
         required: ['query'],
       },
@@ -95,7 +89,6 @@ export class KbSearchTool {
       kb_codes?: string[];
       top_k?: number;
       similarity_threshold?: number;
-      retrieval_method?: 'auto' | 'vector' | 'bm25';
     },
   ): Promise<any> {
     const startTime = Date.now();

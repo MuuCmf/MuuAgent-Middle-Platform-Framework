@@ -117,26 +117,76 @@
                 </div>
               </div>
               <div v-else-if="msg.role === 'assistant' && msg.reasoningMode !== 'NONE' && (msg.tools && msg.tools.length > 0 || msg.reasoningSteps && msg.reasoningSteps.length > 0)">
-                <!-- 推理步骤（小字形式）- 过滤掉 final_answer 类型 -->
-                <div v-if="filterReasoningSteps(msg.reasoningSteps).length > 0" class="reasoning-steps">
-                  <div v-for="(step, sIdx) in filterReasoningSteps(msg.reasoningSteps)" :key="sIdx" class="reasoning-step">
-                    <span class="step-type">{{ step.stepType === 'thought' ? '💭' : step.stepType === 'action' ? '⚡' : '📝' }}</span>
-                    <span class="step-content">{{ step.thought || step.content }}</span>
+                <!-- 优雅推理过程展示 -->
+                <div v-if="msg.reasoningSteps && filterReasoningSteps(msg.reasoningSteps).length > 0" class="reasoning-container">
+                  <div class="reasoning-header">
+                    <div class="reasoning-title-row">
+                      <span class="reasoning-brain-icon">🧠</span>
+                      <span class="reasoning-title">推理过程</span>
+                    </div>
+                    <div class="reasoning-steps-badge">
+                      <span class="step-count">{{ filterReasoningSteps(msg.reasoningSteps).length }}</span>
+                      <span class="step-text">步推理</span>
+                    </div>
+                  </div>
+                  <div class="reasoning-timeline">
+                    <div v-for="(step, sIdx) in filterReasoningSteps(msg.reasoningSteps)" :key="sIdx" class="timeline-item">
+                      <div class="timeline-marker">
+                        <div class="marker-dot" :class="'marker-' + step.stepType"></div>
+                        <div v-if="sIdx < filterReasoningSteps(msg.reasoningSteps).length - 1" class="marker-line"></div>
+                      </div>
+                      <div class="timeline-content">
+                        <div class="step-card" :class="'card-' + step.stepType">
+                          <div class="step-card-header">
+                            <span class="step-type-icon">
+                              <template v-if="step.stepType === 'thought'">💭</template>
+                              <template v-else-if="step.stepType === 'action'">⚡</template>
+                              <template v-else>📡</template>
+                            </span>
+                            <span class="step-type-label">
+                              <template v-if="step.stepType === 'thought'">思考</template>
+                              <template v-else-if="step.stepType === 'action'">执行工具</template>
+                              <template v-else>工具返回</template>
+                            </span>
+                            <span class="step-number-badge">{{ sIdx + 1 }}</span>
+                          </div>
+                          <div class="step-card-body">
+                            <template v-if="step.stepType === 'thought'">
+                              <div class="thought-text">{{ formatThoughtContent(step.content) }}</div>
+                            </template>
+                            <template v-else-if="step.stepType === 'action'">
+                              <div class="action-tool-name">
+                                <span class="tool-icon">🔧</span>
+                                <span class="tool-name">{{ step.toolName || step.action }}</span>
+                              </div>
+                              <div v-if="step.actionInput || step.toolArgs" class="action-args">
+                                <span class="args-label">参数：</span>
+                                <code class="args-code">{{ formatArgs(step.actionInput || step.toolArgs) }}</code>
+                              </div>
+                            </template>
+                            <template v-else>
+                              <div class="observation-result">
+                                <pre class="observation-pre">{{ formatObservation(step.observation || step.toolOutput) }}</pre>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <!-- 工具执行结果 -->
-                <div v-if="msg.tools && msg.tools.length > 0" class="agent-tools">
-                  <div style="margin-bottom: 8px; color: #667eea; font-weight: 600;">
-                    🛠️ 执行的工具：
+                <!-- 最终回答 -->
+                <div class="final-answer-card" v-if="getFinalAnswer(msg.reasoningSteps)">
+                  <div class="final-answer-header">
+                    <span class="final-icon">✨</span>
+                    <span class="final-label">最终回答</span>
                   </div>
-                  <div v-for="(tool, tIdx) in msg.tools" :key="tIdx" class="tool-result">
-                    <div class="tool-name">• {{ tool.skill }}</div>
-                    <div class="tool-content">{{ typeof tool.result === 'object' ? JSON.stringify(tool.result, null, 2)
-                      :
-                      tool.result }}</div>
+                  <div class="final-answer-body">
+                    {{ getFinalAnswer(msg.reasoningSteps) }}
                   </div>
                 </div>
-                <div style="white-space: pre-wrap; margin-top: 12px;">{{ msg.content }}</div>
+                <!-- 备用：如果没有推理步骤，直接显示内容 -->
+                <div v-else-if="msg.content" style="white-space: pre-wrap;">{{ msg.content }}</div>
               </div>
               <div v-else>{{ msg.content }}</div>
             </div>
@@ -171,9 +221,64 @@ import type { RetrievalItem } from '@/api/retrieval'
 import type { KbInfo } from '@/api/kb'
 import type { ReasoningStep } from '@/api/agent'
 
+const formatThoughtContent = (content?: string) => {
+  if (!content) return ''
+  // 移除 Thought: 或 Thought 前缀，并清理多余空白
+  const cleaned = content
+    .replace(/^(Thought|Thought:)\s*/i, '')
+    .replace(/^[:：]\s*/, '')
+    .trim()
+  return cleaned || content.trim()
+}
+
+const formatArgs = (args: any) => {
+  if (!args) return ''
+  if (typeof args === 'object') {
+    return JSON.stringify(args, null, 2)
+  }
+  return String(args)
+}
+
+const formatObservation = (observation: any) => {
+  if (!observation) return ''
+  if (typeof observation === 'object') {
+    return JSON.stringify(observation, null, 2)
+  }
+  return String(observation)
+}
+
+const getFinalAnswer = (steps?: ReasoningStep[]) => {
+  if (!steps) return ''
+  const finalStep = steps.find(s => s.stepType === 'final_answer')
+  if (finalStep) {
+    return (finalStep.content || '').replace(/^(Final Answer|Final Answer:)\s*/i, '').trim()
+  }
+  return ''
+}
+
 const filterReasoningSteps = (steps?: ReasoningStep[]) => {
-  if (!steps) return []
-  return steps.filter(s => s.stepType !== 'final_answer')
+  if (!steps || steps.length === 0) return []
+  
+  const finalAnswer = getFinalAnswer(steps)
+  const filteredSteps: ReasoningStep[] = []
+  
+  for (const step of steps) {
+    // 跳过 final_answer 类型（单独显示）
+    if (step.stepType === 'final_answer') continue
+    
+    // 如果有最终答案，检查当前thought是否是最终答案的开头部分
+    if (finalAnswer && step.stepType === 'thought' && step.content) {
+      const thoughtContent = formatThoughtContent(step.content)
+      // 如果thought内容是最终答案的开头（超过50%重叠），跳过这个thought
+      if (finalAnswer.startsWith(thoughtContent) && thoughtContent.length > 5) {
+        continue
+      }
+    }
+    
+    filteredSteps.push(step)
+  }
+  
+  return filteredSteps
 }
 
 const modelStore = useModelStore()
@@ -531,6 +636,281 @@ onMounted(() => {
       font-style: italic;
     }
   }
+}
+
+/* 优雅推理过程样式 */
+.reasoning-container {
+  margin-bottom: 16px;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fafbfc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.reasoning-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.reasoning-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reasoning-brain-icon {
+  font-size: 20px;
+}
+
+.reasoning-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.reasoning-steps-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+
+  .step-count {
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .step-text {
+    opacity: 0.9;
+  }
+}
+
+.reasoning-timeline {
+  padding: 16px 16px 8px 8px;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.timeline-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 24px;
+}
+
+.marker-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  z-index: 1;
+
+  &.marker-thought {
+    background: linear-gradient(135deg, #f5f3ff 0%, #e0e7ff 100%);
+    border: 2px solid #a5b4fc;
+  }
+
+  &.marker-action {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 2px solid #fbbf24;
+  }
+
+  &.marker-observation {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    border: 2px solid #34d399;
+  }
+}
+
+.marker-line {
+  width: 2px;
+  flex: 1;
+  background: linear-gradient(to bottom, #e5e7eb, #f3f4f6);
+  margin-top: 4px;
+  min-height: 20px;
+}
+
+.timeline-content {
+  flex: 1;
+  padding-bottom: 8px;
+}
+
+.step-card {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  &.card-thought {
+    background: linear-gradient(135deg, #fefefe 0%, #f5f3ff 100%);
+    border: 1px solid #e0e7ff;
+  }
+
+  &.card-action {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1px solid #fde68a;
+  }
+
+  &.card-observation {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border: 1px solid #a7f3d0;
+  }
+}
+
+.step-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.6);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.step-type-icon {
+  font-size: 14px;
+}
+
+.step-type-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.step-number-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.step-card-body {
+  padding: 12px 14px;
+}
+
+.thought-text {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #475569;
+  font-style: italic;
+}
+
+.action-tool-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+
+  .tool-icon {
+    font-size: 14px;
+  }
+
+  .tool-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #92400e;
+    font-family: 'Monaco', 'Menlo', monospace;
+  }
+}
+
+.action-args {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #fde68a;
+
+  .args-label {
+    font-size: 11px;
+    color: #92400e;
+    font-weight: 600;
+  }
+
+  .args-code {
+    font-size: 11px;
+    color: #78350f;
+    font-family: 'Monaco', 'Menlo', monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+}
+
+.observation-result {
+  .observation-pre {
+    font-size: 12px;
+    line-height: 1.6;
+    color: #065f46;
+    font-family: 'Monaco', 'Menlo', monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+  }
+}
+
+/* 最终回答卡片样式 */
+.final-answer-card {
+  margin-top: 12px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1px solid #86efac;
+  box-shadow: 0 2px 8px rgba(22, 101, 52, 0.1);
+}
+
+.final-answer-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.6);
+  border-bottom: 1px solid rgba(22, 101, 52, 0.1);
+
+  .final-icon {
+    font-size: 18px;
+  }
+
+  .final-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #166534;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+.final-answer-body {
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #14532d;
+  white-space: pre-wrap;
 }
 
 .chat-input {

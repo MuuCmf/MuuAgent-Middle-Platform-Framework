@@ -46,19 +46,20 @@ export interface AgentListResponse {
   total: number
 }
 
-/**
- * 推理步骤接口
- */
 export interface ReasoningStep {
   id?: string
   stepNumber: number
-  stepType: 'thought' | 'action' | 'observation' | 'final_answer'
+  stepType: 'thought' | 'action' | 'observation' | 'final_answer' | 'tool-call'
   content?: string
   thought?: string
   action?: string
   actionInput?: any
   observation?: string
   toolOutput?: any
+  toolName?: string
+  toolArgs?: any
+  toolCallId?: string
+  args?: any
   costMs?: number
   createdAt?: string
 }
@@ -67,7 +68,9 @@ export interface AgentStreamResponse {
   type: 'chunk' | 'tool' | 'error' | 'done' | 'reasoning_step'
   content?: string
   skill?: string
+  name?: string
   result?: any
+  args?: any
   steps?: any[]
   step?: ReasoningStep
   reasoningMode?: string
@@ -77,25 +80,26 @@ export const agentApi = {
   getList(): Promise<AxiosResponse<{ data: AgentListResponse }>> {
     return adminRequest.get('/admin/agent')
   },
-  
+
   create(data: AgentForm): Promise<AxiosResponse> {
     return adminRequest.post('/admin/agent', data)
   },
-  
+
   update(id: number, data: AgentForm): Promise<AxiosResponse> {
     return adminRequest.put(`/admin/agent/${id}`, data)
   },
-  
+
   delete(id: number): Promise<AxiosResponse> {
     return adminRequest.delete(`/admin/agent/${id}`)
   },
-  
+
   chat(agentId: number, message: string): Promise<AxiosResponse<{ data: { response: string } }>> {
     return request.post('/agent/chat', { agentId, message })
   },
 
   /**
-   * 流式智能体对话
+   * 流式智能体对话（Vercel AI SDK 兼容版本）
+   * 使用标准 SSE 格式：data: {...}
    */
   async streamChat(
     agentId: number,
@@ -110,16 +114,16 @@ export const agentApi = {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       }
-      
+
       if (appConfig.apiKey) {
         headers['x-api-key'] = appConfig.apiKey
       }
-      
+
       const token = localStorage.getItem('admin_token')
       if (token) {
         headers['Authorization'] = `Bearer ${token}`
       }
-      
+
       const response = await fetch('/api/agent/chat/stream', {
         method: 'POST',
         headers,
@@ -143,48 +147,49 @@ export const agentApi = {
         const { done, value } = await reader.read()
 
         if (done) {
-          console.log('[Frontend] Stream done')
+          console.log('[Agent API] Stream completed')
           break
         }
 
-        const decoded = decoder.decode(value, { stream: true })
-        console.log('[Frontend] Received raw data length:', decoded.length)
-        buffer += decoded
+        buffer += decoder.decode(value, { stream: true })
 
-        // 处理缓冲区中的数据，按行分割（支持 \n 或 \r\n）
         const lines = buffer.split(/\r?\n/)
-        // 保留最后一个不完整的行到缓冲区
         buffer = lines.pop() || ''
 
         for (const line of lines) {
           const trimmedLine = line.trim()
           if (!trimmedLine) continue
 
-          console.log('[Frontend] Processing line:', trimmedLine.substring(0, 100))
+          if (!trimmedLine.startsWith('data: ')) {
+            console.warn('[Agent API] Invalid SSE format, skipping:', trimmedLine.substring(0, 100))
+            continue
+          }
+
+          const jsonStr = trimmedLine.substring(6)
           try {
-            const data: AgentStreamResponse = JSON.parse(trimmedLine)
-            console.log('[Frontend] Parsed data type:', data.type)
+            const data: AgentStreamResponse = JSON.parse(jsonStr)
+            console.log('[Agent API] Received event type:', data.type)
 
             switch (data.type) {
               case 'chunk':
-                const content = data.content || ''
-                // 检查是否是重置信号
-                if (content === '\x00') {
-                  console.log('[Frontend] Reset signal received')
-                  // 发送空字符串来清空内容
+                if (data.content === '\x00') {
+                  console.log('[Agent API] Reset signal received')
                   onChunk('\x00')
                 } else {
-                  console.log('[Frontend] Calling onChunk with:', content.substring(0, 50))
-                  onChunk(content)
+                  onChunk(data.content || '')
                 }
                 break
               case 'tool':
-                onTool(data.skill || '', data.result)
+                onTool(data.name || data.skill || '', data.result)
                 break
               case 'reasoning_step':
-                // 推理步骤 - 通过专门的回调处理
                 if (onReasoningStep && data.step) {
-                  onReasoningStep(data.step)
+                  const step = data.step
+                  if (data.name && data.result) {
+                    step.toolName = data.name
+                    step.toolArgs = data.args
+                  }
+                  onReasoningStep(step)
                 }
                 break
               case 'error':
@@ -194,24 +199,9 @@ export const agentApi = {
                 onComplete(data.steps)
                 return
             }
-          } catch (error) {
-            console.error('解析流式响应失败:', trimmedLine.substring(0, 200))
+          } catch (parseError) {
+            console.error('[Agent API] Failed to parse SSE data:', parseError, 'Data:', jsonStr.substring(0, 200))
           }
-        }
-      }
-
-      // 处理缓冲区中剩余的数据
-      if (buffer.trim()) {
-        console.log('[Frontend] Processing remaining buffer:', buffer.substring(0, 100))
-        try {
-          const data: AgentStreamResponse = JSON.parse(buffer.trim())
-          if (data.type === 'chunk') {
-            onChunk(data.content || '')
-          } else if (data.type === 'done') {
-            onComplete(data.steps)
-          }
-        } catch (error) {
-          console.error('解析剩余缓冲区失败:', buffer.substring(0, 200))
         }
       }
 

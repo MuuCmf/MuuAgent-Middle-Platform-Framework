@@ -136,8 +136,7 @@ model Agent {
   reasoningPrompt   String? @map("reasoning_prompt") @db.Text /// 自定义推理提示词
 
   // ===== 知识库检索配置 =====
-  kbRetrievalMode   String  @default("auto") @map("kb_retrieval_mode") /// 知识库检索模式: auto/tool/disabled
-  kbRetrievalMethod String  @default("auto") @map("kb_retrieval_method") /// 知识库检索方式: auto/vector/bm25
+  kbRetrievalMode   String  @default("tool") @map("kb_retrieval_mode") /// 知识库检索模式: tool
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

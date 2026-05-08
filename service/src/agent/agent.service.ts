@@ -1,53 +1,44 @@
-import { Injectable, NotFoundException, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { McpService } from '../mcp/mcp.service';
-import { McpServerService } from '../mcp-server/mcp-server.service';
 import { SkillService } from '../skill/skill.service';
+import { McpServerService } from '../mcp-server/mcp-server.service';
 import { ModelService } from '../model/model.service';
 import { AgentKbService } from './agent-kb.service';
-import { OrchestratorFactory } from './orchestrator/orchestrator.factory';
 import { KbSearchTool } from './tools/kb-search.tool';
+import { ReasoningMode, ExecutionResult, ToolDefinition } from './react/react.types';
+import { ReActPromptBuilder } from './react/react.prompt';
 import {
   CreateAgentDto,
   UpdateAgentDto,
   AgentChatDto,
   QueryAgentDto,
 } from './dto/agent.dto';
-import {
-  ReasoningMode,
-  ExecutionContext,
-  ToolDefinition,
-  ExecutionResult,
-  ReasoningStep as ReasoningStepType,
-  StepType,
-} from './react/react.types';
-import { ReActEngine } from './react/react.engine';
-import axios from 'axios';
-import { Observable, Observer } from 'rxjs';
+import { AiSdkProvider } from '../ai/providers/ai-sdk.provider';
+import { AiSdkToolAdapter } from '../ai/providers/ai-sdk-tool.adapter';
+import type { ModelMessage } from 'ai';
 
-/**
- * 智能体服务
- * 提供智能体的CRUD和对话执行功能
- */
+export interface StreamCallbacks {
+  onStep?: (step: any) => void;
+  onChunk?: (chunk: string) => void;
+  onToolCall?: (toolCall: { name: string; args: any; result: unknown }) => void;
+  onDone?: (result: ExecutionResult) => void;
+  onError?: (error: string) => void;
+}
+
 @Injectable()
 export class AgentService {
   private readonly logger = new Logger(AgentService.name);
 
   constructor(
     private prisma: PrismaService,
-    private mcpService: McpService,
-    private mcpServerService: McpServerService,
     private skillService: SkillService,
+    private mcpServerService: McpServerService,
     private modelService: ModelService,
     private agentKbService: AgentKbService,
-    private orchestratorFactory: OrchestratorFactory,
     private kbSearchTool: KbSearchTool,
-    private reactEngine: ReActEngine,
+    private aiSdkProvider: AiSdkProvider,
   ) {}
 
-  /**
-   * 创建智能体
-   */
   async create(dto: CreateAgentDto) {
     return this.prisma.agent.create({
       data: {
@@ -64,15 +55,11 @@ export class AgentService {
         status: dto.status ?? true,
         reasoningMode: dto.reasoningMode || 'NONE',
         reasoningPrompt: dto.reasoningPrompt,
-        kbRetrievalMode: dto.kbRetrievalMode || 'auto',
-        kbRetrievalMethod: dto.kbRetrievalMethod || 'auto',
+        kbRetrievalMode: 'tool',
       },
     });
   }
 
-  /**
-   * 更新智能体
-   */
   async update(id: string, dto: UpdateAgentDto) {
     const agent = await this.prisma.agent.findUnique({ where: { id } });
     if (!agent) {
@@ -85,9 +72,6 @@ export class AgentService {
     });
   }
 
-  /**
-   * 删除智能体
-   */
   async remove(id: string): Promise<void> {
     const agent = await this.prisma.agent.findUnique({ where: { id } });
     if (!agent) {
@@ -97,9 +81,6 @@ export class AgentService {
     await this.prisma.agent.delete({ where: { id } });
   }
 
-  /**
-   * 根据ID查询智能体
-   */
   async findOne(id: string) {
     const agent = await this.prisma.agent.findUnique({ where: { id } });
     if (!agent) {
@@ -108,9 +89,6 @@ export class AgentService {
     return agent;
   }
 
-  /**
-   * 根据Code查询智能体
-   */
   async findByCode(code: string) {
     const agent = await this.prisma.agent.findUnique({ where: { code } });
     if (!agent) {
@@ -119,9 +97,6 @@ export class AgentService {
     return agent;
   }
 
-  /**
-   * 分页查询智能体列表
-   */
   async findAll(query: QueryAgentDto) {
     const { status, page = 1, pageSize = 10 } = query;
     const skip = (page - 1) * pageSize;
@@ -142,29 +117,56 @@ export class AgentService {
     return { list, total, page, pageSize };
   }
 
-  /**
-   * Agent对话
-   */
-  chat(dto: AgentChatDto, clientIp: string, uid?: string): Promise<Record<string, unknown>> | Observable<MessageEvent> {
-    if (dto.stream) {
-      return this.streamChat(dto, clientIp, uid);
+  async syncChat(dto: AgentChatDto, clientIp: string, uid?: string): Promise<Record<string, unknown>> {
+    const startTime = Date.now();
+    const agent = await this.getAgent(dto.agentId);
+    const context = await this.buildExecutionContext(agent, dto);
+    const reasoningMode = (agent.reasoningMode as ReasoningMode) || ReasoningMode.NONE;
+
+    if (reasoningMode === ReasoningMode.NONE) {
+      return this.executeDefaultSyncChat(agent, context, startTime, clientIp, uid);
     }
-    return this.syncChat(dto, clientIp, uid);
+
+    return this.executeReActSync(agent, context, reasoningMode, startTime, clientIp, uid);
   }
 
-  /**
-   * 获取智能体（公共方法）
-   */
+  async streamChat(
+    dto: AgentChatDto,
+    clientIp: string,
+    uid: string | undefined,
+    callbacks: StreamCallbacks,
+  ): Promise<void> {
+    this.logger.log(`[AgentStream] streamChat 开始, agentId: ${dto.agentId}`);
+    const startTime = Date.now();
+    const agent = await this.getAgent(dto.agentId);
+    this.logger.log(`[AgentStream] 获取到智能体, id: ${agent.id}`);
+    const context = await this.buildExecutionContext(agent, dto);
+    this.logger.log(`[AgentStream] 构建执行上下文完成`);
+    const reasoningMode = (agent.reasoningMode as ReasoningMode) || ReasoningMode.NONE;
+    this.logger.log(`[AgentStream] reasoningMode: ${reasoningMode}`);
+
+    if (reasoningMode === ReasoningMode.NONE) {
+      this.logger.log(`[AgentStream] 执行默认流式模式`);
+      await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks);
+    } else {
+      this.logger.log(`[AgentStream] 执行ReAct流式模式`);
+      await this.executeReActStream(agent, context, reasoningMode, startTime, clientIp, uid, callbacks);
+    }
+  }
+
   private async getAgent(agentId: string) {
+    this.logger.log(`[AgentStream] 获取智能体: ${agentId}`);
     let agent;
     try {
       agent = await this.prisma.agent.findFirst({
-        where: {
-          OR: [{ id: agentId }, { code: agentId }],
-        },
+        where: { OR: [{ id: agentId }, { code: agentId }] },
       });
-    } catch {
-      agent = await this.findByCode(agentId);
+      this.logger.log(`[AgentStream] 查询结果: ${JSON.stringify(agent)}`);
+    } catch (e) {
+      this.logger.error(`[AgentStream] 查询智能体失败: ${e}`);
+      agent = await this.prisma.agent.findFirst({
+        where: { code: agentId },
+      });
     }
 
     if (!agent) {
@@ -178,85 +180,86 @@ export class AgentService {
     return agent;
   }
 
-  /**
-   * 准备工具列表（包含知识库检索工具）
-   */
-  private async prepareTools(agent: any): Promise<ToolDefinition[]> {
-    const tools: ToolDefinition[] = [];
+  private async buildExecutionContext(agent: any, dto: AgentChatDto) {
+    let model;
+    try {
+      this.logger.debug(`buildExecutionContext: agent.modelId=${agent.modelId}`);
+      model = await this.modelService.findByCode(agent.modelId || 'gpt-4');
+      this.logger.debug(`模型查询成功: model.code=${model.code}, provider=${model.provider}`);
+    } catch {
+      this.logger.warn(`模型 ${agent.modelId || 'gpt-4'} 未找到，尝试查找可用的 LLM 模型`);
+      model = await this.prisma.model.findFirst({ where: { type: 'llm', status: true } });
+      if (!model) {
+        throw new NotFoundException('没有可用的模型');
+      }
+    }
 
-    // 1. 添加知识库检索工具
+    let tools: ToolDefinition[] = [];
+
+    if (agent.mcpServers) {
+      try {
+        const mcpServers = JSON.parse(agent.mcpServers);
+        for (const server of mcpServers) {
+          if (server && server.url) {
+            try {
+              const toolsResult = await this.mcpServerService.discoverTools({
+                url: server.url,
+                apiKey: server.apiKey,
+                timeout: server.timeout || 30000,
+              });
+              if (Array.isArray(toolsResult)) {
+                tools.push(...toolsResult.map(t => ({
+                  name: `mcp:${server.name || server.url}:${t.name}`,
+                  description: t.description || '',
+                  parameters: t.inputSchema || { type: 'object', properties: {} },
+                  type: 'mcp' as const,
+                })));
+              }
+            } catch (e) {
+              this.logger.warn(`Failed to discover tools from MCP server: ${server.name}`);
+            }
+          }
+        }
+      } catch (e) {
+        this.logger.warn('Failed to parse MCP servers config');
+      }
+    }
+
+    if (agent.skills) {
+      try {
+        const skillCodes = JSON.parse(agent.skills);
+        for (const code of skillCodes) {
+          try {
+            const skill = await this.skillService.findByCode(code);
+            if (skill) {
+              tools.push({
+                name: skill.code,
+                description: skill.description || '',
+                parameters: skill.params ? JSON.parse(skill.params) : { type: 'object', properties: {} },
+                type: 'skill',
+              });
+            }
+          } catch (e) {
+            this.logger.warn(`Skill not found: ${code}`);
+          }
+        }
+      } catch (e) {
+        this.logger.warn('Failed to parse skills config');
+      }
+    }
+
     const kbCodes: string[] = JSON.parse(agent.knowledgeBases || '[]');
-    if (kbCodes.length > 0 && agent.kbRetrievalMode !== 'disabled') {
+    if (kbCodes.length > 0) {
       const kbTool = await this.kbSearchTool.getToolDefinition(agent.id, kbCodes);
       if (kbTool) {
         tools.push(kbTool);
       }
     }
 
-    // 2. 添加技能工具
-    const skillCodes: string[] = JSON.parse(agent.skills || '[]');
-    for (const code of skillCodes) {
-      const skill = await this.skillService.findByCode(code);
-      if (skill) {
-        tools.push({
-          name: skill.code,
-          description: skill.description,
-          parameters: JSON.parse(skill.params || '{}'),
-          type: 'skill',
-        });
-      }
-    }
-
-    // 3. 添加 MCP 工具
-    const mcpServerConfigs = this.mcpServerService.parseMcpServersConfig(agent.mcpServers);
-    if (mcpServerConfigs.length > 0) {
-      const mcpTools = await this.mcpServerService.discoverAllTools(mcpServerConfigs);
-      for (const tool of mcpTools) {
-        tools.push({
-          name: `mcp:${tool.serverName}:${tool.name}`,
-          description: tool.description,
-          parameters: (tool.inputSchema || {}) as Record<string, any>,
-          type: 'mcp',
-        });
-      }
-    }
-
-    return tools;
-  }
-
-  /**
-   * 构建执行上下文
-   */
-  private async buildExecutionContext(agent: any, dto: AgentChatDto): Promise<ExecutionContext> {
-    // 获取模型
-    let model;
-    if (agent.modelId) {
-      model = await this.modelService.findOne(agent.modelId);
-    } else {
-      model = await this.mcpService.selectModel('llm');
-    }
-
-    // 准备工具列表
-    const tools = await this.prepareTools(agent);
-    console.log('tools工具列表', tools);
-
-    // 知识库预检索（auto模式：预检索 + 工具检索）
-    let augmentedPrompt = agent.systemPrompt;
-    const kbCodes: string[] = JSON.parse(agent.knowledgeBases || '[]');
-    if (kbCodes.length > 0 && agent.kbRetrievalMode === 'auto') {
-      const augmentation = await this.agentKbService.augmentPromptWithKb(
-        agent.id,
-        dto.message,
-        agent.systemPrompt,
-      );
-      augmentedPrompt = augmentation.systemPrompt;
-    }
-
-    // 获取MCP Server配置
-    const mcpServerConfigs = this.mcpServerService.parseMcpServersConfig(agent.mcpServers);
-
-    // 构建系统提示词
-    const systemPrompt = this.buildSystemPrompt(agent, tools, augmentedPrompt);
+    const systemPrompt = ReActPromptBuilder.buildSystemPrompt(
+      agent.systemPrompt || '你是一个有帮助的AI助手。',
+      tools,
+    );
 
     return {
       agent,
@@ -264,914 +267,583 @@ export class AgentService {
       userMessage: dto.message,
       systemPrompt,
       tools,
-      maxSteps: agent.maxSteps,
-      temperature: agent.temperature,
-      mcpServerConfigs,
+      maxSteps: agent.maxSteps || 5,
+      temperature: agent.temperature || 0.7,
+      conversationHistory: dto.conversationId ? [] : undefined,
     };
   }
 
-  /**
-   * 构建系统提示词（根据推理模式选择不同格式）
-   */
-  private buildSystemPrompt(
-    agent: any,
-    tools: ToolDefinition[],
-    augmentedPrompt?: string,
-  ): string {
-    const basePrompt = augmentedPrompt || agent.systemPrompt;
-    const reasoningMode = agent.reasoningMode || ReasoningMode.NONE;
-
-    // NONE模式：使用原有JSON格式提示词
-    if (reasoningMode === ReasoningMode.NONE) {
-      return this.buildDefaultSystemPrompt(basePrompt, tools);
-    }
-
-    // REACT/PLAN/REFLECT模式：使用ReAct提示词
-    // ReAct提示词由ReActPromptBuilder处理，这里只返回基础提示词
-    return basePrompt;
-  }
-
-  /**
-   * 构建默认模式系统提示词
-   */
-  private buildDefaultSystemPrompt(basePrompt: string, tools: ToolDefinition[]): string {
-    let prompt = basePrompt;
-
-    const skillTools = tools.filter(t => t.type === 'skill');
-    const mcpTools = tools.filter(t => t.type === 'mcp');
-
-    const skillDescriptions = skillTools.map(t => `- ${t.name}: ${t.description}`).join('\n');
-    const mcpToolDescriptions = mcpTools.map(t => `- ${t.name}: ${t.description}`).join('\n');
-
-    const allToolDescriptions = [skillDescriptions, mcpToolDescriptions].filter(Boolean).join('\n\n');
-
-    if (allToolDescriptions) {
-      prompt += `\n\n你可以使用以下工具:\n${allToolDescriptions}`;
-      prompt += `
-
-【重要】工具调用规则：
-1. 如果需要使用工具，请只输出JSON格式的工具调用，不要输出其他任何内容
-2. 如果不需要使用工具，请直接用自然语言回答用户问题，不要输出JSON
-3. JSON格式示例：
-   - 调用技能工具: {"skill":"工具标识","params":{"参数名":"参数值"}}
-   - 调用MCP工具: {"skill":"mcp:服务器名:工具名","params":{"参数名":"参数值"}}
-   - 不调用工具: 直接回答，不要输出JSON
-
-示例：
-用户: 现在几点了？
-助手: {"skill":"get_time","params":{}}
-
-用户: 读取文件/test.txt的内容
-助手: {"skill":"mcp:filesystem:read_file","params":{"path":"/test.txt"}}
-
-用户: 你好
-助手: 你好！很高兴为您服务，请问有什么可以帮助您的？`;
-    }
-
-    return prompt;
-  }
-
-  /**
-   * 同步Agent对话
-   */
-  async syncChat(dto: AgentChatDto, clientIp: string, uid?: string): Promise<Record<string, unknown>> {
-    const startTime = Date.now();
-
-    // 获取智能体
-    const agent = await this.getAgent(dto.agentId);
-
-    // 构建执行上下文
-    const context = await this.buildExecutionContext(agent, dto);
-
-    // 获取推理模式
-    const reasoningMode = agent.reasoningMode || ReasoningMode.NONE;
-
-    if (reasoningMode === ReasoningMode.NONE) {
-      // 默认模式：使用原有逻辑
-      return this.executeDefaultSyncChat(agent, dto, context, clientIp, uid, startTime);
-    }
-
-    // ReAct/PLAN/REFLECT模式：使用编排器
-    const orchestrator = this.orchestratorFactory.getOrchestrator(reasoningMode);
-    const callLLM = this.callLLMBound(context.model);
-
-    const result = await orchestrator.execute(context, callLLM);
-
-    // 保存日志和推理步骤
-    await this.saveInvokeLogWithSteps(agent, dto, result, clientIp, uid, reasoningMode, startTime);
-
-    return {
-      response: result.response,
-      steps: result.steps,
-      reasoningMode,
-      conversationId: dto.conversationId,
-    };
-  }
-
-  /**
-   * 默认模式同步对话
-   */
   private async executeDefaultSyncChat(
     agent: any,
-    dto: AgentChatDto,
-    context: ExecutionContext,
+    context: any,
+    startTime: number,
     clientIp: string,
     uid: string | undefined,
-    startTime: number,
   ): Promise<Record<string, unknown>> {
-    const steps: Array<{ step: number; action: string; result: unknown }> = [];
-    const originalMessage = dto.message;
-    let currentMessage = dto.message;
-    let finalResponse = '';
-    let success = true;
-    let errorMessage: string | null = null;
-    let inputTokens = 0;
-    let outputTokens = 0;
+    const messages: ModelMessage[] = [
+      { role: 'system', content: context.systemPrompt },
+      { role: 'user', content: context.userMessage },
+    ];
+
+    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
 
     try {
-      for (let step = 0; step < agent.maxSteps; step++) {
-        const llmResult = await this.callLLM(
-          context.model, context.systemPrompt, currentMessage, agent.temperature, false,
-        );
+      const result = await this.aiSdkProvider.generateText({
+        model: context.model,
+        messages,
+        tools,
+        temperature: context.temperature,
+      });
 
-        if (llmResult.inputTokens) inputTokens += llmResult.inputTokens;
-        if (llmResult.outputTokens) outputTokens += llmResult.outputTokens;
+      await this.saveLog(agent, context, { text: result.text }, clientIp, uid, ReasoningMode.NONE, startTime);
 
-        const toolCall = this.parseToolCall(llmResult.response);
-
-        if (!toolCall) {
-          finalResponse = llmResult.response;
-          break;
-        }
-
-        const isMcpTool = (toolCall.skill as string).startsWith('mcp:');
-        const toolType = isMcpTool ? 'MCP工具' : '技能';
-
-        steps.push({
-          step: step + 1,
-          action: `调用${toolType}: ${toolCall.skill}`,
-          result: null,
-        });
-
-        try {
-          let toolResult: unknown;
-
-          if (isMcpTool) {
-            toolResult = await this.mcpServerService.callTool(
-              context.mcpServerConfigs || [],
-              toolCall.skill as string,
-              (toolCall.params as Record<string, unknown>) || {},
-            );
-          } else {
-            toolResult = await this.skillService.execute({
-              skillCode: toolCall.skill as string,
-              params: (toolCall.params as Record<string, unknown>) || {},
-            });
-          }
-
-          steps[steps.length - 1].result = toolResult;
-
-          const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
-          currentMessage = `用户问题: ${originalMessage}\n\n【工具调用结果】\n工具名称: ${toolCall.skill}\n执行结果:\n${resultText}\n\n请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
-        } catch (error) {
-          steps[steps.length - 1].result = {
-            error: error instanceof Error ? error.message : '执行失败',
-          };
-          currentMessage = `工具执行失败: ${steps[steps.length - 1].result}\n请尝试其他方式回答用户的问题。`;
-        }
-      }
-
-      if (!finalResponse) {
-        finalResponse = '抱歉，我无法完成您的请求。';
-      }
-    } catch (error) {
-      success = false;
-      errorMessage = error instanceof Error ? error.message : '执行失败';
-      finalResponse = `执行出错: ${errorMessage}`;
-    }
-
-    // 记录日志
-    await this.prisma.agentInvokeLog.create({
-      data: {
-        agentId: agent.id,
-        conversationId: dto.conversationId,
-        userMessage: dto.message,
-        agentResponse: finalResponse,
-        steps: JSON.stringify(steps),
-        totalCostMs: Date.now() - startTime,
-        success,
-        errorMessage,
-        clientIp,
-        uid,
-        inputTokens: inputTokens > 0 ? inputTokens : undefined,
-        outputTokens: outputTokens > 0 ? outputTokens : undefined,
+      return {
+        response: result.text,
+        steps: [],
         reasoningMode: ReasoningMode.NONE,
-      },
-    });
-
-    return {
-      response: finalResponse,
-      steps,
-      reasoningMode: ReasoningMode.NONE,
-      conversationId: dto.conversationId,
-    };
-  }
-
-  /**
-   * 流式Agent对话（使用Response对象）
-   */
-  async streamChatToResponse(
-    dto: AgentChatDto,
-    clientIp: string,
-    uid: string | undefined,
-    res: any,
-  ): Promise<void> {
-    const startTime = Date.now();
-
-    let agent;
-    try {
-      agent = await this.getAgent(dto.agentId);
+      };
     } catch (error) {
-      res.write(JSON.stringify({ type: 'error', content: error.message }) + '\n');
-      res.end();
-      return;
-    }
-
-    // 构建执行上下文
-    const context = await this.buildExecutionContext(agent, dto);
-    const reasoningMode = agent.reasoningMode || ReasoningMode.NONE;
-
-    const sendChunk = (data: any) => {
-      const jsonData = JSON.stringify(data) + '\n';
-      //console.log('[Stream] Writing to response:', jsonData.trim());
-      res.write(jsonData);
-      // 强制刷新缓冲区，确保数据立即发送
-      if (typeof res.flush === 'function') {
-        res.flush();
-      }
-    };
-
-    // ReAct/PLAN/REFLECT模式：使用编排器流式执行
-    if (reasoningMode !== ReasoningMode.NONE) {
-      try {
-        const reactEngine = this.reactEngine;
-        const callLLMStream = this.callLLMStreamBound(context.model);
-
-        await reactEngine.executeStream(
-          context,
-          callLLMStream,
-          {
-            onStep: (step) => {
-              sendChunk({ type: 'reasoning_step', step });
-            },
-            onChunk: (chunk) => {
-              sendChunk({ type: 'chunk', content: chunk });
-            },
-            onDone: async (result) => {
-              // 保存日志
-              await this.saveInvokeLogWithSteps(agent, dto, result, clientIp, uid, reasoningMode, startTime);
-              sendChunk({ type: 'done', content: result.response, steps: result.steps, reasoningMode });
-              res.end();
-            },
-            onError: (error) => {
-              sendChunk({ type: 'error', content: error });
-              res.end();
-            },
-          },
-        );
-      } catch (error) {
-        sendChunk({ type: 'error', content: error instanceof Error ? error.message : '执行失败' });
-        res.end();
-      }
-      return;
-    }
-
-    // 默认模式：原有流式逻辑
-    const steps: Array<{ step: number; action: string; result: unknown }> = [];
-    const originalMessage = dto.message;
-    let currentMessage = dto.message;
-    let finalResponse = '';
-    let success = true;
-    let errorMessage: string | null = null;
-    let inputTokens = 0;
-    let outputTokens = 0;
-
-    try {
-      for (let step = 0; step < agent.maxSteps; step++) {
-        let llmResponse = '';
-        let isToolCallJson = false;
-        let toolCallJsonBuffer = '';
-        let pendingChunks: string[] = [];
-        let jsonStartDetected = false;
-        
-        const tokenInfo = await new Promise<{ inputTokens?: number; outputTokens?: number }>((resolve) => {
-          this.callLLMStream(context.model, context.systemPrompt, currentMessage, agent.temperature, (chunk) => {
-            llmResponse += chunk;
-            
-            // 如果已经检测到是工具调用 JSON，继续收集直到 JSON 结束
-            if (isToolCallJson) {
-              toolCallJsonBuffer += chunk;
-              if (chunk === '}') {
-                // JSON 完成，跳过所有缓存的 chunks
-                return;
-              }
-              return;
-            }
-            
-            // 检测工具调用 JSON 开始
-            if (!jsonStartDetected && (chunk === '{' || llmResponse.trim().startsWith('{"'))) {
-              jsonStartDetected = true;
-              pendingChunks = [chunk];
-              return;
-            }
-            
-            // 如果已开始检测 JSON，继续缓存
-            if (jsonStartDetected) {
-              pendingChunks.push(chunk);
-              // 检查是否以 } 结尾（JSON 可能完成）
-              if (chunk === '}') {
-                const fullJson = pendingChunks.join('');
-                const trimmed = fullJson.trim();
-                if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                  const parsed = this.parseToolCall(trimmed);
-                  if (parsed) {
-                    // 是工具调用 JSON，跳过所有缓存的 chunks
-                    isToolCallJson = true;
-                    toolCallJsonBuffer = fullJson;
-                    return;
-                  }
-                }
-                // 不是工具调用 JSON，发送所有缓存的 chunks
-                for (const c of pendingChunks) {
-                  sendChunk({ type: 'chunk', content: c });
-                }
-                pendingChunks = [];
-                jsonStartDetected = false;
-              }
-              return;
-            }
-            
-            // 实时发送 chunk 给客户端，实现真正的流式输出
-            sendChunk({ type: 'chunk', content: chunk });
-          }, resolve);
-        });
-
-        if (tokenInfo.inputTokens) inputTokens += tokenInfo.inputTokens;
-        if (tokenInfo.outputTokens) outputTokens += tokenInfo.outputTokens;
-
-        const toolCall = this.parseToolCall(llmResponse);
-
-        if (!toolCall) {
-          // 不是工具调用，直接结束
-          finalResponse = llmResponse;
-          break;
-        }
-
-        const isMcpTool = (toolCall.skill as string).startsWith('mcp:');
-        const toolType = isMcpTool ? 'MCP工具' : '技能';
-
-        steps.push({
-          step: step + 1,
-          action: `调用${toolType}: ${toolCall.skill}`,
-          result: null,
-        });
-
-        try {
-          let toolResult: unknown;
-
-          if (isMcpTool) {
-            toolResult = await this.mcpServerService.callTool(
-              context.mcpServerConfigs || [],
-              toolCall.skill as string,
-              (toolCall.params as Record<string, unknown>) || {},
-            );
-          } else {
-            toolResult = await this.skillService.execute({
-              skillCode: toolCall.skill as string,
-              params: (toolCall.params as Record<string, unknown>) || {},
-            });
-          }
-
-          steps[steps.length - 1].result = toolResult;
-          sendChunk({ type: 'tool', skill: toolCall.skill, result: toolResult });
-
-          const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
-          currentMessage = `用户问题: ${originalMessage}\n\n【工具调用结果】\n工具名称: ${toolCall.skill}\n执行结果:\n${resultText}\n\n请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
-        } catch (error) {
-          steps[steps.length - 1].result = {
-            error: error instanceof Error ? error.message : '执行失败',
-          };
-          currentMessage = `工具执行失败: ${steps[steps.length - 1].result}\n请尝试其他方式回答用户的问题。`;
-        }
-      }
-
-      if (!finalResponse) {
-        finalResponse = '抱歉，我无法完成您的请求。';
-      }
-    } catch (error) {
-      success = false;
-      errorMessage = error instanceof Error ? error.message : '执行失败';
-      finalResponse = `执行出错: ${errorMessage}`;
-      sendChunk({ type: 'error', content: finalResponse });
-    }
-
-    // 记录日志
-    await this.prisma.agentInvokeLog.create({
-      data: {
-        agentId: agent.id,
-        conversationId: dto.conversationId,
-        userMessage: dto.message,
-        agentResponse: finalResponse,
-        steps: JSON.stringify(steps),
-        totalCostMs: Date.now() - startTime,
-        success,
-        errorMessage,
-        clientIp,
-        uid,
-        inputTokens: inputTokens > 0 ? inputTokens : undefined,
-        outputTokens: outputTokens > 0 ? outputTokens : undefined,
-        reasoningMode: ReasoningMode.NONE,
-      },
-    });
-
-    sendChunk({ type: 'done', content: finalResponse, steps });
-    res.end();
-  }
-
-  /**
-   * 流式Agent对话（Observable版本，保留兼容）
-   */
-  streamChat(dto: AgentChatDto, clientIp: string, uid?: string): Observable<MessageEvent> {
-    return new Observable((observer: Observer<MessageEvent>) => {
-      this.executeStreamChat(dto, clientIp, uid, observer).catch((error) => {
-        observer.error(error);
-      });
-    });
-  }
-
-  /**
-   * 执行流式对话（Observable版本）
-   */
-  private async executeStreamChat(
-    dto: AgentChatDto,
-    clientIp: string,
-    uid: string | undefined,
-    observer: Observer<MessageEvent>,
-  ): Promise<void> {
-    const startTime = Date.now();
-
-    let agent;
-    try {
-      agent = await this.getAgent(dto.agentId);
-    } catch (error) {
-      observer.error(error);
-      return;
-    }
-
-    const context = await this.buildExecutionContext(agent, dto);
-    const reasoningMode = agent.reasoningMode || ReasoningMode.NONE;
-
-    // ReAct模式
-    if (reasoningMode !== ReasoningMode.NONE) {
-      try {
-        const orchestrator = this.orchestratorFactory.getOrchestrator(reasoningMode);
-        const callLLM = this.callLLMBound(context.model);
-        const result = await orchestrator.execute(context, callLLM);
-
-        // 发送推理步骤
-        for (const step of result.steps) {
-          observer.next(new MessageEvent('message', {
-            data: JSON.stringify({ type: 'reasoning_step', step }) + '\n',
-          }));
-        }
-
-        // 发送最终响应
-        observer.next(new MessageEvent('message', {
-          data: JSON.stringify({ type: 'chunk', content: result.response }) + '\n',
-        }));
-
-        // 保存日志
-        await this.saveInvokeLogWithSteps(agent, dto, result, clientIp, uid, reasoningMode, startTime);
-
-        observer.next(new MessageEvent('message', {
-          data: JSON.stringify({ type: 'done', content: result.response, steps: result.steps, reasoningMode }) + '\n',
-        }));
-      } catch (error) {
-        observer.next(new MessageEvent('message', {
-          data: JSON.stringify({ type: 'error', content: error instanceof Error ? error.message : '执行失败' }) + '\n',
-        }));
-      }
-      observer.complete();
-      return;
-    }
-
-    // 默认模式
-    const steps: Array<{ step: number; action: string; result: unknown }> = [];
-    const originalMessage = dto.message;
-    let currentMessage = dto.message;
-    let finalResponse = '';
-    let success = true;
-    let errorMessage: string | null = null;
-    let inputTokens = 0;
-    let outputTokens = 0;
-
-    try {
-      for (let step = 0; step < agent.maxSteps; step++) {
-        let llmResponse = '';
-        const tokenInfo = await new Promise<{ inputTokens?: number; outputTokens?: number }>((resolve) => {
-          this.callLLMStream(context.model, context.systemPrompt, currentMessage, agent.temperature, (chunk) => {
-            llmResponse += chunk;
-            // 实时发送 chunk 给客户端，实现真正的流式输出
-            observer.next(new MessageEvent('message', { data: JSON.stringify({ type: 'chunk', content: chunk }) + '\n' }));
-          }, resolve);
-        });
-
-        if (tokenInfo.inputTokens) inputTokens += tokenInfo.inputTokens;
-        if (tokenInfo.outputTokens) outputTokens += tokenInfo.outputTokens;
-
-        const toolCall = this.parseToolCall(llmResponse);
-
-        if (!toolCall) {
-          // 不是工具调用，直接结束
-          finalResponse = llmResponse;
-          break;
-        }
-
-        const isMcpTool = (toolCall.skill as string).startsWith('mcp:');
-        const toolType = isMcpTool ? 'MCP工具' : '技能';
-
-        steps.push({
-          step: step + 1,
-          action: `调用${toolType}: ${toolCall.skill}`,
-          result: null,
-        });
-
-        try {
-          let toolResult: unknown;
-
-          if (isMcpTool) {
-            toolResult = await this.mcpServerService.callTool(
-              context.mcpServerConfigs || [],
-              toolCall.skill as string,
-              (toolCall.params as Record<string, unknown>) || {},
-            );
-          } else {
-            toolResult = await this.skillService.execute({
-              skillCode: toolCall.skill as string,
-              params: (toolCall.params as Record<string, unknown>) || {},
-            });
-          }
-
-          steps[steps.length - 1].result = toolResult;
-
-          observer.next(new MessageEvent('message', {
-            data: JSON.stringify({ type: 'tool', skill: toolCall.skill, result: toolResult }) + '\n',
-          }));
-
-          const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
-          currentMessage = `用户问题: ${originalMessage}\n\n【工具调用结果】\n工具名称: ${toolCall.skill}\n执行结果:\n${resultText}\n\n请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
-        } catch (error) {
-          steps[steps.length - 1].result = {
-            error: error instanceof Error ? error.message : '执行失败',
-          };
-          currentMessage = `工具执行失败: ${steps[steps.length - 1].result}\n请尝试其他方式回答用户的问题。`;
-        }
-      }
-
-      if (!finalResponse) {
-        finalResponse = '抱歉，我无法完成您的请求。';
-      }
-    } catch (error) {
-      success = false;
-      errorMessage = error instanceof Error ? error.message : '执行失败';
-      finalResponse = `执行出错: ${errorMessage}`;
-      observer.next(new MessageEvent('message', { data: JSON.stringify({ type: 'error', content: finalResponse }) + '\n' }));
-    }
-
-    // 记录日志
-    await this.prisma.agentInvokeLog.create({
-      data: {
-        agentId: agent.id,
-        conversationId: dto.conversationId,
-        userMessage: dto.message,
-        agentResponse: finalResponse,
-        steps: JSON.stringify(steps),
-        totalCostMs: Date.now() - startTime,
-        success,
-        errorMessage,
-        clientIp,
-        uid,
-        inputTokens: inputTokens > 0 ? inputTokens : undefined,
-        outputTokens: outputTokens > 0 ? outputTokens : undefined,
-        reasoningMode: ReasoningMode.NONE,
-      },
-    });
-
-    observer.next(new MessageEvent('message', {
-      data: JSON.stringify({ type: 'done', content: finalResponse, steps }) + '\n',
-    }));
-    observer.complete();
-  }
-
-  /**
-   * 保存调用日志和推理步骤
-   */
-  private async saveInvokeLogWithSteps(
-    agent: any,
-    dto: AgentChatDto,
-    result: ExecutionResult,
-    clientIp: string,
-    uid: string | undefined,
-    reasoningMode: string,
-    startTime: number,
-  ): Promise<void> {
-    // 保存调用日志
-    const invokeLog = await this.prisma.agentInvokeLog.create({
-      data: {
-        agentId: agent.id,
-        conversationId: dto.conversationId,
-        userMessage: dto.message,
-        agentResponse: result.response,
-        steps: JSON.stringify(result.steps),
-        totalCostMs: Date.now() - startTime,
-        success: result.success,
-        errorMessage: result.errorMessage,
-        clientIp,
-        uid,
-        inputTokens: result.inputTokens || undefined,
-        outputTokens: result.outputTokens || undefined,
-        reasoningMode,
-      },
-    });
-
-    // 保存推理步骤
-    if (result.steps && result.steps.length > 0) {
-      await this.prisma.reasoningStep.createMany({
-        data: result.steps.map((step) => ({
-          agentLogId: invokeLog.id,
-          stepNumber: step.stepNumber,
-          stepType: step.stepType,
-          content: step.content || step.thought || '',
-          thought: step.thought,
-          action: step.action,
-          actionInput: step.actionInput ? JSON.stringify(step.actionInput) : undefined,
-          observation: step.observation,
-          toolOutput: step.toolOutput ? JSON.stringify(step.toolOutput) : undefined,
-          costMs: step.costMs,
-        })),
-      });
-    }
-  }
-
-  /**
-   * 创建绑定this的callLLM函数
-   */
-  private callLLMBound(model: any) {
-    return async (systemPrompt: string, userMessage: string) => {
-      return this.callLLM(model, systemPrompt, userMessage, model.temperature || 0.7, false);
-    };
-  }
-
-  /**
-   * 创建绑定this的callLLMStream函数
-   */
-  private callLLMStreamBound(model: any) {
-    return async (
-      systemPrompt: string,
-      userMessage: string,
-      onChunk: (chunk: string) => void,
-    ): Promise<{ response: string; inputTokens?: number; outputTokens?: number }> => {
-      return new Promise((resolve) => {
-        let fullResponse = '';
-        let inputTokens: number | undefined;
-        let outputTokens: number | undefined;
-
-        this.callLLMStream(
-          model,
-          systemPrompt,
-          userMessage,
-          model.temperature || 0.7,
-          (chunk: string) => {
-            fullResponse += chunk;
-            onChunk(chunk);
-          },
-          (tokenInfo: { inputTokens?: number; outputTokens?: number }) => {
-            inputTokens = tokenInfo.inputTokens;
-            outputTokens = tokenInfo.outputTokens;
-            resolve({
-              response: fullResponse,
-              inputTokens,
-              outputTokens,
-            });
-          },
-        );
-      });
-    };
-  }
-
-  /**
-   * 调用LLM
-   */
-  private async callLLM(
-    model: Record<string, unknown>,
-    systemPrompt: string,
-    userMessage: string,
-    temperature: number,
-    stream: boolean = false,
-  ): Promise<{ response: string; inputTokens?: number; outputTokens?: number }> {
-    try {
-      const response = await axios.post(
-        model.endpoint as string,
-        {
-          model: model.code,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage },
-          ],
-          temperature,
-          stream,
-        },
-        {
-          headers: model.apiKey
-            ? { Authorization: `Bearer ${model.apiKey}` }
-            : {},
-          timeout: 60000,
-        },
-      );
-
-      const content = response.data.choices?.[0]?.message?.content || '';
-      const usage = response.data.usage;
-      let inputTokens: number | undefined;
-      let outputTokens: number | undefined;
-
-      if (usage) {
-        inputTokens = usage.prompt_tokens ?? usage.input_tokens;
-        outputTokens = usage.completion_tokens ?? usage.output_tokens;
-      }
-
-      return { response: content, inputTokens, outputTokens };
-    } catch (error) {
-      throw new Error(`LLM调用失败: ${error instanceof Error ? error.message : '未知错误'}`);
-    }
-  }
-
-  /**
-   * 流式调用LLM
-   */
-  private async callLLMStream(
-    model: Record<string, unknown>,
-    systemPrompt: string,
-    userMessage: string,
-    temperature: number,
-    onChunk: (chunk: string) => void,
-    onComplete: (tokenInfo: { inputTokens?: number; outputTokens?: number }) => void,
-  ): Promise<void> {
-    const axios = require('axios').default;
-    const startTime = Date.now();
-
-    const data = {
-      model: model.code,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
-      temperature,
-      stream: true,
-    };
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (model.apiKey) {
-      headers.Authorization = `Bearer ${model.apiKey}`;
-    }
-
-    const endpoint = model.endpoint as string;
-
-    let inputTokens: number | undefined;
-    let outputTokens: number | undefined;
-    let fullResponse = '';
-    let success = true;
-    let errorMessage: string | null = null;
-
-    try {
-      const response = await axios.post(endpoint, data, {
-        headers,
-        responseType: 'stream',
-      });
-
-      const decoder = new (require('util').TextDecoder)('utf-8');
-      let buffer = '';
-
-      for await (const chunk of response.data) {
-        buffer += decoder.decode(chunk, { stream: true });
-
-        while (buffer.includes('\n')) {
-          const index = buffer.indexOf('\n');
-          const line = buffer.substring(0, index);
-          buffer = buffer.substring(index + 1);
-
-          if (line.trim() === '[DONE]') {
-            await this.saveAiInvokeLog(model, data, fullResponse, startTime, inputTokens, outputTokens, true, null);
-            onComplete({ inputTokens, outputTokens });
-            return;
-          }
-
-          if (line.trim().startsWith('data: ')) {
-            const dataStr = line.trim().substring(6);
-            try {
-              const parsed = JSON.parse(dataStr);
-
-              // 支持多种流式响应格式
-              // OpenAI 格式: choices[0].delta.content
-              // 其他格式: choices[0].message.content 或 choices[0].text
-              const choice = parsed.choices?.[0];
-              const chunkContent = choice?.delta?.content
-                || choice?.message?.content
-                || choice?.text
-                || '';
-
-              if (parsed.usage) {
-                inputTokens = parsed.usage.prompt_tokens ?? parsed.usage.input_tokens;
-                outputTokens = parsed.usage.completion_tokens ?? parsed.usage.output_tokens;
-              }
-
-              if (chunkContent) {
-                fullResponse += chunkContent;
-                onChunk(chunkContent);
-              }
-            } catch (error) {
-              console.warn('流式数据解析失败:', dataStr.substring(0, 100));
-            }
-          }
-        }
-      }
-
-      await this.saveAiInvokeLog(model, data, fullResponse, startTime, inputTokens, outputTokens, true, null);
-      onComplete({ inputTokens, outputTokens });
-    } catch (error) {
-      success = false;
-      errorMessage = error instanceof Error ? error.message : '调用失败';
-      console.error('流式调用LLM失败:', error);
-      await this.saveAiInvokeLog(model, data, fullResponse, startTime, inputTokens, outputTokens, success, errorMessage);
-      onComplete({ inputTokens, outputTokens });
-    }
-  }
-
-  /**
-   * 保存AI调用日志
-   */
-  private async saveAiInvokeLog(
-    model: Record<string, unknown>,
-    requestData: Record<string, unknown>,
-    responseData: string,
-    startTime: number,
-    inputTokens?: number,
-    outputTokens?: number,
-    success: boolean = true,
-    errorMessage: string | null = null,
-  ): Promise<void> {
-    try {
-      await this.prisma.aiInvokeLog.create({
+      const errorMsg = error instanceof Error ? error.message : '执行失败';
+      await this.prisma.agentInvokeLog.create({
         data: {
-          modelId: model.id as string,
-          modelCode: model.code as string,
-          modelType: (model.type as string) || 'llm',
-          request: JSON.stringify(requestData),
-          response: responseData,
-          costMs: Date.now() - startTime,
-          inputTokens,
-          outputTokens,
-          success,
-          errorMessage,
+          agentId: agent.id,
+          conversationId: context.conversationId,
+          userMessage: context.userMessage,
+          agentResponse: errorMsg,
+          steps: '[]',
+          totalCostMs: Date.now() - startTime,
+          success: false,
+          errorMessage: errorMsg,
+          clientIp,
+          uid,
+          reasoningMode: ReasoningMode.NONE,
         },
       });
-    } catch (error) {
-      console.error('保存AI调用日志失败:', error);
+
+      return {
+        response: errorMsg,
+        steps: [],
+        reasoningMode: ReasoningMode.NONE,
+      };
     }
   }
 
-  /**
-   * 解析工具调用
-   */
-  private parseToolCall(text: string): Record<string, unknown> | null {
+  private async executeReActSync(
+    agent: any,
+    context: any,
+    reasoningMode: ReasoningMode,
+    startTime: number,
+    clientIp: string,
+    uid: string | undefined,
+  ): Promise<Record<string, unknown>> {
+    const messages: ModelMessage[] = [];
+    let currentPrompt = context.userMessage;
+    let finalResponse = '';
+    const steps: any[] = [];
+
+    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
+
     try {
-      const trimmedText = text.trim();
+      for (let i = 0; i < context.maxSteps; i++) {
+        const stepMessages: ModelMessage[] = [
+          { role: 'system', content: context.systemPrompt },
+          ...messages,
+          { role: 'user', content: currentPrompt },
+        ];
 
-      if (!trimmedText.startsWith('{') || !trimmedText.endsWith('}')) {
-        return null;
+        const result = await this.aiSdkProvider.generateText({
+          model: context.model,
+          messages: stepMessages,
+          tools,
+          temperature: context.temperature,
+        });
+
+        const stepText = result.text;
+
+        if (stepText.includes('Final Answer:')) {
+          const parts = stepText.split('Final Answer:');
+          finalResponse = parts[parts.length - 1].trim();
+
+          steps.push({
+            stepNumber: i + 1,
+            stepType: 'final_answer',
+            content: finalResponse,
+          });
+
+          break;
+        }
+
+        steps.push({
+          stepNumber: i + 1,
+          stepType: 'thought',
+          content: stepText,
+        });
+
+        const toolCallResult = this.parseToolCallFromText(stepText);
+        if (toolCallResult && toolCallResult.toolCalls.length > 0) {
+          for (const toolCall of toolCallResult.toolCalls) {
+            try {
+              const toolResult = await this.executeTool(toolCall.name, toolCall.args, context);
+              steps[steps.length - 1].observation = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
+              steps[steps.length - 1].toolOutput = toolResult;
+
+              const resultText = steps[steps.length - 1].observation;
+              messages.push({ role: 'assistant', content: stepText });
+              currentPrompt = `工具 ${toolCall.name} 返回结果:\n${resultText}\n\n请基于以上结果继续回答用户问题。如果已经得到答案，使用 Final Answer 输出最终答案。`;
+              break;
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
+              steps[steps.length - 1].observation = `错误: ${errorMsg}`;
+              currentPrompt = `工具执行失败: ${errorMsg}\n请尝试其他方式回答用户的问题。`;
+            }
+          }
+        }
       }
 
-      const parsed = JSON.parse(trimmedText);
-
-      if (parsed.skill && typeof parsed.skill === 'string') {
-        return parsed;
+      if (!finalResponse) {
+        finalResponse = '抱歉，我无法在有限的步骤内完成您的请求。';
       }
 
-      return null;
-    } catch {
-      return null;
+      await this.saveLog(agent, context, { text: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
+
+      return {
+        response: finalResponse,
+        steps,
+        reasoningMode,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : '执行失败';
+      await this.prisma.agentInvokeLog.create({
+        data: {
+          agentId: agent.id,
+          conversationId: context.conversationId,
+          userMessage: context.userMessage,
+          agentResponse: errorMsg,
+          steps: JSON.stringify(steps),
+          totalCostMs: Date.now() - startTime,
+          success: false,
+          errorMessage: errorMsg,
+          clientIp,
+          uid,
+          reasoningMode,
+        },
+      });
+
+      return {
+        response: errorMsg,
+        steps,
+        reasoningMode,
+      };
+    }
+  }
+
+  private async executeDefaultStream(
+    agent: any,
+    context: any,
+    startTime: number,
+    clientIp: string,
+    uid: string | undefined,
+    callbacks: StreamCallbacks,
+    messages?: ModelMessage[],
+    toolCallCount: number = 0,
+  ): Promise<void> {
+    const maxToolCalls = 3;
+    
+    // 初始化消息
+    const currentMessages = messages || [
+      { role: 'system', content: context.systemPrompt },
+      { role: 'user', content: context.userMessage },
+    ];
+
+    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
+
+    if (!messages) {
+      this.logger.log(`[executeDefaultStream] 开始执行默认流式模式，tools count: ${Object.keys(tools).length}`);
+    }
+
+    try {
+      let toolCallToExecute: { name: string; args: any } | null = null;
+
+      await this.aiSdkProvider.streamText({
+        model: context.model,
+        messages: currentMessages,
+        tools,
+        temperature: context.temperature,
+        onChunk: (chunk) => {
+          this.logger.debug(`[executeDefaultStream] 收到 chunk: ${chunk.substring(0, 50)}...`);
+          callbacks.onChunk?.(chunk);
+        },
+        onToolCall: (toolCall) => {
+          this.logger.log(`[executeDefaultStream] 收到工具调用: ${toolCall.name}`);
+          toolCallToExecute = toolCall;
+        },
+        onFinish: async (result) => {
+          this.logger.log(`[executeDefaultStream] 收到 finish，text length: ${result.text?.length || 0}`);
+          
+          if (result.text && result.text.length > 0) {
+            // 有文本响应，直接保存并结束
+            await this.saveLog(agent, context, { text: result.text }, clientIp, uid, ReasoningMode.NONE, startTime);
+            callbacks.onDone?.({
+              success: true,
+              response: result.text || '',
+              steps: [],
+              totalCostMs: Date.now() - startTime,
+            });
+          } else if (toolCallToExecute && toolCallCount < maxToolCalls) {
+            // 需要执行工具调用
+            try {
+              const toolResult = await this.executeTool(toolCallToExecute.name, toolCallToExecute.args, context);
+              
+              callbacks.onToolCall?.({
+                name: toolCallToExecute.name,
+                args: toolCallToExecute.args,
+                result: toolResult,
+              });
+
+              const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
+              
+              // 添加对话历史并递归继续
+              const newMessages: ModelMessage[] = [
+                ...currentMessages,
+                { 
+                  role: 'assistant' as const, 
+                  content: `Action: ${toolCallToExecute.name}\nAction Input: ${JSON.stringify(toolCallToExecute.args)}\nObservation: ${resultText}` 
+                },
+                { 
+                  role: 'user' as const, 
+                  content: `请基于工具返回结果用自然语言回答用户问题。工具返回: ${resultText}` 
+                },
+              ];
+
+              // 递归调用继续对话
+              await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks, newMessages, toolCallCount + 1);
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
+              this.logger.error(`[executeDefaultStream] 工具执行失败: ${errorMsg}`);
+              
+              callbacks.onToolCall?.({
+                name: toolCallToExecute.name,
+                args: toolCallToExecute.args,
+                result: `工具执行失败: ${errorMsg}`,
+              });
+
+              // 工具执行失败，直接结束
+              await this.saveLog(agent, context, { text: `抱歉，工具执行失败: ${errorMsg}` }, clientIp, uid, ReasoningMode.NONE, startTime);
+              callbacks.onDone?.({
+                success: false,
+                response: `抱歉，工具执行失败: ${errorMsg}`,
+                steps: [],
+                totalCostMs: Date.now() - startTime,
+              });
+            }
+          } else {
+            // 没有文本响应也没有工具调用，或达到最大工具调用次数
+            const finalResponse = result.text || '抱歉，我无法回答您的问题。';
+            await this.saveLog(agent, context, { text: finalResponse }, clientIp, uid, ReasoningMode.NONE, startTime);
+            callbacks.onDone?.({
+              success: true,
+              response: finalResponse,
+              steps: [],
+              totalCostMs: Date.now() - startTime,
+            });
+          }
+        },
+        onError: (error) => {
+          this.logger.error(`[executeDefaultStream] 收到错误: ${error}`);
+          callbacks.onError?.(error);
+        },
+      });
+    } catch (error) {
+      this.logger.error(`[executeDefaultStream] 异常: ${error instanceof Error ? error.message : error}`);
+      callbacks.onError?.(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  private async executeReActStream(
+    agent: any,
+    context: any,
+    reasoningMode: ReasoningMode,
+    startTime: number,
+    clientIp: string,
+    uid: string | undefined,
+    callbacks: StreamCallbacks,
+  ): Promise<void> {
+    const messages: ModelMessage[] = [];
+    let currentPrompt = context.userMessage;
+    let finalResponse = '';
+    const steps: any[] = [];
+
+    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
+
+    try {
+      for (let i = 0; i < context.maxSteps; i++) {
+        this.logger.debug(`ReAct Stream Step ${i + 1}`);
+
+        const stepMessages: ModelMessage[] = [
+          { role: 'system', content: context.systemPrompt },
+          ...messages,
+          { role: 'user', content: currentPrompt },
+        ];
+
+        let stepText = '';
+        let hasFinalAnswer = false;
+        let toolCallDetected: { name: string; args: any } | null = null;
+        let finalAnswerMode = false;
+        let pendingChunk = '';
+
+        await this.aiSdkProvider.streamText({
+          model: context.model,
+          messages: stepMessages,
+          tools,
+          temperature: context.temperature,
+          onChunk: (chunk) => {
+            stepText += chunk;
+            
+            if (finalAnswerMode) {
+              // 已经进入最终答案模式，直接发送
+              callbacks.onChunk?.(chunk);
+            } else {
+              // 检查是否包含 Final Answer 标记
+              const testText = pendingChunk + chunk;
+              const finalAnswerIndex = testText.indexOf('Final Answer:');
+              
+              if (finalAnswerIndex !== -1) {
+                // 找到 Final Answer 标记
+                finalAnswerMode = true;
+                // 只发送 Final Answer: 之后的内容
+                const contentAfter = testText.substring(finalAnswerIndex + 13); // 13 = 'Final Answer:'.length
+                if (contentAfter) {
+                  callbacks.onChunk?.(contentAfter);
+                }
+                pendingChunk = '';
+              } else {
+                // 检查是否可能是部分匹配
+                const last13Chars = testText.slice(-13);
+                if (last13Chars.length >= 13 || !testText.includes('Final')) {
+                  // 发送除了最后可能不完整的部分
+                  const sendText = testText.slice(0, -Math.min(last13Chars.length, 13));
+                  if (sendText) {
+                    callbacks.onChunk?.(sendText);
+                  }
+                  pendingChunk = last13Chars;
+                } else {
+                  pendingChunk = testText;
+                }
+              }
+            }
+          },
+          onToolCall: (toolCall) => {
+            this.logger.debug(`onToolCall received: ${JSON.stringify(toolCall)}`);
+            toolCallDetected = toolCall;
+          },
+        });
+
+        if (stepText.includes('Final Answer:')) {
+          hasFinalAnswer = true;
+          // 提取 Thought 内容（Final Answer: 之前的内容）
+          const thoughtPart = stepText.split('Final Answer:')[0];
+          
+          // 如果有 Thought 内容，先发送 thought 步骤
+          if (thoughtPart.trim()) {
+            steps.push({
+              stepNumber: i + 1,
+              stepType: 'thought',
+              content: thoughtPart.trim(),
+            });
+            callbacks.onStep?.({
+              stepNumber: i + 1,
+              stepType: 'thought',
+              content: thoughtPart.trim(),
+            });
+          }
+          
+          // 提取 Final Answer 内容
+          const finalAnswerPart = stepText.substring(stepText.indexOf('Final Answer:') + 13).trim();
+          finalResponse = finalAnswerPart;
+
+          steps.push({
+            stepNumber: steps.length > 0 ? steps.length + 1 : i + 1,
+            stepType: 'final_answer',
+            content: finalAnswerPart,
+          });
+
+          break;
+        }
+
+        // 如果没有 Final Answer 但有内容，作为 thought 步骤保存
+        if (stepText.trim()) {
+          steps.push({
+            stepNumber: i + 1,
+            stepType: 'thought',
+            content: stepText.trim(),
+          });
+        }
+
+        if (toolCallDetected && typeof toolCallDetected === 'object') {
+          const tc = toolCallDetected as { name: string; args: any };
+          try {
+            const toolResult = await this.executeTool(tc.name, tc.args, context);
+
+            callbacks.onToolCall?.({
+              name: tc.name,
+              args: tc.args,
+              result: toolResult,
+            });
+
+            const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
+            messages.push({ role: 'assistant', content: stepText });
+            currentPrompt = `工具 ${tc.name} 返回结果:\n${resultText}\n\n请基于以上结果继续回答用户问题。如果已经得到答案，使用 Final Answer 输出最终答案。`;
+
+            // 确保 steps 数组不为空
+            if (steps.length === 0) {
+              steps.push({
+                stepNumber: i + 1,
+                stepType: 'thought',
+                content: stepText.trim() || `调用工具: ${tc.name}`,
+              });
+            }
+            
+            steps[steps.length - 1].observation = resultText;
+            steps[steps.length - 1].toolOutput = toolResult;
+
+            callbacks.onStep?.({
+              ...steps[steps.length - 1],
+              observation: resultText,
+              toolOutput: toolResult,
+            });
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
+            
+            // 确保 steps 数组不为空
+            if (steps.length === 0) {
+              steps.push({
+                stepNumber: i + 1,
+                stepType: 'thought',
+                content: stepText.trim() || `调用工具: ${tc.name}`,
+              });
+            }
+            
+            steps[steps.length - 1].observation = `错误: ${errorMsg}`;
+            currentPrompt = `工具执行失败: ${errorMsg}\n请尝试其他方式回答用户的问题。`;
+          }
+        } else if (!stepText.includes('Thought:') && !stepText.includes('Action:')) {
+          // 如果AI没有输出Thought/Action格式，直接将响应作为最终答案
+          finalResponse = stepText.trim();
+          // 如果上一步有工具调用结果，这应该是基于工具结果的回答
+          if (steps.length > 0 && steps[steps.length - 1].observation) {
+            // 将当前内容作为 observation 的后续回答，而不是新的 thought
+            steps[steps.length - 1].finalAnswer = finalResponse;
+          }
+          steps.push({
+            stepNumber: i + 1,
+            stepType: 'final_answer',
+            content: finalResponse,
+          });
+          callbacks.onStep?.({
+            stepNumber: i + 1,
+            stepType: 'final_answer',
+            content: finalResponse,
+          });
+          break;
+        } else {
+          // AI输出了Thought但没有调用工具，继续下一步
+          messages.push({ role: 'assistant', content: stepText });
+          currentPrompt = `请继续思考并回答用户问题。如果已经得到答案，使用 Final Answer 输出最终答案。`;
+        }
+      }
+
+      if (!finalResponse) {
+        finalResponse = '抱歉，我无法在有限的步骤内完成您的请求。';
+      }
+
+      await this.saveLog(agent, context, { text: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
+
+      callbacks.onDone?.({
+        success: true,
+        response: finalResponse,
+        steps,
+        totalCostMs: Date.now() - startTime,
+      });
+    } catch (error) {
+      callbacks.onError?.(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  private parseToolCallFromText(text: string): { toolCalls: Array<{ name: string; args: Record<string, unknown> }> } {
+    const toolCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*"Action[\s\S]*":[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.Action && parsed['Action Input']) {
+          toolCalls.push({
+            name: parsed.Action,
+            args: typeof parsed['Action Input'] === 'string' ? JSON.parse(parsed['Action Input']) : parsed['Action Input'],
+          });
+        }
+      }
+    } catch (e) {
+      this.logger.warn('Failed to parse tool call from text');
+    }
+
+    return { toolCalls };
+  }
+
+  private async executeTool(name: string, args: Record<string, unknown>, context: any): Promise<unknown> {
+    this.logger.log(`Executing tool: ${name} with args: ${JSON.stringify(args)}`);
+
+    if (name.startsWith('mcp:')) {
+      const parts = name.split(':');
+      const serverName = parts[1];
+      const toolName = parts.slice(2).join(':');
+
+      const mcpServers = JSON.parse(context.agent.mcpServers || '[]');
+      const serverConfig = mcpServers.find((s: any) => s.name === serverName);
+
+      if (serverConfig) {
+        return this.mcpServerService.callTool([serverConfig], toolName, args);
+      }
+      throw new Error(`MCP server not found: ${serverName}`);
+    }
+
+    if (name === 'kb_search') {
+      const kbCodes = JSON.parse(context.agent.knowledgeBases || '[]');
+      return this.kbSearchTool.execute(context.agent.id, kbCodes, args as { query: string; kb_codes?: string[]; top_k?: number; similarity_threshold?: number });
+    }
+
+    return this.skillService.execute({
+      skillCode: name,
+      params: args,
+    });
+  }
+
+  private async saveLog(
+    agent: any,
+    context: any,
+    result: any,
+    clientIp: string,
+    uid: string | undefined,
+    reasoningMode: ReasoningMode,
+    startTime: number,
+  ): Promise<void> {
+    try {
+      await this.prisma.agentInvokeLog.create({
+        data: {
+          agentId: agent.id,
+          conversationId: context.conversationId,
+          userMessage: context.userMessage,
+          agentResponse: result.text || result.response || '',
+          steps: JSON.stringify(result.steps || []),
+          totalCostMs: Date.now() - startTime,
+          success: true,
+          clientIp,
+          uid,
+          reasoningMode,
+        },
+      });
+    } catch (e) {
+      this.logger.error('Failed to save log:', e);
     }
   }
 }

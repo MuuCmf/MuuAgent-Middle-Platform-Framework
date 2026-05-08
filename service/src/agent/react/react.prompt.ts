@@ -26,13 +26,17 @@ export class ReActPromptBuilder {
 
 ${toolDescriptions}
 
+## 工具使用规则
+
+当用户的问题需要使用工具来获取信息时，你必须调用相应的工具。你可以通过观察当前时间来回答"现在几点了"这类问题。
+
 ## 回答格式
 
 请严格按照以下格式进行思考和行动：
 
 Thought: 思考当前需要做什么，分析用户问题和已有信息
-Action: 要执行的工具名称（必须是上述工具之一）
-Action Input: 工具参数，JSON格式
+Action: 要执行的工具名称（必须是上述工具之一，例如：get_time）
+Action Input: 工具参数，JSON格式，例如：{}
 Observation: 工具返回结果（由系统自动提供）
 
 ... (这个 Thought/Action/Action Input/Observation 可以重复多次)
@@ -42,14 +46,24 @@ Final Answer: 对用户问题的最终回答
 
 ## 重要规则
 
-1. 每次只能调用一个工具
-2. 必须严格按照格式输出，不要添加额外内容
-3. 收到 Observation 后，继续思考下一步行动
-4. 当你有足够信息回答用户问题时，输出 Final Answer
-5. Final Answer 必须用自然语言回答，不要提及工具调用细节
-6. 如果遇到错误，在 Thought 中分析原因并尝试其他方案
+1. 当用户询问时间、日期等实时信息时，必须调用 get_time 工具
+2. 每次只能调用一个工具
+3. 必须严格按照格式输出，不要添加额外内容
+4. 收到 Observation 后，继续思考下一步行动
+5. 当你有足够信息回答用户问题时，输出 Final Answer
+6. Final Answer 必须用自然语言回答，不要提及工具调用细节
+7. 如果遇到错误，在 Thought 中分析原因并尝试其他方案
 
 ## 示例
+
+用户问题: 现在几点了？
+
+Thought: 用户想知道当前时间，我需要调用获取时间的工具
+Action: get_time
+Action Input: {}
+Observation: {"currentTime": "2026-05-08 20:30:00", "timezone": "Asia/Shanghai"}
+Thought: 我已经获取了当前时间信息，可以回答用户了
+Final Answer: 现在是2026年5月8日晚上8点30分（北京时间）。
 
 用户问题: 北京今天天气怎么样？
 
