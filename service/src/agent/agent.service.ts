@@ -502,7 +502,7 @@ export class AgentService {
 
     const sendChunk = (data: any) => {
       const jsonData = JSON.stringify(data) + '\n';
-      console.log('[Stream] Writing to response:', jsonData.trim());
+      //console.log('[Stream] Writing to response:', jsonData.trim());
       res.write(jsonData);
       // 强制刷新缓冲区，确保数据立即发送
       if (typeof res.flush === 'function') {
@@ -558,11 +558,59 @@ export class AgentService {
     try {
       for (let step = 0; step < agent.maxSteps; step++) {
         let llmResponse = '';
+        let isToolCallJson = false;
+        let toolCallJsonBuffer = '';
+        let pendingChunks: string[] = [];
+        let jsonStartDetected = false;
+        
         const tokenInfo = await new Promise<{ inputTokens?: number; outputTokens?: number }>((resolve) => {
           this.callLLMStream(context.model, context.systemPrompt, currentMessage, agent.temperature, (chunk) => {
             llmResponse += chunk;
+            
+            // 如果已经检测到是工具调用 JSON，继续收集直到 JSON 结束
+            if (isToolCallJson) {
+              toolCallJsonBuffer += chunk;
+              if (chunk === '}') {
+                // JSON 完成，跳过所有缓存的 chunks
+                return;
+              }
+              return;
+            }
+            
+            // 检测工具调用 JSON 开始
+            if (!jsonStartDetected && (chunk === '{' || llmResponse.trim().startsWith('{"'))) {
+              jsonStartDetected = true;
+              pendingChunks = [chunk];
+              return;
+            }
+            
+            // 如果已开始检测 JSON，继续缓存
+            if (jsonStartDetected) {
+              pendingChunks.push(chunk);
+              // 检查是否以 } 结尾（JSON 可能完成）
+              if (chunk === '}') {
+                const fullJson = pendingChunks.join('');
+                const trimmed = fullJson.trim();
+                if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                  const parsed = this.parseToolCall(trimmed);
+                  if (parsed) {
+                    // 是工具调用 JSON，跳过所有缓存的 chunks
+                    isToolCallJson = true;
+                    toolCallJsonBuffer = fullJson;
+                    return;
+                  }
+                }
+                // 不是工具调用 JSON，发送所有缓存的 chunks
+                for (const c of pendingChunks) {
+                  sendChunk({ type: 'chunk', content: c });
+                }
+                pendingChunks = [];
+                jsonStartDetected = false;
+              }
+              return;
+            }
+            
             // 实时发送 chunk 给客户端，实现真正的流式输出
-            console.log('[Stream] Sending chunk:', chunk);
             sendChunk({ type: 'chunk', content: chunk });
           }, resolve);
         });

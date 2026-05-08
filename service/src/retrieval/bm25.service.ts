@@ -309,7 +309,7 @@ export class BM25Service {
    */
   private calculateIDF(df: number): number {
     if (df === 0) return 0;
-    return Math.log((this.documentCount - df + 0.5) / (df + 0.5) + 1);
+    return Math.log((this.documentCount - df + 0.5) / (df + 0.5));
   }
   
   /**

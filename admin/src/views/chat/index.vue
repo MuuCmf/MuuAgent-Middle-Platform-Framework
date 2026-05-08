@@ -116,7 +116,7 @@
                   </div>
                 </div>
               </div>
-              <div v-else-if="msg.role === 'assistant' && (msg.tools && msg.tools.length > 0 || msg.reasoningSteps && msg.reasoningSteps.length > 0)">
+              <div v-else-if="msg.role === 'assistant' && msg.reasoningMode !== 'NONE' && (msg.tools && msg.tools.length > 0 || msg.reasoningSteps && msg.reasoningSteps.length > 0)">
                 <!-- 推理步骤（小字形式） -->
                 <div v-if="msg.reasoningSteps && msg.reasoningSteps.length > 0" class="reasoning-steps">
                   <div v-for="(step, sIdx) in msg.reasoningSteps" :key="sIdx" class="reasoning-step">
