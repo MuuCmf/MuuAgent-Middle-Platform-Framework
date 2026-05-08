@@ -17,7 +17,21 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: 'http://localhost:9898',
-          changeOrigin: true
+          changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq, req) => {
+              if (req.headers.accept === 'text/event-stream') {
+                proxyReq.setHeader('Accept', 'text/event-stream')
+                proxyReq.setHeader('Cache-Control', 'no-cache')
+              }
+            })
+            proxy.on('proxyRes', (proxyRes) => {
+              if (proxyRes.headers['content-type'] === 'text/event-stream') {
+                proxyRes.headers['cache-control'] = 'no-cache, no-transform'
+                proxyRes.headers['x-accel-buffering'] = 'no'
+              }
+            })
+          }
         },
         '/admin': {
           target: 'http://localhost:9898',

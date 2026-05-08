@@ -17,7 +17,13 @@ import { AiSdkProvider } from '../ai/providers/ai-sdk.provider';
 import { AiSdkToolAdapter } from '../ai/providers/ai-sdk-tool.adapter';
 import type { ModelMessage } from 'ai';
 
+/**
+ * 流式回调接口
+ * 包含流式回调函数，用于处理智能体对话中的不同事件
+ */
 export interface StreamCallbacks {
+  // 回调函数，用于处理推理步骤
+  // 推理步骤包含当前推理的详细信息，如推理的步骤、推理的输入和推理的输出
   onStep?: (step: any) => void;
   onChunk?: (chunk: string) => void;
   onToolCall?: (toolCall: { name: string; args: any; result: unknown }) => void;
@@ -130,6 +136,13 @@ export class AgentService {
     return this.executeReActSync(agent, context, reasoningMode, startTime, clientIp, uid);
   }
 
+  /**
+   * 流式对话
+   * @param dto 对话参数
+   * @param clientIp 客户端IP
+   * @param uid 用户ID
+   * @param callbacks 流式回调函数
+   */
   async streamChat(
     dto: AgentChatDto,
     clientIp: string,
@@ -588,9 +601,8 @@ export class AgentService {
         let stepText = '';
         let hasFinalAnswer = false;
         let toolCallDetected: { name: string; args: any } | null = null;
-        let streamingMode: 'thought' | 'answer' = 'thought';
-        let pendingText = '';
-        let thoughtEnded = false;
+        let inAnswerMode = false;
+        let answerBuffer = '';
 
         await this.aiSdkProvider.streamText({
           model: context.model,
@@ -600,57 +612,30 @@ export class AgentService {
           onChunk: (chunk) => {
             stepText += chunk;
             
-            const testText = pendingText + chunk;
-            
-            // 检查是否到达最终答案标记
-            if (!thoughtEnded) {
-              // 检查是否包含 Final Answer 标记
-              if (testText.includes('Final Answer:')) {
-                thoughtEnded = true;
-                streamingMode = 'answer';
-                const contentAfter = testText.split('Final Answer:').pop() || '';
-                pendingText = contentAfter;
-                if (contentAfter) {
-                  callbacks.onChunk?.(contentAfter);
-                }
-                return;
-              }
-              
-              // 检查是否包含 Action: 标记
-              if (testText.includes('Action:')) {
-                thoughtEnded = true;
-                // 检查 Action: 之后是否有明确答案（"当前时间是" 或 "答案是" 等）
-                const actionIndex = testText.indexOf('Action:');
-                const contentAfterAction = testText.substring(actionIndex + 7); // 7 = 'Action:'.length
-                
-                // 如果 Action: 之后有明确答案，切换到答案模式并发送
-                if (contentAfterAction.includes('当前时间是') || contentAfterAction.includes('答案是')) {
-                  streamingMode = 'answer';
-                  // 提取答案部分
-                  const answerMatch = contentAfterAction.match(/(当前时间是[^]。]+。?|答案是[^]。]+。?)/);
-                  if (answerMatch) {
-                    callbacks.onChunk?.(answerMatch[1]);
-                    pendingText = '';
-                    return;
-                  }
-                }
-              }
-              
-              // 还在 thought 阶段，发送 Thought: 之后的内容
-              if (testText.includes('Thought:')) {
-                const thoughtContent = testText.split('Thought:').pop() || '';
-                if (thoughtContent && !thoughtContent.includes('Action:')) {
-                  callbacks.onChunk?.(thoughtContent);
-                  pendingText = '';
-                } else {
-                  pendingText = testText;
-                }
-              } else {
-                pendingText = testText;
-              }
-            } else if (streamingMode === 'answer') {
-              // 答案模式，直接发送
+            if (inAnswerMode) {
+              answerBuffer += chunk;
               callbacks.onChunk?.(chunk);
+              return;
+            }
+            
+            if (stepText.includes('Final Answer:')) {
+              inAnswerMode = true;
+              const parts = stepText.split('Final Answer:');
+              if (parts[1]) {
+                answerBuffer = parts[1];
+                callbacks.onChunk?.(parts[1]);
+              }
+              return;
+            }
+            
+            if (stepText.includes('Action: 无需') || stepText.includes('Action: 无')) {
+              inAnswerMode = true;
+              const actionMatch = stepText.match(/Action:\s*无需[^。]*[。:：]?\s*(.+?)(?:\n|$)/);
+              if (actionMatch && actionMatch[1]) {
+                answerBuffer = actionMatch[1];
+                callbacks.onChunk?.(actionMatch[1]);
+              }
+              return;
             }
           },
           onToolCall: (toolCall) => {
@@ -661,10 +646,8 @@ export class AgentService {
 
         if (stepText.includes('Final Answer:')) {
           hasFinalAnswer = true;
-          // 提取 Thought 内容（Final Answer: 之前的内容）
           const thoughtPart = stepText.split('Final Answer:')[0];
           
-          // 如果有 Thought 内容，先发送 thought 步骤
           if (thoughtPart.trim()) {
             steps.push({
               stepNumber: i + 1,
@@ -678,7 +661,6 @@ export class AgentService {
             });
           }
           
-          // 提取 Final Answer 内容
           const finalAnswerPart = stepText.substring(stepText.indexOf('Final Answer:') + 13).trim();
           finalResponse = finalAnswerPart;
 
@@ -691,8 +673,6 @@ export class AgentService {
           break;
         }
 
-        // 如果没有 Final Answer 但有内容
-        // 只有当文本不包含 Thought/Action 格式时才作为独立 thought 步骤保存
         if (stepText.trim() && !stepText.includes('Thought:') && !stepText.includes('Action:')) {
           steps.push({
             stepNumber: steps.length + 1,
@@ -704,7 +684,6 @@ export class AgentService {
         if (toolCallDetected && typeof toolCallDetected === 'object') {
           const tc = toolCallDetected as { name: string; args: any };
           try {
-            // 添加 action 步骤（工具调用）
             const actionStep = {
               stepNumber: steps.length + 1,
               stepType: 'action' as const,
@@ -715,7 +694,6 @@ export class AgentService {
             steps.push(actionStep);
             callbacks.onStep?.(actionStep);
 
-            // 执行工具
             const toolResult = await this.executeTool(tc.name, tc.args, context);
 
             callbacks.onToolCall?.({
@@ -728,7 +706,6 @@ export class AgentService {
             messages.push({ role: 'assistant', content: stepText });
             currentPrompt = `工具 ${tc.name} 返回结果:\n${resultText}\n\n请基于以上结果继续回答用户问题。如果已经得到答案，使用 Final Answer 输出最终答案。`;
 
-            // 添加 observation 步骤（工具返回）
             const observationStep = {
               stepNumber: steps.length + 1,
               stepType: 'observation' as const,
@@ -742,7 +719,6 @@ export class AgentService {
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
             
-            // 添加 action 步骤（工具调用）
             const actionStep = {
               stepNumber: steps.length + 1,
               stepType: 'action' as const,
@@ -753,7 +729,6 @@ export class AgentService {
             steps.push(actionStep);
             callbacks.onStep?.(actionStep);
 
-            // 添加 observation 步骤（错误信息）
             const observationStep = {
               stepNumber: steps.length + 1,
               stepType: 'observation' as const,

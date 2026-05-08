@@ -217,9 +217,10 @@ export class AiSdkProvider {
       let toolCalls: any[] = [];
 
       for await (const part of streamResult.fullStream) {
-        // this.logger.debug(`stream part: type=${part.type}`);
+        this.logger.debug(`stream part: type=${part.type}`);
         if (part.type === 'text-delta' && params.onChunk) {
           fullText += part.text;
+          this.logger.debug(`text-delta: "${part.text}"`);
           params.onChunk(part.text);
         } else if (part.type === 'tool-call') {
           toolCalls.push(part);

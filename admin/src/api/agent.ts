@@ -1,6 +1,7 @@
 import { adminRequest, request } from '@/utils/request'
 import type { AxiosResponse } from 'axios'
 import { appConfig } from '@/config'
+import { fetchEventSource } from '@microsoft/fetch-event-source'
 
 export interface Agent {
   id: number
@@ -74,6 +75,7 @@ export interface AgentStreamResponse {
   steps?: any[]
   step?: ReasoningStep
   reasoningMode?: string
+  response?: string
 }
 
 export const agentApi = {
@@ -93,16 +95,16 @@ export const agentApi = {
     return adminRequest.delete(`/admin/agent/${id}`)
   },
 
-  chat(agentId: number, message: string): Promise<AxiosResponse<{ data: { response: string } }>> {
+  chat(agentId: string, message: string): Promise<AxiosResponse<{ data: { response: string } }>> {
     return request.post('/agent/chat', { agentId, message })
   },
 
   /**
-   * 流式智能体对话（Vercel AI SDK 兼容版本）
-   * 使用标准 SSE 格式：data: {...}
+   * 流式智能体对话（使用 @microsoft/fetch-event-source）
+   * 自动处理 SSE 连接、重试和错误
    */
   async streamChat(
-    agentId: number,
+    agentId: string,
     message: string,
     onChunk: (content: string) => void,
     onTool: (skill: string, result: any) => void,
@@ -110,65 +112,56 @@ export const agentApi = {
     onError: (error: any) => void,
     onComplete: (steps?: any[], response?: string) => void
   ): Promise<void> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    }
+
+    if (appConfig.apiKey) {
+      headers['x-api-key'] = appConfig.apiKey
+    }
+
+    const token = localStorage.getItem('admin_token')
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const abortController = new AbortController()
+
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      }
-
-      if (appConfig.apiKey) {
-        headers['x-api-key'] = appConfig.apiKey
-      }
-
-      const token = localStorage.getItem('admin_token')
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      const response = await fetch('/api/agent/chat/stream', {
+      await fetchEventSource('/api/agent/chat/stream', {
         method: 'POST',
         headers,
         body: JSON.stringify({ agentId, message, stream: true }),
-        credentials: 'include'
-      })
+        credentials: 'include',
+        signal: abortController.signal,
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
+        /**
+         * 连接打开时的回调
+         */
+        async onopen(response) {
+          if (response.ok) {
+            console.log('[Agent API] SSE connection opened')
+            return
+          }
+          if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+            const errorText = await response.text()
+            throw new Error(`HTTP ${response.status}: ${errorText}`)
+          }
+          throw new Error(`HTTP error! status: ${response.status}`)
+        },
 
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('无法获取响应流')
-      }
-
-      const decoder = new TextDecoder('utf-8')
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-
-        if (done) {
-          console.log('[Agent API] Stream completed')
-          break
-        }
-
-        buffer += decoder.decode(value, { stream: true })
-
-        const lines = buffer.split(/\r?\n/)
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          const trimmedLine = line.trim()
-          if (!trimmedLine) continue
-
-          if (!trimmedLine.startsWith('data: ')) {
-            console.warn('[Agent API] Invalid SSE format, skipping:', trimmedLine.substring(0, 100))
-            continue
+        /**
+         * 收到消息时的回调
+         */
+        onmessage(event) {
+          if (!event.data) {
+            return
           }
 
-          const jsonStr = trimmedLine.substring(6)
           try {
-            const data: AgentStreamResponse = JSON.parse(jsonStr)
-            console.log('[Agent API] Received event type:', data.type)
+            const data: AgentStreamResponse = JSON.parse(event.data)
+            const timestamp = new Date().toISOString().split('T')[1].slice(0, 12)
+            console.log(`[${timestamp}] [Agent API] Received event type:`, data.type, data.type === 'chunk' ? `content: "${data.content?.substring(0, 20)}..."` : '')
 
             switch (data.type) {
               case 'chunk':
@@ -194,19 +187,43 @@ export const agentApi = {
                 break
               case 'error':
                 onError(new Error(data.content || '未知错误'))
-                return
+                abortController.abort()
+                break
               case 'done':
                 onComplete(data.steps, data.response)
-                return
+                abortController.abort()
+                break
             }
           } catch (parseError) {
-            console.error('[Agent API] Failed to parse SSE data:', parseError, 'Data:', jsonStr.substring(0, 200))
+            console.error('[Agent API] Failed to parse SSE data:', parseError, 'Data:', event.data?.substring(0, 200))
           }
-        }
-      }
+        },
 
-      onComplete()
+        /**
+         * 发生错误时的回调
+         */
+        onerror(error) {
+          console.error('[Agent API] SSE error:', error)
+          if (error instanceof Error) {
+            onError(error)
+          } else {
+            onError(new Error('SSE connection error'))
+          }
+          throw error
+        },
+
+        /**
+         * 关闭连接时的回调
+         */
+        onclose() {
+          console.log('[Agent API] SSE connection closed')
+        }
+      })
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[Agent API] Request aborted')
+        return
+      }
       onError(error)
     }
   }

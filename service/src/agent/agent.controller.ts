@@ -95,39 +95,34 @@ export class AgentController {
     const uid = this.extractUid(req, dto);
 
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('X-Accel-Buffering', 'no');
-    res.setHeader('Content-Encoding', 'identity');
+
+    const flush = () => {
+      const nativeRes = (res as any).req?.socket;
+      if (nativeRes && nativeRes.writable) {
+        nativeRes.write('');
+      }
+      if (typeof (res as any).flush === 'function') {
+        (res as any).flush();
+      }
+    };
 
     try {
-      // 获取底层 HTTP 响应对象
-      const httpResponse = res as any;
-      const socket = httpResponse.socket;
-
       await this.agentService.streamChat(dto, req.ip || 'unknown', uid, {
         onChunk: (chunk) => {
           res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
-          // 强制刷新缓冲区，确保数据立即发送到客户端
-          if (socket && socket.writable) {
-            socket.cork?.();
-            socket.uncork?.();
-          }
+          flush();
         },
         onStep: (step) => {
           res.write(`data: ${JSON.stringify({ type: 'reasoning_step', step })}\n\n`);
-          if (socket && socket.writable) {
-            socket.cork?.();
-            socket.uncork?.();
-          }
+          flush();
         },
         onToolCall: (toolCall) => {
           res.write(`data: ${JSON.stringify({ type: 'tool', ...toolCall })}\n\n`);
-          if (socket && socket.writable) {
-            socket.cork?.();
-            socket.uncork?.();
-          }
+          flush();
         },
         onDone: (result) => {
           res.write(`data: ${JSON.stringify({ type: 'done', ...result })}\n\n`);

@@ -1,36 +1,55 @@
 import { request } from '@/utils/request'
 import type { AxiosResponse } from 'axios'
 import { appConfig } from '@/config'
+import { fetchEventSource } from '@microsoft/fetch-event-source'
 
 /**
  * 检索结果项
  */
 export interface RetrievalItem {
+  // 检索结果项的唯一标识符
   chunkId: string
+  // 检索结果项的内容
   content: string
+  // 检索结果项的相似度分数
+  // 越高表示越相关
   score: number
+  // 检索结果项所属的文档名称
   docName: string
+  // 检索结果项所属的文档唯一标识符
   docId: string
+  // 检索结果项的元数据
   metadata?: any
 }
 
 /**
  * 检索响应
+ * 包含检索结果项、查询、知识库ID和总结果数
  */
 export interface RetrievalResponse {
+  // 检索结果项列表
   list: RetrievalItem[]
+  // 检索查询的文本
   query: string
+  // 知识库的唯一标识符
   kbId: string
+  // 总结果数
   total: number
 }
 
 /**
  * RAG问答响应
+ * 包含问答响应、问答来源、问答查询和问答库ID
  */
 export interface RagChatResponse {
+  // 问答响应的文本
   response: string
+  // 问答来源的检索结果项列表
+  // 每个检索结果项包含文档名称、文档唯一标识符、相似度分数和元数据
   sources: RetrievalItem[]
+  // 问答查询的文本
   query: string
+  // 问答库的唯一标识符
   kbId: string
 }
 
@@ -67,12 +86,8 @@ export const retrievalApi = {
   },
 
   /**
-   * RAG问答流式调用
-   * @param data 问答参数
-   * @param onMessage 消息回调函数
-   * @param onError 错误回调函数
-   * @param onComplete 完成回调函数
-   * @returns {Promise<void>} Promise
+   * RAG问答流式调用（使用 @microsoft/fetch-event-source）
+   * 自动处理 SSE 连接、重试和错误
    */
   async ragChatStream(
     data: {
@@ -85,88 +100,65 @@ export const retrievalApi = {
     onError?: (error: any) => void,
     onComplete?: (sources?: any[]) => void
   ): Promise<void> {
+    console.log('[RAG Stream] 发送请求:', `${appConfig.apiBaseUrl}/kb/chat/rag/stream`, data)
+
+    const abortController = new AbortController()
+    let sources: any[] = []
+
     try {
-      console.log('[RAG Stream] 发送请求:', `${appConfig.apiBaseUrl}/kb/chat/rag/stream`, data)
-      
-      const response = await fetch(`${appConfig.apiBaseUrl}/kb/chat/rag/stream`, {
+      await fetchEventSource(`${appConfig.apiBaseUrl}/kb/chat/rag/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': appConfig.apiKey
         },
-        body: JSON.stringify(data)
-      })
+        body: JSON.stringify(data),
+        signal: abortController.signal,
 
-      console.log('[RAG Stream] 响应状态:', response.status, response.statusText)
-      console.log('[RAG Stream] 响应头:', response.headers)
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-
-      if (!reader) {
-        throw new Error('Response body is null')
-      }
-
-      let buffer = ''
-      let sources: any[] = []
-
-      while (true) {
-        const { done, value } = await reader.read()
-        
-        console.log('[RAG Stream] 读取数据:', done ? '完成' : `长度: ${value?.length || 0}`)
-        
-        if (done) {
-          break
-        }
-
-        const chunk = decoder.decode(value, { stream: true })
-        buffer += chunk
-        
-        console.log('[RAG Stream] 当前缓冲区:', buffer.length, '字符')
-        
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-        
-        for (const line of lines) {
-          const trimmedLine = line.trim()
-          
-          if (!trimmedLine) {
-            continue
+        /**
+         * 连接打开时的回调
+         */
+        async onopen(response) {
+          console.log('[RAG Stream] 响应状态:', response.status, response.statusText)
+          if (response.ok) {
+            console.log('[RAG Stream] SSE connection opened')
+            return
           }
-          
-          if (!trimmedLine.startsWith('data:')) {
-            console.log('[RAG Stream] 非SSE格式:', trimmedLine)
-            continue
+          if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+            const errorData = await response.json()
+            throw new Error(errorData.message || `HTTP ${response.status}`)
           }
-          
-          const dataLine = trimmedLine.slice(5).trim()
-          
-          if (!dataLine) {
-            continue
+          throw new Error(`HTTP error! status: ${response.status}`)
+        },
+
+        /**
+         * 收到消息时的回调
+         */
+        onmessage(event) {
+          if (!event.data) {
+            return
           }
-          
+
+          const dataLine = event.data.trim()
           console.log('[RAG Stream] 数据行:', dataLine.substring(0, 100) + (dataLine.length > 100 ? '...' : ''))
-          
+
           if (dataLine === '[DONE]') {
             if (onComplete) onComplete(sources)
+            abortController.abort()
             return
           }
 
           if (dataLine.startsWith('[ERROR]')) {
             const errorMsg = dataLine.replace('[ERROR] ', '')
             if (onError) onError(new Error(errorMsg))
+            abortController.abort()
             return
           }
 
           try {
             const parsed = JSON.parse(dataLine)
             console.log('[RAG Stream] 解析结果:', parsed)
-            
+
             if (parsed.sources) {
               sources = parsed.sources
               console.log('[RAG Stream] 更新sources:', sources.length)
@@ -185,11 +177,33 @@ export const retrievalApi = {
           } catch (parseError) {
             console.warn('RAG流式数据解析失败:', dataLine.substring(0, 100), parseError)
           }
-        }
-      }
+        },
 
-      if (onComplete) onComplete(sources)
+        /**
+         * 发生错误时的回调
+         */
+        onerror(error) {
+          console.error('[RAG Stream] SSE error:', error)
+          if (error instanceof Error) {
+            if (onError) onError(error)
+          } else {
+            if (onError) onError(new Error('SSE connection error'))
+          }
+          throw error
+        },
+
+        /**
+         * 关闭连接时的回调
+         */
+        onclose() {
+          console.log('[RAG Stream] SSE connection closed')
+        }
+      })
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[RAG Stream] Request aborted')
+        return
+      }
       console.error('RAG流式调用错误:', error)
       if (onError) onError(error)
     }

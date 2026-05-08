@@ -42,6 +42,11 @@ async function bootstrap(): Promise<void> {
       return next();
     }
 
+    // SSE 流式接口需要特殊处理，不经过 SPA 路由
+    if (req.headers.accept === 'text/event-stream') {
+      return next();
+    }
+
     // 其他所有路由返回 index.html，让前端路由处理
     res.sendFile(join(__dirname, '..', 'public', 'index.html'));
   });
