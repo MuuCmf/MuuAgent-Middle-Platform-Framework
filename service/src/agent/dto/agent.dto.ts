@@ -71,6 +71,30 @@ export class CreateAgentDto {
   @IsBoolean()
   @IsOptional()
   status?: boolean;
+
+  // ===== 推理模式配置 =====
+
+  @ApiPropertyOptional({ description: '推理模式: NONE/REACT/PLAN/REFLECT', default: 'NONE', enum: ['NONE', 'REACT', 'PLAN', 'REFLECT'] })
+  @IsString()
+  @IsOptional()
+  reasoningMode?: string;
+
+  @ApiPropertyOptional({ description: '自定义推理提示词' })
+  @IsString()
+  @IsOptional()
+  reasoningPrompt?: string;
+
+  // ===== 知识库检索配置 =====
+
+  @ApiPropertyOptional({ description: '知识库检索模式: auto/tool/disabled', default: 'auto', enum: ['auto', 'tool', 'disabled'] })
+  @IsString()
+  @IsOptional()
+  kbRetrievalMode?: string;
+
+  @ApiPropertyOptional({ description: '知识库检索方式: auto/vector/bm25', default: 'auto', enum: ['auto', 'vector', 'bm25'] })
+  @IsString()
+  @IsOptional()
+  kbRetrievalMethod?: string;
 }
 
 /**
@@ -130,6 +154,30 @@ export class UpdateAgentDto {
   @IsBoolean()
   @IsOptional()
   status?: boolean;
+
+  // ===== 推理模式配置 =====
+
+  @ApiPropertyOptional({ description: '推理模式: NONE/REACT/PLAN/REFLECT', enum: ['NONE', 'REACT', 'PLAN', 'REFLECT'] })
+  @IsString()
+  @IsOptional()
+  reasoningMode?: string;
+
+  @ApiPropertyOptional({ description: '自定义推理提示词' })
+  @IsString()
+  @IsOptional()
+  reasoningPrompt?: string;
+
+  // ===== 知识库检索配置 =====
+
+  @ApiPropertyOptional({ description: '知识库检索模式: auto/tool/disabled', enum: ['auto', 'tool', 'disabled'] })
+  @IsString()
+  @IsOptional()
+  kbRetrievalMode?: string;
+
+  @ApiPropertyOptional({ description: '知识库检索方式: auto/vector/bm25', enum: ['auto', 'vector', 'bm25'] })
+  @IsString()
+  @IsOptional()
+  kbRetrievalMethod?: string;
 }
 
 /**

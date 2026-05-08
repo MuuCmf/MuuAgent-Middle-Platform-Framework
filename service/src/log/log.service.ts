@@ -393,6 +393,9 @@ export class LogService {
             code: true,
           },
         },
+        reasoningSteps: {
+          orderBy: { stepNumber: 'asc' },
+        },
       },
     });
 
@@ -409,6 +412,34 @@ export class LogService {
       userAgent: undefined,
       inputTokens: log.inputTokens,
       outputTokens: log.outputTokens,
+    };
+  }
+
+  /**
+   * 获取Agent调用日志的推理步骤
+   * @param id 日志ID
+   * @returns {Promise<Object>} 推理步骤信息
+   */
+  async getAgentLogReasoningSteps(id: string) {
+    const log = await this.prisma.agentInvokeLog.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        reasoningMode: true,
+        reasoningSteps: {
+          orderBy: { stepNumber: 'asc' },
+        },
+      },
+    });
+
+    if (!log) {
+      throw new Error('Agent调用日志不存在');
+    }
+
+    return {
+      agentLogId: log.id,
+      reasoningMode: log.reasoningMode,
+      steps: log.reasoningSteps,
     };
   }
 

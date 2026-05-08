@@ -59,6 +59,13 @@
             <span v-else style="color: #999">无</span>
           </template>
         </el-table-column>
+        <el-table-column prop="reasoningMode" label="推理模式" width="120">
+          <template #default="{ row }">
+            <el-tag :type="getReasoningTagType(row.reasoningMode)" size="small">
+              {{ getReasoningLabel(row.reasoningMode) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status ? 'success' : 'danger'">
@@ -104,6 +111,26 @@ const parseJsonSafe = (str: string, defaultValue: any[] = []) => {
   } catch {
     return defaultValue
   }
+}
+
+const getReasoningLabel = (mode: string) => {
+  const labels: Record<string, string> = {
+    NONE: '默认',
+    REACT: 'ReAct',
+    PLAN: 'Plan',
+    REFLECT: 'Reflect',
+  }
+  return labels[mode] || '默认'
+}
+
+const getReasoningTagType = (mode: string) => {
+  const types: Record<string, string> = {
+    NONE: 'info',
+    REACT: 'success',
+    PLAN: 'warning',
+    REFLECT: 'danger',
+  }
+  return types[mode] || 'info'
 }
 
 const handleAdd = () => {

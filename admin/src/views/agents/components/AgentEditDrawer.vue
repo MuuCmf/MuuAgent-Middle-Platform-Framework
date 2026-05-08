@@ -175,6 +175,68 @@
         </el-col>
       </el-row>
 
+      <el-divider content-position="left">推理模式配置</el-divider>
+
+      <el-form-item label="推理模式">
+        <el-select v-model="form.reasoningMode" placeholder="请选择推理模式" style="width: 100%;">
+          <el-option label="默认模式" value="NONE" />
+          <el-option label="ReAct模式" value="REACT" />
+          <el-option label="Plan模式" value="PLAN" />
+          <el-option label="Reflect模式" value="REFLECT" />
+        </el-select>
+        <div class="form-tip" style="margin-top: 4px; font-size: 12px; color: #909399;">
+          <p v-if="form.reasoningMode === 'NONE'" style="margin: 0;">直接工具调用，适合简单任务，响应最快</p>
+          <p v-else-if="form.reasoningMode === 'REACT'" style="margin: 0;">思考-行动-观察循环，适合复杂推理场景</p>
+          <p v-else-if="form.reasoningMode === 'PLAN'" style="margin: 0;">先规划再执行，适合多步骤任务</p>
+          <p v-else-if="form.reasoningMode === 'REFLECT'" style="margin: 0;">执行后反思优化，适合需要质量保证的任务</p>
+        </div>
+      </el-form-item>
+
+      <el-form-item 
+        v-if="form.reasoningMode && form.reasoningMode !== 'NONE'" 
+        label="自定义推理提示词"
+      >
+        <el-input
+          v-model="form.reasoningPrompt"
+          type="textarea"
+          :rows="4"
+          placeholder="可选：自定义推理提示词，留空使用默认模板。支持 {BASE_PROMPT} 和 {TOOLS} 占位符"
+        />
+      </el-form-item>
+
+      <el-divider content-position="left">知识库检索配置</el-divider>
+
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="检索模式">
+            <el-select v-model="form.kbRetrievalMode" placeholder="请选择检索模式" style="width: 100%;">
+              <el-option label="自动模式" value="auto" />
+              <el-option label="工具模式" value="tool" />
+              <el-option label="禁用知识库" value="disabled" />
+            </el-select>
+            <div style="margin-top: 4px; font-size: 12px; color: #909399;">
+              <p v-if="form.kbRetrievalMode === 'auto'" style="margin: 0;">预检索+工具检索，快速响应</p>
+              <p v-else-if="form.kbRetrievalMode === 'tool'" style="margin: 0;">仅作为工具调用，Agent自主决定检索时机</p>
+              <p v-else-if="form.kbRetrievalMode === 'disabled'" style="margin: 0;">不使用知识库</p>
+            </div>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="检索方式">
+            <el-select v-model="form.kbRetrievalMethod" placeholder="请选择检索方式" style="width: 100%;">
+              <el-option label="自动选择" value="auto" />
+              <el-option label="向量检索" value="vector" />
+              <el-option label="BM25检索" value="bm25" />
+            </el-select>
+            <div style="margin-top: 4px; font-size: 12px; color: #909399;">
+              <p v-if="form.kbRetrievalMethod === 'auto'" style="margin: 0;">自动选择最优方式</p>
+              <p v-else-if="form.kbRetrievalMethod === 'vector'" style="margin: 0;">语义相似度匹配</p>
+              <p v-else-if="form.kbRetrievalMethod === 'bm25'" style="margin: 0;">关键词精确匹配</p>
+            </div>
+          </el-form-item>
+        </el-col>
+      </el-row>
+
       <el-form-item label="状态">
         <el-switch v-model="form.status" />
       </el-form-item>
@@ -254,7 +316,11 @@ const form = ref<AgentForm>({
   knowledgeBases: '[]',
   maxSteps: 5,
   temperature: 0.7,
-  status: true
+  status: true,
+  reasoningMode: 'NONE',
+  reasoningPrompt: '',
+  kbRetrievalMode: 'auto',
+  kbRetrievalMethod: 'auto',
 })
 
 const editingAgent = computed(() => props.agent)
@@ -322,7 +388,11 @@ const resetForm = () => {
     knowledgeBases: '[]',
     maxSteps: 5,
     temperature: 0.7,
-    status: true
+    status: true,
+    reasoningMode: 'NONE',
+    reasoningPrompt: '',
+    kbRetrievalMode: 'auto',
+    kbRetrievalMethod: 'auto',
   }
   mcpServers.value = []
   selectedSkillCodes.value = []

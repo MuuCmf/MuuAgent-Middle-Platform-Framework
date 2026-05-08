@@ -130,6 +130,15 @@ model Agent {
   maxSteps        Int      @default(5) /// 最大执行步数
   temperature     Float    @default(0.7) /// 温度参数
   status          Boolean  @default(true) /// 是否启用
+
+  // ===== 推理模式配置 =====
+  reasoningMode     String  @default("NONE") @map("reasoning_mode") /// 推理模式: NONE/REACT/PLAN/REFLECT
+  reasoningPrompt   String? @map("reasoning_prompt") @db.Text /// 自定义推理提示词
+
+  // ===== 知识库检索配置 =====
+  kbRetrievalMode   String  @default("auto") @map("kb_retrieval_mode") /// 知识库检索模式: auto/tool/disabled
+  kbRetrievalMethod String  @default("auto") @map("kb_retrieval_method") /// 知识库检索方式: auto/vector/bm25
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -199,9 +208,16 @@ model AgentInvokeLog {
   uid          String?  /// 调用用户唯一标识(透传)
   inputTokens  Int?     /// 输入token数
   outputTokens Int?     /// 输出token数
+
+  // ===== 推理模式 =====
+  reasoningMode String? @map("reasoning_mode") /// 推理模式: NONE/REACT/PLAN/REFLECT
+
   createdAt    DateTime @default(now())
 
   agent Agent @relation(fields: [agentId], references: [id])
+
+  /// 关联推理步骤
+  reasoningSteps ReasoningStep[]
 
   @@index([agentId, createdAt])
   @@index([conversationId])
@@ -501,4 +517,26 @@ model OAuthToken {
   @@index([refreshToken])
   @@index([expiresAt])
   @@map("oauth_tokens")
+}
+
+/// 推理步骤记录表 - 记录ReAct推理过程
+model ReasoningStep {
+  id          String   @id @default(uuid())
+  agentLogId  String   @map("agent_invoke_log_id") /// 关联调用日志ID
+  stepNumber  Int      @map("step_number") /// 步骤序号
+  stepType    String   @map("step_type") /// 步骤类型: thought/action/observation/final_answer
+  content     String   @db.Text /// 步骤内容
+  thought     String?  @db.Text /// 思考内容
+  action      String?  /// 工具名称
+  actionInput String?  @map("action_input") @db.Text /// 工具输入(JSON)
+  observation String?  @db.Text /// 观察结果
+  toolOutput  String?  @map("tool_output") @db.Text /// 工具输出(JSON)
+  costMs      Int?     @map("cost_ms") /// 执行耗时(毫秒)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  agentLog AgentInvokeLog @relation(fields: [agentLogId], references: [id], onDelete: Cascade)
+
+  @@index([agentLogId])
+  @@index([stepType])
+  @@map("reasoning_step")
 }

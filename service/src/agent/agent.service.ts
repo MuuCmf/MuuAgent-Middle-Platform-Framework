@@ -1,16 +1,26 @@
-import { Injectable, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, NotFoundException, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { McpService } from '../mcp/mcp.service';
 import { McpServerService } from '../mcp-server/mcp-server.service';
 import { SkillService } from '../skill/skill.service';
 import { ModelService } from '../model/model.service';
 import { AgentKbService } from './agent-kb.service';
+import { OrchestratorFactory } from './orchestrator/orchestrator.factory';
+import { KbSearchTool } from './tools/kb-search.tool';
 import {
   CreateAgentDto,
   UpdateAgentDto,
   AgentChatDto,
   QueryAgentDto,
 } from './dto/agent.dto';
+import {
+  ReasoningMode,
+  ExecutionContext,
+  ToolDefinition,
+  ExecutionResult,
+  ReasoningStep as ReasoningStepType,
+  StepType,
+} from './react/react.types';
 import axios from 'axios';
 import { Observable, Observer } from 'rxjs';
 
@@ -20,15 +30,8 @@ import { Observable, Observer } from 'rxjs';
  */
 @Injectable()
 export class AgentService {
-  /**
-   * 构造函数
-   * @param prisma Prisma服务
-   * @param mcpService MCP调度服务
-   * @param mcpServerService MCP Server服务
-   * @param skillService 技能服务
-   * @param modelService 模型服务
-   * @param agentKbService 智能体知识库服务
-   */
+  private readonly logger = new Logger(AgentService.name);
+
   constructor(
     private prisma: PrismaService,
     private mcpService: McpService,
@@ -36,12 +39,12 @@ export class AgentService {
     private skillService: SkillService,
     private modelService: ModelService,
     private agentKbService: AgentKbService,
+    private orchestratorFactory: OrchestratorFactory,
+    private kbSearchTool: KbSearchTool,
   ) {}
 
   /**
    * 创建智能体
-   * @param dto 创建智能体DTO
-   * @returns {Promise<Object>} 创建的智能体
    */
   async create(dto: CreateAgentDto) {
     return this.prisma.agent.create({
@@ -57,15 +60,16 @@ export class AgentService {
         maxSteps: dto.maxSteps ?? 5,
         temperature: dto.temperature ?? 0.7,
         status: dto.status ?? true,
+        reasoningMode: dto.reasoningMode || 'NONE',
+        reasoningPrompt: dto.reasoningPrompt,
+        kbRetrievalMode: dto.kbRetrievalMode || 'auto',
+        kbRetrievalMethod: dto.kbRetrievalMethod || 'auto',
       },
     });
   }
 
   /**
    * 更新智能体
-   * @param id 智能体ID
-   * @param dto 更新智能体DTO
-   * @returns {Promise<Object>} 更新后的智能体
    */
   async update(id: string, dto: UpdateAgentDto) {
     const agent = await this.prisma.agent.findUnique({ where: { id } });
@@ -81,8 +85,6 @@ export class AgentService {
 
   /**
    * 删除智能体
-   * @param id 智能体ID
-   * @returns {Promise<void>}
    */
   async remove(id: string): Promise<void> {
     const agent = await this.prisma.agent.findUnique({ where: { id } });
@@ -95,8 +97,6 @@ export class AgentService {
 
   /**
    * 根据ID查询智能体
-   * @param id 智能体ID
-   * @returns {Promise<Object>} 智能体详情
    */
   async findOne(id: string) {
     const agent = await this.prisma.agent.findUnique({ where: { id } });
@@ -108,8 +108,6 @@ export class AgentService {
 
   /**
    * 根据Code查询智能体
-   * @param code 智能体标识
-   * @returns {Promise<Object>} 智能体详情
    */
   async findByCode(code: string) {
     const agent = await this.prisma.agent.findUnique({ where: { code } });
@@ -121,8 +119,6 @@ export class AgentService {
 
   /**
    * 分页查询智能体列表
-   * @param query 查询参数
-   * @returns {Promise<Object>} 分页智能体列表
    */
   async findAll(query: QueryAgentDto) {
     const { status, page = 1, pageSize = 10 } = query;
@@ -146,10 +142,6 @@ export class AgentService {
 
   /**
    * Agent对话
-   * @param dto 对话请求DTO
-   * @param clientIp 客户端IP
-   * @param uid 用户唯一标识(透传)
-   * @returns {Promise<Record<string, unknown>> | Observable<MessageEvent>} 对话结果
    */
   chat(dto: AgentChatDto, clientIp: string, uid?: string): Promise<Record<string, unknown>> | Observable<MessageEvent> {
     if (dto.stream) {
@@ -159,25 +151,18 @@ export class AgentService {
   }
 
   /**
-   * 同步Agent对话
-   * @param dto 对话请求DTO
-   * @param clientIp 客户端IP
-   * @param uid 用户唯一标识(透传)
-   * @returns {Promise<Record<string, unknown>>} 对话结果
+   * 获取智能体（公共方法）
    */
-  async syncChat(dto: AgentChatDto, clientIp: string, uid?: string): Promise<Record<string, unknown>> {
-    const startTime = Date.now();
-
-    // 获取智能体
+  private async getAgent(agentId: string) {
     let agent;
     try {
       agent = await this.prisma.agent.findFirst({
         where: {
-          OR: [{ id: dto.agentId }, { code: dto.agentId }],
+          OR: [{ id: agentId }, { code: agentId }],
         },
       });
     } catch {
-      agent = await this.findByCode(dto.agentId);
+      agent = await this.findByCode(agentId);
     }
 
     if (!agent) {
@@ -188,41 +173,59 @@ export class AgentService {
       throw new HttpException('智能体已禁用', HttpStatus.FORBIDDEN);
     }
 
-    // 获取绑定的技能
-    const skillCodes: string[] = JSON.parse(agent.skills || '[]');
-    const skillDescriptions = skillCodes.length > 0
-      ? await this.skillService.getSkillDescriptions(skillCodes)
-      : '';
+    return agent;
+  }
 
-    // 获取绑定的MCP Server工具
-    const mcpServerConfigs = this.mcpServerService.parseMcpServersConfig(agent.mcpServers);
-    const mcpTools = mcpServerConfigs.length > 0
-      ? await this.mcpServerService.discoverAllTools(mcpServerConfigs)
-      : [];
-    const mcpToolDescriptions = mcpTools.length > 0
-      ? this.mcpServerService.buildToolsDescription(mcpTools)
-      : '';
+  /**
+   * 准备工具列表（包含知识库检索工具）
+   */
+  private async prepareTools(agent: any): Promise<ToolDefinition[]> {
+    const tools: ToolDefinition[] = [];
 
+    // 1. 添加知识库检索工具
     const kbCodes: string[] = JSON.parse(agent.knowledgeBases || '[]');
-    let augmentedPrompt = agent.systemPrompt;
-    let kbSources: any[] = [];
-
-    if (kbCodes.length > 0) {
-      const augmentation = await this.agentKbService.augmentPromptWithKb(
-        agent.id,
-        dto.message,
-        agent.systemPrompt,
-      );
-      augmentedPrompt = augmentation.systemPrompt;
-      kbSources = augmentation.sources;
+    if (kbCodes.length > 0 && agent.kbRetrievalMode !== 'disabled') {
+      const kbTool = await this.kbSearchTool.getToolDefinition(agent.id, kbCodes);
+      if (kbTool) {
+        tools.push(kbTool);
+      }
     }
 
-    const systemPrompt = this.buildSystemPrompt(
-      { ...agent, systemPrompt: augmentedPrompt },
-      skillDescriptions,
-      mcpToolDescriptions,
-    );
+    // 2. 添加技能工具
+    const skillCodes: string[] = JSON.parse(agent.skills || '[]');
+    for (const code of skillCodes) {
+      const skill = await this.skillService.findByCode(code);
+      if (skill) {
+        tools.push({
+          name: skill.code,
+          description: skill.description,
+          parameters: JSON.parse(skill.params || '{}'),
+          type: 'skill',
+        });
+      }
+    }
 
+    // 3. 添加 MCP 工具
+    const mcpServerConfigs = this.mcpServerService.parseMcpServersConfig(agent.mcpServers);
+    if (mcpServerConfigs.length > 0) {
+      const mcpTools = await this.mcpServerService.discoverAllTools(mcpServerConfigs);
+      for (const tool of mcpTools) {
+        tools.push({
+          name: `mcp:${tool.serverName}:${tool.name}`,
+          description: tool.description,
+          parameters: (tool.inputSchema || {}) as Record<string, any>,
+          type: 'mcp',
+        });
+      }
+    }
+
+    return tools;
+  }
+
+  /**
+   * 构建执行上下文
+   */
+  private async buildExecutionContext(agent: any, dto: AgentChatDto): Promise<ExecutionContext> {
     // 获取模型
     let model;
     if (agent.modelId) {
@@ -231,6 +234,148 @@ export class AgentService {
       model = await this.mcpService.selectModel('llm');
     }
 
+    // 准备工具列表
+    const tools = await this.prepareTools(agent);
+
+    // 知识库预检索（auto模式：预检索 + 工具检索）
+    let augmentedPrompt = agent.systemPrompt;
+    const kbCodes: string[] = JSON.parse(agent.knowledgeBases || '[]');
+    if (kbCodes.length > 0 && agent.kbRetrievalMode === 'auto') {
+      const augmentation = await this.agentKbService.augmentPromptWithKb(
+        agent.id,
+        dto.message,
+        agent.systemPrompt,
+      );
+      augmentedPrompt = augmentation.systemPrompt;
+    }
+
+    // 获取MCP Server配置
+    const mcpServerConfigs = this.mcpServerService.parseMcpServersConfig(agent.mcpServers);
+
+    // 构建系统提示词
+    const systemPrompt = this.buildSystemPrompt(agent, tools, augmentedPrompt);
+
+    return {
+      agent,
+      model,
+      userMessage: dto.message,
+      systemPrompt,
+      tools,
+      maxSteps: agent.maxSteps,
+      temperature: agent.temperature,
+      mcpServerConfigs,
+    };
+  }
+
+  /**
+   * 构建系统提示词（根据推理模式选择不同格式）
+   */
+  private buildSystemPrompt(
+    agent: any,
+    tools: ToolDefinition[],
+    augmentedPrompt?: string,
+  ): string {
+    const basePrompt = augmentedPrompt || agent.systemPrompt;
+    const reasoningMode = agent.reasoningMode || ReasoningMode.NONE;
+
+    // NONE模式：使用原有JSON格式提示词
+    if (reasoningMode === ReasoningMode.NONE) {
+      return this.buildDefaultSystemPrompt(basePrompt, tools);
+    }
+
+    // REACT/PLAN/REFLECT模式：使用ReAct提示词
+    // ReAct提示词由ReActPromptBuilder处理，这里只返回基础提示词
+    return basePrompt;
+  }
+
+  /**
+   * 构建默认模式系统提示词
+   */
+  private buildDefaultSystemPrompt(basePrompt: string, tools: ToolDefinition[]): string {
+    let prompt = basePrompt;
+
+    const skillTools = tools.filter(t => t.type === 'skill');
+    const mcpTools = tools.filter(t => t.type === 'mcp');
+
+    const skillDescriptions = skillTools.map(t => `- ${t.name}: ${t.description}`).join('\n');
+    const mcpToolDescriptions = mcpTools.map(t => `- ${t.name}: ${t.description}`).join('\n');
+
+    const allToolDescriptions = [skillDescriptions, mcpToolDescriptions].filter(Boolean).join('\n\n');
+
+    if (allToolDescriptions) {
+      prompt += `\n\n你可以使用以下工具:\n${allToolDescriptions}`;
+      prompt += `
+
+【重要】工具调用规则：
+1. 如果需要使用工具，请只输出JSON格式的工具调用，不要输出其他任何内容
+2. 如果不需要使用工具，请直接用自然语言回答用户问题，不要输出JSON
+3. JSON格式示例：
+   - 调用技能工具: {"skill":"工具标识","params":{"参数名":"参数值"}}
+   - 调用MCP工具: {"skill":"mcp:服务器名:工具名","params":{"参数名":"参数值"}}
+   - 不调用工具: 直接回答，不要输出JSON
+
+示例：
+用户: 现在几点了？
+助手: {"skill":"get_time","params":{}}
+
+用户: 读取文件/test.txt的内容
+助手: {"skill":"mcp:filesystem:read_file","params":{"path":"/test.txt"}}
+
+用户: 你好
+助手: 你好！很高兴为您服务，请问有什么可以帮助您的？`;
+    }
+
+    return prompt;
+  }
+
+  /**
+   * 同步Agent对话
+   */
+  async syncChat(dto: AgentChatDto, clientIp: string, uid?: string): Promise<Record<string, unknown>> {
+    const startTime = Date.now();
+
+    // 获取智能体
+    const agent = await this.getAgent(dto.agentId);
+
+    // 构建执行上下文
+    const context = await this.buildExecutionContext(agent, dto);
+
+    // 获取推理模式
+    const reasoningMode = agent.reasoningMode || ReasoningMode.NONE;
+
+    if (reasoningMode === ReasoningMode.NONE) {
+      // 默认模式：使用原有逻辑
+      return this.executeDefaultSyncChat(agent, dto, context, clientIp, uid, startTime);
+    }
+
+    // ReAct/PLAN/REFLECT模式：使用编排器
+    const orchestrator = this.orchestratorFactory.getOrchestrator(reasoningMode);
+    const callLLM = this.callLLMBound(context.model);
+
+    const result = await orchestrator.execute(context, callLLM);
+
+    // 保存日志和推理步骤
+    await this.saveInvokeLogWithSteps(agent, dto, result, clientIp, uid, reasoningMode, startTime);
+
+    return {
+      response: result.response,
+      steps: result.steps,
+      reasoningMode,
+      conversationId: dto.conversationId,
+    };
+  }
+
+  /**
+   * 默认模式同步对话
+   */
+  private async executeDefaultSyncChat(
+    agent: any,
+    dto: AgentChatDto,
+    context: ExecutionContext,
+    clientIp: string,
+    uid: string | undefined,
+    startTime: number,
+  ): Promise<Record<string, unknown>> {
     const steps: Array<{ step: number; action: string; result: unknown }> = [];
     const originalMessage = dto.message;
     let currentMessage = dto.message;
@@ -242,26 +387,23 @@ export class AgentService {
 
     try {
       for (let step = 0; step < agent.maxSteps; step++) {
-        // 调用LLM
-        const llmResult = await this.callLLM(model, systemPrompt, currentMessage, agent.temperature, false);
+        const llmResult = await this.callLLM(
+          context.model, context.systemPrompt, currentMessage, agent.temperature, false,
+        );
 
-        // 累加token用量
         if (llmResult.inputTokens) inputTokens += llmResult.inputTokens;
         if (llmResult.outputTokens) outputTokens += llmResult.outputTokens;
 
-        // 解析是否需要调用工具
         const toolCall = this.parseToolCall(llmResult.response);
 
         if (!toolCall) {
-          // 不需要调用工具，直接返回
           finalResponse = llmResult.response;
           break;
         }
 
-        // 执行工具调用
         const isMcpTool = (toolCall.skill as string).startsWith('mcp:');
         const toolType = isMcpTool ? 'MCP工具' : '技能';
-        
+
         steps.push({
           step: step + 1,
           action: `调用${toolType}: ${toolCall.skill}`,
@@ -270,16 +412,14 @@ export class AgentService {
 
         try {
           let toolResult: unknown;
-          
+
           if (isMcpTool) {
-            // 调用MCP工具
             toolResult = await this.mcpServerService.callTool(
-              mcpServerConfigs,
+              context.mcpServerConfigs || [],
               toolCall.skill as string,
               (toolCall.params as Record<string, unknown>) || {},
             );
           } else {
-            // 调用技能
             toolResult = await this.skillService.execute({
               skillCode: toolCall.skill as string,
               params: (toolCall.params as Record<string, unknown>) || {},
@@ -288,16 +428,8 @@ export class AgentService {
 
           steps[steps.length - 1].result = toolResult;
 
-          // 将工具结果返回给LLM继续处理
           const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
-          currentMessage = `用户问题: ${originalMessage}
-
-【工具调用结果】
-工具名称: ${toolCall.skill}
-执行结果:
-${resultText}
-
-请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
+          currentMessage = `用户问题: ${originalMessage}\n\n【工具调用结果】\n工具名称: ${toolCall.skill}\n执行结果:\n${resultText}\n\n请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
         } catch (error) {
           steps[steps.length - 1].result = {
             error: error instanceof Error ? error.message : '执行失败',
@@ -330,22 +462,20 @@ ${resultText}
         uid,
         inputTokens: inputTokens > 0 ? inputTokens : undefined,
         outputTokens: outputTokens > 0 ? outputTokens : undefined,
+        reasoningMode: ReasoningMode.NONE,
       },
     });
 
     return {
       response: finalResponse,
       steps,
+      reasoningMode: ReasoningMode.NONE,
       conversationId: dto.conversationId,
     };
   }
 
   /**
    * 流式Agent对话（使用Response对象）
-   * @param dto 对话请求DTO
-   * @param clientIp 客户端IP
-   * @param uid 用户唯一标识(透传)
-   * @param res Express响应对象
    */
   async streamChatToResponse(
     dto: AgentChatDto,
@@ -357,70 +487,48 @@ ${resultText}
 
     let agent;
     try {
-      agent = await this.prisma.agent.findFirst({
-        where: {
-          OR: [{ id: dto.agentId }, { code: dto.agentId }],
-        },
-      });
-    } catch {
-      agent = await this.findByCode(dto.agentId);
-    }
-
-    if (!agent) {
-      res.write(JSON.stringify({ type: 'error', content: '智能体不存在' }) + '\n');
+      agent = await this.getAgent(dto.agentId);
+    } catch (error) {
+      res.write(JSON.stringify({ type: 'error', content: error.message }) + '\n');
       res.end();
       return;
     }
 
-    if (!agent.status) {
-      res.write(JSON.stringify({ type: 'error', content: '智能体已禁用' }) + '\n');
+    // 构建执行上下文
+    const context = await this.buildExecutionContext(agent, dto);
+    const reasoningMode = agent.reasoningMode || ReasoningMode.NONE;
+
+    const sendChunk = (data: any) => {
+      res.write(JSON.stringify(data) + '\n');
+    };
+
+    // ReAct/PLAN/REFLECT模式：使用编排器（同步执行后流式输出）
+    if (reasoningMode !== ReasoningMode.NONE) {
+      try {
+        const orchestrator = this.orchestratorFactory.getOrchestrator(reasoningMode);
+        const callLLM = this.callLLMBound(context.model);
+        const result = await orchestrator.execute(context, callLLM);
+
+        // 流式发送推理步骤
+        for (const step of result.steps) {
+          sendChunk({ type: 'reasoning_step', step });
+        }
+
+        // 发送最终响应
+        sendChunk({ type: 'chunk', content: result.response });
+
+        // 保存日志
+        await this.saveInvokeLogWithSteps(agent, dto, result, clientIp, uid, reasoningMode, startTime);
+
+        sendChunk({ type: 'done', content: result.response, steps: result.steps, reasoningMode });
+      } catch (error) {
+        sendChunk({ type: 'error', content: error instanceof Error ? error.message : '执行失败' });
+      }
       res.end();
       return;
     }
 
-    // 获取绑定的技能
-    const skillCodes: string[] = JSON.parse(agent.skills || '[]');
-    const skillDescriptions = skillCodes.length > 0
-      ? await this.skillService.getSkillDescriptions(skillCodes)
-      : '';
-
-    // 获取绑定的MCP Server工具
-    const mcpServerConfigs = this.mcpServerService.parseMcpServersConfig(agent.mcpServers);
-    const mcpTools = mcpServerConfigs.length > 0
-      ? await this.mcpServerService.discoverAllTools(mcpServerConfigs)
-      : [];
-    const mcpToolDescriptions = mcpTools.length > 0
-      ? this.mcpServerService.buildToolsDescription(mcpTools)
-      : '';
-
-    const kbCodes: string[] = JSON.parse(agent.knowledgeBases || '[]');
-    let augmentedPrompt = agent.systemPrompt;
-    let kbSources: any[] = [];
-
-    if (kbCodes.length > 0) {
-      const augmentation = await this.agentKbService.augmentPromptWithKb(
-        agent.id,
-        dto.message,
-        agent.systemPrompt,
-      );
-      augmentedPrompt = augmentation.systemPrompt;
-      kbSources = augmentation.sources;
-    }
-
-    const systemPrompt = this.buildSystemPrompt(
-      { ...agent, systemPrompt: augmentedPrompt },
-      skillDescriptions,
-      mcpToolDescriptions,
-    );
-
-    // 获取模型
-    let model;
-    if (agent.modelId) {
-      model = await this.modelService.findOne(agent.modelId);
-    } else {
-      model = await this.mcpService.selectModel('llm');
-    }
-
+    // 默认模式：原有流式逻辑
     const steps: Array<{ step: number; action: string; result: unknown }> = [];
     const originalMessage = dto.message;
     let currentMessage = dto.message;
@@ -430,31 +538,23 @@ ${resultText}
     let inputTokens = 0;
     let outputTokens = 0;
 
-    const sendChunk = (data: any) => {
-      res.write(JSON.stringify(data) + '\n');
-    };
-
     try {
       for (let step = 0; step < agent.maxSteps; step++) {
-        // 调用LLM（流式）
         let llmResponse = '';
         const chunks: string[] = [];
         const tokenInfo = await new Promise<{ inputTokens?: number; outputTokens?: number }>((resolve) => {
-          this.callLLMStream(model, systemPrompt, currentMessage, agent.temperature, (chunk) => {
+          this.callLLMStream(context.model, context.systemPrompt, currentMessage, agent.temperature, (chunk) => {
             llmResponse += chunk;
             chunks.push(chunk);
           }, resolve);
         });
 
-        // 累加token用量
         if (tokenInfo.inputTokens) inputTokens += tokenInfo.inputTokens;
         if (tokenInfo.outputTokens) outputTokens += tokenInfo.outputTokens;
 
-        // 解析是否需要调用工具
         const toolCall = this.parseToolCall(llmResponse);
 
         if (!toolCall) {
-          // 不需要调用工具，发送缓存的chunk
           for (const chunk of chunks) {
             sendChunk({ type: 'chunk', content: chunk });
           }
@@ -462,10 +562,9 @@ ${resultText}
           break;
         }
 
-        // 执行工具调用
         const isMcpTool = (toolCall.skill as string).startsWith('mcp:');
         const toolType = isMcpTool ? 'MCP工具' : '技能';
-        
+
         steps.push({
           step: step + 1,
           action: `调用${toolType}: ${toolCall.skill}`,
@@ -474,16 +573,14 @@ ${resultText}
 
         try {
           let toolResult: unknown;
-          
+
           if (isMcpTool) {
-            // 调用MCP工具
             toolResult = await this.mcpServerService.callTool(
-              mcpServerConfigs,
+              context.mcpServerConfigs || [],
               toolCall.skill as string,
               (toolCall.params as Record<string, unknown>) || {},
             );
           } else {
-            // 调用技能
             toolResult = await this.skillService.execute({
               skillCode: toolCall.skill as string,
               params: (toolCall.params as Record<string, unknown>) || {},
@@ -491,20 +588,10 @@ ${resultText}
           }
 
           steps[steps.length - 1].result = toolResult;
-
-          // 发送工具执行结果通知
           sendChunk({ type: 'tool', skill: toolCall.skill, result: toolResult });
 
-          // 将工具结果返回给LLM继续处理
           const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
-          currentMessage = `用户问题: ${originalMessage}
-
-【工具调用结果】
-工具名称: ${toolCall.skill}
-执行结果:
-${resultText}
-
-请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
+          currentMessage = `用户问题: ${originalMessage}\n\n【工具调用结果】\n工具名称: ${toolCall.skill}\n执行结果:\n${resultText}\n\n请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
         } catch (error) {
           steps[steps.length - 1].result = {
             error: error instanceof Error ? error.message : '执行失败',
@@ -538,20 +625,16 @@ ${resultText}
         uid,
         inputTokens: inputTokens > 0 ? inputTokens : undefined,
         outputTokens: outputTokens > 0 ? outputTokens : undefined,
+        reasoningMode: ReasoningMode.NONE,
       },
     });
 
-    // 发送结束信号
     sendChunk({ type: 'done', content: finalResponse, steps });
     res.end();
   }
 
   /**
    * 流式Agent对话（Observable版本，保留兼容）
-   * @param dto 对话请求DTO
-   * @param clientIp 客户端IP
-   * @param uid 用户唯一标识(透传)
-   * @returns {Observable<MessageEvent>} 流式响应
    */
   streamChat(dto: AgentChatDto, clientIp: string, uid?: string): Observable<MessageEvent> {
     return new Observable((observer: Observer<MessageEvent>) => {
@@ -574,67 +657,50 @@ ${resultText}
 
     let agent;
     try {
-      agent = await this.prisma.agent.findFirst({
-        where: {
-          OR: [{ id: dto.agentId }, { code: dto.agentId }],
-        },
-      });
-    } catch {
-      agent = await this.findByCode(dto.agentId);
-    }
-
-    if (!agent) {
-      observer.error(new NotFoundException('智能体不存在'));
+      agent = await this.getAgent(dto.agentId);
+    } catch (error) {
+      observer.error(error);
       return;
     }
 
-    if (!agent.status) {
-      observer.error(new HttpException('智能体已禁用', HttpStatus.FORBIDDEN));
+    const context = await this.buildExecutionContext(agent, dto);
+    const reasoningMode = agent.reasoningMode || ReasoningMode.NONE;
+
+    // ReAct模式
+    if (reasoningMode !== ReasoningMode.NONE) {
+      try {
+        const orchestrator = this.orchestratorFactory.getOrchestrator(reasoningMode);
+        const callLLM = this.callLLMBound(context.model);
+        const result = await orchestrator.execute(context, callLLM);
+
+        // 发送推理步骤
+        for (const step of result.steps) {
+          observer.next(new MessageEvent('message', {
+            data: JSON.stringify({ type: 'reasoning_step', step }) + '\n',
+          }));
+        }
+
+        // 发送最终响应
+        observer.next(new MessageEvent('message', {
+          data: JSON.stringify({ type: 'chunk', content: result.response }) + '\n',
+        }));
+
+        // 保存日志
+        await this.saveInvokeLogWithSteps(agent, dto, result, clientIp, uid, reasoningMode, startTime);
+
+        observer.next(new MessageEvent('message', {
+          data: JSON.stringify({ type: 'done', content: result.response, steps: result.steps, reasoningMode }) + '\n',
+        }));
+      } catch (error) {
+        observer.next(new MessageEvent('message', {
+          data: JSON.stringify({ type: 'error', content: error instanceof Error ? error.message : '执行失败' }) + '\n',
+        }));
+      }
+      observer.complete();
       return;
     }
 
-    // 获取绑定的技能
-    const skillCodes: string[] = JSON.parse(agent.skills || '[]');
-    const skillDescriptions = skillCodes.length > 0
-      ? await this.skillService.getSkillDescriptions(skillCodes)
-      : '';
-
-    // 获取绑定的MCP Server工具
-    const mcpServerConfigs = this.mcpServerService.parseMcpServersConfig(agent.mcpServers);
-    const mcpTools = mcpServerConfigs.length > 0
-      ? await this.mcpServerService.discoverAllTools(mcpServerConfigs)
-      : [];
-    const mcpToolDescriptions = mcpTools.length > 0
-      ? this.mcpServerService.buildToolsDescription(mcpTools)
-      : '';
-
-    const kbCodes: string[] = JSON.parse(agent.knowledgeBases || '[]');
-    let augmentedPrompt = agent.systemPrompt;
-    let kbSources: any[] = [];
-
-    if (kbCodes.length > 0) {
-      const augmentation = await this.agentKbService.augmentPromptWithKb(
-        agent.id,
-        dto.message,
-        agent.systemPrompt,
-      );
-      augmentedPrompt = augmentation.systemPrompt;
-      kbSources = augmentation.sources;
-    }
-
-    const systemPrompt = this.buildSystemPrompt(
-      { ...agent, systemPrompt: augmentedPrompt },
-      skillDescriptions,
-      mcpToolDescriptions,
-    );
-
-    let model;
-    if (agent.modelId) {
-      model = await this.modelService.findOne(agent.modelId);
-    } else {
-      model = await this.mcpService.selectModel('llm');
-    }
-
+    // 默认模式
     const steps: Array<{ step: number; action: string; result: unknown }> = [];
     const originalMessage = dto.message;
     let currentMessage = dto.message;
@@ -646,25 +712,21 @@ ${resultText}
 
     try {
       for (let step = 0; step < agent.maxSteps; step++) {
-        // 调用LLM（流式）
         let llmResponse = '';
         const chunks: string[] = [];
         const tokenInfo = await new Promise<{ inputTokens?: number; outputTokens?: number }>((resolve) => {
-          this.callLLMStream(model, systemPrompt, currentMessage, agent.temperature, (chunk) => {
+          this.callLLMStream(context.model, context.systemPrompt, currentMessage, agent.temperature, (chunk) => {
             llmResponse += chunk;
             chunks.push(chunk);
           }, resolve);
         });
 
-        // 累加token用量
         if (tokenInfo.inputTokens) inputTokens += tokenInfo.inputTokens;
         if (tokenInfo.outputTokens) outputTokens += tokenInfo.outputTokens;
 
-        // 解析是否需要调用工具
         const toolCall = this.parseToolCall(llmResponse);
 
         if (!toolCall) {
-          // 不需要调用工具，发送缓存的chunk
           for (const chunk of chunks) {
             observer.next(new MessageEvent('message', { data: JSON.stringify({ type: 'chunk', content: chunk }) + '\n' }));
           }
@@ -672,10 +734,9 @@ ${resultText}
           break;
         }
 
-        // 执行工具调用
         const isMcpTool = (toolCall.skill as string).startsWith('mcp:');
         const toolType = isMcpTool ? 'MCP工具' : '技能';
-        
+
         steps.push({
           step: step + 1,
           action: `调用${toolType}: ${toolCall.skill}`,
@@ -684,16 +745,14 @@ ${resultText}
 
         try {
           let toolResult: unknown;
-          
+
           if (isMcpTool) {
-            // 调用MCP工具
             toolResult = await this.mcpServerService.callTool(
-              mcpServerConfigs,
+              context.mcpServerConfigs || [],
               toolCall.skill as string,
               (toolCall.params as Record<string, unknown>) || {},
             );
           } else {
-            // 调用技能
             toolResult = await this.skillService.execute({
               skillCode: toolCall.skill as string,
               params: (toolCall.params as Record<string, unknown>) || {},
@@ -702,25 +761,12 @@ ${resultText}
 
           steps[steps.length - 1].result = toolResult;
 
-          // 发送工具执行结果通知
-          observer.next(new MessageEvent('message', { 
-            data: JSON.stringify({ 
-              type: 'tool', 
-              skill: toolCall.skill, 
-              result: toolResult 
-            }) + '\n' 
+          observer.next(new MessageEvent('message', {
+            data: JSON.stringify({ type: 'tool', skill: toolCall.skill, result: toolResult }) + '\n',
           }));
 
-          // 将工具结果返回给LLM继续处理
           const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
-          currentMessage = `用户问题: ${originalMessage}
-
-【工具调用结果】
-工具名称: ${toolCall.skill}
-执行结果:
-${resultText}
-
-请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
+          currentMessage = `用户问题: ${originalMessage}\n\n【工具调用结果】\n工具名称: ${toolCall.skill}\n执行结果:\n${resultText}\n\n请根据以上工具执行结果，用自然语言回答用户的问题。不要提及工具调用的细节，直接给出答案。`;
         } catch (error) {
           steps[steps.length - 1].result = {
             error: error instanceof Error ? error.message : '执行失败',
@@ -754,66 +800,77 @@ ${resultText}
         uid,
         inputTokens: inputTokens > 0 ? inputTokens : undefined,
         outputTokens: outputTokens > 0 ? outputTokens : undefined,
+        reasoningMode: ReasoningMode.NONE,
       },
     });
 
-    // 发送结束信号
-    observer.next(new MessageEvent('message', { 
-      data: JSON.stringify({ type: 'done', content: finalResponse, steps }) + '\n' 
+    observer.next(new MessageEvent('message', {
+      data: JSON.stringify({ type: 'done', content: finalResponse, steps }) + '\n',
     }));
     observer.complete();
   }
 
   /**
-   * 构建系统提示词
-   * @param agent 智能体信息
-   * @param skillDescriptions 技能描述
-   * @param mcpToolDescriptions MCP工具描述
-   * @returns {string} 完整的系统提示词
+   * 保存调用日志和推理步骤
    */
-  private buildSystemPrompt(
-    agent: { systemPrompt: string },
-    skillDescriptions: string,
-    mcpToolDescriptions: string = '',
-  ): string {
-    let prompt = agent.systemPrompt;
+  private async saveInvokeLogWithSteps(
+    agent: any,
+    dto: AgentChatDto,
+    result: ExecutionResult,
+    clientIp: string,
+    uid: string | undefined,
+    reasoningMode: string,
+    startTime: number,
+  ): Promise<void> {
+    // 保存调用日志
+    const invokeLog = await this.prisma.agentInvokeLog.create({
+      data: {
+        agentId: agent.id,
+        conversationId: dto.conversationId,
+        userMessage: dto.message,
+        agentResponse: result.response,
+        steps: JSON.stringify(result.steps),
+        totalCostMs: Date.now() - startTime,
+        success: result.success,
+        errorMessage: result.errorMessage,
+        clientIp,
+        uid,
+        inputTokens: result.inputTokens || undefined,
+        outputTokens: result.outputTokens || undefined,
+        reasoningMode,
+      },
+    });
 
-    const allToolDescriptions = [skillDescriptions, mcpToolDescriptions].filter(Boolean).join('\n\n');
-
-    if (allToolDescriptions) {
-      prompt += `\n\n你可以使用以下工具:\n${allToolDescriptions}`;
-      prompt += `
-
-【重要】工具调用规则：
-1. 如果需要使用工具，请只输出JSON格式的工具调用，不要输出其他任何内容
-2. 如果不需要使用工具，请直接用自然语言回答用户问题，不要输出JSON
-3. JSON格式示例：
-   - 调用技能工具: {"skill":"工具标识","params":{"参数名":"参数值"}}
-   - 调用MCP工具: {"skill":"mcp:服务器名:工具名","params":{"参数名":"参数值"}}
-   - 不调用工具: 直接回答，不要输出JSON
-
-示例：
-用户: 现在几点了？
-助手: {"skill":"get_time","params":{}}
-
-用户: 读取文件/test.txt的内容
-助手: {"skill":"mcp:filesystem:read_file","params":{"path":"/test.txt"}}
-
-用户: 你好
-助手: 你好！很高兴为您服务，请问有什么可以帮助您的？`;
+    // 保存推理步骤
+    if (result.steps && result.steps.length > 0) {
+      await this.prisma.reasoningStep.createMany({
+        data: result.steps.map((step) => ({
+          agentLogId: invokeLog.id,
+          stepNumber: step.stepNumber,
+          stepType: step.stepType,
+          content: step.content || step.thought || '',
+          thought: step.thought,
+          action: step.action,
+          actionInput: step.actionInput ? JSON.stringify(step.actionInput) : undefined,
+          observation: step.observation,
+          toolOutput: step.toolOutput ? JSON.stringify(step.toolOutput) : undefined,
+          costMs: step.costMs,
+        })),
+      });
     }
+  }
 
-    return prompt;
+  /**
+   * 创建绑定this的callLLM函数
+   */
+  private callLLMBound(model: any) {
+    return async (systemPrompt: string, userMessage: string) => {
+      return this.callLLM(model, systemPrompt, userMessage, model.temperature || 0.7, false);
+    };
   }
 
   /**
    * 调用LLM
-   * @param model 模型信息
-   * @param systemPrompt 系统提示词
-   * @param userMessage 用户消息
-   * @param temperature 温度参数
-   * @param stream 是否流式输出
-   * @returns {Promise<{ response: string; inputTokens?: number; outputTokens?: number }>} LLM响应和token信息
    */
   private async callLLM(
     model: Record<string, unknown>,
@@ -860,12 +917,6 @@ ${resultText}
 
   /**
    * 流式调用LLM
-   * @param model 模型信息
-   * @param systemPrompt 系统提示词
-   * @param userMessage 用户消息
-   * @param temperature 温度参数
-   * @param onChunk 回调函数，处理每个数据块
-   * @param onComplete 回调函数，处理完成
    */
   private async callLLMStream(
     model: Record<string, unknown>,
@@ -915,7 +966,7 @@ ${resultText}
 
       for await (const chunk of response.data) {
         buffer += decoder.decode(chunk, { stream: true });
-        
+
         while (buffer.includes('\n')) {
           const index = buffer.indexOf('\n');
           const line = buffer.substring(0, index);
@@ -932,7 +983,7 @@ ${resultText}
             try {
               const parsed = JSON.parse(dataStr);
               const chunkContent = parsed.choices?.[0]?.delta?.content || '';
-              
+
               if (parsed.usage) {
                 inputTokens = parsed.usage.prompt_tokens ?? parsed.usage.input_tokens;
                 outputTokens = parsed.usage.completion_tokens ?? parsed.usage.output_tokens;
@@ -962,14 +1013,6 @@ ${resultText}
 
   /**
    * 保存AI调用日志
-   * @param model 模型信息
-   * @param requestData 请求数据
-   * @param responseData 响应数据
-   * @param startTime 开始时间
-   * @param inputTokens 输入Token数
-   * @param outputTokens 输出Token数
-   * @param success 是否成功
-   * @param errorMessage 错误信息
    */
   private async saveAiInvokeLog(
     model: Record<string, unknown>,
@@ -1003,29 +1046,23 @@ ${resultText}
 
   /**
    * 解析工具调用
-   * @param text LLM响应文本
-   * @returns {Record<string, unknown> | null} 工具调用信息
    */
   private parseToolCall(text: string): Record<string, unknown> | null {
     try {
       const trimmedText = text.trim();
-      
-      // 只有当整个响应是纯JSON对象时才认为是工具调用
+
       if (!trimmedText.startsWith('{') || !trimmedText.endsWith('}')) {
         return null;
       }
-      
-      // 尝试解析整个文本为JSON
+
       const parsed = JSON.parse(trimmedText);
-      
-      // 必须包含skill字段才认为是工具调用
+
       if (parsed.skill && typeof parsed.skill === 'string') {
         return parsed;
       }
-      
+
       return null;
     } catch {
-      // 解析失败，说明不是JSON格式，返回null
       return null;
     }
   }

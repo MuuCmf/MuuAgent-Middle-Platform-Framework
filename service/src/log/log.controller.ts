@@ -127,6 +127,20 @@ export class LogController {
   }
 
   /**
+   * 获取Agent调用日志的推理步骤
+   * @param id 日志ID
+   * @returns {Promise<Object>} 推理步骤列表
+   */
+  @Get('agent/:id/reasoning')
+  @ApiOperation({ summary: '获取Agent调用日志的推理步骤', description: '获取指定Agent调用日志的推理步骤详情' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 404, description: '日志不存在' })
+  async getAgentLogReasoningSteps(@Param('id') id: string) {
+    const result = await this.logService.getAgentLogReasoningSteps(id);
+    return success(result);
+  }
+
+  /**
    * 查询单个Skill调用日志详情
    * @param id 日志ID
    * @returns {Promise<Object>} 日志详情

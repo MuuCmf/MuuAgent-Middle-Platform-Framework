@@ -15,6 +15,10 @@ export interface Agent {
   maxSteps: number
   temperature: number
   status: boolean
+  reasoningMode?: string
+  reasoningPrompt?: string
+  kbRetrievalMode?: string
+  kbRetrievalMethod?: string
   createdAt: string
   updatedAt: string
 }
@@ -31,6 +35,10 @@ export interface AgentForm {
   maxSteps: number
   temperature: number
   status: boolean
+  reasoningMode?: string
+  reasoningPrompt?: string
+  kbRetrievalMode?: string
+  kbRetrievalMethod?: string
 }
 
 export interface AgentListResponse {
@@ -38,12 +46,31 @@ export interface AgentListResponse {
   total: number
 }
 
+/**
+ * 推理步骤接口
+ */
+export interface ReasoningStep {
+  id?: string
+  stepNumber: number
+  stepType: 'thought' | 'action' | 'observation' | 'final_answer'
+  content?: string
+  thought?: string
+  action?: string
+  actionInput?: any
+  observation?: string
+  toolOutput?: any
+  costMs?: number
+  createdAt?: string
+}
+
 export interface AgentStreamResponse {
-  type: 'chunk' | 'tool' | 'error' | 'done'
+  type: 'chunk' | 'tool' | 'error' | 'done' | 'reasoning_step'
   content?: string
   skill?: string
   result?: any
   steps?: any[]
+  step?: ReasoningStep
+  reasoningMode?: string
 }
 
 export const agentApi = {
@@ -69,12 +96,6 @@ export const agentApi = {
 
   /**
    * 流式智能体对话
-   * @param agentId 智能体ID
-   * @param message 用户消息
-   * @param onChunk 文本片段回调
-   * @param onTool 工具调用回调
-   * @param onError 错误回调
-   * @param onComplete 完成回调
    */
   async streamChat(
     agentId: number,
@@ -89,12 +110,10 @@ export const agentApi = {
         'Content-Type': 'application/json'
       }
       
-      // 添加API密钥
       if (appConfig.apiKey) {
         headers['x-api-key'] = appConfig.apiKey
       }
       
-      // 添加认证token
       const token = localStorage.getItem('admin_token')
       if (token) {
         headers['Authorization'] = `Bearer ${token}`
@@ -128,7 +147,6 @@ export const agentApi = {
 
         buffer += decoder.decode(value, { stream: true })
         
-        // 按换行分割消息
         while (buffer.includes('\n')) {
           const index = buffer.indexOf('\n')
           const line = buffer.substring(0, index)
@@ -144,6 +162,10 @@ export const agentApi = {
                   break
                 case 'tool':
                   onTool(data.skill || '', data.result)
+                  break
+                case 'reasoning_step':
+                  // 推理步骤 - 可以通过回调处理
+                  onChunk(`[${data.step?.stepType}] ${data.step?.thought || data.step?.content || ''}\n`)
                   break
                 case 'error':
                   onError(new Error(data.content || '未知错误'))

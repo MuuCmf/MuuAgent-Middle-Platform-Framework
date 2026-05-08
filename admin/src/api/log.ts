@@ -1,5 +1,6 @@
 import { adminRequest } from '@/utils/request'
 import type { AxiosResponse } from 'axios'
+import type { ReasoningStep } from './agent'
 
 export interface Log {
   id: string
@@ -79,6 +80,8 @@ export interface AgentLog {
   createdAt: string
   inputTokens?: number
   outputTokens?: number
+  reasoningMode?: string
+  reasoningSteps?: ReasoningStep[]
   agent?: {
     id: string
     name: string
@@ -155,6 +158,15 @@ export const logApi = {
    */
   getAgentLogById(id: string): Promise<AxiosResponse<{ data: AgentLog }>> {
     return adminRequest.get(`/admin/log/agent/${id}`)
+  },
+
+  /**
+   * 获取Agent调用日志的推理步骤
+   * @param id 日志ID
+   * @returns {Promise<AxiosResponse>} 推理步骤响应
+   */
+  getAgentLogReasoningSteps(id: string): Promise<AxiosResponse<{ data: { agentLogId: string; reasoningMode: string; steps: ReasoningStep[] } }>> {
+    return adminRequest.get(`/admin/log/agent/${id}/reasoning`)
   },
 
   /**
