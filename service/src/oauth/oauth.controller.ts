@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Query, Res, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, Query, Param, Res, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { OAuthService } from './oauth.service';
 import { AdminGuard } from '../common/guards/admin.guard';
@@ -116,6 +116,142 @@ export class OAuthController {
   @ApiOperation({ summary: '撤销令牌', description: '撤销访问令牌或刷新令牌' })
   async revoke(@Body() body: { token: string }) {
     await this.oauthService.revokeToken(body.token);
+    return { message: '令牌已撤销' };
+  }
+}
+
+/**
+ * OAuth管理端控制器
+ */
+@ApiTags('OAuth管理')
+@Controller('admin/oauth')
+@UseGuards(AdminGuard)
+@ApiBearerAuth()
+export class OAuthAdminController {
+  /**
+   * 构造函数
+   * @param oauthService OAuth服务
+   */
+  constructor(private oauthService: OAuthService) {}
+
+  /**
+   * 获取客户端列表
+   * @param page 页码
+   * @param pageSize 每页数量
+   * @param search 搜索关键词
+   * @returns {Promise<any>} 客户端列表
+   */
+  @Get('clients')
+  @ApiOperation({ summary: '获取客户端列表' })
+  async getClients(
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('search') search?: string,
+  ) {
+    return this.oauthService.getClients(page, pageSize, search);
+  }
+
+  /**
+   * 获取客户端详情
+   * @param id 客户端ID
+   * @returns {Promise<any>} 客户端详情
+   */
+  @Get('clients/:id')
+  @ApiOperation({ summary: '获取客户端详情' })
+  async getClient(@Param('id') id: string) {
+    return this.oauthService.getClientById(id);
+  }
+
+  /**
+   * 创建客户端
+   * @param body 请求体
+   * @returns {Promise<any>} 创建的客户端
+   */
+  @Post('clients')
+  @ApiOperation({ summary: '创建客户端' })
+  async createClient(
+    @Body()
+    body: {
+      name: string;
+      redirectUris: string[];
+      scopes: string[];
+      grants?: string[];
+    },
+  ) {
+    return this.oauthService.createClient(body);
+  }
+
+  /**
+   * 更新客户端
+   * @param id 客户端ID
+   * @param body 请求体
+   * @returns {Promise<any>} 更新后的客户端
+   */
+  @Put('clients/:id')
+  @ApiOperation({ summary: '更新客户端' })
+  async updateClient(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      name?: string;
+      redirectUris?: string[];
+      scopes?: string[];
+      grants?: string[];
+      status?: number;
+    },
+  ) {
+    return this.oauthService.updateClient(id, body);
+  }
+
+  /**
+   * 删除客户端
+   * @param id 客户端ID
+   * @returns {Promise<void>}
+   */
+  @Delete('clients/:id')
+  @ApiOperation({ summary: '删除客户端' })
+  async deleteClient(@Param('id') id: string) {
+    await this.oauthService.deleteClient(id);
+    return { message: '客户端已删除' };
+  }
+
+  /**
+   * 重置客户端密钥
+   * @param id 客户端ID
+   * @returns {Promise<any>} 新的客户端密钥
+   */
+  @Post('clients/:id/reset-secret')
+  @ApiOperation({ summary: '重置客户端密钥' })
+  async resetSecret(@Param('id') id: string) {
+    return this.oauthService.resetClientSecret(id);
+  }
+
+  /**
+   * 获取令牌列表
+   * @param page 页码
+   * @param pageSize 每页数量
+   * @param clientId 客户端ID
+   * @returns {Promise<any>} 令牌列表
+   */
+  @Get('tokens')
+  @ApiOperation({ summary: '获取令牌列表' })
+  async getTokens(
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('clientId') clientId?: string,
+  ) {
+    return this.oauthService.getTokens(page, pageSize, clientId);
+  }
+
+  /**
+   * 撤销令牌
+   * @param id 令牌ID
+   * @returns {Promise<void>}
+   */
+  @Post('tokens/:id/revoke')
+  @ApiOperation({ summary: '撤销令牌' })
+  async revokeToken(@Param('id') id: string) {
+    await this.oauthService.revokeTokenById(id);
     return { message: '令牌已撤销' };
   }
 }

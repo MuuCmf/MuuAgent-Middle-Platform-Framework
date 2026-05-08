@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { OAuthService } from './oauth.service';
-import { OAuthAdminService } from './oauth-admin.service';
-import { OAuthController } from './oauth.controller';
-import { OAuthAdminController } from './oauth-admin.controller';
+import { OAuthController, OAuthAdminController } from './oauth.controller';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
+/**
+ * OAuth模块
+ */
 @Module({
   imports: [
     PrismaModule,
@@ -22,7 +23,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
   ],
   controllers: [OAuthController, OAuthAdminController],
-  providers: [OAuthService, OAuthAdminService],
-  exports: [OAuthService, OAuthAdminService],
+  providers: [OAuthService],
+  exports: [OAuthService],
 })
 export class OAuthModule {}
