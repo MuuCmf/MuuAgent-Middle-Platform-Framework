@@ -11,7 +11,7 @@ import { ReActParser } from './react.parser';
 import { SkillService } from '../../skill/skill.service';
 import { McpServerService } from '../../mcp-server/mcp-server.service';
 import { KbSearchTool } from '../tools/kb-search.tool';
-import { CallLLMFn } from './react.types';
+import { CallLLMFn, CallLLMStreamFn, StreamCallbacks } from './react.types';
 
 /**
  * ReAct 推理引擎
@@ -186,5 +186,175 @@ export class ReActEngine {
       skillCode: action,
       params: actionInput,
     });
+  }
+
+  /**
+   * 流式执行 ReAct 推理循环
+   * @param context 执行上下文
+   * @param callLLMStream 流式LLM调用函数
+   * @param callbacks 流式回调函数
+   */
+  async executeStream(
+    context: ExecutionContext,
+    callLLMStream: CallLLMStreamFn,
+    callbacks: StreamCallbacks,
+  ): Promise<void> {
+    const startTime = Date.now();
+    const steps: ReasoningStep[] = [];
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+
+    // 构建系统提示词
+    const systemPrompt = ReActPromptBuilder.buildSystemPrompt(
+      context.systemPrompt,
+      context.tools,
+    );
+
+    let currentPrompt = context.userMessage;
+    let finalResponse = '';
+    let success = true;
+    let errorMessage: string | undefined;
+
+    try {
+      for (let i = 0; i < context.maxSteps; i++) {
+        this.logger.debug(`ReAct Stream Step ${i + 1}: Calling LLM`);
+
+        let llmResponse = '';
+        let isInFinalAnswer = false;
+        let finalAnswerBuffer = '';
+
+        // 流式调用 LLM
+        const llmResult = await callLLMStream(
+          systemPrompt,
+          currentPrompt,
+          (chunk: string) => {
+            llmResponse += chunk;
+
+            // 检测是否进入 Final Answer 部分
+            if (!isInFinalAnswer) {
+              // 检查是否出现了 Final Answer 标记
+              const finalAnswerIndex = llmResponse.indexOf('Final Answer:');
+              if (finalAnswerIndex !== -1) {
+                isInFinalAnswer = true;
+                // 提取 Final Answer: 之后的内容
+                const afterMarker = llmResponse.substring(finalAnswerIndex + 13); // 13 = 'Final Answer:'.length
+                // 只发送新增的部分
+                const newContent = afterMarker.substring(finalAnswerBuffer.length);
+                finalAnswerBuffer = afterMarker;
+                if (newContent) {
+                  callbacks.onChunk(newContent);
+                }
+              }
+            } else {
+              // 已经在 Final Answer 部分，直接发送
+              const newContent = chunk;
+              finalAnswerBuffer += newContent;
+              callbacks.onChunk(newContent);
+            }
+          },
+        );
+
+        if (llmResult.inputTokens) totalInputTokens += llmResult.inputTokens;
+        if (llmResult.outputTokens) totalOutputTokens += llmResult.outputTokens;
+
+        // 解析响应
+        const parseResult = ReActParser.parse(llmResponse);
+        this.logger.debug(`Parse result type: ${parseResult.type}`);
+
+        // 处理最终答案
+        if (parseResult.type === StepType.FINAL_ANSWER) {
+          finalResponse = parseResult.finalAnswer || llmResult.response;
+
+          const step: ReasoningStep = {
+            stepNumber: i + 1,
+            stepType: StepType.FINAL_ANSWER,
+            content: finalResponse,
+            thought: parseResult.thought,
+          };
+          steps.push(step);
+          callbacks.onStep(step);
+
+          break;
+        }
+
+        // 处理行动
+        if (parseResult.type === StepType.ACTION && parseResult.action) {
+          const stepStartTime = Date.now();
+
+          const step: ReasoningStep = {
+            stepNumber: i + 1,
+            stepType: StepType.ACTION,
+            content: `调用工具: ${parseResult.action}`,
+            thought: parseResult.thought,
+            action: parseResult.action,
+            actionInput: parseResult.actionInput,
+          };
+
+          try {
+            // 执行工具
+            const toolResult = await this.executeTool(
+              parseResult.action,
+              parseResult.actionInput || {},
+              context,
+            );
+
+            const observation = typeof toolResult === 'object'
+              ? JSON.stringify(toolResult, null, 2)
+              : String(toolResult);
+
+            step.observation = observation;
+            step.toolOutput = toolResult;
+            step.costMs = Date.now() - stepStartTime;
+
+            steps.push(step);
+            callbacks.onStep(step);
+
+            // 构建下一步提示
+            currentPrompt = ReActPromptBuilder.buildNextPrompt(
+              context.userMessage,
+              steps,
+            );
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : '执行失败';
+            step.observation = `错误: ${errorMsg}`;
+            step.costMs = Date.now() - stepStartTime;
+            steps.push(step);
+            callbacks.onStep(step);
+
+            // 继续尝试其他方案
+            currentPrompt = ReActPromptBuilder.buildNextPrompt(
+              context.userMessage,
+              steps,
+              step.observation,
+            );
+          }
+        }
+      }
+
+      // 如果达到最大步数还没有最终答案
+      if (!finalResponse) {
+        finalResponse = '抱歉，我无法在有限的步骤内完成您的请求。';
+        success = false;
+        errorMessage = '达到最大执行步数';
+      }
+    } catch (error) {
+      success = false;
+      errorMessage = error instanceof Error ? error.message : '执行失败';
+      finalResponse = `执行出错: ${errorMessage}`;
+      this.logger.error(`ReAct stream execution failed: ${errorMessage}`);
+      callbacks.onError(errorMessage);
+    }
+
+    const result: ExecutionResult = {
+      success,
+      response: finalResponse,
+      steps,
+      totalCostMs: Date.now() - startTime,
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      errorMessage,
+    };
+
+    callbacks.onDone(result);
   }
 }

@@ -116,8 +116,16 @@
                   </div>
                 </div>
               </div>
-              <div v-else-if="msg.role === 'assistant' && msg.tools && msg.tools.length > 0">
-                <div v-if="msg.tools.length > 0" class="agent-tools">
+              <div v-else-if="msg.role === 'assistant' && (msg.tools && msg.tools.length > 0 || msg.reasoningSteps && msg.reasoningSteps.length > 0)">
+                <!-- 推理步骤（小字形式） -->
+                <div v-if="msg.reasoningSteps && msg.reasoningSteps.length > 0" class="reasoning-steps">
+                  <div v-for="(step, sIdx) in msg.reasoningSteps" :key="sIdx" class="reasoning-step">
+                    <span class="step-type">{{ step.stepType === 'THINK' ? '💭' : step.stepType === 'ACTION' ? '⚡' : '📝' }}</span>
+                    <span class="step-content">{{ step.thought || step.content }}</span>
+                  </div>
+                </div>
+                <!-- 工具执行结果 -->
+                <div v-if="msg.tools && msg.tools.length > 0" class="agent-tools">
                   <div style="margin-bottom: 8px; color: #667eea; font-weight: 600;">
                     🛠️ 执行的工具：
                   </div>
@@ -262,13 +270,15 @@ const sendMessage = async () => {
         }
       )
     } else if (chatMode.value === 'agent') {
-      chatMessages.value.push({ role: 'assistant', content: '', tools: [] })
+      chatMessages.value.push({ role: 'assistant', content: '', tools: [], reasoningSteps: [] })
       const assistantMsgIndex = chatMessages.value.length - 1
 
+      console.log('[Chat] Starting agent stream chat')
       await agentApi.streamChat(
         selectedAgent.value!,
         userMsg,
         (content: string) => {
+          console.log('[Chat] Received chunk:', content)
           chatMessages.value[assistantMsgIndex].content += content
           nextTick(() => {
             if (chatMessagesRef.value) {
@@ -281,6 +291,18 @@ const sendMessage = async () => {
             chatMessages.value[assistantMsgIndex].tools = []
           }
           chatMessages.value[assistantMsgIndex].tools.push({ skill, result })
+          nextTick(() => {
+            if (chatMessagesRef.value) {
+              chatMessagesRef.value.scrollTop = chatMessagesRef.value.scrollHeight
+            }
+          })
+        },
+        (step: any) => {
+          // 显示推理步骤（小字形式）
+          if (!chatMessages.value[assistantMsgIndex].reasoningSteps) {
+            chatMessages.value[assistantMsgIndex].reasoningSteps = []
+          }
+          chatMessages.value[assistantMsgIndex].reasoningSteps.push(step)
           nextTick(() => {
             if (chatMessagesRef.value) {
               chatMessagesRef.value.scrollTop = chatMessagesRef.value.scrollHeight
@@ -465,6 +487,37 @@ onMounted(() => {
       color: #666;
       white-space: pre-wrap;
       word-break: break-all;
+    }
+  }
+}
+
+.reasoning-steps {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f0f4ff;
+  border-radius: 6px;
+  border-left: 3px solid #6366f1;
+
+  .reasoning-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.5;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    .step-type {
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .step-content {
+      font-style: italic;
     }
   }
 }

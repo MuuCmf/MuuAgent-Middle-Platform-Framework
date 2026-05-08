@@ -16,11 +16,11 @@ export default defineConfig(({ mode }) => {
       port: parseInt(env.VITE_PORT || '5173'),
       proxy: {
         '/api': {
-          target: 'http://localhost:3002',
+          target: 'http://localhost:9898',
           changeOrigin: true
         },
         '/admin': {
-          target: 'http://localhost:3002',
+          target: 'http://localhost:9898',
           changeOrigin: true
         }
       }

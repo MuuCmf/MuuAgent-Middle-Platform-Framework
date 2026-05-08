@@ -98,3 +98,22 @@ export type CallLLMFn = (
   systemPrompt: string,
   userMessage: string,
 ) => Promise<{ response: string; inputTokens?: number; outputTokens?: number }>;
+
+/**
+ * 流式LLM调用函数类型
+ */
+export type CallLLMStreamFn = (
+  systemPrompt: string,
+  userMessage: string,
+  onChunk: (chunk: string) => void,
+) => Promise<{ response: string; inputTokens?: number; outputTokens?: number }>;
+
+/**
+ * 流式执行回调
+ */
+export interface StreamCallbacks {
+  onStep: (step: ReasoningStep) => void;
+  onChunk: (chunk: string) => void;
+  onDone: (result: ExecutionResult) => void;
+  onError: (error: string) => void;
+}

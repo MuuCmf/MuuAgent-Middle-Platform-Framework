@@ -21,6 +21,7 @@ import {
   ReasoningStep as ReasoningStepType,
   StepType,
 } from './react/react.types';
+import { ReActEngine } from './react/react.engine';
 import axios from 'axios';
 import { Observable, Observer } from 'rxjs';
 
@@ -41,6 +42,7 @@ export class AgentService {
     private agentKbService: AgentKbService,
     private orchestratorFactory: OrchestratorFactory,
     private kbSearchTool: KbSearchTool,
+    private reactEngine: ReActEngine,
   ) {}
 
   /**
@@ -499,32 +501,47 @@ export class AgentService {
     const reasoningMode = agent.reasoningMode || ReasoningMode.NONE;
 
     const sendChunk = (data: any) => {
-      res.write(JSON.stringify(data) + '\n');
+      const jsonData = JSON.stringify(data) + '\n';
+      console.log('[Stream] Writing to response:', jsonData.trim());
+      res.write(jsonData);
+      // 强制刷新缓冲区，确保数据立即发送
+      if (typeof res.flush === 'function') {
+        res.flush();
+      }
     };
 
-    // ReAct/PLAN/REFLECT模式：使用编排器（同步执行后流式输出）
+    // ReAct/PLAN/REFLECT模式：使用编排器流式执行
     if (reasoningMode !== ReasoningMode.NONE) {
       try {
-        const orchestrator = this.orchestratorFactory.getOrchestrator(reasoningMode);
-        const callLLM = this.callLLMBound(context.model);
-        const result = await orchestrator.execute(context, callLLM);
+        const reactEngine = this.reactEngine;
+        const callLLMStream = this.callLLMStreamBound(context.model);
 
-        // 流式发送推理步骤
-        for (const step of result.steps) {
-          sendChunk({ type: 'reasoning_step', step });
-        }
-
-        // 发送最终响应
-        sendChunk({ type: 'chunk', content: result.response });
-
-        // 保存日志
-        await this.saveInvokeLogWithSteps(agent, dto, result, clientIp, uid, reasoningMode, startTime);
-
-        sendChunk({ type: 'done', content: result.response, steps: result.steps, reasoningMode });
+        await reactEngine.executeStream(
+          context,
+          callLLMStream,
+          {
+            onStep: (step) => {
+              sendChunk({ type: 'reasoning_step', step });
+            },
+            onChunk: (chunk) => {
+              sendChunk({ type: 'chunk', content: chunk });
+            },
+            onDone: async (result) => {
+              // 保存日志
+              await this.saveInvokeLogWithSteps(agent, dto, result, clientIp, uid, reasoningMode, startTime);
+              sendChunk({ type: 'done', content: result.response, steps: result.steps, reasoningMode });
+              res.end();
+            },
+            onError: (error) => {
+              sendChunk({ type: 'error', content: error });
+              res.end();
+            },
+          },
+        );
       } catch (error) {
         sendChunk({ type: 'error', content: error instanceof Error ? error.message : '执行失败' });
+        res.end();
       }
-      res.end();
       return;
     }
 
@@ -541,11 +558,12 @@ export class AgentService {
     try {
       for (let step = 0; step < agent.maxSteps; step++) {
         let llmResponse = '';
-        const chunks: string[] = [];
         const tokenInfo = await new Promise<{ inputTokens?: number; outputTokens?: number }>((resolve) => {
           this.callLLMStream(context.model, context.systemPrompt, currentMessage, agent.temperature, (chunk) => {
             llmResponse += chunk;
-            chunks.push(chunk);
+            // 实时发送 chunk 给客户端，实现真正的流式输出
+            console.log('[Stream] Sending chunk:', chunk);
+            sendChunk({ type: 'chunk', content: chunk });
           }, resolve);
         });
 
@@ -555,9 +573,7 @@ export class AgentService {
         const toolCall = this.parseToolCall(llmResponse);
 
         if (!toolCall) {
-          for (const chunk of chunks) {
-            sendChunk({ type: 'chunk', content: chunk });
-          }
+          // 不是工具调用，直接结束
           finalResponse = llmResponse;
           break;
         }
@@ -713,11 +729,11 @@ export class AgentService {
     try {
       for (let step = 0; step < agent.maxSteps; step++) {
         let llmResponse = '';
-        const chunks: string[] = [];
         const tokenInfo = await new Promise<{ inputTokens?: number; outputTokens?: number }>((resolve) => {
           this.callLLMStream(context.model, context.systemPrompt, currentMessage, agent.temperature, (chunk) => {
             llmResponse += chunk;
-            chunks.push(chunk);
+            // 实时发送 chunk 给客户端，实现真正的流式输出
+            observer.next(new MessageEvent('message', { data: JSON.stringify({ type: 'chunk', content: chunk }) + '\n' }));
           }, resolve);
         });
 
@@ -727,9 +743,7 @@ export class AgentService {
         const toolCall = this.parseToolCall(llmResponse);
 
         if (!toolCall) {
-          for (const chunk of chunks) {
-            observer.next(new MessageEvent('message', { data: JSON.stringify({ type: 'chunk', content: chunk }) + '\n' }));
-          }
+          // 不是工具调用，直接结束
           finalResponse = llmResponse;
           break;
         }
@@ -870,6 +884,43 @@ export class AgentService {
   }
 
   /**
+   * 创建绑定this的callLLMStream函数
+   */
+  private callLLMStreamBound(model: any) {
+    return async (
+      systemPrompt: string,
+      userMessage: string,
+      onChunk: (chunk: string) => void,
+    ): Promise<{ response: string; inputTokens?: number; outputTokens?: number }> => {
+      return new Promise((resolve) => {
+        let fullResponse = '';
+        let inputTokens: number | undefined;
+        let outputTokens: number | undefined;
+
+        this.callLLMStream(
+          model,
+          systemPrompt,
+          userMessage,
+          model.temperature || 0.7,
+          (chunk: string) => {
+            fullResponse += chunk;
+            onChunk(chunk);
+          },
+          (tokenInfo: { inputTokens?: number; outputTokens?: number }) => {
+            inputTokens = tokenInfo.inputTokens;
+            outputTokens = tokenInfo.outputTokens;
+            resolve({
+              response: fullResponse,
+              inputTokens,
+              outputTokens,
+            });
+          },
+        );
+      });
+    };
+  }
+
+  /**
    * 调用LLM
    */
   private async callLLM(
@@ -982,7 +1033,15 @@ export class AgentService {
             const dataStr = line.trim().substring(6);
             try {
               const parsed = JSON.parse(dataStr);
-              const chunkContent = parsed.choices?.[0]?.delta?.content || '';
+
+              // 支持多种流式响应格式
+              // OpenAI 格式: choices[0].delta.content
+              // 其他格式: choices[0].message.content 或 choices[0].text
+              const choice = parsed.choices?.[0];
+              const chunkContent = choice?.delta?.content
+                || choice?.message?.content
+                || choice?.text
+                || '';
 
               if (parsed.usage) {
                 inputTokens = parsed.usage.prompt_tokens ?? parsed.usage.input_tokens;

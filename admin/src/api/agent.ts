@@ -102,6 +102,7 @@ export const agentApi = {
     message: string,
     onChunk: (content: string) => void,
     onTool: (skill: string, result: any) => void,
+    onReasoningStep: (step: ReasoningStep) => void,
     onError: (error: any) => void,
     onComplete: (steps?: any[]) => void
   ): Promise<void> {
@@ -140,44 +141,69 @@ export const agentApi = {
 
       while (true) {
         const { done, value } = await reader.read()
-        
+
         if (done) {
+          console.log('[Frontend] Stream done')
           break
         }
 
-        buffer += decoder.decode(value, { stream: true })
-        
-        while (buffer.includes('\n')) {
-          const index = buffer.indexOf('\n')
-          const line = buffer.substring(0, index)
-          buffer = buffer.substring(index + 1)
+        const decoded = decoder.decode(value, { stream: true })
+        console.log('[Frontend] Received raw data length:', decoded.length)
+        buffer += decoded
 
-          if (line.trim()) {
-            try {
-              const data: AgentStreamResponse = JSON.parse(line)
-              
-              switch (data.type) {
-                case 'chunk':
-                  onChunk(data.content || '')
-                  break
-                case 'tool':
-                  onTool(data.skill || '', data.result)
-                  break
-                case 'reasoning_step':
-                  // 推理步骤 - 可以通过回调处理
-                  onChunk(`[${data.step?.stepType}] ${data.step?.thought || data.step?.content || ''}\n`)
-                  break
-                case 'error':
-                  onError(new Error(data.content || '未知错误'))
-                  return
-                case 'done':
-                  onComplete(data.steps)
-                  return
-              }
-            } catch (error) {
-              console.error('解析流式响应失败:', line)
+        // 处理缓冲区中的数据，按行分割（支持 \n 或 \r\n）
+        const lines = buffer.split(/\r?\n/)
+        // 保留最后一个不完整的行到缓冲区
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          const trimmedLine = line.trim()
+          if (!trimmedLine) continue
+
+          console.log('[Frontend] Processing line:', trimmedLine.substring(0, 100))
+          try {
+            const data: AgentStreamResponse = JSON.parse(trimmedLine)
+            console.log('[Frontend] Parsed data type:', data.type)
+
+            switch (data.type) {
+              case 'chunk':
+                console.log('[Frontend] Calling onChunk with:', data.content?.substring(0, 50))
+                onChunk(data.content || '')
+                break
+              case 'tool':
+                onTool(data.skill || '', data.result)
+                break
+              case 'reasoning_step':
+                // 推理步骤 - 通过专门的回调处理
+                if (onReasoningStep && data.step) {
+                  onReasoningStep(data.step)
+                }
+                break
+              case 'error':
+                onError(new Error(data.content || '未知错误'))
+                return
+              case 'done':
+                onComplete(data.steps)
+                return
             }
+          } catch (error) {
+            console.error('解析流式响应失败:', trimmedLine.substring(0, 200))
           }
+        }
+      }
+
+      // 处理缓冲区中剩余的数据
+      if (buffer.trim()) {
+        console.log('[Frontend] Processing remaining buffer:', buffer.substring(0, 100))
+        try {
+          const data: AgentStreamResponse = JSON.parse(buffer.trim())
+          if (data.type === 'chunk') {
+            onChunk(data.content || '')
+          } else if (data.type === 'done') {
+            onComplete(data.steps)
+          }
+        } catch (error) {
+          console.error('解析剩余缓冲区失败:', buffer.substring(0, 200))
         }
       }
 

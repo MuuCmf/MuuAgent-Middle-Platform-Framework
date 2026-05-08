@@ -147,7 +147,7 @@ export class AgentController {
    */
   @Post('chat/stream')
   @ApiOperation({ summary: 'Agent对话（流式）' })
-  async chatStream(@Body() dto: AgentChatDto, @Req() req: Request, @Res() res: Response) {
+  async chatStream(@Body() dto: AgentChatDto, @Req() req: Request, @Res({ passthrough: false }) res: Response) {
     const uid = this.extractUid(req, dto);
     
     // 设置响应头
@@ -155,6 +155,9 @@ export class AgentController {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    // 禁用压缩，确保流式数据实时发送
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('Content-Encoding', 'identity');
     
     // 使用服务端流式响应
     await this.agentService.streamChatToResponse(dto, req.ip || 'unknown', uid, res);
