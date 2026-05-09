@@ -1,7 +1,7 @@
 {
-  "name": "ai-extension-service",
+  "name": "muuai-middle-platform-service",
   "version": "1.0.0",
-  "description": "AI中台扩展服务 - 模型管理 + MCP调度 + Skill + Agent",
+  "description": "MuuAI中台服务 - 模型管理 + MCP调度 + Skill + Agent",
   "scripts": {
     "build": "nest build",
     "start": "nest start",

@@ -1,7 +1,7 @@
 {
-  "name": "ai-mcp-admin",
+  "name": "muuai-middle-platform-web-admin",
   "version": "1.0.0",
-  "description": "AI-MCP 管理中台前端",
+  "description": "MuuAI中台前端",
   "type": "module",
   "scripts": {
     "dev": "vite",
