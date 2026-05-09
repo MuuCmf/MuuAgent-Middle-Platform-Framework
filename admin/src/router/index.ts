@@ -65,16 +65,22 @@ const routes: RouteRecordRaw[] = [
         ]
       },
       {
-        path: 'chat',
-        name: 'Chat',
-        component: () => import('@/views/chat/index.vue'),
-        meta: { title: 'AI对话', icon: 'ChatDotRound' }
+        path: 'prompt-templates',
+        name: 'PromptTemplates',
+        component: () => import('@/views/prompt-templates/index.vue'),
+        meta: { title: 'Prompt模板', icon: 'Document' }
       },
       {
         path: 'rate-limit',
         name: 'RateLimit',
         component: () => import('@/views/rate-limit/index.vue'),
         meta: { title: '熔断限流', icon: 'Warning' }
+      },
+      {
+        path: 'chat',
+        name: 'Chat',
+        component: () => import('@/views/chat/index.vue'),
+        meta: { title: 'AI对话', icon: 'ChatDotRound' }
       },
       {
         path: 'logs',

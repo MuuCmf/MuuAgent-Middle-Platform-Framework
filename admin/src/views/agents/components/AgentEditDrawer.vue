@@ -65,12 +65,57 @@
           label="推理提示词"
         >
           <div class="prompt-wrapper">
+            <div class="prompt-mode-switch">
+              <el-radio-group v-model="promptMode" size="small">
+                <el-radio-button label="template">使用模板</el-radio-button>
+                <el-radio-button label="custom">自定义输入</el-radio-button>
+              </el-radio-group>
+            </div>
+
+            <div v-if="promptMode === 'template'" class="template-selector">
+              <el-select
+                v-model="selectedTemplateCode"
+                placeholder="选择提示词模板"
+                @change="handleTemplateChange"
+                class="w-full"
+              >
+                <el-option
+                  v-for="template in promptTemplates"
+                  :key="template.code"
+                  :label="template.name"
+                  :value="template.code"
+                >
+                  <div class="template-option">
+                    <span>{{ template.name }}</span>
+                    <el-tag size="small" type="info">{{ template.category }}</el-tag>
+                  </div>
+                </el-option>
+              </el-select>
+
+              <div v-if="selectedTemplate" class="template-preview">
+                <div class="preview-header">
+                  <span>模板预览</span>
+                  <el-button size="small" text @click="showTemplateDetail = true">
+                    查看详情
+                  </el-button>
+                </div>
+                <el-input
+                  :model-value="selectedTemplate.content"
+                  type="textarea"
+                  :rows="6"
+                  readonly
+                />
+              </div>
+            </div>
+
             <el-input
+              v-else
               v-model="form.reasoningPrompt"
               type="textarea"
               :rows="4"
               placeholder="可选：自定义推理提示词，留空使用默认模板"
             />
+
             <div class="prompt-help">
               <div class="help-title">可用占位符：</div>
               <div class="help-items">
@@ -231,7 +276,9 @@ import type { Agent, AgentForm } from '@/api/agent'
 import type { McpServerConfig } from '@/api/mcp-server'
 import type { Skill } from '@/api/skill'
 import type { KbInfo } from '@/api/kb'
+import type { PromptTemplate } from '@/api/prompt-template'
 import { kbApi } from '@/api/kb'
+import { promptTemplateApi } from '@/api/prompt-template'
 import McpServerConfigDialog from './McpServerConfigDialog.vue'
 import McpServerCard from './McpServerCard.vue'
 import SkillSelectDialog from './SkillSelectDialog.vue'
@@ -287,6 +334,12 @@ const kbSelectDialogVisible = ref(false)
 const selectedKbCodes = ref<string[]>([])
 const availableKbs = ref<KbInfo[]>([])
 
+const promptMode = ref<'template' | 'custom'>('template')
+const promptTemplates = ref<PromptTemplate[]>([])
+const selectedTemplateCode = ref<string>('')
+const selectedTemplate = ref<PromptTemplate | null>(null)
+const showTemplateDetail = ref(false)
+
 const reasoningModeTip = computed(() => {
   const tips: Record<string, string> = {
     NONE: '直接工具调用，适合简单任务，响应最快',
@@ -318,10 +371,20 @@ watch(() => props.visible, (newVal) => {
       mcpServers.value = parseJsonSafe(editingAgent.value.mcpServers || '[]')
       selectedSkillCodes.value = parseJsonSafe(editingAgent.value.skills || '[]')
       selectedKbCodes.value = parseJsonSafe(editingAgent.value.knowledgeBases || '[]')
+      
+      if (editingAgent.value.reasoningPrompt) {
+        promptMode.value = 'template'
+        selectedTemplateCode.value = editingAgent.value.reasoningPrompt
+        const template = promptTemplates.value.find(t => t.code === editingAgent.value!.reasoningPrompt)
+        if (template) {
+          selectedTemplate.value = template
+        }
+      }
     } else {
       resetForm()
     }
     loadKbs()
+    loadPromptTemplates()
   }
 })
 
@@ -352,6 +415,9 @@ const resetForm = () => {
   mcpServers.value = []
   selectedSkillCodes.value = []
   selectedKbCodes.value = []
+  promptMode.value = 'template'
+  selectedTemplateCode.value = ''
+  selectedTemplate.value = null
   formRef.value?.resetFields()
 }
 
@@ -363,6 +429,32 @@ const loadKbs = async () => {
     }
   } catch (error) {
     console.error('加载知识库列表失败', error)
+  }
+}
+
+const loadPromptTemplates = async () => {
+  try {
+    const response = await promptTemplateApi.findAll({ 
+      pageSize: 100, 
+      status: true,
+      category: 'react'
+    })
+    if (response.data.code === 200) {
+      promptTemplates.value = response.data.data.list
+    }
+  } catch (error) {
+    console.error('加载提示词模板列表失败', error)
+  }
+}
+
+const handleTemplateChange = (code: string) => {
+  const template = promptTemplates.value.find(t => t.code === code)
+  if (template) {
+    selectedTemplate.value = template
+    form.value.reasoningPrompt = template.code
+  } else {
+    selectedTemplate.value = null
+    form.value.reasoningPrompt = ''
   }
 }
 
@@ -519,6 +611,35 @@ const handleClose = () => {
 
 .prompt-wrapper {
   width: 100%;
+}
+
+.prompt-mode-switch {
+  margin-bottom: 12px;
+}
+
+.template-selector {
+  margin-bottom: 12px;
+}
+
+.template-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.template-preview {
+  margin-top: 12px;
+  
+  .preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #606266;
+  }
 }
 
 .prompt-help {

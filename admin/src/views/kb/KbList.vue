@@ -121,8 +121,7 @@
 
       <div class="pagination">
         <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[12, 24, 48, 96]"
-          :total="total" layout="total, sizes, prev, pager, next, jumper" @size-change="handleSizeChange"
-          @current-change="handlePageChange" />
+          :total="total" layout="total, sizes, prev, pager, next, jumper" />
       </div>
     </div>
 
@@ -131,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, FolderOpened, View, Edit, Delete } from '@element-plus/icons-vue'
@@ -175,14 +174,18 @@ const handleSearch = () => {
   fetchKbList()
 }
 
-const handleSizeChange = () => {
-  currentPage.value = 1
-  fetchKbList()
-}
+watch(pageSize, (newVal, oldVal) => {
+  if (newVal !== oldVal && oldVal !== undefined) {
+    currentPage.value = 1
+    fetchKbList()
+  }
+})
 
-const handlePageChange = () => {
-  fetchKbList()
-}
+watch(currentPage, (newVal, oldVal) => {
+  if (newVal !== oldVal && oldVal !== undefined) {
+    fetchKbList()
+  }
+})
 
 const handleCreate = () => {
   editData.value = null

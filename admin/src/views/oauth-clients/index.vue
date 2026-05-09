@@ -98,8 +98,6 @@
               :page-sizes="[10, 20, 50, 100]"
               :total="total"
               layout="total, sizes, prev, pager, next, jumper"
-              @size-change="loadClients"
-              @current-change="loadClients"
             />
           </div>
         </div>
@@ -201,8 +199,6 @@
               :page-sizes="[10, 20, 50, 100]"
               :total="tokenTotal"
               layout="total, sizes, prev, pager, next, jumper"
-              @size-change="loadTokens"
-              @current-change="loadTokens"
             />
           </div>
         </div>
@@ -223,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { oauthApi, type OAuthClient, type OAuthToken } from '@/api/oauth'
@@ -417,6 +413,32 @@ const formatDate = (date: string) => {
 
 onMounted(() => {
   loadClients()
+})
+
+watch(pageSize, (newVal, oldVal) => {
+  if (newVal !== oldVal && oldVal !== undefined) {
+    currentPage.value = 1
+    loadClients()
+  }
+})
+
+watch(currentPage, (newVal, oldVal) => {
+  if (newVal !== oldVal && oldVal !== undefined) {
+    loadClients()
+  }
+})
+
+watch(tokenPageSize, (newVal, oldVal) => {
+  if (newVal !== oldVal && oldVal !== undefined) {
+    tokenCurrentPage.value = 1
+    loadTokens()
+  }
+})
+
+watch(tokenCurrentPage, (newVal, oldVal) => {
+  if (newVal !== oldVal && oldVal !== undefined) {
+    loadTokens()
+  }
 })
 </script>
 

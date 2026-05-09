@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, NotFoundException, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import {
   CreateSkillDto,
@@ -10,6 +10,9 @@ import {
 import { Skill } from '@prisma/client';
 import axios from 'axios';
 import { McpClientService } from './mcp-client.service';
+import { PromptTemplateService } from '../prompt-template/prompt-template.service';
+import { AiSdkProvider } from '../ai/providers/ai-sdk.provider';
+import { ModelService } from '../model/model.service';
 
 /**
  * 技能服务
@@ -17,14 +20,22 @@ import { McpClientService } from './mcp-client.service';
  */
 @Injectable()
 export class SkillService {
+  private readonly logger = new Logger(SkillService.name);
+
   /**
    * 构造函数
    * @param prisma Prisma服务
    * @param mcpClient MCP客户端服务
+   * @param promptTemplateService 提示词模板服务
+   * @param aiSdkProvider AI SDK提供者
+   * @param modelService 模型服务
    */
   constructor(
     private prisma: PrismaService,
     private mcpClient: McpClientService,
+    private promptTemplateService: PromptTemplateService,
+    private aiSdkProvider: AiSdkProvider,
+    private modelService: ModelService,
   ) {}
 
   /**
@@ -331,5 +342,160 @@ export class SkillService {
     return skills
       .map((s: Skill) => `${s.code}: ${s.description}\n参数: ${s.params}`)
       .join('\n\n');
+  }
+
+  /**
+   * 渲染技能调用提示词
+   * @param skillCode 技能标识
+   * @param userRequest 用户请求
+   * @returns {Promise<string>} 渲染后的提示词
+   */
+  async renderSkillInvokePrompt(
+    skillCode: string,
+    userRequest: string,
+  ): Promise<string> {
+    const skill = await this.prisma.skill.findUnique({
+      where: { code: skillCode },
+    });
+
+    if (!skill) {
+      throw new NotFoundException('技能不存在');
+    }
+
+    const renderedPrompt = await this.promptTemplateService.render(
+      'skill-invoke-default',
+      {
+        skillName: skill.name,
+        skillDescription: skill.description,
+        skillType: skill.type,
+        userRequest,
+      },
+    );
+
+    return renderedPrompt;
+  }
+
+  /**
+   * 智能选择技能（基于用户请求）
+   * @param userRequest 用户请求
+   * @param availableSkills 可用技能列表
+   * @returns {Promise<{skillCode: string; params: Record<string, unknown>}>} 选择的技能和参数
+   */
+  async selectSkill(
+    userRequest: string,
+    availableSkills: string[],
+  ): Promise<{ skillCode: string; params: Record<string, unknown>; prompt: string; reason?: string }> {
+    const skills = await this.prisma.skill.findMany({
+      where: {
+        code: { in: availableSkills },
+        status: true,
+      },
+    });
+
+    if (skills.length === 0) {
+      throw new NotFoundException('没有可用的技能');
+    }
+
+    const skillDescriptions = skills
+      .map(
+        (s) =>
+          `- ${s.code}: ${s.description}\n  参数: ${s.params}`,
+      )
+      .join('\n\n');
+
+    const prompt = await this.promptTemplateService.render(
+      'skill-invoke-default',
+      {
+        skillName: '技能选择助手',
+        skillDescription: skillDescriptions,
+        skillType: 'selector',
+        userRequest,
+      },
+    );
+
+    const systemPrompt = `你是一个技能选择助手。你的任务是根据用户的请求，选择最合适的技能并提取参数。
+
+请严格按照以下 JSON 格式返回结果，不要添加任何其他内容：
+{
+  "skillCode": "技能标识",
+  "params": {
+    "参数名": "参数值"
+  },
+  "reason": "选择理由"
+}
+
+重要规则：
+1. skillCode 必须是以下之一：${availableSkills.join(', ')}
+2. params 必须是一个对象，包含调用技能所需的参数
+3. 如果用户请求不需要调用技能，返回 skillCode 为空字符串
+4. 只返回 JSON，不要有任何其他文字说明`;
+
+    try {
+      const availableModels = await this.modelService.getAvailableModels('llm');
+      
+      if (!availableModels || availableModels.length === 0) {
+        this.logger.warn('未找到可用的 LLM 模型，使用第一个可用技能');
+        return {
+          skillCode: skills[0].code,
+          params: {},
+          prompt,
+        };
+      }
+
+      const defaultModel = availableModels[0];
+
+      const result = await this.aiSdkProvider.generateText({
+        model: defaultModel,
+        system: systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: userRequest,
+          },
+        ],
+        temperature: 0.3,
+      });
+
+      const aiResponse = result.text.trim();
+      
+      try {
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error('AI 返回格式不正确');
+        }
+
+        const parsed = JSON.parse(jsonMatch[0]);
+        
+        if (!parsed.skillCode || !availableSkills.includes(parsed.skillCode)) {
+          this.logger.warn(`AI 返回的技能标识无效: ${parsed.skillCode}`);
+          return {
+            skillCode: skills[0].code,
+            params: {},
+            prompt,
+          };
+        }
+
+        return {
+          skillCode: parsed.skillCode,
+          params: parsed.params || {},
+          prompt,
+          reason: parsed.reason,
+        };
+      } catch (parseError) {
+        this.logger.error('解析 AI 返回结果失败:', parseError);
+        return {
+          skillCode: skills[0].code,
+          params: {},
+          prompt,
+        };
+      }
+    } catch (error) {
+      this.logger.error('调用 AI 模型失败:', error);
+      return {
+        skillCode: skills[0].code,
+        params: {},
+        prompt,
+      };
+    }
   }
 }

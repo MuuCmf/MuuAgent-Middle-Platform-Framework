@@ -123,6 +123,7 @@ model Agent {
   code            String   @unique /// 智能体唯一标识
   description     String?  /// 智能体描述
   systemPrompt    String   /// 系统提示词
+  promptTemplateCode String? @map("prompt_template_code") /// 使用的提示词模板标识
   modelId         String?  /// 绑定模型ID
   skills          String   @default("[]") /// 绑定的技能code列表(JSON数组)
   mcpServers      String?  @default("[]") /// 绑定的MCP Server配置(JSON数组)
@@ -145,6 +146,7 @@ model Agent {
   invokeLogs AgentInvokeLog[]
 
   @@index([status])
+  @@index([promptTemplateCode])
 }
 
 /// AI调用日志表 - 记录所有AI模型调用
@@ -538,4 +540,79 @@ model ReasoningStep {
   @@index([agentLogId])
   @@index([stepType])
   @@map("reasoning_step")
+}
+
+/// Prompt模板表 - 存储提示词模板
+model PromptTemplate {
+  id          String   @id @default(uuid())
+  code        String   @unique /// 模板唯一标识
+  name        String   /// 模板名称
+  category    String   /// 分类: agent/rag/react/skill/custom
+  content     String   @db.Text /// Prompt内容（支持变量占位符）
+  variables   String?  @db.Text /// 变量定义（JSON格式）
+  version     Int      @default(1) /// 当前版本号
+  isDefault   Boolean  @default(false) /// 是否默认模板
+  status      Boolean  @default(true) /// 是否启用
+  description String?  @db.Text /// 模板描述
+  tags        String?  /// 标签（JSON数组）
+  metadata    String?  @db.Text /// 元数据（JSON格式）
+  createdBy   String?  /// 创建者
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// 关联版本历史
+  versions    PromptVersion[]
+  /// 关联调用日志
+  invokeLogs  PromptInvokeLog[]
+
+  @@index([category, status])
+  @@index([code, version])
+  @@index([isDefault])
+  @@index([createdAt])
+  @@map("prompt_templates")
+}
+
+/// Prompt版本历史表 - 记录模板版本变更
+model PromptVersion {
+  id          String   @id @default(uuid())
+  templateId  String   /// 关联模板ID
+  version     Int      /// 版本号
+  content     String   @db.Text /// Prompt内容
+  variables   String?  @db.Text /// 变量定义
+  changeLog   String?  @db.Text /// 变更说明
+  changeType  String   @default("update") /// 变更类型: create/update/rollback
+  createdBy   String?  /// 创建者
+  createdAt   DateTime @default(now())
+
+  template PromptTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, version])
+  @@index([templateId])
+  @@index([createdAt])
+  @@map("prompt_versions")
+}
+
+/// Prompt调用日志表 - 记录模板调用情况
+model PromptInvokeLog {
+  id            String   @id @default(uuid())
+  templateId    String?  /// 关联模板ID
+  templateCode  String   /// 模板标识
+  templateVersion Int    /// 模板版本
+  variables     String?  @db.Text /// 渲染变量（JSON格式）
+  renderedPrompt String  @db.Text /// 渲染后的Prompt
+  modelId       String?  /// 调用的模型ID
+  modelCode     String?  /// 模型标识
+  success       Boolean  /// 是否成功
+  errorMessage  String?  @db.Text /// 错误信息
+  costMs        Int      /// 渲染耗时(毫秒)
+  clientIp      String?  /// 客户端IP
+  uid           String?  /// 调用用户唯一标识
+  createdAt     DateTime @default(now())
+
+  template PromptTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([templateId])
+  @@index([templateCode])
+  @@index([createdAt])
+  @@map("prompt_invoke_logs")
 }

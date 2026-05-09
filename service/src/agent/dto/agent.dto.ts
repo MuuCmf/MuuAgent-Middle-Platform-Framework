@@ -8,6 +8,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 /**
  * 创建智能体DTO
@@ -205,6 +206,11 @@ export class AgentChatDto {
  */
 export class QueryAgentDto {
   @ApiPropertyOptional({ description: '是否启用' })
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
   @IsBoolean()
   @IsOptional()
   status?: boolean;

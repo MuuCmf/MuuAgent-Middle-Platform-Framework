@@ -165,7 +165,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { QuestionFilled, ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
 import Logo from './components/Logo.vue'
-import ThemeToggle from './components/ThemeToggle.vue'
 import { userApi, type AdminUser } from '@/api/user'
 
 const router = useRouter()

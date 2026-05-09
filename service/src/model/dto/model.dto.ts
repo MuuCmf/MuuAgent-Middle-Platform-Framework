@@ -9,6 +9,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 /**
  * 模型类型枚举
@@ -248,6 +249,11 @@ export class QueryModelDto {
   provider?: string;
 
   @ApiPropertyOptional({ description: '是否启用' })
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
   @IsBoolean()
   @IsOptional()
   status?: boolean;

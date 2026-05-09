@@ -10,12 +10,13 @@ import { RetrievalModule } from '../retrieval/retrieval.module';
 import { AiModule } from '../ai/ai.module';
 import { AiSdkModule } from '../ai/providers/ai-sdk.module';
 import { KbSearchTool } from './tools/kb-search.tool';
+import { PromptTemplateModule } from '../prompt-template/prompt-template.module';
 
 /**
  * 智能体模块
  */
 @Module({
-  imports: [McpModule, McpServerModule, SkillModule, ModelModule, RetrievalModule, AiModule, AiSdkModule],
+  imports: [McpModule, McpServerModule, SkillModule, ModelModule, RetrievalModule, AiModule, AiSdkModule, PromptTemplateModule],
   controllers: [AgentController, AgentAdminController],
   providers: [
     AgentService,

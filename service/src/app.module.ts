@@ -5,6 +5,7 @@ import { PrismaModule } from './common/prisma/prisma.module';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { ModelModule } from './model/model.module';
 import { ModelTemplateModule } from './model-template/model-template.module';
+import { PromptTemplateModule } from './prompt-template/prompt-template.module';
 import { McpModule } from './mcp/mcp.module';
 import { McpServerModule } from './mcp-server/mcp-server.module';
 import { AiModule } from './ai/ai.module';
@@ -60,6 +61,7 @@ import { OAuthModule } from './oauth/oauth.module';
     // 业务模块
     ModelModule,
     ModelTemplateModule,
+    PromptTemplateModule,
     McpModule,
     McpServerModule,
     AiModule,

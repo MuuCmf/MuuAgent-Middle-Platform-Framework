@@ -4,6 +4,7 @@ import { VectorService } from '../vector/vector.service';
 import { AiService } from '../ai/ai.service';
 import { CacheService } from '../cache/cache.service';
 import { BM25Service } from './bm25.service';
+import { PromptTemplateService } from '../prompt-template/prompt-template.service';
 import { RetrievalDto } from './dto/retrieval.dto';
 import { RagChatDto } from './dto/rag-chat.dto';
 import { v4 as uuidv4 } from 'uuid';
@@ -41,6 +42,7 @@ export class RetrievalService {
     private readonly aiService: AiService,
     private readonly cacheService: CacheService,
     private readonly bm25Service: BM25Service,
+    private readonly promptTemplateService: PromptTemplateService,
   ) {}
 
   /**
@@ -422,7 +424,7 @@ export class RetrievalService {
     const topSources = sources.slice(0, topN);
 
     const context = topSources.map((s) => s.content).join('\n\n');
-    const prompt = this.buildRagPrompt(dto.query, context);
+    const prompt = await this.buildRagPrompt(dto.query, context);
     const answer = await this.callLLM(prompt, dto.uid);
 
     const costTime = Date.now() - startTime;
@@ -561,7 +563,7 @@ export class RetrievalService {
     const topSources = sources.slice(0, topN);
 
     const context = topSources.map((s) => s.content).join('\n\n');
-    const prompt = this.buildRagPrompt(dto.query, context);
+    const prompt = await this.buildRagPrompt(dto.query, context);
 
     // 返回流式响应
     // 使用defer确保所有操作在订阅时才执行
@@ -715,10 +717,17 @@ export class RetrievalService {
    * 构建RAG提示词
    * @param query 用户问题
    * @param context 上下文
-   * @returns {string} 提示词
+   * @returns {Promise<string>} 提示词
    */
-  private buildRagPrompt(query: string, context: string): string {
-    return `你是一个专业的问答助手。请根据以下参考信息回答用户的问题。
+  private async buildRagPrompt(query: string, context: string): Promise<string> {
+    try {
+      const prompt = await this.promptTemplateService.render('rag-chat-default', {
+        context: context,
+        query: query
+      });
+      return prompt;
+    } catch (error) {
+      return `你是一个专业的问答助手。请根据以下参考信息回答用户的问题。
 
 参考信息：
 ${context}
@@ -726,6 +735,7 @@ ${context}
 用户问题：${query}
 
 请基于参考信息给出准确、详细的回答。如果参考信息中没有相关内容，请明确告知用户。`;
+    }
   }
 
   /**

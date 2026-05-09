@@ -113,7 +113,7 @@
 
           <div class="pagination">
             <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :total="total"
-              layout="total, prev, pager, next" @current-change="handlePageChange" />
+              layout="total, prev, pager, next" />
           </div>
         </el-card>
       </el-col>
@@ -123,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Upload } from '@element-plus/icons-vue'
@@ -220,9 +220,11 @@ const handleDeleteDocument = async (doc: DocumentInfo) => {
   }
 }
 
-const handlePageChange = () => {
-  fetchDocumentList()
-}
+watch(currentPage, (newVal, oldVal) => {
+  if (newVal !== oldVal && oldVal !== undefined) {
+    fetchDocumentList()
+  }
+})
 
 const formatDate = (date?: string) => {
   if (!date) return '-'

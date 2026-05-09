@@ -8,6 +8,7 @@ import {
   IsBoolean,
   Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 /**
  * 技能类型枚举
@@ -129,6 +130,11 @@ export class QuerySkillDto {
   type?: string;
 
   @ApiPropertyOptional({ description: '是否启用' })
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
   @IsBoolean()
   @IsOptional()
   status?: boolean;

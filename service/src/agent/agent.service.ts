@@ -7,6 +7,7 @@ import { AgentKbService } from './agent-kb.service';
 import { KbSearchTool } from './tools/kb-search.tool';
 import { ReasoningMode, ExecutionResult, ToolDefinition } from './react/react.types';
 import { ReActPromptBuilder } from './react/react.prompt';
+import { PromptTemplateService } from '../prompt-template/prompt-template.service';
 import {
   CreateAgentDto,
   UpdateAgentDto,
@@ -43,6 +44,7 @@ export class AgentService {
     private agentKbService: AgentKbService,
     private kbSearchTool: KbSearchTool,
     private aiSdkProvider: AiSdkProvider,
+    private promptTemplateService: PromptTemplateService,
   ) {}
 
   async create(dto: CreateAgentDto) {
@@ -269,10 +271,41 @@ export class AgentService {
       }
     }
 
-    const systemPrompt = ReActPromptBuilder.buildSystemPrompt(
-      agent.systemPrompt || '你是一个有帮助的AI助手。',
-      tools,
-    );
+    let templateCode = agent.promptTemplateCode;
+    
+    if (!templateCode) {
+      switch (agent.reasoningMode) {
+        case 'REACT':
+          templateCode = 'react-reasoning-default';
+          break;
+        case 'PLAN':
+          templateCode = 'plan-reasoning-default';
+          break;
+        case 'REFLECT':
+          templateCode = 'reflect-reasoning-default';
+          break;
+        default:
+          templateCode = 'agent-system-default';
+      }
+    }
+
+    const hasTools = tools.length > 0;
+    const toolsDescription = hasTools ? JSON.stringify(tools, null, 2) : '';
+
+    let systemPrompt: string;
+    try {
+      systemPrompt = await this.promptTemplateService.render(templateCode, {
+        basePrompt: agent.systemPrompt || '你是一个有帮助的AI助手。',
+        hasTools: hasTools,
+        tools: toolsDescription
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to render prompt template: ${templateCode}, fallback to default`);
+      systemPrompt = ReActPromptBuilder.buildSystemPrompt(
+        agent.systemPrompt || '你是一个有帮助的AI助手。',
+        tools,
+      );
+    }
 
     return {
       agent,
@@ -306,6 +339,9 @@ export class AgentService {
         messages,
         tools,
         temperature: context.temperature,
+        clientIp,
+        userAgent: 'agent-service',
+        uid,
       });
 
       await this.saveLog(agent, context, { text: result.text }, clientIp, uid, ReasoningMode.NONE, startTime);
@@ -369,6 +405,9 @@ export class AgentService {
           messages: stepMessages,
           tools,
           temperature: context.temperature,
+          clientIp,
+          userAgent: 'agent-service',
+          uid,
         });
 
         const stepText = result.text;
@@ -482,6 +521,9 @@ export class AgentService {
         messages: currentMessages,
         tools,
         temperature: context.temperature,
+        clientIp,
+        userAgent: 'agent-service',
+        uid,
         onChunk: (chunk) => {
           this.logger.debug(`[executeDefaultStream] 收到 chunk: ${chunk.substring(0, 50)}...`);
           callbacks.onChunk?.(chunk);
@@ -609,6 +651,9 @@ export class AgentService {
           messages: stepMessages,
           tools,
           temperature: context.temperature,
+          clientIp,
+          userAgent: 'agent-service',
+          uid,
           onChunk: (chunk) => {
             stepText += chunk;
             

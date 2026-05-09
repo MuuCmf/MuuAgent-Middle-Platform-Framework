@@ -22,11 +22,21 @@
           <li><strong>参数描述</strong>：描述技能需要的参数格式，帮助AI正确传参</li>
         </ul>
       </div>
+      <el-space style="margin-bottom: 16px;">
+        <el-button type="primary" @click="handleAdd">
+          <el-icon>
+            <Plus />
+          </el-icon>
+          添加技能
+        </el-button>
+        <el-button type="success" @click="selectSkillDialogVisible = true">
+          <el-icon>
+            <MagicStick />
+          </el-icon>
+          智能选择技能
+        </el-button>
+      </el-space>
 
-      <el-button type="primary" @click="handleAdd" style="margin-bottom: 16px;">
-        <el-icon><Plus /></el-icon>
-        添加技能
-      </el-button>
 
       <el-table :data="skills" stripe v-loading="loading">
         <el-table-column prop="name" label="名称" width="150" />
@@ -52,9 +62,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240">
+        <el-table-column label="操作" width="400">
           <template #default="{ row }">
             <el-button size="small" @click="handleTest(row)">测试</el-button>
+            <el-button size="small" @click="handleRenderPrompt(row)">渲染提示词</el-button>
             <el-button size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
           </template>
@@ -62,11 +73,7 @@
       </el-table>
     </div>
 
-    <SkillEditDrawer
-      v-model:visible="drawerVisible"
-      :skill="editingSkill"
-      @save="handleSave"
-    />
+    <SkillEditDrawer v-model:visible="drawerVisible" :skill="editingSkill" @save="handleSave" />
 
     <el-dialog v-model="testDialogVisible" title="🧪 测试技能" width="600px">
       <div class="test-dialog-content">
@@ -116,13 +123,89 @@
         </div>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="renderPromptDialogVisible" title="🎨 渲染技能调用提示词" width="700px">
+      <div v-if="renderingSkill" class="render-dialog-content">
+        <div class="render-skill-info">
+          <p><strong>技能名称：</strong>{{ renderingSkill.name }}</p>
+          <p><strong>技能标识：</strong><el-tag type="info" size="small">{{ renderingSkill.code }}</el-tag></p>
+          <p><strong>技能类型：</strong><el-tag size="small">{{ renderingSkill.type }}</el-tag></p>
+        </div>
+
+        <el-divider />
+
+        <el-form label-width="100px">
+          <el-form-item label="用户请求">
+            <el-input v-model="renderUserRequest" type="textarea" :rows="3" placeholder="请输入用户请求，如：帮我查询北京的天气" />
+          </el-form-item>
+        </el-form>
+
+        <el-divider />
+
+        <div class="render-result">
+          <h4>渲染结果</h4>
+          <el-input v-model="renderedPrompt" type="textarea" :rows="10" readonly placeholder="点击渲染按钮查看结果" />
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="renderPromptDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="executeRenderPrompt" :loading="renderPromptLoading">
+          渲染
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="selectSkillDialogVisible" title="智能选择技能" width="700px">
+      <div class="select-dialog-content">
+        <el-form label-width="100px">
+          <el-form-item label="用户请求">
+            <el-input v-model="selectUserRequest" type="textarea" :rows="3" placeholder="请输入用户请求，如：帮我查询北京的天气" />
+          </el-form-item>
+
+          <el-form-item label="可用技能">
+            <el-checkbox-group v-model="selectedSkillCodes">
+              <el-checkbox v-for="skill in skills" :key="skill.code" :label="skill.code">
+                {{ skill.name }}
+              </el-checkbox>
+            </el-checkbox-group>
+          </el-form-item>
+        </el-form>
+
+        <el-divider />
+
+        <div v-if="selectedSkillResult" class="select-result">
+          <h4>选择结果</h4>
+          <el-descriptions :column="1" border>
+            <el-descriptions-item label="技能标识">
+              <el-tag type="primary">{{ selectedSkillResult.skillCode }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="参数">
+              <pre class="params-json">{{ JSON.stringify(selectedSkillResult.params, null, 2) }}</pre>
+            </el-descriptions-item>
+            <el-descriptions-item v-if="selectedSkillResult.reason" label="选择理由">
+              {{ selectedSkillResult.reason }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="selectSkillDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="executeSelectSkill" :loading="selectSkillLoading">
+          智能选择
+        </el-button>
+      </template>
+    </el-dialog>
+
+
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, MagicStick } from '@element-plus/icons-vue'
 import { useSkillStore } from '@/stores/skill'
 import { skillApi } from '@/api/skill'
 import type { Skill, SkillForm } from '@/api/skill'
@@ -141,6 +224,18 @@ const testParams = ref('{}')
 const testResult = ref('')
 const testError = ref(false)
 const testLoading = ref(false)
+
+const renderPromptDialogVisible = ref(false)
+const renderingSkill = ref<Skill | null>(null)
+const renderUserRequest = ref('')
+const renderedPrompt = ref('')
+const renderPromptLoading = ref(false)
+
+const selectSkillDialogVisible = ref(false)
+const selectUserRequest = ref('')
+const selectedSkillCodes = ref<string[]>([])
+const selectedSkillResult = ref<{ skillCode: string; params: Record<string, unknown>; reason?: string } | null>(null)
+const selectSkillLoading = ref(false)
 
 const handleAdd = () => {
   editingSkill.value = null
@@ -208,6 +303,63 @@ const executeTest = async () => {
   }
 }
 
+const handleRenderPrompt = (skill: Skill) => {
+  renderingSkill.value = skill
+  renderUserRequest.value = ''
+  renderedPrompt.value = ''
+  renderPromptDialogVisible.value = true
+}
+
+const executeRenderPrompt = async () => {
+  if (!renderingSkill.value) return
+
+  if (!renderUserRequest.value.trim()) {
+    ElMessage.warning('请输入用户请求')
+    return
+  }
+
+  renderPromptLoading.value = true
+  try {
+    const response = await skillApi.renderPrompt({
+      skillCode: renderingSkill.value.code,
+      userRequest: renderUserRequest.value,
+    })
+    renderedPrompt.value = response.data.data.renderedPrompt
+    ElMessage.success('渲染成功')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || error.message || '渲染失败')
+  } finally {
+    renderPromptLoading.value = false
+  }
+}
+
+const executeSelectSkill = async () => {
+  if (!selectUserRequest.value.trim()) {
+    ElMessage.warning('请输入用户请求')
+    return
+  }
+
+  if (selectedSkillCodes.value.length === 0) {
+    ElMessage.warning('请至少选择一个可用技能')
+    return
+  }
+
+  selectSkillLoading.value = true
+  selectedSkillResult.value = null
+  try {
+    const response = await skillApi.selectSkill({
+      userRequest: selectUserRequest.value,
+      availableSkills: selectedSkillCodes.value,
+    })
+    selectedSkillResult.value = response.data.data
+    ElMessage.success('智能选择成功')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || error.message || '智能选择失败')
+  } finally {
+    selectSkillLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadSkills()
 })
@@ -252,6 +404,45 @@ onMounted(() => {
         border-color: #fde2e2;
         color: #f56c6c;
       }
+    }
+  }
+}
+
+.render-dialog-content {
+  .render-skill-info {
+    p {
+      margin: 8px 0;
+      line-height: 1.6;
+    }
+  }
+
+  .render-result {
+    h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+  }
+}
+
+.select-dialog-content {
+  .select-result {
+    h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .params-json {
+      background: #f5f7fa;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      margin: 0;
+      overflow-x: auto;
     }
   }
 }

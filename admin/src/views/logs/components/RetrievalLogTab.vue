@@ -71,9 +71,8 @@
     </el-table>
 
     <div class="pagination-section">
-      <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize"
-        :page-sizes="[10, 20, 50, 100]" :total="pagination.total" layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadLogs" @current-change="loadLogs" />
+      <el-pagination v-model:current-page="page" v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next, jumper" />
     </div>
 
     <el-drawer v-model="detailVisible" title="知识库检索日志详情" direction="rtl" size="60%">
@@ -107,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { logApi, type RetrievalLog } from '@/api/log'
 
 const loading = ref(false)
@@ -120,11 +119,9 @@ const filters = reactive({
   timeRange: null as [string, string] | null,
 })
 
-const pagination = reactive({
-  page: 1,
-  pageSize: 20,
-  total: 0,
-})
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 
 /**
  * 格式化时间
@@ -161,8 +158,8 @@ const loadLogs = async () => {
   loading.value = true
   try {
     const params: Record<string, unknown> = {
-      page: pagination.page,
-      pageSize: pagination.pageSize,
+      page: page.value,
+      pageSize: pageSize.value,
     }
 
     if (filters.kbId) params.kbId = filters.kbId
@@ -173,7 +170,7 @@ const loadLogs = async () => {
 
     const res = await logApi.getRetrievalLogs(params)
     logs.value = res.data.data?.list || []
-    pagination.total = res.data.data?.total || 0
+    total.value = res.data.data?.total || 0
   } catch (error) {
     console.error('加载知识库检索日志失败', error)
   } finally {
@@ -185,17 +182,14 @@ const loadLogs = async () => {
  * 搜索
  */
 const handleSearch = () => {
-  pagination.page = 1
+  page.value = 1
   loadLogs()
 }
 
-/**
- * 重置
- */
 const handleReset = () => {
   filters.kbId = ''
   filters.timeRange = null
-  pagination.page = 1
+  page.value = 1
   loadLogs()
 }
 
@@ -215,6 +209,19 @@ const handleViewDetail = async (log: RetrievalLog) => {
 
 onMounted(() => {
   loadLogs()
+})
+
+watch(pageSize, (newVal, oldVal) => {
+  if (newVal !== oldVal && oldVal !== undefined) {
+    page.value = 1
+    loadLogs()
+  }
+})
+
+watch(page, (newVal, oldVal) => {
+  if (newVal !== oldVal && oldVal !== undefined) {
+    loadLogs()
+  }
 })
 </script>
 

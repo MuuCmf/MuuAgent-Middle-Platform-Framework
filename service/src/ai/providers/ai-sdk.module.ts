@@ -1,6 +1,8 @@
 import { Module, Global } from '@nestjs/common';
 import { AiSdkProvider } from './ai-sdk.provider';
 import { ModelModule } from '../../model/model.module';
+import { PrismaModule } from '../../common/prisma/prisma.module';
+import { McpModule } from '../../mcp/mcp.module';
 
 /**
  * AI SDK 模块
@@ -8,7 +10,7 @@ import { ModelModule } from '../../model/model.module';
  */
 @Global()
 @Module({
-  imports: [ModelModule],
+  imports: [ModelModule, PrismaModule, McpModule],
   providers: [AiSdkProvider],
   exports: [AiSdkProvider],
 })

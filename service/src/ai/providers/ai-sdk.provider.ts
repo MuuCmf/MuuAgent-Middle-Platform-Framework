@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Model } from '@prisma/client';
 import { ModelService } from '../../model/model.service';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { McpService } from '../../mcp/mcp.service';
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText, streamText, type ModelMessage, type Tool } from 'ai';
 
@@ -12,7 +14,11 @@ import { generateText, streamText, type ModelMessage, type Tool } from 'ai';
 export class AiSdkProvider {
   private readonly logger = new Logger(AiSdkProvider.name);
 
-  constructor(private readonly modelService: ModelService) {}
+  constructor(
+    private readonly modelService: ModelService,
+    private readonly prisma: PrismaService,
+    private readonly mcpService: McpService,
+  ) {}
 
   /**
    * 创建 AI SDK provider 实例
@@ -130,6 +136,9 @@ export class AiSdkProvider {
     temperature?: number;
     maxTokens?: number;
     onStepFinish?: (step: any) => void;
+    clientIp?: string;
+    userAgent?: string;
+    uid?: string;
   }): Promise<{
     text: string;
     finishReason: string;
@@ -140,6 +149,7 @@ export class AiSdkProvider {
     };
     steps?: any[];
   }> {
+    const startTime = Date.now();
     const provider = this.createProvider(params.model);
     const modelName = this.getModelName(params.model);
 
@@ -147,31 +157,69 @@ export class AiSdkProvider {
 
     const tools = params.tools && Object.keys(params.tools).length > 0 ? params.tools : undefined;
 
-    const result = await generateText({
-      model: provider.chat(modelName),
-      system: params.system,
-      messages: params.messages,
-      tools,
-      toolChoice: params.toolChoice,
-      temperature: params.temperature ?? params.model.temperature ?? 0.7,
-      onStepFinish: params.onStepFinish,
-    });
+    try {
+      const result = await generateText({
+        model: provider.chat(modelName),
+        system: params.system,
+        messages: params.messages,
+        tools,
+        toolChoice: params.toolChoice,
+        temperature: params.temperature ?? params.model.temperature ?? 0.7,
+        onStepFinish: params.onStepFinish,
+      });
 
-    const inputTokens = result.usage?.inputTokens ?? 0;
-    const outputTokens = result.usage?.outputTokens ?? 0;
+      const inputTokens = result.usage?.inputTokens ?? 0;
+      const outputTokens = result.usage?.outputTokens ?? 0;
 
-    return {
-      text: result.text,
-      finishReason: result.finishReason || 'stop',
-      usage: result.usage
-        ? {
-            promptTokens: inputTokens,
-            completionTokens: outputTokens,
-            totalTokens: inputTokens + outputTokens,
-          }
-        : undefined,
-      steps: result.steps,
-    };
+      await this.mcpService.reportSuccess(params.model.id);
+
+      await this.saveLog({
+        modelId: params.model.id,
+        modelCode: params.model.code,
+        modelType: 'llm',
+        request: JSON.stringify({ messages: params.messages, system: params.system }),
+        response: result.text,
+        costMs: Date.now() - startTime,
+        success: true,
+        clientIp: params.clientIp || 'unknown',
+        userAgent: params.userAgent,
+        inputTokens,
+        outputTokens,
+        uid: params.uid,
+      });
+
+      return {
+        text: result.text,
+        finishReason: result.finishReason || 'stop',
+        usage: result.usage
+          ? {
+              promptTokens: inputTokens,
+              completionTokens: outputTokens,
+              totalTokens: inputTokens + outputTokens,
+            }
+          : undefined,
+        steps: result.steps,
+      };
+    } catch (error) {
+      await this.mcpService.reportError(params.model.id);
+
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      await this.saveLog({
+        modelId: params.model.id,
+        modelCode: params.model.code,
+        modelType: 'llm',
+        request: JSON.stringify({ messages: params.messages, system: params.system }),
+        response: errorMsg,
+        costMs: Date.now() - startTime,
+        success: false,
+        clientIp: params.clientIp || 'unknown',
+        userAgent: params.userAgent,
+        errorMessage: errorMsg,
+        uid: params.uid,
+      });
+
+      throw error;
+    }
   }
 
   /**
@@ -189,7 +237,11 @@ export class AiSdkProvider {
     onToolCall?: (toolCall: { name: string; args: any }) => void;
     onFinish?: (result: any) => void;
     onError?: (error: any) => void;
+    clientIp?: string;
+    userAgent?: string;
+    uid?: string;
   }): Promise<void> {
+    const startTime = Date.now();
     const provider = this.createProvider(params.model);
     const modelName = this.getModelName(params.model);
 
@@ -236,6 +288,26 @@ export class AiSdkProvider {
 
       this.logger.debug(`stream 完成: fullText.length=${fullText.length}, toolCalls.length=${toolCalls.length}`);
 
+      await this.mcpService.reportSuccess(params.model.id);
+
+      const inputTokens = usage?.inputTokens ?? 0;
+      const outputTokens = usage?.outputTokens ?? 0;
+
+      await this.saveLog({
+        modelId: params.model.id,
+        modelCode: params.model.code,
+        modelType: 'llm',
+        request: JSON.stringify({ messages: params.messages, system: params.system }),
+        response: fullText,
+        costMs: Date.now() - startTime,
+        success: true,
+        clientIp: params.clientIp || 'unknown',
+        userAgent: params.userAgent,
+        inputTokens,
+        outputTokens,
+        uid: params.uid,
+      });
+
       if (finishReason === 'tool-calls' && toolCalls.length > 0 && params.onToolCall) {
         for (const toolCall of toolCalls) {
           if (toolCall.toolName && params.onToolCall) {
@@ -258,9 +330,69 @@ export class AiSdkProvider {
     } catch (error) {
       this.logger.error(`streamText error: ${error?.message || error}`);
       this.logger.error(`streamText error stack: ${error?.stack || 'no stack'}`);
+
+      await this.mcpService.reportError(params.model.id);
+
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      await this.saveLog({
+        modelId: params.model.id,
+        modelCode: params.model.code,
+        modelType: 'llm',
+        request: JSON.stringify({ messages: params.messages, system: params.system }),
+        response: errorMsg,
+        costMs: Date.now() - startTime,
+        success: false,
+        clientIp: params.clientIp || 'unknown',
+        userAgent: params.userAgent,
+        errorMessage: errorMsg,
+        uid: params.uid,
+      });
+
       if (params.onError) {
         params.onError(error);
       }
+    }
+  }
+
+  /**
+   * 保存模型调用日志
+   * @param data 日志数据
+   */
+  private async saveLog(data: {
+    modelId: string;
+    modelCode: string;
+    modelType: string;
+    request: string;
+    response: string;
+    costMs: number;
+    success: boolean;
+    clientIp: string;
+    userAgent?: string;
+    errorMessage?: string;
+    inputTokens?: number;
+    outputTokens?: number;
+    uid?: string;
+  }): Promise<void> {
+    try {
+      await this.prisma.aiInvokeLog.create({
+        data: {
+          modelId: data.modelId,
+          modelCode: data.modelCode,
+          modelType: data.modelType,
+          request: data.request,
+          response: data.response,
+          costMs: data.costMs,
+          success: data.success,
+          clientIp: data.clientIp,
+          userAgent: data.userAgent,
+          errorMessage: data.errorMessage,
+          inputTokens: data.inputTokens,
+          outputTokens: data.outputTokens,
+          uid: data.uid,
+        },
+      });
+    } catch (error) {
+      this.logger.error('保存日志失败:', error);
     }
   }
 }

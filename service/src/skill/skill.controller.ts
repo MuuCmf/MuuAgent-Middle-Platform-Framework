@@ -96,6 +96,48 @@ export class SkillController {
   }
 
   /**
+   * 渲染技能调用提示词
+   * @param body 渲染参数
+   * @returns {Promise<Object>} 渲染结果
+   */
+  @Post('render-prompt')
+  @ApiOperation({ summary: '渲染技能调用提示词' })
+  async renderPrompt(
+    @Body()
+    body: {
+      skillCode: string;
+      userRequest: string;
+    },
+  ) {
+    const renderedPrompt = await this.skillService.renderSkillInvokePrompt(
+      body.skillCode,
+      body.userRequest,
+    );
+    return success({ renderedPrompt });
+  }
+
+  /**
+   * 智能选择技能
+   * @param body 选择参数
+   * @returns {Promise<Object>} 选择结果
+   */
+  @Post('select')
+  @ApiOperation({ summary: '智能选择技能' })
+  async selectSkill(
+    @Body()
+    body: {
+      userRequest: string;
+      availableSkills: string[];
+    },
+  ) {
+    const result = await this.skillService.selectSkill(
+      body.userRequest,
+      body.availableSkills,
+    );
+    return success(result);
+  }
+
+  /**
    * 查询技能详情
    * @param id 技能ID
    * @returns {Promise<Object>} 技能详情
