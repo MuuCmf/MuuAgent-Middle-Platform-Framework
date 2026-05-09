@@ -112,6 +112,10 @@ export class AgentController {
 
     try {
       await this.agentService.streamChat(dto, req.ip || 'unknown', uid, {
+        onConversationId: (conversationId) => {
+          res.write(`data: ${JSON.stringify({ type: 'conversation_id', conversationId })}\n\n`);
+          flush();
+        },
         onChunk: (chunk) => {
           res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
           flush();

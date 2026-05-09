@@ -25,8 +25,7 @@ import type { ModelMessage } from 'ai';
  * 包含流式回调函数，用于处理智能体对话中的不同事件
  */
 export interface StreamCallbacks {
-  // 回调函数，用于处理推理步骤
-  // 推理步骤包含当前推理的详细信息，如推理的步骤、推理的输入和推理的输出
+  onConversationId?: (conversationId: string) => void;
   onStep?: (step: any) => void;
   onChunk?: (chunk: string) => void;
   onToolCall?: (toolCall: { name: string; args: any; result: unknown }) => void;
@@ -160,6 +159,11 @@ export class AgentService {
     this.logger.log(`[AgentStream] 获取到智能体, id: ${agent.id}`);
     const context = await this.buildExecutionContext(agent, dto, uid);
     this.logger.log(`[AgentStream] 构建执行上下文完成`);
+    
+    if (callbacks.onConversationId && context.conversationId) {
+      callbacks.onConversationId(context.conversationId);
+    }
+    
     const reasoningMode = (agent.reasoningMode as ReasoningMode) || ReasoningMode.NONE;
     this.logger.log(`[AgentStream] reasoningMode: ${reasoningMode}`);
 

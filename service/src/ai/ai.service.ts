@@ -328,8 +328,21 @@ export class AiService {
 
                     fullResponse.push(parsed);
                     
-                    const jsonData = JSON.stringify(parsed);
-                    observer.next(new MessageEvent('message', { data: jsonData + '\n' }));
+                    let contentToSend = '';
+                    if (parsed.choices && parsed.choices[0]?.delta) {
+                      const delta = parsed.choices[0].delta;
+                      if (delta.content) {
+                        contentToSend = delta.content;
+                      } else if (delta.reasoning_content) {
+                        contentToSend = delta.reasoning_content;
+                      }
+                    } else if (parsed.choices && parsed.choices[0]?.message?.content) {
+                      contentToSend = parsed.choices[0].message.content;
+                    }
+                    
+                    if (contentToSend) {
+                      observer.next(new MessageEvent('message', { data: contentToSend }));
+                    }
                   } catch (e) {
                     console.warn('流式数据JSON解析失败:', data.substring(0, 100));
                   }

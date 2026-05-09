@@ -20,14 +20,14 @@ import {
 import { success, page } from '../common/response/api.response';
 
 /**
- * 模型管理控制器
- * 提供模型的CRUD接口
+ * 模型管理控制器（管理端）
+ * 提供模型的CRUD接口，需要管理员权限
  */
 @ApiTags('模型管理')
 @ApiBearerAuth()
 @UseGuards(AdminGuard)
 @Controller('admin/model')
-export class ModelController {
+export class ModelAdminController {
   /**
    * 构造函数
    * @param modelService 模型服务
@@ -129,5 +129,53 @@ export class ModelController {
   async toggleStatus(@Param('id') id: string, @Body('status') status: boolean) {
     const model = await this.modelService.toggleStatus(id, status);
     return success(model, '状态更新成功');
+  }
+}
+
+/**
+ * 模型控制器（业务端）
+ * 提供公开的模型查询接口，无需认证
+ */
+@ApiTags('模型查询')
+@Controller('model')
+export class ModelController {
+  /**
+   * 构造函数
+   * @param modelService 模型服务
+   */
+  constructor(private readonly modelService: ModelService) {}
+
+  /**
+   * 过滤敏感字段
+   * @param model 模型数据
+   * @returns {any} 过滤后的模型数据
+   */
+  private filterSensitiveData(model: any): any {
+    const { apiKey, endpoint, config, ...safeData } = model;
+    return safeData;
+  }
+
+  /**
+   * 获取启用的模型列表
+   * @returns {Promise<Object>} 启用的模型列表
+   */
+  @Get()
+  @ApiOperation({ summary: '获取启用的模型列表' })
+  async getEnabledModels() {
+    const models = await this.modelService.findAll({ status: true, page: 1, pageSize: 100 });
+    const safeModels = models.list.map(model => this.filterSensitiveData(model));
+    return success(safeModels);
+  }
+
+  /**
+   * 获取模型详情
+   * @param code 模型代码
+   * @returns {Promise<Object>} 模型详情
+   */
+  @Get(':code')
+  @ApiOperation({ summary: '获取模型详情' })
+  async getModelByCode(@Param('code') code: string) {
+    const model = await this.modelService.findByCode(code);
+    return success(this.filterSensitiveData(model));
   }
 }
