@@ -22,6 +22,15 @@ export enum SkillType {
 }
 
 /**
+ * 函数代码类型枚举
+ */
+export enum CodeType {
+  BUILTIN = 'builtin',
+  PLUGIN = 'plugin',
+  SANDBOX = 'sandbox',
+}
+
+/**
  * 创建技能DTO
  */
 export class CreateSkillDto {
@@ -68,6 +77,26 @@ export class CreateSkillDto {
   @Min(1000)
   @IsOptional()
   timeout?: number;
+
+  @ApiPropertyOptional({ description: '代码类型: builtin / plugin / sandbox', enum: CodeType })
+  @IsEnum(CodeType)
+  @IsOptional()
+  codeType?: string;
+
+  @ApiPropertyOptional({ description: '插件名称(plugin类型专用)' })
+  @IsString()
+  @IsOptional()
+  pluginName?: string;
+
+  @ApiPropertyOptional({ description: '函数名称' })
+  @IsString()
+  @IsOptional()
+  functionName?: string;
+
+  @ApiPropertyOptional({ description: '沙箱代码内容(sandbox类型专用)' })
+  @IsString()
+  @IsOptional()
+  codeContent?: string;
 }
 
 /**
@@ -104,6 +133,26 @@ export class UpdateSkillDto {
   @Min(1000)
   @IsOptional()
   timeout?: number;
+
+  @ApiPropertyOptional({ description: '代码类型: builtin / plugin / sandbox', enum: CodeType })
+  @IsEnum(CodeType)
+  @IsOptional()
+  codeType?: string;
+
+  @ApiPropertyOptional({ description: '插件名称(plugin类型专用)' })
+  @IsString()
+  @IsOptional()
+  pluginName?: string;
+
+  @ApiPropertyOptional({ description: '函数名称' })
+  @IsString()
+  @IsOptional()
+  functionName?: string;
+
+  @ApiPropertyOptional({ description: '沙箱代码内容(sandbox类型专用)' })
+  @IsString()
+  @IsOptional()
+  codeContent?: string;
 }
 
 /**

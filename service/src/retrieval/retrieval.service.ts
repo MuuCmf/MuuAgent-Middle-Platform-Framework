@@ -46,6 +46,29 @@ export class RetrievalService {
   ) {}
 
   /**
+   * 格式化检索结果用于日志存储
+   * @param results 检索结果列表
+   * @param maxContentLength 内容最大长度
+   * @returns {string | null} JSON字符串
+   */
+  private formatResultsForLog(results: RetrievalItem[], maxContentLength: number = 200): string | null {
+    if (!results || results.length === 0) {
+      return null;
+    }
+    
+    const formattedResults = results.map(r => ({
+      chunkId: r.chunkId,
+      score: Math.round(r.score * 10000) / 10000,
+      docName: r.docName,
+      content: r.content.length > maxContentLength 
+        ? r.content.substring(0, maxContentLength) + '...' 
+        : r.content,
+    }));
+    
+    return JSON.stringify(formattedResults);
+  }
+
+  /**
    * 向量检索
    * @param dto 检索参数
    * @returns {Promise<any>} 检索结果
@@ -98,6 +121,7 @@ export class RetrievalService {
           topN,
           similarityThresh,
           retrievalCount: cachedResult.total,
+          results: this.formatResultsForLog(cachedResult.list),
           costTime,
           requestId,
         },
@@ -124,6 +148,7 @@ export class RetrievalService {
           topN,
           similarityThresh,
           retrievalCount: bm25Results.length,
+          results: this.formatResultsForLog(bm25Results),
           costTime,
           requestId,
         },
@@ -175,6 +200,7 @@ export class RetrievalService {
           topN,
           similarityThresh,
           retrievalCount: bm25Results.length,
+          results: this.formatResultsForLog(bm25Results),
           costTime,
           requestId,
         },
@@ -225,6 +251,7 @@ export class RetrievalService {
           topN,
           similarityThresh,
           retrievalCount: bm25Results.length,
+          results: this.formatResultsForLog(bm25Results),
           costTime,
           requestId,
         },
@@ -282,6 +309,7 @@ export class RetrievalService {
         topN,
         similarityThresh,
         retrievalCount: finalResults.length,
+        results: this.formatResultsForLog(finalResults),
         costTime,
         requestId,
       },
@@ -383,6 +411,7 @@ export class RetrievalService {
           topN,
           similarityThresh,
           retrievalCount: 0,
+          results: null,
           costTime: Date.now() - startTime,
           requestId,
         },
@@ -438,6 +467,7 @@ export class RetrievalService {
         topN,
         similarityThresh,
         retrievalCount: topSources.length,
+        results: this.formatResultsForLog(topSources),
         costTime,
         requestId,
       },
@@ -663,6 +693,7 @@ export class RetrievalService {
               topN,
               similarityThresh,
               retrievalCount: topSources.length,
+              results: this.formatResultsForLog(topSources),
               costTime,
               requestId,
             },

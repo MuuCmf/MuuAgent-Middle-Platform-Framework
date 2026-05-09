@@ -13,6 +13,10 @@ import { McpClientService } from './mcp-client.service';
 import { PromptTemplateService } from '../prompt-template/prompt-template.service';
 import { AiSdkProvider } from '../ai/providers/ai-sdk.provider';
 import { ModelService } from '../model/model.service';
+import { BuiltinExecutor } from './executors/builtin.executor';
+import { PluginExecutor } from './executors/plugin.executor';
+import { SandboxExecutor } from './executors/sandbox.executor';
+import { PluginLoader } from './plugin-loader';
 
 /**
  * 技能服务
@@ -29,6 +33,10 @@ export class SkillService {
    * @param promptTemplateService 提示词模板服务
    * @param aiSdkProvider AI SDK提供者
    * @param modelService 模型服务
+   * @param builtinExecutor 内置函数执行器
+   * @param pluginExecutor 插件函数执行器
+   * @param sandboxExecutor 沙箱函数执行器
+   * @param pluginLoader 插件加载器
    */
   constructor(
     private prisma: PrismaService,
@@ -36,6 +44,10 @@ export class SkillService {
     private promptTemplateService: PromptTemplateService,
     private aiSdkProvider: AiSdkProvider,
     private modelService: ModelService,
+    private builtinExecutor: BuiltinExecutor,
+    private pluginExecutor: PluginExecutor,
+    private sandboxExecutor: SandboxExecutor,
+    private pluginLoader: PluginLoader,
   ) {}
 
   /**
@@ -54,6 +66,10 @@ export class SkillService {
         config: dto.config,
         status: dto.status ?? true,
         timeout: dto.timeout ?? 30000,
+        codeType: dto.codeType,
+        pluginName: dto.pluginName,
+        functionName: dto.functionName,
+        codeContent: dto.codeContent,
       },
     });
   }
@@ -240,25 +256,103 @@ export class SkillService {
    * @returns {Promise<Record<string, unknown>>} 执行结果
    */
   private async executeFunctionSkill(
-    skill: { code: string; config: string },
+    skill: Skill,
     params: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    // 内置函数映射
-    const builtinFunctions: Record<string, (p: Record<string, unknown>) => Record<string, unknown>> = {
-      get_time: () => ({ time: new Date().toLocaleString('zh-CN') }),
-      get_date: () => ({ date: new Date().toISOString().split('T')[0] }),
-      echo: (p) => ({ echo: p }),
-      random: () => ({ random: Math.random() }),
-    };
+    const config = JSON.parse(skill.config || '{}');
+    const codeType = skill.codeType || config.codeType || 'builtin';
 
-    const config = JSON.parse(skill.config);
-    const functionName = config.functionName || skill.code;
+    switch (codeType) {
+      case 'builtin':
+        return await this.executeBuiltin(skill, params);
 
-    if (builtinFunctions[functionName]) {
-      return builtinFunctions[functionName](params);
+      case 'plugin':
+        return await this.executePlugin(skill, params);
+
+      case 'sandbox':
+        return await this.executeSandbox(skill, params);
+
+      default:
+        throw new HttpException(
+          `不支持的函数类型: ${codeType}`,
+          HttpStatus.BAD_REQUEST,
+        );
+    }
+  }
+
+  /**
+   * 执行内置函数
+   */
+  private async executeBuiltin(
+    skill: Skill,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const config = JSON.parse(skill.config || '{}');
+    const functionName = skill.functionName || config.functionName || skill.code;
+
+    const result = await this.builtinExecutor.execute(functionName, params);
+
+    if (!result.success) {
+      throw new HttpException(result.error || '执行失败', HttpStatus.BAD_REQUEST);
     }
 
-    throw new HttpException(`未知的内置函数: ${functionName}`, HttpStatus.BAD_REQUEST);
+    return result.data || {};
+  }
+
+  /**
+   * 执行插件函数
+   */
+  private async executePlugin(
+    skill: Skill,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const config = JSON.parse(skill.config || '{}');
+    const pluginName = skill.pluginName || config.pluginName;
+    const functionName = skill.functionName || config.functionName;
+
+    if (!pluginName || !functionName) {
+      throw new HttpException(
+        '插件名称和函数名称不能为空',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const result = await this.pluginExecutor.execute(
+      pluginName,
+      functionName,
+      params,
+    );
+
+    if (!result.success) {
+      throw new HttpException(result.error || '执行失败', HttpStatus.BAD_REQUEST);
+    }
+
+    return result.data || {};
+  }
+
+  /**
+   * 执行沙箱函数
+   */
+  private async executeSandbox(
+    skill: Skill,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const code = skill.codeContent;
+    if (!code) {
+      throw new HttpException('代码内容不能为空', HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await this.sandboxExecutor.execute(
+      code,
+      params,
+      skill.timeout || 5000,
+    );
+
+    if (!result.success) {
+      throw new HttpException(result.error || '执行失败', HttpStatus.BAD_REQUEST);
+    }
+
+    return result.data || {};
   }
 
   /**
@@ -496,6 +590,88 @@ export class SkillService {
         params: {},
         prompt,
       };
+    }
+  }
+
+  /**
+   * 获取内置函数列表
+   * @returns 内置函数列表
+   */
+  getBuiltinFunctions() {
+    return this.builtinExecutor.getFunctionList();
+  }
+
+  /**
+   * 获取插件列表
+   * @returns 插件列表
+   */
+  getPlugins() {
+    const plugins = this.pluginLoader.getAllPlugins();
+    return plugins.map((plugin) => ({
+      name: plugin.name,
+      version: plugin.version,
+      description: plugin.description,
+      author: plugin.author,
+      functions: Object.entries(plugin.functions).map(([name, func]) => ({
+        name,
+        description: func.description,
+        parameters: func.parameters,
+      })),
+    }));
+  }
+
+  /**
+   * 分析沙箱代码
+   * @param code JavaScript 代码
+   * @returns 分析结果
+   */
+  analyzeCode(code: string) {
+    return this.sandboxExecutor.analyzeCode(code);
+  }
+
+  /**
+   * 测试函数
+   * @param body 测试参数
+   * @returns 测试结果
+   */
+  async testFunction(body: {
+    codeType: string;
+    pluginName?: string;
+    functionName?: string;
+    codeContent?: string;
+    params: Record<string, unknown>;
+  }): Promise<{
+    success: boolean;
+    data?: Record<string, unknown>;
+    error?: string;
+    duration?: number;
+  }> {
+    const { codeType, pluginName, functionName, codeContent, params } = body;
+
+    switch (codeType) {
+      case 'builtin':
+        if (!functionName) {
+          throw new HttpException('函数名称不能为空', HttpStatus.BAD_REQUEST);
+        }
+        const builtinResult = await this.builtinExecutor.execute(functionName, params);
+        return builtinResult;
+
+      case 'plugin':
+        if (!pluginName || !functionName) {
+          throw new HttpException('插件名称和函数名称不能为空', HttpStatus.BAD_REQUEST);
+        }
+        const pluginResult = await this.pluginExecutor.execute(pluginName, functionName, params);
+        return pluginResult;
+
+      case 'sandbox':
+        if (!codeContent) {
+          throw new HttpException('代码内容不能为空', HttpStatus.BAD_REQUEST);
+        }
+        const sandboxResult = await this.sandboxExecutor.execute(codeContent, params);
+        return sandboxResult;
+
+      default:
+        throw new HttpException(`不支持的函数类型: ${codeType}`, HttpStatus.BAD_REQUEST);
     }
   }
 }

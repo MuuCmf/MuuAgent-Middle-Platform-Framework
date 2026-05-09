@@ -26,11 +26,19 @@
         <el-form-item label="类型">
           <el-select v-model="form.type" class="w-full">
             <el-option label="HTTP请求 - 调用外部API" value="http" />
-            <el-option label="内置函数 - 系统预设函数" value="function" />
+            <el-option label="函数技能 - 内置/插件/自定义" value="function" />
             <el-option label="数据库查询 - 执行SQL" value="database" />
             <el-option label="MCP工具 - 调用第三方MCP Server" value="mcp" />
           </el-select>
         </el-form-item>
+
+        <function-editor
+          v-if="form.type === 'function'"
+          v-model:code-type="form.codeType"
+          v-model:plugin-name="form.pluginName"
+          v-model:function-name="form.functionName"
+          v-model:code-content="form.codeContent"
+        />
 
         <el-form-item label="功能描述" required>
           <el-input
@@ -172,6 +180,7 @@
 import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Skill, SkillForm } from '@/api/skill'
+import FunctionEditor from './FunctionEditor.vue'
 
 interface Props {
   visible: boolean
@@ -180,7 +189,7 @@ interface Props {
 
 interface Emits {
   (e: 'update:visible', value: boolean): void
-  (e: 'save', data: SkillForm): Promise<void>
+  (e: 'save', data: SkillForm, callback: () => void): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -192,14 +201,24 @@ const emit = defineEmits<Emits>()
 
 const saving = ref(false)
 
-const form = ref<SkillForm>({
+const form = ref<SkillForm & {
+  codeType?: 'builtin' | 'plugin' | 'sandbox'
+  pluginName?: string
+  functionName?: string
+  codeContent?: string
+}>({
   name: '',
   code: '',
   type: 'http',
   description: '',
   params: '{}',
   config: '{}',
-  status: true
+  status: true,
+  timeout: 30000,
+  codeType: 'builtin',
+  pluginName: '',
+  functionName: '',
+  codeContent: '',
 })
 
 const editingSkill = computed(() => props.skill)
@@ -207,7 +226,20 @@ const editingSkill = computed(() => props.skill)
 watch(() => props.visible, (newVal) => {
   if (newVal) {
     if (editingSkill.value) {
-      form.value = { ...editingSkill.value }
+      form.value = {
+        name: editingSkill.value.name || '',
+        code: editingSkill.value.code || '',
+        type: editingSkill.value.type || 'http',
+        description: editingSkill.value.description || '',
+        params: editingSkill.value.params || '{}',
+        config: editingSkill.value.config || '{}',
+        status: editingSkill.value.status ?? true,
+        timeout: editingSkill.value.timeout ?? 30000,
+        codeType: editingSkill.value.codeType || 'builtin',
+        pluginName: editingSkill.value.pluginName || '',
+        functionName: editingSkill.value.functionName || '',
+        codeContent: editingSkill.value.codeContent || '',
+      }
     } else {
       resetForm()
     }
@@ -222,7 +254,12 @@ const resetForm = () => {
     description: '',
     params: '{}',
     config: '{}',
-    status: true
+    status: true,
+    timeout: 30000,
+    codeType: 'builtin',
+    pluginName: '',
+    functionName: '',
+    codeContent: '',
   }
 }
 
@@ -231,22 +268,18 @@ const handleClose = () => {
   resetForm()
 }
 
-const handleSave = async () => {
+const handleSave = () => {
   if (!form.value.name || !form.value.code || !form.value.description) {
     ElMessage.warning('请填写必填项')
     return
   }
 
   saving.value = true
-  try {
-    await emit('save', form.value)
+  emit('save', form.value, () => {
     ElMessage.success(editingSkill.value ? '更新成功' : '创建成功')
     handleClose()
-  } catch (error) {
-    console.error('保存失败', error)
-  } finally {
     saving.value = false
-  }
+  })
 }
 </script>
 

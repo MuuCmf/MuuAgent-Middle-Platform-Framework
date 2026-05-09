@@ -247,11 +247,16 @@ const handleEdit = (skill: Skill) => {
   drawerVisible.value = true
 }
 
-const handleSave = async (form: SkillForm) => {
-  if (editingSkill.value) {
-    await updateSkill(editingSkill.value.id, form)
-  } else {
-    await createSkill(form)
+const handleSave = async (form: SkillForm, callback: () => void) => {
+  try {
+    if (editingSkill.value) {
+      await updateSkill(editingSkill.value.id, form)
+    } else {
+      await createSkill(form)
+    }
+    callback()
+  } catch (error) {
+    console.error('保存失败', error)
   }
 }
 

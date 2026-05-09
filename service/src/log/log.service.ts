@@ -15,6 +15,22 @@ export class LogService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * 解析检索结果JSON
+   * @param resultsJson 检索结果JSON字符串
+   * @returns {Array | null} 解析后的结果数组
+   */
+  private parseResults(resultsJson: string | null): Array<{ chunkId: string; score: number; docName: string; content: string }> | null {
+    if (!resultsJson) {
+      return null;
+    }
+    try {
+      return JSON.parse(resultsJson);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * 查询检索日志
    * @param params 查询参数
    * @returns {Promise<Object>} 日志列表
@@ -46,7 +62,7 @@ export class LogService {
       if (endTime) where.createdAt.lte = new Date(endTime);
     }
 
-    const [list, total] = await Promise.all([
+    const [rawList, total] = await Promise.all([
       this.prisma.kbRetrievalLog.findMany({
         where,
         skip,
@@ -63,6 +79,11 @@ export class LogService {
       }),
       this.prisma.kbRetrievalLog.count({ where }),
     ]);
+
+    const list = rawList.map(log => ({
+      ...log,
+      results: this.parseResults(log.results),
+    }));
 
     return { list, total, page, pageSize };
   }
@@ -90,7 +111,10 @@ export class LogService {
       throw new Error('检索日志不存在');
     }
 
-    return log;
+    return {
+      ...log,
+      results: this.parseResults(log.results),
+    };
   }
 
   /**

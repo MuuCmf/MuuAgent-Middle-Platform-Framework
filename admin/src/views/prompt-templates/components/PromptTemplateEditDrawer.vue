@@ -124,14 +124,14 @@
             </div>
 
             <el-row :gutter="12">
-              <el-col :span="8">
+              <el-col :span="10">
                 <el-form-item label="变量名" :prop="`variables.${index}.name`">
                   <el-input v-model="variable.name" placeholder="如：userName" />
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
+              <el-col :span="10">
                 <el-form-item label="类型">
-                  <el-select v-model="variable.type">
+                  <el-select v-model="variable.type" class="w-full">
                     <el-option label="字符串" value="string" />
                     <el-option label="数字" value="number" />
                     <el-option label="布尔值" value="boolean" />
@@ -140,8 +140,8 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
-                <el-form-item label="必填">
+              <el-col :span="4">
+                <el-form-item label="必填" label-width="60px">
                   <el-switch v-model="variable.required" />
                 </el-form-item>
               </el-col>

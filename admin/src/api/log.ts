@@ -89,6 +89,13 @@ export interface AgentLog {
   }
 }
 
+export interface RetrievalResult {
+  chunkId: string
+  score: number
+  docName: string
+  content: string
+}
+
 export interface RetrievalLog {
   id: string
   kbId: string
@@ -97,6 +104,7 @@ export interface RetrievalLog {
   topN?: number
   similarityThresh?: number
   retrievalCount?: number
+  results?: RetrievalResult[]
   costTime: number
   requestId?: string
   clientIp?: string

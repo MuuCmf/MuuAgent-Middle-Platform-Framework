@@ -100,6 +100,47 @@
           <h4>查询内容</h4>
           <el-input type="textarea" :model-value="currentLog.query" :rows="3" readonly />
         </div>
+
+        <div v-if="currentLog.results && currentLog.results.length > 0" class="results-section">
+          <h4>检索结果 ({{ currentLog.results.length }} 条)</h4>
+          <el-table :data="currentLog.results" stripe border size="small">
+            <el-table-column type="index" label="#" width="50" />
+            <el-table-column label="相似度" width="100" align="center">
+              <template #default="{ row }">
+                <el-progress 
+                  :percentage="Math.round(row.score * 100)" 
+                  :stroke-width="10"
+                  :color="getScoreColor(row.score)"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column prop="docName" label="文档名称" width="180">
+              <template #default="{ row }">
+                <el-tooltip :content="row.docName" placement="top">
+                  <span class="doc-name">{{ truncateText(row.docName, 20) }}</span>
+                </el-tooltip>
+              </template>
+            </el-table-column>
+            <el-table-column prop="content" label="切片内容" min-width="300">
+              <template #default="{ row }">
+                <el-tooltip :content="row.content" placement="top" :disabled="row.content.length <= 100">
+                  <span class="chunk-content">{{ truncateText(row.content, 100) }}</span>
+                </el-tooltip>
+              </template>
+            </el-table-column>
+            <el-table-column prop="chunkId" label="切片ID" width="120">
+              <template #default="{ row }">
+                <el-tooltip :content="row.chunkId" placement="top">
+                  <span class="chunk-id">{{ row.chunkId.substring(0, 8) }}...</span>
+                </el-tooltip>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <div v-else-if="currentLog.retrievalCount === 0" class="no-results">
+          <el-empty description="未检索到相关内容" :image-size="80" />
+        </div>
       </div>
     </el-drawer>
   </div>
@@ -149,6 +190,18 @@ const formatTime = (time: string) => {
 const truncateText = (text: string, maxLength: number) => {
   if (!text) return ''
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
+}
+
+/**
+ * 根据相似度获取颜色
+ * @param score 相似度分数
+ * @returns 颜色值
+ */
+const getScoreColor = (score: number): string => {
+  if (score >= 0.8) return '#67c23a'
+  if (score >= 0.6) return '#409eff'
+  if (score >= 0.4) return '#e6a23c'
+  return '#f56c6c'
 }
 
 /**
@@ -252,6 +305,38 @@ watch(page, (newVal, oldVal) => {
 
   .query-section {
     margin-top: 20px;
+  }
+
+  .results-section {
+    margin-top: 20px;
+
+    h4 {
+      margin-bottom: 12px;
+    }
+
+    .doc-name {
+      font-size: 12px;
+      color: #606266;
+    }
+
+    .chunk-content {
+      font-size: 12px;
+      color: #909399;
+      line-height: 1.5;
+    }
+
+    .chunk-id {
+      font-size: 11px;
+      color: #c0c4cc;
+      font-family: monospace;
+    }
+  }
+
+  .no-results {
+    margin-top: 20px;
+    padding: 20px;
+    background: #f5f7fa;
+    border-radius: 4px;
   }
 }
 </style>

@@ -102,11 +102,18 @@ model Skill {
   name        String   /// 技能名称
   code        String   @unique /// 技能唯一标识
   description String   /// 功能描述(给LLM看)
-  type        String   /// 类型: http / function / database / rpc
+  type        String   /// 类型: http / function / database / rpc / mcp
   params      String   /// 入参描述(JSON格式)
   config      String   /// 执行配置(JSON格式)
   status      Boolean  @default(true) /// 是否启用
   timeout     Int      @default(30000) /// 超时时间(毫秒)
+  
+  // ===== 函数技能专用字段 =====
+  codeType      String?  @map("code_type") /// 代码类型: builtin / plugin / sandbox
+  pluginName    String?  @map("plugin_name") /// 插件名称(plugin类型专用)
+  functionName  String?  @map("function_name") /// 函数名称
+  codeContent   String?  @map("code_content") @db.Text /// 沙箱代码内容(sandbox类型专用)
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -114,6 +121,7 @@ model Skill {
   invokeLogs SkillInvokeLog[]
 
   @@index([type, status])
+  @@index([codeType])
 }
 
 /// 智能体表 - AI Agent配置
@@ -431,6 +439,7 @@ model KbRetrievalLog {
   topN            Int      /// 召回条数
   similarityThresh Float   /// 相似度阈值
   retrievalCount  Int      @default(0) /// 召回切片数量
+  results         String?  @db.Text /// 检索结果(JSON数组): [{"chunkId":"xxx","score":0.85,"docName":"文档名","content":"切片内容摘要"}]
   costTime        Int      /// 检索耗时
   requestId       String   /// 链路ID
   clientIp        String?  /// 客户端IP
@@ -615,4 +624,22 @@ model PromptInvokeLog {
   @@index([templateCode])
   @@index([createdAt])
   @@map("prompt_invoke_logs")
+}
+
+/// 插件表 - 存储自定义函数插件
+model Plugin {
+  id          String   @id @default(uuid())
+  name        String   @unique /// 插件名称
+  version     String   /// 插件版本
+  description String   /// 插件描述
+  author      String?  /// 作者
+  status      Boolean  @default(true) /// 状态
+  path        String   /// 插件路径
+  config      String?  @db.Text /// 插件配置(JSON)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([status])
+  @@map("plugins")
 }

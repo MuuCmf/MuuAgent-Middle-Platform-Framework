@@ -165,11 +165,21 @@ export class QueryPromptTemplateDto {
   category?: string;
 
   @ApiPropertyOptional({ description: '是否默认模板' })
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
   @IsBoolean()
   @IsOptional()
   isDefault?: boolean;
 
   @ApiPropertyOptional({ description: '是否启用' })
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
   @IsBoolean()
   @IsOptional()
   status?: boolean;

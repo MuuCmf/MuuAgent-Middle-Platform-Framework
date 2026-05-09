@@ -148,4 +148,64 @@ export class SkillController {
     const skill = await this.skillService.findOne(id);
     return success(skill);
   }
+
+  /**
+   * 获取内置函数列表
+   * @returns {Promise<Object>} 内置函数列表
+   */
+  @Get('builtin-functions/list')
+  @ApiOperation({ summary: '获取内置函数列表' })
+  async getBuiltinFunctions() {
+    const functions = this.skillService.getBuiltinFunctions();
+    return success(functions);
+  }
+
+  /**
+   * 获取插件列表
+   * @returns {Promise<Object>} 插件列表
+   */
+  @Get('plugins/list')
+  @ApiOperation({ summary: '获取插件列表' })
+  async getPlugins() {
+    const plugins = this.skillService.getPlugins();
+    return success(plugins);
+  }
+
+  /**
+   * 分析沙箱代码
+   * @param body 代码内容
+   * @returns {Promise<Object>} 分析结果
+   */
+  @Post('analyze-code')
+  @ApiOperation({ summary: '分析沙箱代码' })
+  async analyzeCode(
+    @Body()
+    body: {
+      code: string;
+    },
+  ) {
+    const result = this.skillService.analyzeCode(body.code);
+    return success(result);
+  }
+
+  /**
+   * 测试函数
+   * @param body 测试参数
+   * @returns {Promise<Object>} 测试结果
+   */
+  @Post('test-function')
+  @ApiOperation({ summary: '测试函数' })
+  async testFunction(
+    @Body()
+    body: {
+      codeType: string;
+      pluginName?: string;
+      functionName?: string;
+      codeContent?: string;
+      params: Record<string, unknown>;
+    },
+  ) {
+    const result = await this.skillService.testFunction(body);
+    return success(result);
+  }
 }

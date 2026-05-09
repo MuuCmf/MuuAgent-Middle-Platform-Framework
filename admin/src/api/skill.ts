@@ -10,6 +10,11 @@ export interface Skill {
   params?: string
   config?: string
   status: boolean
+  timeout?: number
+  codeType?: 'builtin' | 'plugin' | 'sandbox'
+  pluginName?: string
+  functionName?: string
+  codeContent?: string
   createdAt: string
   updatedAt: string
 }
@@ -22,11 +27,18 @@ export interface SkillForm {
   params?: string
   config?: string
   status: boolean
+  timeout?: number
+  codeType?: 'builtin' | 'plugin' | 'sandbox'
+  pluginName?: string
+  functionName?: string
+  codeContent?: string
 }
 
 export interface SkillListResponse {
   list: Skill[]
   total: number
+  page: number
+  pageSize: number
 }
 
 export interface RenderPromptRequest {
@@ -48,6 +60,62 @@ export interface SelectSkillResponse {
   params: Record<string, unknown>
   prompt?: string
   reason?: string
+}
+
+export interface BuiltinFunction {
+  name: string
+  description: string
+  parameters: ParameterDefinition[]
+}
+
+export interface ParameterDefinition {
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'array' | 'object'
+  required: boolean
+  description?: string
+  defaultValue?: unknown
+  validation?: {
+    min?: number
+    max?: number
+    pattern?: string
+    enum?: string[]
+  }
+}
+
+export interface Plugin {
+  name: string
+  version: string
+  description: string
+  author?: string
+  functions: PluginFunction[]
+}
+
+export interface PluginFunction {
+  name: string
+  description: string
+  parameters: ParameterDefinition[]
+}
+
+export interface CodeAnalysisResult {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+  suggestions: string[]
+}
+
+export interface TestFunctionParams {
+  codeType: 'builtin' | 'plugin' | 'sandbox'
+  pluginName?: string
+  functionName?: string
+  codeContent?: string
+  params: Record<string, unknown>
+}
+
+export interface FunctionResult {
+  success: boolean
+  data?: Record<string, unknown>
+  error?: string
+  duration?: number
 }
 
 export const skillApi = {
@@ -92,5 +160,39 @@ export const skillApi = {
    */
   selectSkill(data: SelectSkillRequest): Promise<AxiosResponse<ApiResponse<SelectSkillResponse>>> {
     return adminRequest.post('/admin/skill/select', data)
+  },
+
+  /**
+   * 获取内置函数列表
+   * @returns {Promise<AxiosResponse<ApiResponse<BuiltinFunction[]>>>} 内置函数列表
+   */
+  getBuiltinFunctions(): Promise<AxiosResponse<ApiResponse<BuiltinFunction[]>>> {
+    return adminRequest.get('/admin/skill/builtin-functions/list')
+  },
+
+  /**
+   * 获取插件列表
+   * @returns {Promise<AxiosResponse<ApiResponse<Plugin[]>>>} 插件列表
+   */
+  getPlugins(): Promise<AxiosResponse<ApiResponse<Plugin[]>>> {
+    return adminRequest.get('/admin/skill/plugins/list')
+  },
+
+  /**
+   * 分析沙箱代码
+   * @param code JavaScript 代码
+   * @returns {Promise<AxiosResponse<ApiResponse<CodeAnalysisResult>>>} 分析结果
+   */
+  analyzeCode(code: string): Promise<AxiosResponse<ApiResponse<CodeAnalysisResult>>> {
+    return adminRequest.post('/admin/skill/analyze-code', { code })
+  },
+
+  /**
+   * 测试函数
+   * @param data 测试参数
+   * @returns {Promise<AxiosResponse<ApiResponse<FunctionResult>>>} 测试结果
+   */
+  testFunction(data: TestFunctionParams): Promise<AxiosResponse<ApiResponse<FunctionResult>>> {
+    return adminRequest.post('/admin/skill/test-function', data)
   }
 }
