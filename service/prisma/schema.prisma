@@ -534,21 +534,58 @@ model ReasoningStep {
   id          String   @id @default(uuid())
   agentLogId  String   @map("agent_invoke_log_id") /// 关联调用日志ID
   stepNumber  Int      @map("step_number") /// 步骤序号
-  stepType    String   @map("step_type") /// 步骤类型: thought/action/observation/final_answer
-  content     String   @db.Text /// 步骤内容
   thought     String?  @db.Text /// 思考内容
-  action      String?  /// 工具名称
-  actionInput String?  @map("action_input") @db.Text /// 工具输入(JSON)
+  action      String?  /// 执行的动作
+  actionInput String?  @db.Text /// 动作输入参数
   observation String?  @db.Text /// 观察结果
-  toolOutput  String?  @map("tool_output") @db.Text /// 工具输出(JSON)
-  costMs      Int?     @map("cost_ms") /// 执行耗时(毫秒)
-  createdAt   DateTime @default(now()) @map("created_at")
+  status      String   @default("pending") /// 状态: pending/success/failed
+  costMs      Int?     /// 耗时(毫秒)
+  createdAt   DateTime @default(now())
 
-  agentLog AgentInvokeLog @relation(fields: [agentLogId], references: [id], onDelete: Cascade)
+  agentLog    AgentInvokeLog @relation(fields: [agentLogId], references: [id], onDelete: Cascade)
 
   @@index([agentLogId])
-  @@index([stepType])
-  @@map("reasoning_step")
+  @@map("reasoning_steps")
+}
+
+/// 会话表 - 管理对话会话（支持多种对话类型）
+model Conversation {
+  id               String   @id @default(uuid())
+  conversationType String   @default("agent") /// 会话类型: agent/model/kb-rag
+  targetId         String   /// 目标ID（智能体ID/模型标识/知识库ID）
+  title            String?  /// 会话标题（自动生成或用户设置）
+  uid              String?  /// 用户唯一标识（用于用户隔离）
+  status           String   @default("active") /// 状态: active/archived/deleted
+  lastMessageAt    DateTime @default(now()) /// 最后消息时间
+  messageCount     Int      @default(0) /// 消息数量
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  /// 关联
+  messages         Message[]
+
+  @@index([conversationType, targetId, createdAt])
+  @@index([uid, createdAt])
+  @@index([status])
+}
+
+/// 消息表 - 存储对话消息
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String   /// 会话ID
+  role           String   /// 角色: user/assistant/system/tool
+  content        String   @db.Text /// 消息内容
+  toolCalls      String?  @db.Text /// 工具调用信息(JSON)
+  toolCallId     String?  /// 工具调用ID
+  tokenCount     Int?     /// Token数量
+  reasoningSteps String?  @db.Text /// 推理步骤(JSON)
+  metadata       String?  @db.Text /// 额外元数据(JSON)，如检索结果、模型参数等
+  createdAt      DateTime @default(now())
+
+  /// 关联
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
 }
 
 /// Prompt模板表 - 存储提示词模板

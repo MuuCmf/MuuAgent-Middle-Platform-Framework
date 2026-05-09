@@ -44,6 +44,11 @@ export class AiInvokeDto {
   @IsOptional()
   extra?: Record<string, unknown>;
 
+  @ApiPropertyOptional({ description: '会话ID(用于多轮对话)' })
+  @IsString()
+  @IsOptional()
+  conversationId?: string;
+
   @ApiPropertyOptional({ description: '调用用户唯一标识(透传)' })
   @IsString()
   @IsOptional()

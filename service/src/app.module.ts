@@ -22,6 +22,7 @@ import { VectorModule } from './vector/vector.module';
 import { CacheModule } from './cache/cache.module';
 import { TaskModule } from './task/task.module';
 import { OAuthModule } from './oauth/oauth.module';
+import { ConversationModule } from './conversation/conversation.module';
 
 /**
  * 应用根模块
@@ -29,13 +30,11 @@ import { OAuthModule } from './oauth/oauth.module';
  */
 @Module({
   imports: [
-    // 配置模块
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
     }),
 
-    // 限流模块
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
@@ -43,22 +42,16 @@ import { OAuthModule } from './oauth/oauth.module';
       },
     ]),
 
-    // Prisma数据库模块
     PrismaModule,
 
-    // 缓存模块
     CacheModule,
 
-    // 任务队列模块
     TaskModule,
 
-    // 认证模块（全局）
     AuthModule,
 
-    // 限流模块（多级别限流）
     RateLimitModule,
 
-    // 业务模块
     ModelModule,
     ModelTemplateModule,
     PromptTemplateModule,
@@ -69,18 +62,17 @@ import { OAuthModule } from './oauth/oauth.module';
     AgentModule,
     LogModule,
 
-    // 知识库相关模块
     KbModule,
     DocumentModule,
     RetrievalModule,
     PermissionModule,
     VectorModule,
 
-    // 管理员模块
     AdminModule,
 
-    // OAuth认证模块
     OAuthModule,
+
+    ConversationModule,
   ],
 })
 export class AppModule {}

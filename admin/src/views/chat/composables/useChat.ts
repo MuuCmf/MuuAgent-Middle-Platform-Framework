@@ -43,7 +43,8 @@ export function useChat() {
   const chatMessages = ref<ChatMessage[]>([])
   const chatLoading = ref(false)
   const chatMessagesRef = ref<HTMLElement | null>(null)
-
+  
+  const currentConversationId = ref<string | null>(null)
   const enabledKbs = ref<KbInfo[]>([])
 
   const quickQuestions = ['今天天气怎么样？', '现在几点了？', '帮我查一下北京的情况']
@@ -207,14 +208,22 @@ export function useChat() {
    * 处理模型对话
    */
   const handleModelChat = async (query: string) => {
+    console.log('[Chat] 开始处理模型对话')
+    console.log('[Chat] 当前 conversationId:', currentConversationId.value)
+    console.log('[Chat] 当前 chatMode:', chatMode.value)
+    console.log('[Chat] 当前 selectedModel:', selectedModel.value)
+
     const payload: any = {
       modelType: 'llm',
-      messages: [{ role: 'user', content: query }]
+      messages: [{ role: 'user', content: query }],
+      conversationId: currentConversationId.value
     }
 
     if (chatMode.value === 'model') {
       payload.modelCode = selectedModel.value
     }
+
+    console.log('[Chat] 发送请求 payload:', payload)
 
     chatMessages.value.push({ role: 'assistant', content: '' })
     const assistantMsgIndex = chatMessages.value.length - 1
@@ -231,6 +240,12 @@ export function useChat() {
       },
       () => {
         chatLoading.value = false
+        console.log('[Chat] 对话完成，当前 conversationId:', currentConversationId.value)
+      },
+      (conversationId: string) => {
+        currentConversationId.value = conversationId
+        console.log('[Chat] 收到并保存 conversationId:', conversationId)
+        console.log('[Chat] 保存后 currentConversationId.value:', currentConversationId.value)
       }
     )
   }
@@ -250,6 +265,15 @@ export function useChat() {
    */
   const clearMessages = () => {
     chatMessages.value = []
+    currentConversationId.value = null
+  }
+
+  /**
+   * 新建会话
+   */
+  const newConversation = () => {
+    clearMessages()
+    ElMessage.success('已创建新会话')
   }
 
   /**
@@ -272,6 +296,7 @@ export function useChat() {
     chatMessages,
     chatLoading,
     chatMessagesRef,
+    currentConversationId,
     enabledModels,
     enabledAgents,
     enabledKbs,
@@ -279,6 +304,7 @@ export function useChat() {
     kbQuickQuestions,
     sendMessage,
     clearMessages,
+    newConversation,
     init
   }
 }

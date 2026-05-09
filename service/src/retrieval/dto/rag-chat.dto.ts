@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsNumber, Min, Max, IsOptional } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * RAG问答DTO
@@ -23,6 +24,11 @@ export class RagChatDto {
   @Max(1)
   @IsOptional()
   similarityThresh?: number;
+
+  @ApiPropertyOptional({ description: '会话ID(用于多轮对话)' })
+  @IsString()
+  @IsOptional()
+  conversationId?: string;
 
   @IsString()
   @IsOptional()

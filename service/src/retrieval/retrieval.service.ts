@@ -5,6 +5,8 @@ import { AiService } from '../ai/ai.service';
 import { CacheService } from '../cache/cache.service';
 import { BM25Service } from './bm25.service';
 import { PromptTemplateService } from '../prompt-template/prompt-template.service';
+import { ConversationService } from '../conversation/conversation.service';
+import { ConversationType } from '../conversation/dto/create-conversation.dto';
 import { RetrievalDto } from './dto/retrieval.dto';
 import { RagChatDto } from './dto/rag-chat.dto';
 import { v4 as uuidv4 } from 'uuid';
@@ -35,6 +37,8 @@ export class RetrievalService {
    * @param aiService AI服务（用于生成embedding）
    * @param cacheService 缓存服务（用于优化检索性能）
    * @param bm25Service BM25检索服务（作为向量检索的备选方案）
+   * @param promptTemplateService 提示词模板服务
+   * @param conversationService 会话服务
    */
   constructor(
     private readonly prisma: PrismaService,
@@ -43,6 +47,7 @@ export class RetrievalService {
     private readonly cacheService: CacheService,
     private readonly bm25Service: BM25Service,
     private readonly promptTemplateService: PromptTemplateService,
+    private readonly conversationService: ConversationService,
   ) {}
 
   /**
@@ -332,6 +337,28 @@ export class RetrievalService {
     const startTime = Date.now();
     const requestId = uuidv4();
 
+    const conversation = await this.conversationService.getOrCreate(
+      ConversationType.KB_RAG,
+      dto.kbId,
+      dto.conversationId,
+      dto.uid,
+    );
+
+    let conversationHistory: Array<{ role: string; content: string }> = [];
+    if (conversation.messageCount > 0) {
+      const historyMessages = await this.conversationService.buildContext(conversation.id, 20);
+      conversationHistory = historyMessages.map(m => ({
+        role: m.role as 'user' | 'assistant' | 'system',
+        content: m.content,
+      }));
+    }
+
+    await this.conversationService.addMessage(
+      conversation.id,
+      'user',
+      dto.query,
+    );
+
     const kb = await this.prisma.kbInfo.findFirst({
       where: { id: dto.kbId, isDeleted: false, status: true },
     });
@@ -343,24 +370,19 @@ export class RetrievalService {
     const topN = dto.topN || kb.topN;
     const similarityThresh = dto.similarityThresh || kb.similarityThresh;
 
-    // 根据知识库配置选择检索方式
     const retrievalMethod = kb.retrievalMethod || 'vector';
     console.log(`[RAG] 知识库检索方式: ${retrievalMethod}`);
 
-    // 获取检索结果
     let retrievalResults: any[] = [];
 
     if (retrievalMethod === 'bm25') {
-      // 使用BM25检索（无需生成向量）
       console.log(`[RAG] 使用配置的BM25检索模式`);
       retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
     } else {
-      // 使用向量检索
       let queryVector: number[];
       let isRandomVector = false;
       
       try {
-        // 生成查询向量（仅在向量检索模式下）
         queryVector = await this.generateEmbedding(dto.query);
         isRandomVector = this.isRandomVector(queryVector);
         
@@ -369,7 +391,6 @@ export class RetrievalService {
           topN * 2,
           dto.kbId,
         );
-        // 如果向量检索失败或使用随机向量，降级到BM25
         if (isRandomVector || retrievalResults.length === 0) {
           console.log(`[RAG] 向量检索降级到BM25`);
           retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
@@ -380,11 +401,9 @@ export class RetrievalService {
       }
     }
 
-    // 按阈值过滤（BM25和向量检索使用不同的阈值处理）
     let filteredResults: any[];
     
     if (retrievalMethod === 'bm25') {
-      // BM25使用自适应阈值
       const sortedResults = [...retrievalResults].sort((a, b) => b.score - a.score);
       const topResults = sortedResults.slice(0, topN);
       const avgScore = topResults.length > 0 
@@ -397,12 +416,10 @@ export class RetrievalService {
       filteredResults = topResults.filter(r => r.score >= effectiveThresh);
       console.log(`[RAG] BM25过滤后结果数: ${filteredResults.length}`);
     } else {
-      // 向量检索使用原始阈值
       filteredResults = retrievalResults.filter((result) => result.score >= similarityThresh);
     }
 
     if (filteredResults.length === 0) {
-      // 记录检索日志
       await this.prisma.kbRetrievalLog.create({
         data: {
           kbId: dto.kbId,
@@ -417,18 +434,28 @@ export class RetrievalService {
         },
       });
 
+      const noResultAnswer = '抱歉，我在知识库中没有找到相关信息。';
+      await this.conversationService.addMessage(
+        conversation.id,
+        'assistant',
+        noResultAnswer,
+      );
+
+      if (conversation.messageCount === 0) {
+        await this.conversationService.generateTitle(conversation.id);
+      }
+
       return {
-        answer: '抱歉，我在知识库中没有找到相关信息。',
+        answer: noResultAnswer,
         sources: [],
         retrievalCount: 0,
         costTime: Date.now() - startTime,
+        conversationId: conversation.id,
       };
     }
 
-    // 获取文档名称信息
     const sources: RetrievalItem[] = await Promise.all(
       filteredResults.map(async (result) => {
-        // 兼容向量检索和BM25的不同返回格式
         const docId = result.payload?.doc_id || result.docId;
         const docName = result.payload?.doc_name || result.docName;
 
@@ -448,17 +475,15 @@ export class RetrievalService {
       }),
     );
 
-    // 按相似度排序并取topN
     sources.sort((a, b) => b.score - a.score);
     const topSources = sources.slice(0, topN);
 
     const context = topSources.map((s) => s.content).join('\n\n');
-    const prompt = await this.buildRagPrompt(dto.query, context);
+    const prompt = await this.buildRagPrompt(dto.query, context, conversationHistory);
     const answer = await this.callLLM(prompt, dto.uid);
 
     const costTime = Date.now() - startTime;
 
-    // 记录检索日志
     await this.prisma.kbRetrievalLog.create({
       data: {
         kbId: dto.kbId,
@@ -473,11 +498,23 @@ export class RetrievalService {
       },
     });
 
+    await this.conversationService.addMessage(
+      conversation.id,
+      'assistant',
+      answer,
+      { metadata: { sources: topSources, retrievalCount: topSources.length } },
+    );
+
+    if (conversation.messageCount === 0) {
+      await this.conversationService.generateTitle(conversation.id);
+    }
+
     return {
       answer,
       sources: topSources,
       retrievalCount: topSources.length,
       costTime,
+      conversationId: conversation.id,
     };
   }
 
@@ -490,6 +527,28 @@ export class RetrievalService {
     const startTime = Date.now();
     const requestId = uuidv4();
 
+    const conversation = await this.conversationService.getOrCreate(
+      ConversationType.KB_RAG,
+      dto.kbId,
+      dto.conversationId,
+      dto.uid,
+    );
+
+    let conversationHistory: Array<{ role: string; content: string }> = [];
+    if (conversation.messageCount > 0) {
+      const historyMessages = await this.conversationService.buildContext(conversation.id, 20);
+      conversationHistory = historyMessages.map(m => ({
+        role: m.role as 'user' | 'assistant' | 'system',
+        content: m.content,
+      }));
+    }
+
+    await this.conversationService.addMessage(
+      conversation.id,
+      'user',
+      dto.query,
+    );
+
     const kb = await this.prisma.kbInfo.findFirst({
       where: { id: dto.kbId, isDeleted: false, status: true },
     });
@@ -501,24 +560,19 @@ export class RetrievalService {
     const topN = dto.topN || kb.topN;
     const similarityThresh = dto.similarityThresh || kb.similarityThresh;
 
-    // 根据知识库配置选择检索方式
     const retrievalMethod = kb.retrievalMethod || 'vector';
     console.log(`[RAG Stream] 知识库检索方式: ${retrievalMethod}`);
 
-    // 获取检索结果
     let retrievalResults: any[] = [];
 
     if (retrievalMethod === 'bm25') {
-      // 使用BM25检索（无需生成向量）
       console.log(`[RAG Stream] 使用配置的BM25检索模式`);
       retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
     } else {
-      // 使用向量检索
       let queryVector: number[];
       let isRandomVector = false;
       
       try {
-        // 生成查询向量（仅在向量检索模式下）
         queryVector = await this.generateEmbedding(dto.query);
         isRandomVector = this.isRandomVector(queryVector);
         
@@ -527,7 +581,6 @@ export class RetrievalService {
           topN * 2,
           dto.kbId,
         );
-        // 如果向量检索失败或使用随机向量，降级到BM25
         if (isRandomVector || retrievalResults.length === 0) {
           console.log(`[RAG Stream] 向量检索降级到BM25`);
           retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
@@ -538,11 +591,9 @@ export class RetrievalService {
       }
     }
 
-    // 按阈值过滤（BM25和向量检索使用不同的阈值处理）
     let filteredResults: any[];
     
     if (retrievalMethod === 'bm25') {
-      // BM25使用自适应阈值
       const sortedResults = [...retrievalResults].sort((a, b) => b.score - a.score);
       const topResults = sortedResults.slice(0, topN);
       const avgScore = topResults.length > 0 
@@ -554,19 +605,28 @@ export class RetrievalService {
       }
       filteredResults = topResults.filter(r => r.score >= effectiveThresh);
     } else {
-      // 向量检索使用原始阈值
       filteredResults = retrievalResults.filter((result) => result.score >= similarityThresh);
     }
 
     if (filteredResults.length === 0) {
-      // 返回空结果
+      const noResultAnswer = '抱歉，我在知识库中没有找到相关信息。';
+      await this.conversationService.addMessage(
+        conversation.id,
+        'assistant',
+        noResultAnswer,
+      );
+
+      if (conversation.messageCount === 0) {
+        await this.conversationService.generateTitle(conversation.id);
+      }
+
       return new Observable((observer) => {
-        observer.next(JSON.stringify({ content: '抱歉，我在知识库中没有找到相关信息。' }));
+        observer.next(JSON.stringify({ content: noResultAnswer }));
+        observer.next(JSON.stringify({ conversationId: conversation.id }));
         observer.complete();
       });
     }
 
-    // 获取文档名称信息
     const sources: RetrievalItem[] = await Promise.all(
       filteredResults.map(async (result) => {
         const docId = result.payload?.doc_id || result.docId;
@@ -588,23 +648,18 @@ export class RetrievalService {
       }),
     );
 
-    // 按相似度排序并取topN
     sources.sort((a, b) => b.score - a.score);
     const topSources = sources.slice(0, topN);
 
     const context = topSources.map((s) => s.content).join('\n\n');
-    const prompt = await this.buildRagPrompt(dto.query, context);
+    const prompt = await this.buildRagPrompt(dto.query, context, conversationHistory);
 
-    // 返回流式响应
-    // 使用defer确保所有操作在订阅时才执行
     return defer(() => {
       return new Observable((observer) => {
         console.log('[RAG Stream] Observable被订阅，准备发送sources');
-        // 先发送sources信息
         observer.next(JSON.stringify({ sources: topSources }));
         console.log('[RAG Stream] 已发送sources');
         
-        // 调用流式LLM
         const llmDto: AiInvokeDto = {
           messages: [{ role: 'user', content: prompt }],
           modelType: 'llm',
@@ -617,14 +672,13 @@ export class RetrievalService {
         console.log('[RAG Stream] 已获取LLM Observable');
         
         console.log('[RAG Stream] 开始订阅LLM流');
+        let fullResponse = '';
         const llmSubscription = stream$.subscribe({
         next: (event: any) => {
-          // event 是 MessageEvent 对象，event.data 才是实际数据
           const rawData = event.data || event;
           console.log('[RAG Stream] LLM响应原始数据类型:', typeof rawData);
           console.log('[RAG Stream] LLM响应原始数据:', rawData);
           
-          // 解析JSON
           let data;
           try {
             data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
@@ -636,26 +690,20 @@ export class RetrievalService {
           console.log('[RAG Stream] LLM响应数据:', JSON.stringify(data));
           
           if (data && typeof data === 'object') {
-            // 处理标准流式响应格式
             let content: string | null = null;
             
-            // 检查 choices 数组
             if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
               const choice = data.choices[0];
-              // 优先检查 delta.content（流式增量）
               if (choice.delta && typeof choice.delta.content === 'string') {
                 content = choice.delta.content;
               } 
-              // 如果没有 delta.content，检查 message.content（完整响应）
               else if (choice.message && typeof choice.message.content === 'string') {
                 content = choice.message.content;
               }
             } 
-            // 检查顶层 content 字段
             else if (typeof data.content === 'string') {
               content = data.content;
             }
-            // 检查其他常见字段
             else if (typeof data.response === 'string') {
               content = data.response;
             } else if (typeof data.text === 'string') {
@@ -663,8 +711,8 @@ export class RetrievalService {
             }
             
             if (content) {
+              fullResponse += content;
               console.log('[RAG Stream] 发送内容:', content.substring(0, 100) + (content.length > 100 ? '...' : ''));
-              // 使用前端期望的格式：{"choices":[{"delta":{"content":"xxx"}}]}
               observer.next(JSON.stringify({ 
                 choices: [{ 
                   delta: { content } 
@@ -681,11 +729,23 @@ export class RetrievalService {
           console.error('[RAG Stream] LLM流式调用失败:', error);
           observer.error(error);
         },
-        complete: () => {
+        complete: async () => {
           const costTime = Date.now() - startTime;
           
-          // 记录检索日志
-          this.prisma.kbRetrievalLog.create({
+          if (fullResponse) {
+            await this.conversationService.addMessage(
+              conversation.id,
+              'assistant',
+              fullResponse,
+              { metadata: { sources: topSources, retrievalCount: topSources.length } },
+            );
+
+            if (conversation.messageCount === 0) {
+              await this.conversationService.generateTitle(conversation.id);
+            }
+          }
+          
+          await this.prisma.kbRetrievalLog.create({
             data: {
               kbId: dto.kbId,
               uid: dto.uid,
@@ -697,13 +757,13 @@ export class RetrievalService {
               costTime,
               requestId,
             },
-          }).catch(console.error);
+          });
           
+          observer.next(JSON.stringify({ conversationId: conversation.id }));
           observer.complete();
         },
       });
       
-      // 返回清理函数
       return () => {
         console.log('[RAG Stream] 取消订阅');
         llmSubscription.unsubscribe();
@@ -750,15 +810,31 @@ export class RetrievalService {
    * @param context 上下文
    * @returns {Promise<string>} 提示词
    */
-  private async buildRagPrompt(query: string, context: string): Promise<string> {
+  /**
+   * 构建RAG提示词
+   * @param query 用户查询
+   * @param context 检索上下文
+   * @param conversationHistory 会话历史
+   * @returns {Promise<string>} 提示词
+   */
+  private async buildRagPrompt(query: string, context: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<string> {
     try {
+      const historyText = conversationHistory && conversationHistory.length > 0
+        ? conversationHistory.map(m => `${m.role === 'user' ? '用户' : '助手'}: ${m.content}`).join('\n')
+        : '';
+
       const prompt = await this.promptTemplateService.render('rag-chat-default', {
         context: context,
-        query: query
+        query: query,
+        conversationHistory: historyText,
       });
       return prompt;
     } catch (error) {
-      return `你是一个专业的问答助手。请根据以下参考信息回答用户的问题。
+      const historySection = conversationHistory && conversationHistory.length > 0
+        ? `\n\n历史对话：\n${conversationHistory.map(m => `${m.role === 'user' ? '用户' : '助手'}: ${m.content}`).join('\n')}\n`
+        : '';
+
+      return `你是一个专业的问答助手。请根据以下参考信息回答用户的问题。${historySection}
 
 参考信息：
 ${context}

@@ -8,6 +8,7 @@ export interface AiInvokeParams {
   messages: Array<{ role: string; content: string }>
   temperature?: number
   maxTokens?: number
+  conversationId?: string
 }
 
 export interface AiInvokeResponse {
@@ -34,13 +35,15 @@ export const aiApi = {
    * @param onMessage 消息回调函数
    * @param onError 错误回调函数
    * @param onComplete 完成回调函数
+   * @param onConversationId 会话ID回调函数
    * @returns {Promise<void>} Promise
    */
   async stream(
     params: AiInvokeParams,
     onMessage: (data: string) => void,
     onError?: (error: any) => void,
-    onComplete?: () => void
+    onComplete?: () => void,
+    onConversationId?: (conversationId: string) => void
   ): Promise<void> {
     try {
       const response = await fetch(`${appConfig.apiBaseUrl}/ai/stream`, {
@@ -116,9 +119,23 @@ export const aiApi = {
             return
           }
 
+          // 检查是否是会话ID
+          if (dataLine.startsWith('[CONVERSATION_ID]')) {
+            const conversationId = dataLine.replace('[CONVERSATION_ID]', '').trim()
+            if (onConversationId && conversationId) {
+              onConversationId(conversationId)
+            }
+            continue
+          }
+
           // 尝试解析JSON数据
           try {
             const parsed = JSON.parse(dataLine)
+            
+            // 检查是否包含会话ID
+            if (parsed.conversationId && onConversationId) {
+              onConversationId(parsed.conversationId)
+            }
             
             if (parsed.choices && parsed.choices[0]?.delta?.content) {
               onMessage(parsed.choices[0].delta.content)

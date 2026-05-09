@@ -12,12 +12,14 @@
         v-model:selectedKb="selectedKb"
         v-model:retrievalTopN="retrievalTopN"
         v-model:retrievalThreshold="retrievalThreshold"
+        v-model:currentConversationId="currentConversationId"
         :enabledModels="enabledModels"
         :enabledAgents="enabledAgents"
         :enabledKbs="enabledKbs"
         :quickQuestions="quickQuestions"
         :kbQuickQuestions="kbQuickQuestions"
         @quick-question="handleQuickQuestion"
+        @conversation-change="handleConversationChange"
       />
 
       <div class="chat-container">
@@ -33,6 +35,7 @@
           :messagesEmpty="chatMessages.length === 0"
           @send="sendMessage"
           @clear="clearMessages"
+          @new-conversation="newConversation"
         />
       </div>
     </div>
@@ -58,6 +61,7 @@ const {
   chatMessages,
   chatLoading,
   chatMessagesRef,
+  currentConversationId,
   enabledModels,
   enabledAgents,
   enabledKbs,
@@ -65,11 +69,24 @@ const {
   kbQuickQuestions,
   sendMessage,
   clearMessages,
+  newConversation,
   init
 } = useChat()
 
 const handleQuickQuestion = (question: string) => {
   chatInput.value = question
+}
+
+const handleConversationChange = (conversationId: string | null) => {
+  console.log('[Chat] 会话切换，新 conversationId:', conversationId)
+  console.log('[Chat] 切换前 currentConversationId:', currentConversationId.value)
+  currentConversationId.value = conversationId
+  console.log('[Chat] 切换后 currentConversationId:', currentConversationId.value)
+  if (conversationId) {
+    console.log('[Chat] 已切换到会话:', conversationId)
+  } else {
+    console.log('[Chat] 已清空会话，将创建新会话')
+  }
 }
 
 onMounted(() => {

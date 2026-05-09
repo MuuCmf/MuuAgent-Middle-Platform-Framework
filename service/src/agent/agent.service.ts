@@ -8,6 +8,8 @@ import { KbSearchTool } from './tools/kb-search.tool';
 import { ReasoningMode, ExecutionResult, ToolDefinition } from './react/react.types';
 import { ReActPromptBuilder } from './react/react.prompt';
 import { PromptTemplateService } from '../prompt-template/prompt-template.service';
+import { ConversationService } from '../conversation/conversation.service';
+import { ConversationType } from '../conversation/dto/create-conversation.dto';
 import {
   CreateAgentDto,
   UpdateAgentDto,
@@ -45,6 +47,7 @@ export class AgentService {
     private kbSearchTool: KbSearchTool,
     private aiSdkProvider: AiSdkProvider,
     private promptTemplateService: PromptTemplateService,
+    private conversationService: ConversationService,
   ) {}
 
   async create(dto: CreateAgentDto) {
@@ -128,7 +131,7 @@ export class AgentService {
   async syncChat(dto: AgentChatDto, clientIp: string, uid?: string): Promise<Record<string, unknown>> {
     const startTime = Date.now();
     const agent = await this.getAgent(dto.agentId);
-    const context = await this.buildExecutionContext(agent, dto);
+    const context = await this.buildExecutionContext(agent, dto, uid);
     const reasoningMode = (agent.reasoningMode as ReasoningMode) || ReasoningMode.NONE;
 
     if (reasoningMode === ReasoningMode.NONE) {
@@ -155,7 +158,7 @@ export class AgentService {
     const startTime = Date.now();
     const agent = await this.getAgent(dto.agentId);
     this.logger.log(`[AgentStream] 获取到智能体, id: ${agent.id}`);
-    const context = await this.buildExecutionContext(agent, dto);
+    const context = await this.buildExecutionContext(agent, dto, uid);
     this.logger.log(`[AgentStream] 构建执行上下文完成`);
     const reasoningMode = (agent.reasoningMode as ReasoningMode) || ReasoningMode.NONE;
     this.logger.log(`[AgentStream] reasoningMode: ${reasoningMode}`);
@@ -195,7 +198,7 @@ export class AgentService {
     return agent;
   }
 
-  private async buildExecutionContext(agent: any, dto: AgentChatDto) {
+  private async buildExecutionContext(agent: any, dto: AgentChatDto, uid?: string) {
     let model;
     try {
       this.logger.debug(`buildExecutionContext: agent.modelId=${agent.modelId}`);
@@ -207,6 +210,22 @@ export class AgentService {
       if (!model) {
         throw new NotFoundException('没有可用的模型');
       }
+    }
+
+    const conversation = await this.conversationService.getOrCreate(
+      ConversationType.AGENT,
+      agent.id,
+      dto.conversationId,
+      uid,
+    );
+
+    let conversationHistory: ModelMessage[] = [];
+    if (conversation.messageCount > 0) {
+      const historyMessages = await this.conversationService.buildContext(conversation.id, 20);
+      conversationHistory = historyMessages.map(m => ({
+        role: m.role as 'user' | 'assistant' | 'system',
+        content: m.content,
+      }));
     }
 
     let tools: ToolDefinition[] = [];
@@ -315,7 +334,8 @@ export class AgentService {
       tools,
       maxSteps: agent.maxSteps || 5,
       temperature: agent.temperature || 0.7,
-      conversationHistory: dto.conversationId ? [] : undefined,
+      conversationHistory,
+      conversationId: conversation.id,
     };
   }
 
@@ -328,12 +348,19 @@ export class AgentService {
   ): Promise<Record<string, unknown>> {
     const messages: ModelMessage[] = [
       { role: 'system', content: context.systemPrompt },
+      ...context.conversationHistory,
       { role: 'user', content: context.userMessage },
     ];
 
     const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
 
     try {
+      await this.conversationService.addMessage(
+        context.conversationId,
+        'user',
+        context.userMessage,
+      );
+
       const result = await this.aiSdkProvider.generateText({
         model: context.model,
         messages,
@@ -344,12 +371,23 @@ export class AgentService {
         uid,
       });
 
+      await this.conversationService.addMessage(
+        context.conversationId,
+        'assistant',
+        result.text,
+      );
+
+      if (context.conversationHistory.length === 0) {
+        await this.conversationService.generateTitle(context.conversationId);
+      }
+
       await this.saveLog(agent, context, { text: result.text }, clientIp, uid, ReasoningMode.NONE, startTime);
 
       return {
         response: result.text,
         steps: [],
         reasoningMode: ReasoningMode.NONE,
+        conversationId: context.conversationId,
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '执行失败';
@@ -373,6 +411,7 @@ export class AgentService {
         response: errorMsg,
         steps: [],
         reasoningMode: ReasoningMode.NONE,
+        conversationId: context.conversationId,
       };
     }
   }
@@ -393,9 +432,16 @@ export class AgentService {
     const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
 
     try {
+      await this.conversationService.addMessage(
+        context.conversationId,
+        'user',
+        context.userMessage,
+      );
+
       for (let i = 0; i < context.maxSteps; i++) {
         const stepMessages: ModelMessage[] = [
           { role: 'system', content: context.systemPrompt },
+          ...context.conversationHistory,
           ...messages,
           { role: 'user', content: currentPrompt },
         ];
@@ -456,12 +502,24 @@ export class AgentService {
         finalResponse = '抱歉，我无法在有限的步骤内完成您的请求。';
       }
 
+      await this.conversationService.addMessage(
+        context.conversationId,
+        'assistant',
+        finalResponse,
+        { reasoningSteps: steps },
+      );
+
+      if (context.conversationHistory.length === 0) {
+        await this.conversationService.generateTitle(context.conversationId);
+      }
+
       await this.saveLog(agent, context, { text: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
 
       return {
         response: finalResponse,
         steps,
         reasoningMode,
+        conversationId: context.conversationId,
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '执行失败';
@@ -485,6 +543,7 @@ export class AgentService {
         response: errorMsg,
         steps,
         reasoningMode,
+        conversationId: context.conversationId,
       };
     }
   }
@@ -501,9 +560,9 @@ export class AgentService {
   ): Promise<void> {
     const maxToolCalls = 3;
     
-    // 初始化消息
     const currentMessages = messages || [
       { role: 'system', content: context.systemPrompt },
+      ...context.conversationHistory,
       { role: 'user', content: context.userMessage },
     ];
 
@@ -511,6 +570,11 @@ export class AgentService {
 
     if (!messages) {
       this.logger.log(`[executeDefaultStream] 开始执行默认流式模式，tools count: ${Object.keys(tools).length}`);
+      await this.conversationService.addMessage(
+        context.conversationId,
+        'user',
+        context.userMessage,
+      );
     }
 
     try {
@@ -536,16 +600,25 @@ export class AgentService {
           this.logger.log(`[executeDefaultStream] 收到 finish，text length: ${result.text?.length || 0}`);
           
           if (result.text && result.text.length > 0) {
-            // 有文本响应，直接保存并结束
+            await this.conversationService.addMessage(
+              context.conversationId,
+              'assistant',
+              result.text,
+            );
+
+            if (context.conversationHistory.length === 0 && !messages) {
+              await this.conversationService.generateTitle(context.conversationId);
+            }
+
             await this.saveLog(agent, context, { text: result.text }, clientIp, uid, ReasoningMode.NONE, startTime);
             callbacks.onDone?.({
               success: true,
               response: result.text || '',
               steps: [],
               totalCostMs: Date.now() - startTime,
+              conversationId: context.conversationId,
             });
           } else if (toolCallToExecute && toolCallCount < maxToolCalls) {
-            // 需要执行工具调用
             try {
               const toolResult = await this.executeTool(toolCallToExecute.name, toolCallToExecute.args, context);
               
@@ -557,7 +630,6 @@ export class AgentService {
 
               const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
               
-              // 添加对话历史并递归继续
               const newMessages: ModelMessage[] = [
                 ...currentMessages,
                 { 
@@ -570,7 +642,6 @@ export class AgentService {
                 },
               ];
 
-              // 递归调用继续对话
               await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks, newMessages, toolCallCount + 1);
             } catch (error) {
               const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
@@ -582,24 +653,35 @@ export class AgentService {
                 result: `工具执行失败: ${errorMsg}`,
               });
 
-              // 工具执行失败，直接结束
               await this.saveLog(agent, context, { text: `抱歉，工具执行失败: ${errorMsg}` }, clientIp, uid, ReasoningMode.NONE, startTime);
               callbacks.onDone?.({
                 success: false,
                 response: `抱歉，工具执行失败: ${errorMsg}`,
                 steps: [],
                 totalCostMs: Date.now() - startTime,
+                conversationId: context.conversationId,
               });
             }
           } else {
-            // 没有文本响应也没有工具调用，或达到最大工具调用次数
             const finalResponse = result.text || '抱歉，我无法回答您的问题。';
+            
+            await this.conversationService.addMessage(
+              context.conversationId,
+              'assistant',
+              finalResponse,
+            );
+
+            if (context.conversationHistory.length === 0 && !messages) {
+              await this.conversationService.generateTitle(context.conversationId);
+            }
+
             await this.saveLog(agent, context, { text: finalResponse }, clientIp, uid, ReasoningMode.NONE, startTime);
             callbacks.onDone?.({
               success: true,
               response: finalResponse,
               steps: [],
               totalCostMs: Date.now() - startTime,
+              conversationId: context.conversationId,
             });
           }
         },
@@ -631,11 +713,18 @@ export class AgentService {
     const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
 
     try {
+      await this.conversationService.addMessage(
+        context.conversationId,
+        'user',
+        context.userMessage,
+      );
+
       for (let i = 0; i < context.maxSteps; i++) {
         this.logger.debug(`ReAct Stream Step ${i + 1}`);
 
         const stepMessages: ModelMessage[] = [
           { role: 'system', content: context.systemPrompt },
+          ...context.conversationHistory,
           ...messages,
           { role: 'user', content: currentPrompt },
         ];
@@ -787,11 +876,8 @@ export class AgentService {
             currentPrompt = `工具执行失败: ${errorMsg}\n请尝试其他方式回答用户的问题。`;
           }
         } else if (!stepText.includes('Thought:') && !stepText.includes('Action:')) {
-          // 如果AI没有输出Thought/Action格式，直接将响应作为最终答案
           finalResponse = stepText.trim();
-          // 如果上一步有工具调用结果，这应该是基于工具结果的回答
           if (steps.length > 0 && steps[steps.length - 1].observation) {
-            // 将当前内容作为 observation 的后续回答，而不是新的 thought
             steps[steps.length - 1].finalAnswer = finalResponse;
           }
           steps.push({
@@ -806,10 +892,7 @@ export class AgentService {
           });
           break;
         } else {
-          // AI输出了Thought但没有调用工具
-          // 如果内容看起来像是总结/回答，直接作为最终答案
           if (stepText.includes('已经得到答案') || stepText.includes('现在的时间') || stepText.includes('答案是') || stepText.includes('无需执行任何工具')) {
-            // 智能提取最终答案
             const answerText = this.extractFinalAnswer(stepText);
             finalResponse = answerText;
             steps.push({
@@ -824,7 +907,6 @@ export class AgentService {
             });
             break;
           }
-          // 否则保存thought并继续（需要清理内部格式标记）
           const thoughtStep = {
             stepNumber: steps.length + 1,
             stepType: 'thought' as const,
@@ -842,6 +924,17 @@ export class AgentService {
         finalResponse = '抱歉，我无法在有限的步骤内完成您的请求。';
       }
 
+      await this.conversationService.addMessage(
+        context.conversationId,
+        'assistant',
+        finalResponse,
+        { reasoningSteps: steps },
+      );
+
+      if (context.conversationHistory.length === 0) {
+        await this.conversationService.generateTitle(context.conversationId);
+      }
+
       await this.saveLog(agent, context, { text: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
 
       callbacks.onDone?.({
@@ -849,6 +942,7 @@ export class AgentService {
         response: finalResponse,
         steps,
         totalCostMs: Date.now() - startTime,
+        conversationId: context.conversationId,
       });
     } catch (error) {
       callbacks.onError?.(error instanceof Error ? error.message : 'Unknown error');

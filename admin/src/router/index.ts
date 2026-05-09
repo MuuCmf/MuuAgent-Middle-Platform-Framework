@@ -89,6 +89,26 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '调用日志', icon: 'Document' }
       },
       {
+        path: 'conversations',
+        name: 'Conversations',
+        meta: { title: '会话管理', icon: 'ChatLineSquare' },
+        redirect: 'conversations/list',
+        children: [
+          {
+            path: 'list',
+            name: 'ConversationList',
+            component: () => import('@/views/conversations/index.vue'),
+            meta: { title: '会话列表' }
+          },
+          {
+            path: 'detail/:id',
+            name: 'ConversationDetail',
+            component: () => import('@/views/conversations/detail.vue'),
+            meta: { title: '会话详情' }
+          }
+        ]
+      },
+      {
         path: 'oauth-clients',
         name: 'OAuthClients',
         component: () => import('@/views/oauth-clients/index.vue'),

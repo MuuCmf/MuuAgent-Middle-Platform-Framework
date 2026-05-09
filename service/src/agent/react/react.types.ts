@@ -89,6 +89,7 @@ export interface ExecutionResult {
   inputTokens?: number;
   outputTokens?: number;
   errorMessage?: string;
+  conversationId?: string;
 }
 
 /**

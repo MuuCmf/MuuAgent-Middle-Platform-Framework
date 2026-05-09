@@ -4,6 +4,9 @@
     <el-button type="primary" @click="$emit('send')" :disabled="loading || !input.trim()">
       发送
     </el-button>
+    <el-button @click="$emit('new-conversation')" :disabled="loading">
+      新建会话
+    </el-button>
     <el-button @click="$emit('clear')" :disabled="messagesEmpty">
       清空
     </el-button>
@@ -21,6 +24,7 @@ defineEmits<{
   'update:input': [value: string]
   'send': []
   'clear': []
+  'new-conversation': []
 }>()
 </script>
 

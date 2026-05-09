@@ -3,12 +3,13 @@ import { AiService } from './ai.service';
 import { AiController } from './ai.controller';
 import { McpModule } from '../mcp/mcp.module';
 import { ModelModule } from '../model/model.module';
+import { ConversationModule } from '../conversation/conversation.module';
 
 /**
  * AI调用模块
  */
 @Module({
-  imports: [McpModule, ModelModule],
+  imports: [McpModule, ModelModule, ConversationModule],
   controllers: [AiController],
   providers: [AiService],
   exports: [AiService],
