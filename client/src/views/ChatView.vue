@@ -19,14 +19,25 @@
     <div class="main-content">
       <div class="chat-header">
         <h2>{{ chatStore.currentConversationTitle }}</h2>
-        <el-button
-          v-if="chatStore.currentConversationId"
-          type="primary"
-          @click="handleNewConversation"
-        >
-          <el-icon><Plus /></el-icon>
-          新对话
-        </el-button>
+        <div class="header-actions">
+          <div v-if="chatStore.selectedType === 'agent'" class="debug-mode-switch">
+            <span class="debug-label">调试模式</span>
+            <el-switch
+              v-model="chatStore.debugMode"
+              @change="handleDebugModeChange"
+              active-color="#13ce66"
+              inactive-color="#ff4949"
+            />
+          </div>
+          <el-button
+            v-if="chatStore.currentConversationId"
+            type="primary"
+            @click="handleNewConversation"
+          >
+            <el-icon><Plus /></el-icon>
+            新对话
+          </el-button>
+        </div>
       </div>
       <div class="messages-container" ref="messagesRef">
         <div class="messages-wrapper">
@@ -100,6 +111,10 @@ const handleNewConversation = () => {
   chatStore.newConversation()
 }
 
+const handleDebugModeChange = (value: boolean) => {
+  ElMessage.success(value ? '已开启调试模式，将显示推理过程' : '已关闭调试模式')
+}
+
 watch(() => chatStore.messages.length, () => {
   scrollToBottom()
 })
@@ -151,6 +166,32 @@ onMounted(async () => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.debug-mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f5f7fa;
+  border-radius: 20px;
+  transition: all 0.3s;
+}
+
+.debug-mode-switch:hover {
+  background: #e8e8e8;
+}
+
+.debug-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #606266;
 }
 
 .messages-container {

@@ -70,6 +70,13 @@ async function main() {
   });
   console.log('✅ 创建 Agent 系统提示词模板:', agentTemplate.code);
 
+  /**
+   * todo:使用 ** 粗体格式是为了：
+    1. ✅ 突出重点 ：让模型关注容易出错的关键规则
+    2. ✅ 提高准确性 ：减少格式错误的发生
+    3. ✅ 引导注意力 ：利用 Markdown 格式引导模型的注意力权重
+    这是一种提示词工程的技巧，通过格式化文本来提高模型输出的质量和准确性。
+   */
   // 3. ReAct 推理模板
   const reactTemplate = await prisma.promptTemplate.create({
     data: {
@@ -86,7 +93,9 @@ async function main() {
 
 当用户的问题需要使用工具来获取信息时，你必须调用相应的工具。
 
-## 回答格式
+## 回答格式（严格遵守）
+
+每个标记必须独占一行，格式如下：
 
 Thought: 思考当前需要做什么，分析用户问题和已有信息
 Action: 要执行的工具名称（必须是上述工具之一）
@@ -101,10 +110,12 @@ Final Answer: 对用户问题的最终回答
 ## 重要规则
 
 1. 每次只能调用一个工具
-2. 必须严格按照格式输出，不要添加额外内容
-3. 收到 Observation 后，继续思考下一步行动
-4. 当你有足够信息回答用户问题时，输出 Final Answer
-5. Final Answer 必须用自然语言回答，不要提及工具调用细节`,
+2. **必须严格按照格式输出，每个标记独占一行**
+3. **标记后面必须有冒号和空格，例如："Thought: "而不是"Thought"**
+4. 收到 Observation 后，继续思考下一步行动
+5. 当你有足够信息回答用户问题时，输出 Final Answer
+6. Final Answer 必须用自然语言回答，不要提及工具调用细节
+7. **如果不需要调用工具，直接输出 Final Answer**`,
       variables: JSON.stringify([
         { name: 'basePrompt', type: 'string', required: true, description: '智能体的基础提示词' },
         { name: 'tools', type: 'string', required: true, description: '工具描述' }

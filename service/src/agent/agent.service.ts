@@ -172,7 +172,16 @@ export class AgentService {
       await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks);
     } else {
       this.logger.log(`[AgentStream] 执行ReAct流式模式`);
-      await this.executeReActStream(agent, context, reasoningMode, startTime, clientIp, uid, callbacks);
+      await this.executeReActStream(
+        agent, 
+        context, 
+        reasoningMode, 
+        startTime, 
+        clientIp, 
+        uid, 
+        callbacks,
+        { showReasoning: dto.showReasoning || false }
+      );
     }
   }
 
@@ -318,14 +327,14 @@ export class AgentService {
     let systemPrompt: string;
     try {
       systemPrompt = await this.promptTemplateService.render(templateCode, {
-        basePrompt: agent.systemPrompt || '你是一个有帮助的AI助手。',
+        basePrompt: agent.systemPrompt || '你是一个MuuAI开发的有帮助的AI助手。',
         hasTools: hasTools,
         tools: toolsDescription
       });
     } catch (error) {
       this.logger.warn(`Failed to render prompt template: ${templateCode}, fallback to default`);
       systemPrompt = ReActPromptBuilder.buildSystemPrompt(
-        agent.systemPrompt || '你是一个有帮助的AI助手。',
+        agent.systemPrompt || '你是一个MuuAI开发的有帮助的AI助手。',
         tools,
       );
     }
@@ -339,6 +348,7 @@ export class AgentService {
       maxSteps: agent.maxSteps || 5,
       temperature: agent.temperature || 0.7,
       conversationHistory,
+      conversation,
       conversationId: conversation.id,
     };
   }
@@ -351,7 +361,6 @@ export class AgentService {
     uid: string | undefined,
   ): Promise<Record<string, unknown>> {
     const messages: ModelMessage[] = [
-      { role: 'system', content: context.systemPrompt },
       ...context.conversationHistory,
       { role: 'user', content: context.userMessage },
     ];
@@ -364,9 +373,14 @@ export class AgentService {
         'user',
         context.userMessage,
       );
+    } catch (error) {
+      this.logger.error('保存用户消息失败:', error);
+    }
 
+    try {
       const result = await this.aiSdkProvider.generateText({
         model: context.model,
+        system: context.systemPrompt,
         messages,
         tools,
         temperature: context.temperature,
@@ -444,7 +458,6 @@ export class AgentService {
 
       for (let i = 0; i < context.maxSteps; i++) {
         const stepMessages: ModelMessage[] = [
-          { role: 'system', content: context.systemPrompt },
           ...context.conversationHistory,
           ...messages,
           { role: 'user', content: currentPrompt },
@@ -452,6 +465,7 @@ export class AgentService {
 
         const result = await this.aiSdkProvider.generateText({
           model: context.model,
+          system: context.systemPrompt,
           messages: stepMessages,
           tools,
           temperature: context.temperature,
@@ -565,7 +579,6 @@ export class AgentService {
     const maxToolCalls = 3;
     
     const currentMessages = messages || [
-      { role: 'system', content: context.systemPrompt },
       ...context.conversationHistory,
       { role: 'user', content: context.userMessage },
     ];
@@ -586,6 +599,7 @@ export class AgentService {
 
       await this.aiSdkProvider.streamText({
         model: context.model,
+        system: context.systemPrompt,
         messages: currentMessages,
         tools,
         temperature: context.temperature,
@@ -708,7 +722,9 @@ export class AgentService {
     clientIp: string,
     uid: string | undefined,
     callbacks: StreamCallbacks,
+    options: { showReasoning?: boolean } = {}
   ): Promise<void> {
+    const { showReasoning = false } = options;
     const messages: ModelMessage[] = [];
     let currentPrompt = context.userMessage;
     let finalResponse = '';
@@ -727,7 +743,6 @@ export class AgentService {
         this.logger.debug(`ReAct Stream Step ${i + 1}`);
 
         const stepMessages: ModelMessage[] = [
-          { role: 'system', content: context.systemPrompt },
           ...context.conversationHistory,
           ...messages,
           { role: 'user', content: currentPrompt },
@@ -741,6 +756,7 @@ export class AgentService {
 
         await this.aiSdkProvider.streamText({
           model: context.model,
+          system: context.systemPrompt,
           messages: stepMessages,
           tools,
           temperature: context.temperature,
@@ -756,16 +772,28 @@ export class AgentService {
               return;
             }
             
-            if (stepText.includes('Final Answer:')) {
-              inAnswerMode = true;
-              const parts = stepText.split('Final Answer:');
-              if (parts[1]) {
-                answerBuffer = parts[1];
-                callbacks.onChunk?.(parts[1]);
+            // 检测 Final Answer（支持多种格式）
+            const finalAnswerPatterns = [
+              'Final Answer:',
+              'Final Answer',
+              'final answer:',
+              'FINAL ANSWER:'
+            ];
+            
+            for (const pattern of finalAnswerPatterns) {
+              if (stepText.toLowerCase().includes(pattern.toLowerCase())) {
+                inAnswerMode = true;
+                const regex = new RegExp(pattern.replace(':', ':?') + '\\s*(.+)', 'is');
+                const match = stepText.match(regex);
+                if (match && match[1]) {
+                  answerBuffer = match[1].trim();
+                  callbacks.onChunk?.(match[1].trim());
+                }
+                return;
               }
-              return;
             }
             
+            // 检测 "Action: 无需" 或 "Action: 无"
             if (stepText.includes('Action: 无需') || stepText.includes('Action: 无')) {
               inAnswerMode = true;
               const actionMatch = stepText.match(/Action:\s*无需[^。]*[。:：]?\s*(.+?)(?:\n|$)/);
@@ -775,10 +803,162 @@ export class AgentService {
               }
               return;
             }
+            
+            if (showReasoning) {
+              let formattedChunk = chunk;
+              
+              // 修复常见的格式错误
+              // 1. 修复 "Action: Input" -> "Action Input:"
+              formattedChunk = formattedChunk.replace(/Action:\s*Input:/gi, 'Action Input:');
+              formattedChunk = formattedChunk.replace(/Action:\s*Input\s/gi, 'Action Input: ');
+              
+              // 2. 修复双冒号 "Action::" -> "Action:"
+              formattedChunk = formattedChunk.replace(/Thought::/gi, 'Thought:');
+              formattedChunk = formattedChunk.replace(/Action::/gi, 'Action:');
+              formattedChunk = formattedChunk.replace(/Observation::/gi, 'Observation:');
+              formattedChunk = formattedChunk.replace(/Action Input::/gi, 'Action Input:');
+              formattedChunk = formattedChunk.replace(/Final Answer::/gi, 'Final Answer:');
+              
+              // 3. 在标记前添加换行（如果标记不在行首）
+              const reactMarkers = ['Thought:', 'Action:', 'Observation:', 'Action Input:', 'Final Answer:'];
+              for (const marker of reactMarkers) {
+                // 查找标记出现的位置
+                const markerIndex = formattedChunk.indexOf(marker);
+                if (markerIndex > 0) {
+                  // 检查标记前是否已经有换行
+                  const beforeMarker = formattedChunk.substring(0, markerIndex);
+                  if (!beforeMarker.endsWith('\n') && !beforeMarker.endsWith('\n\n')) {
+                    // 在标记前插入换行
+                    formattedChunk = formattedChunk.replace(marker, '\n' + marker);
+                  }
+                }
+              }
+              
+              // 4. 处理标记名称缺少冒号的情况
+              for (const marker of reactMarkers) {
+                const markerWithoutColon = marker.replace(':', '');
+                // 检查是否有标记名称但没有冒号（如 "Thought" 而不是 "Thought:"）
+                const regex = new RegExp(`\\b${markerWithoutColon}\\b(?!:)`, 'g');
+                if (regex.test(formattedChunk)) {
+                  formattedChunk = formattedChunk.replace(regex, marker);
+                }
+              }
+              
+              callbacks.onChunk?.(formattedChunk);
+            } else {
+              const lines = stepText.split('\n');
+              const lastLine = lines[lines.length - 1];
+              
+              const isReActLine = lastLine.trim().startsWith('Thought:') ||
+                                  lastLine.trim().startsWith('Action:') ||
+                                  lastLine.trim().startsWith('Observation:') ||
+                                  lastLine.trim().startsWith('Action Input:');
+              
+              if (!isReActLine) {
+                const reactKeywords = ['Thought', 'Action', 'Observation', 'Action Input', 'Final Answer'];
+                const lastLineLower = lastLine.toLowerCase();
+                const hasKeyword = reactKeywords.some(keyword => 
+                  lastLineLower.includes(keyword.toLowerCase())
+                );
+                
+                if (!hasKeyword) {
+                  callbacks.onChunk?.(chunk);
+                }
+              }
+            }
           },
           onToolCall: (toolCall) => {
             this.logger.debug(`onToolCall received: ${JSON.stringify(toolCall)}`);
             toolCallDetected = toolCall;
+          },
+          onFinish: async (result) => {
+            this.logger.debug(`ReAct Stream Step ${i + 1} finished, text length: ${result.text?.length || 0}`);
+            
+            if (result.text && result.text.length > 0 && !hasFinalAnswer && !toolCallDetected) {
+              this.logger.log(`[executeReActStream] 直接返回结果，无需工具调用`);
+              
+              const hasReactMarkers = result.text.includes('Thought:') || 
+                                      result.text.includes('Action:') || 
+                                      result.text.includes('Observation:') ||
+                                      result.text.toLowerCase().includes('thought') ||
+                                      result.text.toLowerCase().includes('action');
+              
+              const hasFinalAnswerInText = result.text.includes('Final Answer:') ||
+                                           result.text.toLowerCase().includes('final answer');
+              
+              if (hasReactMarkers && !hasFinalAnswerInText) {
+                this.logger.warn(`[executeReActStream] 模型返回了 ReAct 格式但没有 Final Answer，提取有效内容`);
+                
+                let extractedContent = '';
+                
+                // 尝试从 Observation 提取内容
+                const observationMatch = result.text.match(/Observation:\s*(.+?)(?:\n|$)/i);
+                if (observationMatch && observationMatch[1]) {
+                  extractedContent = observationMatch[1].trim();
+                  this.logger.debug(`[executeReActStream] 从 Observation 提取内容: ${extractedContent}`);
+                }
+                
+                // 如果没有 Observation，尝试提取非 ReAct 标记的内容
+                if (!extractedContent) {
+                  const lines = result.text.split('\n');
+                  const contentLines = lines.filter((line: string) => {
+                    const trimmed = line.trim();
+                    const lowerTrimmed = trimmed.toLowerCase();
+                    return trimmed && 
+                           !lowerTrimmed.startsWith('thought:') && 
+                           !lowerTrimmed.startsWith('thought') &&
+                           !lowerTrimmed.startsWith('action:') && 
+                           !lowerTrimmed.startsWith('action') &&
+                           !lowerTrimmed.startsWith('action input:') &&
+                           !lowerTrimmed.startsWith('action input') &&
+                           !lowerTrimmed.startsWith('observation:') &&
+                           !lowerTrimmed.startsWith('observation');
+                  });
+                  
+                  extractedContent = contentLines.join('\n').trim();
+                  this.logger.debug(`[executeReActStream] 过滤后的内容: ${extractedContent}`);
+                }
+                
+                if (extractedContent) {
+                  finalResponse = extractedContent;
+                  this.logger.log(`[executeReActStream] 提取到有效内容: ${finalResponse}`);
+                } else {
+                  this.logger.warn(`[executeReActStream] 无法提取有效内容，使用原始文本`);
+                  finalResponse = result.text;
+                }
+              } else if (hasFinalAnswerInText) {
+                // 提取 Final Answer 后的内容
+                const finalAnswerMatch = result.text.match(/Final Answer:?\s*(.+?)(?:\n|$)/is);
+                if (finalAnswerMatch && finalAnswerMatch[1]) {
+                  finalResponse = finalAnswerMatch[1].trim();
+                  this.logger.log(`[executeReActStream] 提取 Final Answer: ${finalResponse}`);
+                } else {
+                  finalResponse = result.text;
+                }
+              } else {
+                finalResponse = result.text;
+              }
+              
+              hasFinalAnswer = true;
+              
+              await this.conversationService.addMessage(
+                context.conversationId,
+                'assistant',
+                finalResponse,
+              );
+              
+              if (context.conversation?.messageCount === 0) {
+                await this.conversationService.generateTitle(context.conversationId);
+              }
+              
+              callbacks.onDone?.({
+                success: true,
+                response: finalResponse,
+                steps,
+                totalCostMs: Date.now() - startTime,
+                conversationId: context.conversationId,
+              });
+            }
           },
         });
 

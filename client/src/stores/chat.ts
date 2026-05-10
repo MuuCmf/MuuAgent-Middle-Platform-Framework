@@ -14,6 +14,7 @@ export const useChatStore = defineStore('chat', () => {
   const conversations = ref<Conversation[]>([])
   const models = ref<any[]>([])
   const agents = ref<any[]>([])
+  const debugMode = ref(false)
 
   /**
    * 当前会话标题
@@ -23,6 +24,13 @@ export const useChatStore = defineStore('chat', () => {
     const conv = conversations.value.find(c => c.id === currentConversationId.value)
     return conv?.title || '新对话'
   })
+
+  /**
+   * 切换调试模式
+   */
+  const toggleDebugMode = () => {
+    debugMode.value = !debugMode.value
+  }
 
   /**
    * 发送消息
@@ -72,6 +80,7 @@ export const useChatStore = defineStore('chat', () => {
               agentId: selectedModel.value,
               message: content,
               conversationId: currentConversationId.value,
+              showReasoning: debugMode.value,
             },
             (chunk: string) => {
               messages.value[assistantIndex].content += chunk
@@ -200,6 +209,7 @@ export const useChatStore = defineStore('chat', () => {
     conversations,
     models,
     agents,
+    debugMode,
     sendMessage,
     clearMessages,
     newConversation,
@@ -208,5 +218,6 @@ export const useChatStore = defineStore('chat', () => {
     deleteConversation,
     loadModels,
     loadAgents,
+    toggleDebugMode,
   }
 })

@@ -43,8 +43,14 @@ function handleSSEData(data: string, callbacks: StreamCallbacks): void {
     return
   }
 
+  // 解析 JSON 数据
   try {
     const parsed = JSON.parse(data)
+    
+    if (typeof parsed === 'string' || typeof parsed === 'number') {
+      callbacks.onMessage(String(parsed))
+      return
+    }
     
     if (parsed.choices && parsed.choices[0]?.delta) {
       const delta = parsed.choices[0].delta

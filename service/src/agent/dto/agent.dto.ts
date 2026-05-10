@@ -199,6 +199,11 @@ export class AgentChatDto {
   @IsBoolean()
   @IsOptional()
   stream?: boolean;
+
+  @ApiPropertyOptional({ description: '是否显示推理过程（调试模式）', default: false })
+  @IsBoolean()
+  @IsOptional()
+  showReasoning?: boolean;
 }
 
 /**
