@@ -48,6 +48,7 @@ export const agentApi = {
       agentId: string
       message: string
       conversationId?: string | null
+      showReasoning?: boolean
     },
     onMessage: (content: string) => void,
     onError: (error: Error) => void,
