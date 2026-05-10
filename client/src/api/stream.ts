@@ -45,7 +45,6 @@ function handleSSEData(data: string, callbacks: StreamCallbacks): void {
     return
   }
 
-  // 解析 JSON 数据
   try {
     const parsed = JSON.parse(data)
     
@@ -85,13 +84,8 @@ function handleSSEData(data: string, callbacks: StreamCallbacks): void {
       callbacks.onError(new Error(parsed.content))
     } else if (parsed.type === 'done') {
       callbacks.onComplete()
-    } else if (parsed.finish_reason) {
-      console.log('[SSE] Finish reason:', parsed.finish_reason)
-    } else {
-      console.warn('[SSE] Unknown data format, skipping:', data)
     }
   } catch (e) {
-    console.warn('[SSE] Failed to parse JSON, treating as plain text:', data)
     callbacks.onMessage(data)
   }
 }
@@ -103,9 +97,6 @@ function handleSSEData(data: string, callbacks: StreamCallbacks): void {
 export async function streamRequest(params: StreamRequestParams): Promise<void> {
   const { url, body, callbacks } = params
 
-  console.log('[SSE] Stream request URL:', url)
-  console.log('[SSE] Stream request body:', body)
-
   try {
     await fetchEventSource(url, {
       method: 'POST',
@@ -115,7 +106,6 @@ export async function streamRequest(params: StreamRequestParams): Promise<void> 
       },
       body: JSON.stringify(body),
       async onopen(response) {
-        console.log('[SSE] Connection opened, status:', response.status)
         if (response.ok && response.headers.get('content-type')?.includes('text/event-stream')) {
           return
         }
@@ -125,7 +115,6 @@ export async function streamRequest(params: StreamRequestParams): Promise<void> 
       },
       onmessage(msg) {
         if (msg.data) {
-          console.log('[SSE] Received data:', msg.data)
           handleSSEData(msg.data, callbacks)
         }
       },
@@ -135,7 +124,6 @@ export async function streamRequest(params: StreamRequestParams): Promise<void> 
         throw err
       },
       onclose() {
-        console.log('[SSE] Connection closed')
         callbacks.onComplete()
       },
     })

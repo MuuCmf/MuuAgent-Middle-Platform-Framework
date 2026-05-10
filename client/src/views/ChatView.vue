@@ -45,6 +45,7 @@
             v-for="(message, index) in chatStore.messages"
             :key="index"
             :message="message"
+            :is-streaming="isMessageStreaming(index)"
           />
           <div v-if="chatStore.messages.length === 0" class="empty-state">
             <el-icon :size="80" color="#ddd"><ChatDotRound /></el-icon>
@@ -73,6 +74,18 @@ import ConversationList from '../components/ConversationList.vue'
 
 const chatStore = useChatStore()
 const messagesRef = ref<HTMLElement>()
+
+/**
+ * 判断指定索引的消息是否正在流式输出
+ * @param index 消息索引
+ * @returns 是否正在流式输出
+ */
+const isMessageStreaming = (index: number): boolean => {
+  const messages = chatStore.messages
+  if (!chatStore.isLoading) return false
+  if (index !== messages.length - 1) return false
+  return messages[index].role === 'assistant'
+}
 
 const scrollToBottom = async () => {
   await nextTick()
