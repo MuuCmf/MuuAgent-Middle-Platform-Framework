@@ -8,7 +8,7 @@ import { AdminGuard } from '../common/guards/admin.guard';
  * 任务队列控制器
  * 提供队列状态查询和管理接口（管理端）
  */
-@ApiTags('任务队列')
+@ApiTags('任务队列（管理端）')
 @ApiBearerAuth()
 @UseGuards(AdminGuard)
 @Controller('admin/task')

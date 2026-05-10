@@ -20,21 +20,43 @@
         :finalAnswer="message.content"
       />
       
+      <!-- RAG消息显示 -->
+      <RagAnswer
+        v-else-if="message.role === 'assistant' && message.type === 'rag'"
+        :content="message.content"
+        :sources="message.sources"
+      />
+      
+      <!-- 检索结果显示 -->
+      <div
+        v-else-if="message.role === 'assistant' && message.type === 'retrieval' && message.results"
+        class="retrieval-results"
+      >
+        <div class="results-title">🔍 检索结果（共 {{ message.results.length }} 条）</div>
+        <div v-for="(result, idx) in message.results" :key="idx" class="result-item">
+          <div class="result-header">
+            <span class="result-index">{{ idx + 1 }}.</span>
+            <span class="result-name">{{ result.docName }}</span>
+            <span class="result-score">相似度: {{ (result.score * 100).toFixed(1) }}%</span>
+          </div>
+          <div class="result-content">{{ result.content }}</div>
+        </div>
+      </div>
+      
       <!-- 用户消息：普通文本显示 -->
       <div 
-        v-if="message.role === 'user'"
+        v-else-if="message.role === 'user'"
         class="message-text"
       >{{ message.content }}</div>
       
       <!-- AI消息：使用vue-stream-markdown渲染 -->
       <Markdown
         v-else
-        :content="message.content"
+        :content="processedContent"
         :mode="isStreaming ? 'streaming' : 'static'"
         :controls="markdownControls"
         :codeOptions="codeOptions"
         :shikiOptions="shikiOptions"
-        class="message-text"
         @copied="handleCopied"
       />
       
@@ -47,11 +69,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref } from 'vue'
+import { onMounted, onBeforeUnmount, ref, computed } from 'vue'
 import { User, ChatDotRound } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { Message } from '../api'
 import ReasoningProcess from './ReasoningProcess.vue'
+import RagAnswer from './RagAnswer.vue'
 import { Markdown } from 'vue-stream-markdown'
 import type { ControlsConfig, CodeOptions, ShikiOptions } from 'vue-stream-markdown'
 import 'vue-stream-markdown/index.css'
@@ -69,11 +92,162 @@ const props = withDefaults(defineProps<Props>(), {
 const messageTextRef = ref<HTMLElement | null>(null)
 let scrollContainer: HTMLElement | null = null
 
+/**
+ * 常见语言标识修正映射
+ */
+const LANGUAGE_CORRECTIONS: Record<string, string> = {
+  'ph': 'php',
+  'py': 'python',
+  'js': 'javascript',
+  'ts': 'typescript',
+  'htm': 'html',
+  'cs': 'csharp',
+  'cpp': 'c++',
+  'sh': 'bash',
+  'yml': 'yaml',
+  'md': 'markdown',
+  'vue': 'vue',
+  'react': 'jsx',
+  'golang': 'go',
+}
+
+/**
+ * 常见语言名称列表（用于精确匹配）
+ */
+const KNOWN_LANGUAGES = new Set([
+  'javascript', 'typescript', 'python', 'java', 'c', 'cpp', 'csharp', 'go', 'rust',
+  'php', 'ruby', 'swift', 'kotlin', 'scala', 'html', 'css', 'scss', 'less', 'sass',
+  'json', 'xml', 'yaml', 'markdown', 'md', 'sql', 'bash', 'shell', 'sh', 'powershell',
+  'docker', 'dockerfile', 'nginx', 'apache', 'vue', 'react', 'jsx', 'tsx', 'svelte',
+  'angular', 'graphql', 'protobuf', 'toml', 'ini', 'env', 'makefile', 'cmake',
+  'plaintext', 'text', 'diff', 'git', 'mermaid', 'latex', 'mathematica', 'matlab',
+  'r', 'julia', 'lua', 'perl', 'haskell', 'elixir', 'erlang', 'clojure', 'lisp',
+  'scheme', 'fsharp', 'vb', 'vba', 'delphi', 'pascal', 'fortran', 'cobol', 'assembly',
+  'wasm', 'wat', 'solidity', 'vyper', 'move', 'cairo', 'zig', 'nim', 'crystal',
+  'd', 'odin', 'jai', 'v', 'carbon', 'mojo', 'dart', 'groovy', 'gradle', 'kts',
+])
+
+/**
+ * 预处理 markdown 内容，修正格式问题
+ * 1. 修正代码块格式：```javascriptimport -> ```javascript\nimport
+ * 2. 修正语言标识：```ph -> ```php
+ * 3. 修正表格格式：分隔行前缺少表头时自动补充空表头
+ * 4. 关闭未关闭的代码块（当内容包含表格时）
+ * @param content 原始 markdown 内容
+ * @returns 修正后的 markdown 内容
+ */
+function preprocessMarkdown(content: string): string {
+  const lines = content.split('\n')
+  
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
+    
+    if (!line.startsWith('```')) continue
+    
+    const match = line.match(/^```(\w+)$/)
+    if (match) {
+      const lang = match[1]
+      const correctedLang = LANGUAGE_CORRECTIONS[lang] || lang
+      if (correctedLang !== lang) {
+        console.log(`[语言标识修正] ${lang} -> ${correctedLang}`)
+        lines[i] = '```' + correctedLang
+      }
+      continue
+    }
+    
+    const codeMatch = line.match(/^```(\w+)(.*)$/)
+    if (codeMatch) {
+      let lang = codeMatch[1]
+      let rest = codeMatch[2]
+      
+      while (lang.length > 0 && !KNOWN_LANGUAGES.has(lang.toLowerCase())) {
+        rest = lang.slice(-1) + rest
+        lang = lang.slice(0, -1)
+      }
+      
+      if (lang.length === 0) {
+        lang = ''
+        rest = codeMatch[1] + codeMatch[2]
+      }
+      
+      const correctedLang = LANGUAGE_CORRECTIONS[lang] || lang
+      if (lang !== codeMatch[1] || correctedLang !== lang) {
+        console.log(`[代码块格式修正] 行: "${line}" -> 分离为语言: "${correctedLang}", 代码: "${rest}"`)
+      }
+      lines[i] = '```' + correctedLang
+      if (rest) {
+        lines.splice(i + 1, 0, rest)
+      }
+    }
+  }
+  
+  let result = lines.join('\n')
+  
+  const codeBlockMatches = [...result.matchAll(/^```/gm)]
+  if (codeBlockMatches.length % 2 !== 0) {
+    const lastCodeBlock = codeBlockMatches[codeBlockMatches.length - 1]
+    const afterCodeBlockStart = lastCodeBlock.index! + 3
+    const afterCodeBlock = result.substring(afterCodeBlockStart)
+    
+    if (afterCodeBlock.includes('|') && /^\|[\s:|-]+\|/m.test(afterCodeBlock)) {
+      console.log('[未关闭代码块检测] 发现表格内容，移除代码块标记')
+      const beforeCodeBlock = result.substring(0, lastCodeBlock.index!)
+      const cleanedAfter = afterCodeBlock.replace(/^\n?/, '')
+      result = beforeCodeBlock + cleanedAfter
+    }
+  }
+  
+  const tableLines = result.split('\n')
+  for (let i = 0; i < tableLines.length; i++) {
+    const line = tableLines[i]
+    if (/^\s*\|[\s:|-]+\|\s*$/.test(line)) {
+      if (i === 0 || !tableLines[i - 1].trim().startsWith('|')) {
+        const cols = line.split('|').filter(c => c.trim() || c === '')
+        const colCount = cols.length - 1
+        const header = '|' + Array(colCount).fill('   ').join('|') + '|'
+        tableLines.splice(i, 0, header)
+        i++
+      }
+    }
+  }
+  result = tableLines.join('\n')
+  
+  return result
+}
+
+/**
+ * 预处理后的内容
+ */
+const processedContent = computed(() => {
+  const original = props.message.content
+  
+  if (original.includes('```')) {
+    const allMatches = [...original.matchAll(/```(\w*)\n?/g)]
+    allMatches.forEach((match, i) => {
+      const startPos = match.index! + match[0].length
+      const afterContent = original.substring(startPos, startPos + 15).replace(/\n/g, '\\n')
+      console.log(`[组件接收数据] 代码块${i}: ${JSON.stringify(match[0])} 后续: "${afterContent}"`)
+    })
+  }
+  
+  const processed = preprocessMarkdown(original)
+  
+  if (original !== processed) {
+    console.log('[Markdown预处理]', {
+      原始内容: original.substring(0, 200),
+      处理后: processed.substring(0, 200)
+    })
+  }
+  
+  return processed
+})
+
+// 配置Markdown渲染选项
 const markdownControls: ControlsConfig = {
   code: {
     copy: true,
     download: true,
-    fullscreen: true,
+    fullscreen: false,
     collapse: true
   },
   table: {
@@ -87,13 +261,16 @@ const markdownControls: ControlsConfig = {
   }
 }
 
+// 配置代码块渲染选项
 const codeOptions: CodeOptions = {
+
   lineNumbers: true,
   languageIcon: true,
   languageName: true,
   maxHeight: '500px'
 }
 
+// 配置Shiki主题
 const shikiOptions: ShikiOptions = {
   theme: ['github-light', 'github-dark']
 }
@@ -102,6 +279,7 @@ function handleCopied(): void {
   ElMessage.success('代码已复制到剪贴板')
 }
 
+// 查找滚动容器
 function findScrollContainer(element: HTMLElement): HTMLElement | null {
   let parent = element.parentElement
   while (parent) {
@@ -127,7 +305,7 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .message {
   display: flex;
   gap: 16px;
@@ -228,103 +406,68 @@ onBeforeUnmount(() => {
     opacity: 0;
   }
 }
-</style>
 
-<style>
-/* 全局样式：优化代码块UI */
-.message-text pre {
-  margin: 12px 0;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.message-text pre code {
-  display: block;
+/* 检索结果样式 */
+.retrieval-results {
+  background: #f8f9fa;
+  border-radius: 12px;
   padding: 16px;
-  font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
-  font-size: 14px;
-  line-height: 1.6;
-  overflow-x: auto;
-}
+  width: 100%;
 
-.message-text code:not(pre code) {
-  background: rgba(0, 0, 0, 0.06);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
-  font-size: 0.9em;
-  color: #e83e8c;
-}
+  .results-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #667eea;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e8e8e8;
+  }
 
-.message.user .message-text code:not(pre code) {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-}
+  .result-item {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e8e8e8;
 
-/* 代码块头部样式 */
-.message-text .code-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  background: #2d2d2d;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 13px;
-  color: #999;
-}
+    &:last-child {
+      margin-bottom: 0;
+    }
 
-.message-text .code-language {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 500;
-}
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
 
-.message-text .code-actions {
-  display: flex;
-  gap: 8px;
-}
+      .result-index {
+        color: #999;
+        font-size: 12px;
+      }
 
-.message-text .code-action {
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 12px;
-}
+      .result-name {
+        font-weight: 500;
+        color: #333;
+      }
 
-.message-text .code-action:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-}
+      .result-score {
+        margin-left: auto;
+        font-size: 12px;
+        color: #52c41a;
+        background: #f6ffed;
+        padding: 2px 8px;
+        border-radius: 4px;
+      }
+    }
 
-/* 行号样式 */
-.message-text .line-number {
-  display: inline-block;
-  width: 40px;
-  padding-right: 16px;
-  text-align: right;
-  color: #6366f1;
-  opacity: 0.5;
-  user-select: none;
-}
-
-/* 代码块滚动条样式 */
-.message-text pre::-webkit-scrollbar {
-  height: 8px;
-}
-
-.message-text pre::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
-}
-
-.message-text pre::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 4px;
-}
-
-.message-text pre::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.5);
+    .result-content {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  }
 }
 </style>
+

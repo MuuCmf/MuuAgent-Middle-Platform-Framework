@@ -37,7 +37,6 @@
         </el-button>
       </el-space>
 
-
       <el-table :data="skills" stripe v-loading="loading">
         <el-table-column prop="name" label="名称" width="150" />
         <el-table-column prop="code" label="标识" width="180">
@@ -203,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, MagicStick } from '@element-plus/icons-vue'
 import { useSkillStore } from '@/stores/skill'
@@ -212,8 +211,11 @@ import type { Skill, SkillForm } from '@/api/skill'
 import SkillEditDrawer from './components/SkillEditDrawer.vue'
 
 const skillStore = useSkillStore()
+const { loadSkills, createSkill, updateSkill, deleteSkill } = skillStore
 
-const { skills, loading, loadSkills, createSkill, updateSkill, deleteSkill } = skillStore
+const skills = computed(() => skillStore.skills)
+const loading = computed(() => skillStore.loading)
+
 
 const drawerVisible = ref(false)
 const editingSkill = ref<Skill | null>(null)

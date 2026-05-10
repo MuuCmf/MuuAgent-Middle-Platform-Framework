@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { AgentService } from './agent.service';
 import { AgentKbService } from './agent-kb.service';
 import { AgentController, AgentAdminController } from './agent.controller';
-import { ClientAgentController } from './client-agent.controller';
 import { McpModule } from '../mcp/mcp.module';
 import { McpServerModule } from '../mcp-server/mcp-server.module';
 import { SkillModule } from '../skill/skill.module';
@@ -20,7 +19,7 @@ import { ConversationModule } from '../conversation/conversation.module';
  */
 @Module({
   imports: [McpModule, McpServerModule, SkillModule, ModelModule, RetrievalModule, AiModule, AiSdkModule, PromptTemplateModule, ConversationModule],
-  controllers: [AgentController, AgentAdminController, ClientAgentController],
+  controllers: [AgentController, AgentAdminController],
   providers: [
     AgentService,
     AgentKbService,

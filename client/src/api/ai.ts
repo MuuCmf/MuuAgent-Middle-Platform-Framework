@@ -2,6 +2,7 @@ import { httpClient } from './request'
 import { API_ENDPOINTS } from './config'
 import { streamRequest } from './stream'
 import type { ReasoningStep } from './reasoning'
+import type { RetrievalItem } from './retrieval'
 
 /**
  * 消息接口
@@ -10,6 +11,9 @@ export interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
   reasoningSteps?: ReasoningStep[]
+  type?: 'rag' | 'retrieval'
+  sources?: RetrievalItem[]
+  results?: RetrievalItem[]
 }
 
 /**

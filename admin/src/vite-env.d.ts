@@ -23,6 +23,11 @@ interface ImportMetaEnv {
    * 应用端口
    */
   readonly VITE_PORT: string
+  
+  /**
+   * 路由基础路径
+   */
+  readonly VITE_ROUTER_BASE?: string
 }
 
 /**

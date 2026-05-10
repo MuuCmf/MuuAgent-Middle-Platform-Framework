@@ -11,7 +11,7 @@ import type { Response } from 'express';
  * 检索和RAG问答控制器
  */
 @Controller('kb')
-@ApiTags('知识库检索与问答')
+@ApiTags('知识库（业务端）')
 @ApiBearerAuth()
 @UseGuards(ApiKeyGuard)
 export class RetrievalController {

@@ -23,7 +23,7 @@ import { success, page } from '../common/response/api.response';
 /**
  * 技能管理控制器
  */
-@ApiTags('技能管理')
+@ApiTags('技能（管理端）')
 @ApiBearerAuth()
 @UseGuards(AdminGuard)
 @Controller('admin/skill')

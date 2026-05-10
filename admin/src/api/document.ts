@@ -43,7 +43,7 @@ export const documentApi = {
     formData.append('kbId', kbId)
     formData.append('file', file)
     
-    return request.post('/kb/document/upload', formData, {
+    return request.post('/admin/kb/document/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -61,7 +61,7 @@ export const documentApi = {
     pageSize?: number
     docName?: string
   }): Promise<AxiosResponse<{ data: DocumentListResponse }>> {
-    return request.get('/kb/document/list', { params })
+    return request.get('/admin/kb/document/list', { params })
   },
 
   /**
@@ -72,6 +72,6 @@ export const documentApi = {
    * @returns {Promise<AxiosResponse>} 删除结果
    */
   delete(uid: string, kbId: string, docId: string): Promise<AxiosResponse<{ data: boolean }>> {
-    return request.post('/kb/document/delete', { uid, kbId, docId })
+    return request.post('/admin/kb/document/delete', { uid, kbId, docId })
   }
 }

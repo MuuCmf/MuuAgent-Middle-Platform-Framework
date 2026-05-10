@@ -23,7 +23,7 @@ import { success } from '../common/response/api.response';
  * MCP调度控制器
  * 提供策略配置和状态查询接口
  */
-@ApiTags('MCP调度')
+@ApiTags('MCP调度（管理端）')
 @ApiBearerAuth()
 @UseGuards(AdminGuard)
 @Controller('admin/mcp')

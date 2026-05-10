@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { KbController } from './kb.controller';
+import { KbController, ClientKbController } from './kb.controller';
 import { KbService } from './kb.service';
 import { PrismaModule } from '../common/prisma/prisma.module';
 
@@ -8,7 +8,7 @@ import { PrismaModule } from '../common/prisma/prisma.module';
  */
 @Module({
   imports: [PrismaModule],
-  controllers: [KbController],
+  controllers: [KbController, ClientKbController],
   providers: [KbService],
   exports: [KbService],
 })

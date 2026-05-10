@@ -7,7 +7,7 @@ import { success, page } from '../common/response/api.response';
 /**
  * 日志查询控制器
  */
-@ApiTags('日志查询')
+@ApiTags('日志查询（管理端）')
 @ApiBearerAuth()
 @UseGuards(AdminGuard)
 @Controller('admin/log')

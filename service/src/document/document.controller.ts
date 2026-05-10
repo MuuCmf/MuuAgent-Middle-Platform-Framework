@@ -21,16 +21,16 @@ import { DocumentService } from './document.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import { QueryDocumentListDto } from './dto/query-document-list.dto';
 import { DeleteDocumentDto } from './dto/delete-document.dto';
-import { ApiKeyGuard } from '../common/guards/api-key.guard';
+import { AdminGuard } from '../common/guards/admin.guard';
 import { success, fail } from '../common/response/api.response';
 
 /**
  * 文档管理控制器
  */
-@Controller('kb/document')
-@ApiTags('知识库文档管理')
+@Controller('admin/kb/document')
+@ApiTags('知识库（管理端）')
 @ApiBearerAuth()
-@UseGuards(ApiKeyGuard)
+@UseGuards(AdminGuard)
 export class DocumentController {
   /**
    * 构造函数

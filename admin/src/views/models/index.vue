@@ -388,7 +388,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useModelStore } from '@/stores/model'
@@ -399,7 +399,9 @@ import type { ModelTemplate, ModelTemplateForm } from '@/api/model-template'
 const activeTab = ref('models')
 
 const modelStore = useModelStore()
-const { models, loading: modelsLoading, loadModels, createModel, updateModel, deleteModel } = modelStore
+const models = computed(() => modelStore.models)
+const modelsLoading = computed(() => modelStore.loading)
+const { loadModels, createModel, updateModel, deleteModel } = modelStore
 
 const templates = ref<ModelTemplate[]>([])
 const templatesLoading = ref(false)

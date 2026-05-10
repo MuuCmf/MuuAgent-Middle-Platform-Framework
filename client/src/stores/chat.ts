@@ -137,7 +137,19 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const response = await conversationApi.getDetail(conversationId)
       currentConversationId.value = conversationId
-      messages.value = response.data.messages || []
+      
+      const rawMessages = response.data.messages || []
+      rawMessages.forEach((msg: Message, index: number) => {
+        if (msg.role === 'assistant' && msg.content.includes('```')) {
+          const codeBlockMatch = msg.content.match(/```(\w*)\n?/)
+          if (codeBlockMatch) {
+            console.log(`[历史消息${index}] 代码块格式:`, JSON.stringify(codeBlockMatch[0]))
+            console.log(`[历史消息${index}] 代码块后10字符:`, msg.content.substring(codeBlockMatch.index! + codeBlockMatch[0].length, codeBlockMatch.index! + codeBlockMatch[0].length + 10))
+          }
+        }
+      })
+      
+      messages.value = rawMessages
     } catch (error) {
       console.error('加载会话失败:', error)
     }

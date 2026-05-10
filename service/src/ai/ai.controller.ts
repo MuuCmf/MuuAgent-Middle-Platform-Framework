@@ -16,7 +16,7 @@ import { Request } from 'express';
  * AI统一调用控制器
  * 提供AI模型调用的统一入口
  */
-@ApiTags('AI调用')
+@ApiTags('模型（业务端）')
 @ApiBearerAuth('api-key')
 @UseGuards(ApiKeyGuard, RateLimitGuard)
 @Controller('ai')
@@ -44,7 +44,7 @@ export class AiController {
    * @returns {Promise<Object>} 调用结果
    */
   @Post('invoke')
-  @ApiOperation({ summary: '普通AI调用' })
+  @ApiOperation({ summary: '同步调用' })
   async invoke(@Body() dto: AiInvokeDto, @Req() req: Request) {
     const clientIp = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || '';
@@ -70,22 +70,6 @@ export class AiController {
     const userAgent = req.headers['user-agent'] || '';
     const uid = this.extractUid(req, dto);
     return this.aiService.streamInvoke(dto, clientIp, userAgent, uid);
-  }
-
-  /**
-   * Embedding向量生成
-   * @param dto 调用参数
-   * @param req 请求对象
-   * @returns {Promise<Object>} 向量结果
-   */
-  @Post('embedding')
-  @ApiOperation({ summary: 'Embedding向量生成' })
-  async embedding(@Body() dto: EmbeddingDto, @Req() req: Request) {
-    const clientIp = req.ip || 'unknown';
-    const userAgent = req.headers['user-agent'] || '';
-    const uid = this.extractUid(req, dto);
-    const result = await this.aiService.embedding(dto, clientIp, userAgent, uid);
-    return success(result);
   }
 
   /**

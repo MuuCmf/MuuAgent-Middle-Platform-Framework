@@ -77,18 +77,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '熔断限流', icon: 'Warning' }
       },
       {
-        path: 'chat',
-        name: 'Chat',
-        component: () => import('@/views/chat/index.vue'),
-        meta: { title: 'AI对话', icon: 'ChatDotRound' }
-      },
-      {
-        path: 'logs',
-        name: 'Logs',
-        component: () => import('@/views/logs/index.vue'),
-        meta: { title: '调用日志', icon: 'Document' }
-      },
-      {
         path: 'conversations',
         name: 'Conversations',
         meta: { title: '会话管理', icon: 'ChatLineSquare' },
@@ -109,6 +97,18 @@ const routes: RouteRecordRaw[] = [
         ]
       },
       {
+        path: 'chat',
+        name: 'Chat',
+        component: () => import('@/views/chat/index.vue'),
+        meta: { title: '对话测试', icon: 'ChatDotRound' }
+      },
+      {
+        path: 'logs',
+        name: 'Logs',
+        component: () => import('@/views/logs/index.vue'),
+        meta: { title: '调用日志', icon: 'Document' }
+      },
+      {
         path: 'oauth-clients',
         name: 'OAuthClients',
         component: () => import('@/views/oauth-clients/index.vue'),
@@ -119,7 +119,7 @@ const routes: RouteRecordRaw[] = [
 ]
 
 const router = createRouter({
-  history: createWebHistory('/admin/'),
+  history: createWebHistory(import.meta.env.VITE_ROUTER_BASE || '/admin/'),
   routes
 })
 

@@ -23,7 +23,7 @@ import { success, page } from '../common/response/api.response';
  * 模型管理控制器（管理端）
  * 提供模型的CRUD接口，需要管理员权限
  */
-@ApiTags('模型管理')
+@ApiTags('模型（管理端）')
 @ApiBearerAuth()
 @UseGuards(AdminGuard)
 @Controller('admin/model')
@@ -136,7 +136,7 @@ export class ModelAdminController {
  * 模型控制器（业务端）
  * 提供公开的模型查询接口，无需认证
  */
-@ApiTags('模型查询')
+@ApiTags('模型（业务端）')
 @Controller('model')
 export class ModelController {
   /**

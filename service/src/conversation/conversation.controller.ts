@@ -22,7 +22,7 @@ import { success, page } from '../common/response/api.response';
 /**
  * 会话管理控制器（用户API）
  */
-@ApiTags('会话管理')
+@ApiTags('会话管理（业务端）')
 @Controller('conversation')
 export class ConversationController {
   /**
@@ -166,7 +166,7 @@ export class ConversationController {
 /**
  * 会话管理控制器（管理后台）
  */
-@ApiTags('会话管理（后台）')
+@ApiTags('会话管理（管理端）')
 @ApiBearerAuth()
 @UseGuards(AdminGuard)
 @Controller('admin/conversation')

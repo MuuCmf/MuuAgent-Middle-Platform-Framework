@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useAgentStore, useSkillStore } from '@/stores'
@@ -98,8 +98,11 @@ import AgentEditDrawer from './components/AgentEditDrawer.vue'
 const agentStore = useAgentStore()
 const skillStore = useSkillStore()
 
-const { agents, loading, loadAgents, createAgent, updateAgent, deleteAgent } = agentStore
-const { skills, loadSkills } = skillStore
+const agents = computed(() => agentStore.agents)
+const loading = computed(() => agentStore.loading)
+const { loadAgents, createAgent, updateAgent, deleteAgent } = agentStore
+const skills = computed(() => skillStore.skills)
+const { loadSkills } = skillStore
 
 const drawerVisible = ref(false)
 const editingAgent = ref<Agent | null>(null)

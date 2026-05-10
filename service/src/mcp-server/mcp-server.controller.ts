@@ -13,7 +13,7 @@ import { success } from '../common/response/api.response';
  * MCP Server控制器
  * 提供MCP Server的管理接口
  */
-@ApiTags('MCP Server管理')
+@ApiTags('MCP Server（管理端）')
 @Controller('admin/mcp-server')
 @UseGuards(AdminGuard)
 export class McpServerController {
