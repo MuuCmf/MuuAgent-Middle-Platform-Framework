@@ -55,6 +55,7 @@ import ReasoningProcess from './ReasoningProcess.vue'
 import { Markdown } from 'vue-stream-markdown'
 import type { ControlsConfig, CodeOptions, ShikiOptions } from 'vue-stream-markdown'
 import 'vue-stream-markdown/index.css'
+import '../styles/markdown.css'
 
 interface Props {
   message: Message

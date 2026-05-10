@@ -1,0 +1,454 @@
+:root {
+  --foreground: #1a1a1a;
+  --background: #ffffff;
+  --muted: #f5f5f5;
+  --muted-foreground: #666666;
+  --border: #e5e5e5;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #1e293b;
+  --accent: #f1f5f9;
+  --accent-foreground: #1e293b;
+  --destructive: #ef4444;
+  --ring: #6366f1;
+  --radius: 0.5rem;
+  --shiki-light: #24292e;
+  --shiki-light-bg: #f6f8fa;
+  --shiki-dark: #e1e4e8;
+  --shiki-dark-bg: #24292e;
+}
+
+.dark {
+  --foreground: #e1e4e8;
+  --background: #0d1117;
+  --muted: #161b22;
+  --muted-foreground: #8b949e;
+  --border: #30363d;
+  --primary: #58a6ff;
+  --primary-foreground: #0d1117;
+  --secondary: #21262d;
+  --secondary-foreground: #c9d1d9;
+  --accent: #21262d;
+  --accent-foreground: #c9d1d9;
+  --destructive: #f85149;
+  --ring: #58a6ff;
+  --shiki-light: #e1e4e8;
+  --shiki-light-bg: #24292e;
+  --shiki-dark: #e1e4e8;
+  --shiki-dark-bg: #0d1117;
+}
+
+.stream-markdown {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.stream-markdown .my-4 {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.stream-markdown .my-6 {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.stream-markdown .mt-6 {
+  margin-top: 1.5rem;
+}
+
+.stream-markdown .mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+.stream-markdown .mb-4 {
+  margin-bottom: 1rem;
+}
+
+.stream-markdown .ml-2 {
+  margin-left: 0.5rem;
+}
+
+.stream-markdown .mr-2 {
+  margin-right: 0.5rem;
+}
+
+.stream-markdown .px-1\.5 {
+  padding-left: 0.375rem;
+  padding-right: 0.375rem;
+}
+
+.stream-markdown .py-0\.5 {
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
+}
+
+.stream-markdown .pl-4 {
+  padding-left: 1rem;
+}
+
+.stream-markdown .pl-5 {
+  padding-left: 1.25rem;
+}
+
+.stream-markdown .pl-1 {
+  padding-left: 0.25rem;
+}
+
+.stream-markdown .py-1 {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.stream-markdown .text-3xl {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+}
+
+.stream-markdown .text-2xl {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+
+.stream-markdown .text-xl {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.stream-markdown .text-lg {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+.stream-markdown .text-base {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.stream-markdown .text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.stream-markdown .text-xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.stream-markdown .font-semibold {
+  font-weight: 600;
+}
+
+.stream-markdown .font-bold {
+  font-weight: 700;
+}
+
+.stream-markdown .font-mono {
+  font-family: 'Fira Code', 'Monaco', 'Consolas', 'Courier New', monospace;
+}
+
+.stream-markdown .italic {
+  font-style: italic;
+}
+
+.stream-markdown .line-through {
+  text-decoration: line-through;
+}
+
+.stream-markdown .whitespace-pre-wrap {
+  white-space: pre-wrap;
+}
+
+.stream-markdown .whitespace-normal {
+  white-space: normal;
+}
+
+.stream-markdown .break-words {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.stream-markdown .align-middle {
+  vertical-align: middle;
+}
+
+.stream-markdown .rounded {
+  border-radius: 0.25rem;
+}
+
+.stream-markdown .border-t {
+  border-top-width: 1px;
+}
+
+.stream-markdown .border-l-4 {
+  border-left-width: 4px;
+}
+
+.stream-markdown .border-border {
+  border-color: var(--border);
+}
+
+.stream-markdown .border-l-muted-foreground\/30 {
+  border-left-color: rgba(102, 102, 102, 0.3);
+}
+
+.stream-markdown .bg-muted {
+  background-color: var(--muted);
+}
+
+.stream-markdown .text-muted-foreground {
+  color: var(--muted-foreground);
+}
+
+.stream-markdown .list-disc {
+  list-style-type: disc;
+}
+
+.stream-markdown .list-decimal {
+  list-style-type: decimal;
+}
+
+.stream-markdown .leading-6 {
+  line-height: 1.5rem;
+}
+
+.stream-markdown .transition-\[height\] {
+  transition-property: height;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.stream-markdown .duration-\[var\(--default-transition-duration\)\] {
+  transition-duration: var(--default-transition-duration);
+}
+
+.stream-markdown .ease {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stream-markdown h1[data-stream-markdown="heading-1"] {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
+.stream-markdown h2[data-stream-markdown="heading-2"] {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+  color: var(--foreground);
+}
+
+.stream-markdown h3[data-stream-markdown="heading-3"] {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+  color: var(--foreground);
+}
+
+.stream-markdown h4[data-stream-markdown="heading-4"] {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 0.875rem;
+  margin-bottom: 0.375rem;
+  line-height: 1.4;
+  color: var(--foreground);
+}
+
+.stream-markdown h5[data-stream-markdown="heading-5"] {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+
+.stream-markdown h6[data-stream-markdown="heading-6"] {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.stream-markdown blockquote[data-stream-markdown="blockquote"] {
+  border-left: 4px solid var(--primary);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: var(--muted-foreground);
+  font-style: italic;
+  background: var(--muted);
+  border-radius: 0 0.5rem 0.5rem 0;
+  padding: 0.75rem 1rem;
+}
+
+.stream-markdown blockquote blockquote {
+  margin: 0.5rem 0;
+  border-left-color: var(--border);
+}
+
+.stream-markdown hr[data-stream-markdown="thematic-break"] {
+  border: none;
+  border-top: 2px solid var(--border);
+  margin: 1.5rem 0;
+}
+
+.stream-markdown ul[data-stream-markdown="list"] {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.stream-markdown ol[data-stream-markdown="list"] {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.stream-markdown li[data-stream-markdown="list-item"] {
+  margin: 0.25rem 0;
+  line-height: 1.6;
+}
+
+.stream-markdown li[data-stream-markdown="list-item"]::marker {
+  color: var(--primary);
+}
+
+.stream-markdown ul ul,
+.stream-markdown ol ol,
+.stream-markdown ul ol,
+.stream-markdown ol ul {
+  margin: 0.25rem 0;
+}
+
+.stream-markdown code[data-stream-markdown="inline-code"] {
+  background: var(--muted);
+  color: var(--destructive);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+  font-size: 0.875em;
+  font-weight: 500;
+}
+
+.stream-markdown pre {
+  background: var(--muted);
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.stream-markdown pre code {
+  display: block;
+  padding: 1rem;
+  overflow-x: auto;
+  font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.stream-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.stream-markdown thead {
+  background: var(--muted);
+  font-weight: 600;
+}
+
+.stream-markdown th,
+.stream-markdown td {
+  border: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+  text-align: left;
+}
+
+.stream-markdown th {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.stream-markdown tbody tr:nth-child(even) {
+  background: var(--muted);
+}
+
+.stream-markdown a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.stream-markdown a:hover {
+  text-decoration: underline;
+  color: var(--ring);
+}
+
+.stream-markdown img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stream-markdown p {
+  margin: 0.75rem 0;
+  line-height: 1.75;
+}
+
+.stream-markdown strong {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.stream-markdown em {
+  font-style: italic;
+}
+
+.stream-markdown del {
+  text-decoration: line-through;
+  color: var(--muted-foreground);
+}
+
+.stream-markdown .\[&_p\]\:mb-0 p {
+  margin-bottom: 0;
+}
+
+.stream-markdown .\[&_p\]\:m-0 p {
+  margin: 0;
+}
+
+.stream-markdown .\[&_p\]\:inline-block p {
+  display: inline-block;
+}
+
+.stream-markdown input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.stream-markdown input[type="checkbox"]:checked {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
