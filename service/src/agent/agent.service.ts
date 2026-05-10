@@ -215,12 +215,22 @@ export class AgentService {
 
   private async buildExecutionContext(agent: any, dto: AgentChatDto, uid?: string) {
     let model;
-    try {
-      this.logger.debug(`buildExecutionContext: agent.modelId=${agent.modelId}`);
-      model = await this.modelService.findByCode(agent.modelId || 'gpt-4');
-      this.logger.debug(`模型查询成功: model.code=${model.code}, provider=${model.provider}`);
-    } catch {
-      this.logger.warn(`模型 ${agent.modelId || 'gpt-4'} 未找到，尝试查找可用的 LLM 模型`);
+    
+    this.logger.debug(`buildExecutionContext: agent.modelId=${agent.modelId}`);
+    
+    if (agent.modelId) {
+      try {
+        model = await this.modelService.findByCode(agent.modelId);
+        this.logger.debug(`模型查询成功: model.code=${model.code}, provider=${model.provider}`);
+      } catch (error) {
+        this.logger.warn(`模型 ${agent.modelId} 未找到，尝试查找可用的 LLM 模型`);
+        model = await this.prisma.model.findFirst({ where: { type: 'llm', status: true } });
+        if (!model) {
+          throw new NotFoundException('没有可用的模型');
+        }
+      }
+    } else {
+      this.logger.debug('智能体未配置模型，查找可用的 LLM 模型');
       model = await this.prisma.model.findFirst({ where: { type: 'llm', status: true } });
       if (!model) {
         throw new NotFoundException('没有可用的模型');
