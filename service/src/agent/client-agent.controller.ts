@@ -102,6 +102,14 @@ export class ClientAgentController {
         onConversationId: (conversationId: string) => {
           subject.next(new MessageEvent('message', { data: `[CONVERSATION_ID]${conversationId}` }));
         },
+        onStep: (step: any) => {
+          subject.next(new MessageEvent('message', { 
+            data: JSON.stringify({
+              type: 'reasoning_step',
+              step: step
+            })
+          }));
+        },
         onChunk: (chunk: string) => {
           subject.next(new MessageEvent('message', { data: chunk }));
         },

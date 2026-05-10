@@ -1,6 +1,7 @@
 import { httpClient } from './request'
 import { API_ENDPOINTS } from './config'
 import { streamRequest } from './stream'
+import type { ReasoningStep } from './reasoning'
 
 /**
  * 智能体接口
@@ -53,7 +54,8 @@ export const agentApi = {
     onMessage: (content: string) => void,
     onError: (error: Error) => void,
     onComplete: () => void,
-    onConversationId?: (conversationId: string) => void
+    onConversationId?: (conversationId: string) => void,
+    onReasoningStep?: (step: ReasoningStep) => void
   ): Promise<void> {
     const baseURL = import.meta.env.VITE_API_BASE_URL || ''
     const url = `${baseURL}${API_ENDPOINTS.agents}/chat/stream`
@@ -66,6 +68,7 @@ export const agentApi = {
         onError,
         onComplete,
         onConversationId,
+        onReasoningStep,
       },
     })
   },

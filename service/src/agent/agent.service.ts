@@ -645,7 +645,6 @@ export class AgentService {
     this.logger.log(`[ReAct+FC] 开始执行协同架构, reasoningMode: ${reasoningMode}`);
 
     const messages: ModelMessage[] = [
-      { role: 'system', content: context.systemPrompt },
       ...context.conversationHistory,
       { role: 'user', content: context.userMessage },
     ];
@@ -674,6 +673,7 @@ export class AgentService {
         // 调用模型（使用 Function Calling）
         await this.aiSdkProvider.streamText({
           model: context.model,
+          system: context.systemPrompt,
           messages,
           tools,
           temperature: context.temperature,
@@ -817,7 +817,6 @@ export class AgentService {
     this.logger.log(`[ReAct+FC Sync] 开始执行协同架构, reasoningMode: ${reasoningMode}`);
 
     const messages: ModelMessage[] = [
-      { role: 'system', content: context.systemPrompt },
       ...context.conversationHistory,
       { role: 'user', content: context.userMessage },
     ];
@@ -841,6 +840,7 @@ export class AgentService {
         // 调用模型（使用 Function Calling）
         const result = await this.aiSdkProvider.generateText({
           model: context.model,
+          system: context.systemPrompt,
           messages,
           tools,
           temperature: context.temperature,

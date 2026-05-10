@@ -1,6 +1,7 @@
 import { httpClient } from './request'
 import { API_ENDPOINTS } from './config'
 import { streamRequest } from './stream'
+import type { ReasoningStep } from './reasoning'
 
 /**
  * 消息接口
@@ -8,6 +9,7 @@ import { streamRequest } from './stream'
 export interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
+  reasoningSteps?: ReasoningStep[]
 }
 
 /**

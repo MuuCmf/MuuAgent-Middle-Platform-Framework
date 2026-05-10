@@ -1,4 +1,5 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source'
+import type { ReasoningStep } from './reasoning'
 
 /**
  * SSE 流式响应回调接口
@@ -8,6 +9,7 @@ export interface StreamCallbacks {
   onError: (error: Error) => void
   onComplete: () => void
   onConversationId?: (conversationId: string) => void
+  onReasoningStep?: (step: ReasoningStep) => void
 }
 
 /**
@@ -70,6 +72,15 @@ function handleSSEData(data: string, callbacks: StreamCallbacks): void {
       }
     } else if (parsed.type === 'chunk' && parsed.content) {
       callbacks.onMessage(parsed.content)
+    } else if (parsed.type === 'reasoning_step' && parsed.step) {
+      if (callbacks.onReasoningStep) {
+        const step = parsed.step
+        if (parsed.name && parsed.result) {
+          step.toolName = parsed.name
+          step.toolArgs = parsed.args
+        }
+        callbacks.onReasoningStep(step)
+      }
     } else if (parsed.type === 'error' && parsed.content) {
       callbacks.onError(new Error(parsed.content))
     } else if (parsed.type === 'done') {

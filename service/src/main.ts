@@ -16,8 +16,10 @@ async function bootstrap(): Promise<void> {
   // 设置全局前缀
   app.setGlobalPrefix('api');
 
-  // 配置静态文件服务
-  app.useStaticAssets(join(__dirname, '..', 'public'));
+  // 配置静态文件服务（/admin 路径映射到 public 目录）
+  app.useStaticAssets(join(__dirname, '..', '..', 'public'), {
+    prefix: '/admin/',
+  });
 
   // 启用CORS跨域
   app.enableCors();
@@ -30,12 +32,11 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  // SPA 路由支持：所有非 API 路由返回 index.html
+  // SPA 路由支持：/admin 路径返回管理前端
   app.use((req: Request, res: Response, next: NextFunction) => {
     // 如果是 API 路由或静态文件，继续正常处理
     if (
       req.path.startsWith('/api') ||
-      req.path.startsWith('/admin') ||
       req.path.startsWith('/api-docs') ||
       req.path.match(/\.\w+$/) // 包含文件扩展名的请求
     ) {
@@ -47,8 +48,40 @@ async function bootstrap(): Promise<void> {
       return next();
     }
 
-    // 其他所有路由返回 index.html，让前端路由处理
-    res.sendFile(join(__dirname, '..', 'public', 'index.html'));
+    // /admin 路径返回管理前端 index.html
+    if (req.path.startsWith('/admin')) {
+      const indexPath = join(__dirname, '..', '..', 'public', 'index.html');
+      const fs = require('fs');
+      if (!fs.existsSync(indexPath)) {
+        return res.status(404).json({
+          statusCode: 404,
+          message: 'Admin page not found',
+          error: 'Not Found'
+        });
+      }
+      return res.sendFile(indexPath);
+    }
+
+    // 根路径返回欢迎信息
+    if (req.path === '/') {
+      return res.json({
+        name: 'MuuAI-Middle-Platform',
+        description: 'AI模型管理 + MCP调度网关 + Skill + Agent 智能中台',
+        version: '1.0.0',
+        endpoints: {
+          admin: '/admin',
+          api: '/api',
+          docs: '/api-docs'
+        }
+      });
+    }
+
+    // 其他路由返回 404
+    return res.status(404).json({
+      statusCode: 404,
+      message: 'Resource not found',
+      error: 'Not Found'
+    });
   });
 
   // 配置Swagger API文档

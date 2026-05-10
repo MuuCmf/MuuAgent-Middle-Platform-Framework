@@ -12,6 +12,14 @@
       <div class="message-role">
         {{ message.role === 'user' ? '我' : 'AI助手' }}
       </div>
+      
+      <!-- 推理过程显示 -->
+      <ReasoningProcess 
+        v-if="message.role === 'assistant' && message.reasoningSteps && message.reasoningSteps.length > 0"
+        :steps="message.reasoningSteps"
+        :finalAnswer="message.content"
+      />
+      
       <div class="message-text" v-html="renderedContent"></div>
     </div>
   </div>
@@ -22,6 +30,7 @@ import { computed } from 'vue'
 import { marked } from 'marked'
 import { User, ChatDotRound } from '@element-plus/icons-vue'
 import type { Message } from '../api'
+import ReasoningProcess from './ReasoningProcess.vue'
 
 interface Props {
   message: Message

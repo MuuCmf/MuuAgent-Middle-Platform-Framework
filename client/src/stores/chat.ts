@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { aiApi, agentApi, conversationApi, type Message, type Conversation } from '../api'
+import type { ReasoningStep } from '../api/reasoning'
 
 /**
  * 聊天状态管理
@@ -42,7 +43,11 @@ export const useChatStore = defineStore('chat', () => {
     messages.value.push(userMessage)
     isLoading.value = true
 
-    const assistantMessage: Message = { role: 'assistant', content: '' }
+    const assistantMessage: Message = { 
+      role: 'assistant', 
+      content: '',
+      reasoningSteps: []
+    }
     messages.value.push(assistantMessage)
 
     const assistantIndex = messages.value.length - 1
@@ -96,6 +101,11 @@ export const useChatStore = defineStore('chat', () => {
             (conversationId: string) => {
               currentConversationId.value = conversationId
               loadConversations()
+            },
+            (step: ReasoningStep) => {
+              if (debugMode.value && messages.value[assistantIndex].reasoningSteps) {
+                messages.value[assistantIndex].reasoningSteps!.push(step)
+              }
             }
           )
         })
