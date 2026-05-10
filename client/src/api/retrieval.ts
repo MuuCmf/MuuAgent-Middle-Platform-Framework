@@ -62,8 +62,8 @@ export const retrievalApi = {
     topN?: number
     similarityThresh?: number
   }): Promise<{ data: RetrievalResponse }> {
-    const response = await httpClient.getInstance().post('/kb/retrieval', data)
-    return response.data
+    const response = await httpClient.getInstance().post('/api/kb/retrieval', data)
+    return { data: response.data.data }
   },
 
   /**
@@ -78,8 +78,8 @@ export const retrievalApi = {
     similarityThresh?: number
     conversationId?: string
   }): Promise<{ data: RagChatResponse }> {
-    const response = await httpClient.getInstance().post('/kb/chat/rag', data)
-    return response.data
+    const response = await httpClient.getInstance().post('/api/kb/chat/rag', data)
+    return { data: response.data.data }
   },
 
   /**

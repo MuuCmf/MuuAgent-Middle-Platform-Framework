@@ -22,14 +22,6 @@ export interface KbInfo {
 }
 
 /**
- * 知识库列表响应
- */
-export interface KbListResponse {
-  list: KbInfo[]
-  total: number
-}
-
-/**
  * 知识库API
  */
 export const kbApi = {
@@ -43,9 +35,9 @@ export const kbApi = {
     pageSize?: number
     keyword?: string
     status?: boolean
-  }): Promise<{ data: KbListResponse }> {
-    const response = await httpClient.getInstance().get('/client/kb', { params })
-    return response.data
+  }): Promise<{ data: KbInfo[] }> {
+    const response = await httpClient.getInstance().get('/api/kb', { params })
+    return { data: response.data.data }
   },
 
   /**
@@ -54,7 +46,7 @@ export const kbApi = {
    * @returns {Promise<any>} 知识库详情
    */
   async getDetail(kbId: string): Promise<{ data: KbInfo }> {
-    const response = await httpClient.getInstance().get(`/client/kb/${kbId}`)
-    return response.data
+    const response = await httpClient.getInstance().get(`/api/kb/${kbId}`)
+    return { data: response.data.data }
   },
 }

@@ -12,6 +12,6 @@ export const API_CONFIG = {
 export const API_ENDPOINTS = {
   chat: '/api/ai/stream',
   models: '/api/model',
-  agents: '/api/client/agent',
+  agents: '/api/agent',
   conversations: '/api/conversation',
 }

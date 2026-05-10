@@ -102,7 +102,7 @@ export class KbController {
 @ApiTags('知识库（业务端）')
 @ApiBearerAuth()
 @UseGuards(ApiKeyGuard)
-@Controller('client/kb')
+@Controller('kb')
 export class ClientKbController {
   /**
    * 构造函数

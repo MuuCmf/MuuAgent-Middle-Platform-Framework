@@ -4,15 +4,8 @@
       <div v-if="message.role === 'user'" class="avatar user-avatar">
         <el-icon><User /></el-icon>
       </div>
-      <div v-else class="avatar assistant-avatar">
-        <el-icon><ChatDotRound /></el-icon>
-      </div>
     </div>
     <div class="message-content">
-      <div class="message-role">
-        {{ message.role === 'user' ? '我' : 'AI助手' }}
-      </div>
-      
       <!-- 推理过程显示 -->
       <ReasoningProcess 
         v-if="message.role === 'assistant' && message.reasoningSteps && message.reasoningSteps.length > 0"
@@ -311,6 +304,8 @@ onBeforeUnmount(() => {
   gap: 16px;
   padding: 24px 0;
   animation: fadeIn 0.3s ease-in-out;
+  min-height: fit-content;
+  height: auto;
 }
 
 @keyframes fadeIn {
@@ -354,6 +349,8 @@ onBeforeUnmount(() => {
 .message-content {
   flex: 1;
   max-width: 70%;
+  min-height: fit-content;
+  height: auto;
 }
 
 .message.user .message-content {
@@ -362,19 +359,16 @@ onBeforeUnmount(() => {
   align-items: flex-end;
 }
 
-.message-role {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 8px;
-  font-weight: 500;
-}
-
 .message-text {
   background: #f5f7fa;
   padding: 16px;
   border-radius: 12px;
   line-height: 1.8;
   word-wrap: break-word;
+  min-height: fit-content;
+  height: auto;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .message.user .message-text {
@@ -413,6 +407,8 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   padding: 16px;
   width: 100%;
+  min-height: fit-content;
+  height: auto;
 
   .results-title {
     font-size: 14px;
@@ -429,6 +425,8 @@ onBeforeUnmount(() => {
     background: white;
     border-radius: 8px;
     border: 1px solid #e8e8e8;
+    min-height: fit-content;
+    height: auto;
 
     &:last-child {
       margin-bottom: 0;

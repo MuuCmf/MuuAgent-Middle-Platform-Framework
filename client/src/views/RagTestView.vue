@@ -178,7 +178,7 @@ const scrollToBottom = async () => {
 const loadKbList = async () => {
   try {
     const res = await kbApi.getList()
-    kbList.value = res.data?.list || []
+    kbList.value = res.data || []
   } catch (error) {
     console.error('加载知识库列表失败:', error)
     ElMessage.error('加载知识库列表失败')
