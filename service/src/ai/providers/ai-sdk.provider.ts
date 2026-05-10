@@ -148,6 +148,11 @@ export class AiSdkProvider {
       totalTokens: number;
     };
     steps?: any[];
+    toolCalls?: Array<{
+      toolCallId: string;
+      toolName: string;
+      args: Record<string, unknown>;
+    }>;
   }> {
     const startTime = Date.now();
     const provider = this.createProvider(params.model);
@@ -199,6 +204,11 @@ export class AiSdkProvider {
             }
           : undefined,
         steps: result.steps,
+        toolCalls: result.toolCalls?.map(tc => ({
+          toolCallId: tc.toolCallId,
+          toolName: tc.toolName,
+          args: (tc as any).args,
+        })),
       };
     } catch (error) {
       await this.mcpService.reportError(params.model.id);

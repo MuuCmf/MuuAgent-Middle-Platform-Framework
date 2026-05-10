@@ -34,33 +34,6 @@ export interface ReasoningStep {
 }
 
 /**
- * ReAct 解析结果
- */
-export interface ReActParseResult {
-  type: StepType;
-  thought?: string;
-  action?: string;
-  actionInput?: Record<string, unknown>;
-  finalAnswer?: string;
-  rawContent: string;
-}
-
-/**
- * 执行上下文
- */
-export interface ExecutionContext {
-  agent: any;
-  model: any;
-  userMessage: string;
-  systemPrompt: string;
-  tools: ToolDefinition[];
-  maxSteps: number;
-  temperature: number;
-  conversationHistory?: ConversationMessage[];
-  mcpServerConfigs?: any[];
-}
-
-/**
  * 工具定义
  */
 export interface ToolDefinition {
@@ -68,14 +41,6 @@ export interface ToolDefinition {
   description: string;
   parameters: Record<string, any>;
   type: 'skill' | 'mcp' | 'kb';
-}
-
-/**
- * 对话消息
- */
-export interface ConversationMessage {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
 }
 
 /**
@@ -90,31 +55,4 @@ export interface ExecutionResult {
   outputTokens?: number;
   errorMessage?: string;
   conversationId?: string;
-}
-
-/**
- * LLM调用函数类型
- */
-export type CallLLMFn = (
-  systemPrompt: string,
-  userMessage: string,
-) => Promise<{ response: string; inputTokens?: number; outputTokens?: number }>;
-
-/**
- * 流式LLM调用函数类型
- */
-export type CallLLMStreamFn = (
-  systemPrompt: string,
-  userMessage: string,
-  onChunk: (chunk: string) => void,
-) => Promise<{ response: string; inputTokens?: number; outputTokens?: number }>;
-
-/**
- * 流式执行回调
- */
-export interface StreamCallbacks {
-  onStep: (step: ReasoningStep) => void;
-  onChunk: (chunk: string) => void;
-  onDone: (result: ExecutionResult) => void;
-  onError: (error: string) => void;
 }

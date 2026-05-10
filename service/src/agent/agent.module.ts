@@ -11,6 +11,7 @@ import { RetrievalModule } from '../retrieval/retrieval.module';
 import { AiModule } from '../ai/ai.module';
 import { AiSdkModule } from '../ai/providers/ai-sdk.module';
 import { KbSearchTool } from './tools/kb-search.tool';
+import { ToolExecutor } from './tools/tool-executor';
 import { PromptTemplateModule } from '../prompt-template/prompt-template.module';
 import { ConversationModule } from '../conversation/conversation.module';
 
@@ -24,7 +25,8 @@ import { ConversationModule } from '../conversation/conversation.module';
     AgentService,
     AgentKbService,
     KbSearchTool,
+    ToolExecutor,
   ],
-  exports: [AgentService, AgentKbService],
+  exports: [AgentService, AgentKbService, ToolExecutor],
 })
 export class AgentModule {}

@@ -5,6 +5,8 @@ import { McpServerService } from '../mcp-server/mcp-server.service';
 import { ModelService } from '../model/model.service';
 import { AgentKbService } from './agent-kb.service';
 import { KbSearchTool } from './tools/kb-search.tool';
+import { ToolExecutor, ToolCall, ToolExecutionResult } from './tools/tool-executor';
+import { ToolDefinitionBuilder, FunctionToolDefinition } from './tools/tool-definitions';
 import { ReasoningMode, ExecutionResult, ToolDefinition } from './react/react.types';
 import { ReActPromptBuilder } from './react/react.prompt';
 import { PromptTemplateService } from '../prompt-template/prompt-template.service';
@@ -44,6 +46,7 @@ export class AgentService {
     private modelService: ModelService,
     private agentKbService: AgentKbService,
     private kbSearchTool: KbSearchTool,
+    private toolExecutor: ToolExecutor,
     private aiSdkProvider: AiSdkProvider,
     private promptTemplateService: PromptTemplateService,
     private conversationService: ConversationService,
@@ -137,7 +140,7 @@ export class AgentService {
       return this.executeDefaultSyncChat(agent, context, startTime, clientIp, uid);
     }
 
-    return this.executeReActSync(agent, context, reasoningMode, startTime, clientIp, uid);
+    return this.executeReActWithFunctionCallingSync(agent, context, reasoningMode, startTime, clientIp, uid);
   }
 
   /**
@@ -171,8 +174,8 @@ export class AgentService {
       this.logger.log(`[AgentStream] 执行默认流式模式`);
       await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks);
     } else {
-      this.logger.log(`[AgentStream] 执行ReAct流式模式`);
-      await this.executeReActStream(
+      this.logger.log(`[AgentStream] 执行 Function Calling + ReAct 协同架构`);
+      await this.executeReActWithFunctionCalling(
         agent, 
         context, 
         reasoningMode, 
@@ -180,7 +183,6 @@ export class AgentService {
         clientIp, 
         uid, 
         callbacks,
-        { showReasoning: dto.showReasoning || false }
       );
     }
   }
@@ -434,138 +436,6 @@ export class AgentService {
     }
   }
 
-  private async executeReActSync(
-    agent: any,
-    context: any,
-    reasoningMode: ReasoningMode,
-    startTime: number,
-    clientIp: string,
-    uid: string | undefined,
-  ): Promise<Record<string, unknown>> {
-    const messages: ModelMessage[] = [];
-    let currentPrompt = context.userMessage;
-    let finalResponse = '';
-    const steps: any[] = [];
-
-    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
-
-    try {
-      await this.conversationService.addMessage(
-        context.conversationId,
-        'user',
-        context.userMessage,
-      );
-
-      for (let i = 0; i < context.maxSteps; i++) {
-        const stepMessages: ModelMessage[] = [
-          ...context.conversationHistory,
-          ...messages,
-          { role: 'user', content: currentPrompt },
-        ];
-
-        const result = await this.aiSdkProvider.generateText({
-          model: context.model,
-          system: context.systemPrompt,
-          messages: stepMessages,
-          tools,
-          temperature: context.temperature,
-          clientIp,
-          userAgent: 'agent-service',
-          uid,
-        });
-
-        const stepText = result.text;
-
-        if (stepText.includes('Final Answer:')) {
-          const parts = stepText.split('Final Answer:');
-          finalResponse = parts[parts.length - 1].trim();
-
-          steps.push({
-            stepNumber: i + 1,
-            stepType: 'final_answer',
-            content: finalResponse,
-          });
-
-          break;
-        }
-
-        steps.push({
-          stepNumber: i + 1,
-          stepType: 'thought',
-          content: stepText,
-        });
-
-        const toolCallResult = this.parseToolCallFromText(stepText);
-        if (toolCallResult && toolCallResult.toolCalls.length > 0) {
-          for (const toolCall of toolCallResult.toolCalls) {
-            try {
-              const toolResult = await this.executeTool(toolCall.name, toolCall.args, context);
-              steps[steps.length - 1].observation = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
-              steps[steps.length - 1].toolOutput = toolResult;
-
-              const resultText = steps[steps.length - 1].observation;
-              messages.push({ role: 'assistant', content: stepText });
-              currentPrompt = `工具 ${toolCall.name} 返回结果:\n${resultText}\n\n请基于以上结果继续回答用户问题。如果已经得到答案，使用 Final Answer 输出最终答案。`;
-              break;
-            } catch (error) {
-              const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
-              steps[steps.length - 1].observation = `错误: ${errorMsg}`;
-              currentPrompt = `工具执行失败: ${errorMsg}\n请尝试其他方式回答用户的问题。`;
-            }
-          }
-        }
-      }
-
-      if (!finalResponse) {
-        finalResponse = '抱歉，我无法在有限的步骤内完成您的请求。';
-      }
-
-      await this.conversationService.addMessage(
-        context.conversationId,
-        'assistant',
-        finalResponse,
-        { reasoningSteps: steps },
-      );
-
-      if (context.conversationHistory.length === 0) {
-        await this.conversationService.generateTitle(context.conversationId);
-      }
-
-      await this.saveLog(agent, context, { text: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
-
-      return {
-        response: finalResponse,
-        steps,
-        reasoningMode,
-        conversationId: context.conversationId,
-      };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : '执行失败';
-      await this.prisma.agentInvokeLog.create({
-        data: {
-          agentId: agent.id,
-          conversationId: context.conversationId,
-          userMessage: context.userMessage,
-          agentResponse: errorMsg,
-          steps: JSON.stringify(steps),
-          totalCostMs: Date.now() - startTime,
-          success: false,
-          errorMessage: errorMsg,
-          clientIp,
-          uid,
-          reasoningMode,
-        },
-      });
-
-      return {
-        response: errorMsg,
-        steps,
-        reasoningMode,
-        conversationId: context.conversationId,
-      };
-    }
-  }
-
   private async executeDefaultStream(
     agent: any,
     context: any,
@@ -638,15 +508,24 @@ export class AgentService {
             });
           } else if (toolCallToExecute && toolCallCount < maxToolCalls) {
             try {
-              const toolResult = await this.executeTool(toolCallToExecute.name, toolCallToExecute.args, context);
+              const toolResult = await this.toolExecutor.executeToolCall(
+                {
+                  id: `tc_${Date.now()}`,
+                  function: {
+                    name: toolCallToExecute.name,
+                    arguments: JSON.stringify(toolCallToExecute.args),
+                  },
+                },
+                { agent: context.agent, conversationId: context.conversationId, uid },
+              );
               
               callbacks.onToolCall?.({
                 name: toolCallToExecute.name,
                 args: toolCallToExecute.args,
-                result: toolResult,
+                result: toolResult.result,
               });
 
-              const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
+              const resultText = typeof toolResult.result === 'object' ? JSON.stringify(toolResult.result, null, 2) : String(toolResult.result);
               
               const newMessages: ModelMessage[] = [
                 ...currentMessages,
@@ -714,534 +593,6 @@ export class AgentService {
     }
   }
 
-  private async executeReActStream(
-    agent: any,
-    context: any,
-    reasoningMode: ReasoningMode,
-    startTime: number,
-    clientIp: string,
-    uid: string | undefined,
-    callbacks: StreamCallbacks,
-    options: { showReasoning?: boolean } = {}
-  ): Promise<void> {
-    const { showReasoning = false } = options;
-    const messages: ModelMessage[] = [];
-    let currentPrompt = context.userMessage;
-    let finalResponse = '';
-    const steps: any[] = [];
-
-    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
-
-    try {
-      await this.conversationService.addMessage(
-        context.conversationId,
-        'user',
-        context.userMessage,
-      );
-
-      for (let i = 0; i < context.maxSteps; i++) {
-        this.logger.debug(`ReAct Stream Step ${i + 1}`);
-
-        const stepMessages: ModelMessage[] = [
-          ...context.conversationHistory,
-          ...messages,
-          { role: 'user', content: currentPrompt },
-        ];
-
-        let stepText = '';
-        let hasFinalAnswer = false;
-        let toolCallDetected: { name: string; args: any } | null = null;
-        let inAnswerMode = false;
-        let answerBuffer = '';
-
-        await this.aiSdkProvider.streamText({
-          model: context.model,
-          system: context.systemPrompt,
-          messages: stepMessages,
-          tools,
-          temperature: context.temperature,
-          clientIp,
-          userAgent: 'agent-service',
-          uid,
-          onChunk: (chunk) => {
-            stepText += chunk;
-            
-            if (inAnswerMode) {
-              answerBuffer += chunk;
-              callbacks.onChunk?.(chunk);
-              return;
-            }
-            
-            // 检测 Final Answer（支持多种格式）
-            const finalAnswerPatterns = [
-              'Final Answer:',
-              'Final Answer',
-              'final answer:',
-              'FINAL ANSWER:'
-            ];
-            
-            for (const pattern of finalAnswerPatterns) {
-              if (stepText.toLowerCase().includes(pattern.toLowerCase())) {
-                inAnswerMode = true;
-                const regex = new RegExp(pattern.replace(':', ':?') + '\\s*(.+)', 'is');
-                const match = stepText.match(regex);
-                if (match && match[1]) {
-                  answerBuffer = match[1].trim();
-                  callbacks.onChunk?.(match[1].trim());
-                }
-                return;
-              }
-            }
-            
-            // 检测 "Action: 无需" 或 "Action: 无"
-            if (stepText.includes('Action: 无需') || stepText.includes('Action: 无')) {
-              inAnswerMode = true;
-              const actionMatch = stepText.match(/Action:\s*无需[^。]*[。:：]?\s*(.+?)(?:\n|$)/);
-              if (actionMatch && actionMatch[1]) {
-                answerBuffer = actionMatch[1];
-                callbacks.onChunk?.(actionMatch[1]);
-              }
-              return;
-            }
-            
-            if (showReasoning) {
-              let formattedChunk = chunk;
-              
-              // 修复常见的格式错误
-              // 1. 修复 "Action: Input" -> "Action Input:"
-              formattedChunk = formattedChunk.replace(/Action:\s*Input:/gi, 'Action Input:');
-              formattedChunk = formattedChunk.replace(/Action:\s*Input\s/gi, 'Action Input: ');
-              
-              // 2. 修复双冒号 "Action::" -> "Action:"
-              formattedChunk = formattedChunk.replace(/Thought::/gi, 'Thought:');
-              formattedChunk = formattedChunk.replace(/Action::/gi, 'Action:');
-              formattedChunk = formattedChunk.replace(/Observation::/gi, 'Observation:');
-              formattedChunk = formattedChunk.replace(/Action Input::/gi, 'Action Input:');
-              formattedChunk = formattedChunk.replace(/Final Answer::/gi, 'Final Answer:');
-              
-              // 3. 在标记前添加换行（如果标记不在行首）
-              const reactMarkers = ['Thought:', 'Action:', 'Observation:', 'Action Input:', 'Final Answer:'];
-              for (const marker of reactMarkers) {
-                // 查找标记出现的位置
-                const markerIndex = formattedChunk.indexOf(marker);
-                if (markerIndex > 0) {
-                  // 检查标记前是否已经有换行
-                  const beforeMarker = formattedChunk.substring(0, markerIndex);
-                  if (!beforeMarker.endsWith('\n') && !beforeMarker.endsWith('\n\n')) {
-                    // 在标记前插入换行
-                    formattedChunk = formattedChunk.replace(marker, '\n' + marker);
-                  }
-                }
-              }
-              
-              // 4. 处理标记名称缺少冒号的情况
-              for (const marker of reactMarkers) {
-                const markerWithoutColon = marker.replace(':', '');
-                // 检查是否有标记名称但没有冒号（如 "Thought" 而不是 "Thought:"）
-                const regex = new RegExp(`\\b${markerWithoutColon}\\b(?!:)`, 'g');
-                if (regex.test(formattedChunk)) {
-                  formattedChunk = formattedChunk.replace(regex, marker);
-                }
-              }
-              
-              callbacks.onChunk?.(formattedChunk);
-            } else {
-              const lines = stepText.split('\n');
-              const lastLine = lines[lines.length - 1];
-              
-              const isReActLine = lastLine.trim().startsWith('Thought:') ||
-                                  lastLine.trim().startsWith('Action:') ||
-                                  lastLine.trim().startsWith('Observation:') ||
-                                  lastLine.trim().startsWith('Action Input:');
-              
-              if (!isReActLine) {
-                const reactKeywords = ['Thought', 'Action', 'Observation', 'Action Input', 'Final Answer'];
-                const lastLineLower = lastLine.toLowerCase();
-                const hasKeyword = reactKeywords.some(keyword => 
-                  lastLineLower.includes(keyword.toLowerCase())
-                );
-                
-                if (!hasKeyword) {
-                  callbacks.onChunk?.(chunk);
-                }
-              }
-            }
-          },
-          onToolCall: (toolCall) => {
-            this.logger.debug(`onToolCall received: ${JSON.stringify(toolCall)}`);
-            toolCallDetected = toolCall;
-          },
-          onFinish: async (result) => {
-            this.logger.debug(`ReAct Stream Step ${i + 1} finished, text length: ${result.text?.length || 0}`);
-            
-            if (result.text && result.text.length > 0 && !hasFinalAnswer && !toolCallDetected) {
-              this.logger.log(`[executeReActStream] 直接返回结果，无需工具调用`);
-              
-              const hasReactMarkers = result.text.includes('Thought:') || 
-                                      result.text.includes('Action:') || 
-                                      result.text.includes('Observation:') ||
-                                      result.text.toLowerCase().includes('thought') ||
-                                      result.text.toLowerCase().includes('action');
-              
-              const hasFinalAnswerInText = result.text.includes('Final Answer:') ||
-                                           result.text.toLowerCase().includes('final answer');
-              
-              if (hasReactMarkers && !hasFinalAnswerInText) {
-                this.logger.warn(`[executeReActStream] 模型返回了 ReAct 格式但没有 Final Answer，提取有效内容`);
-                
-                let extractedContent = '';
-                
-                // 尝试从 Observation 提取内容
-                const observationMatch = result.text.match(/Observation:\s*(.+?)(?:\n|$)/i);
-                if (observationMatch && observationMatch[1]) {
-                  extractedContent = observationMatch[1].trim();
-                  this.logger.debug(`[executeReActStream] 从 Observation 提取内容: ${extractedContent}`);
-                }
-                
-                // 如果没有 Observation，尝试提取非 ReAct 标记的内容
-                if (!extractedContent) {
-                  const lines = result.text.split('\n');
-                  const contentLines = lines.filter((line: string) => {
-                    const trimmed = line.trim();
-                    const lowerTrimmed = trimmed.toLowerCase();
-                    return trimmed && 
-                           !lowerTrimmed.startsWith('thought:') && 
-                           !lowerTrimmed.startsWith('thought') &&
-                           !lowerTrimmed.startsWith('action:') && 
-                           !lowerTrimmed.startsWith('action') &&
-                           !lowerTrimmed.startsWith('action input:') &&
-                           !lowerTrimmed.startsWith('action input') &&
-                           !lowerTrimmed.startsWith('observation:') &&
-                           !lowerTrimmed.startsWith('observation');
-                  });
-                  
-                  extractedContent = contentLines.join('\n').trim();
-                  this.logger.debug(`[executeReActStream] 过滤后的内容: ${extractedContent}`);
-                }
-                
-                if (extractedContent) {
-                  finalResponse = extractedContent;
-                  this.logger.log(`[executeReActStream] 提取到有效内容: ${finalResponse}`);
-                } else {
-                  this.logger.warn(`[executeReActStream] 无法提取有效内容，使用原始文本`);
-                  finalResponse = result.text;
-                }
-              } else if (hasFinalAnswerInText) {
-                // 提取 Final Answer 后的内容
-                const finalAnswerMatch = result.text.match(/Final Answer:?\s*(.+?)(?:\n|$)/is);
-                if (finalAnswerMatch && finalAnswerMatch[1]) {
-                  finalResponse = finalAnswerMatch[1].trim();
-                  this.logger.log(`[executeReActStream] 提取 Final Answer: ${finalResponse}`);
-                } else {
-                  finalResponse = result.text;
-                }
-              } else {
-                finalResponse = result.text;
-              }
-              
-              hasFinalAnswer = true;
-              
-              await this.conversationService.addMessage(
-                context.conversationId,
-                'assistant',
-                finalResponse,
-              );
-              
-              if (context.conversation?.messageCount === 0) {
-                await this.conversationService.generateTitle(context.conversationId);
-              }
-              
-              callbacks.onDone?.({
-                success: true,
-                response: finalResponse,
-                steps,
-                totalCostMs: Date.now() - startTime,
-                conversationId: context.conversationId,
-              });
-            }
-          },
-        });
-
-        if (stepText.includes('Final Answer:')) {
-          hasFinalAnswer = true;
-          const thoughtPart = stepText.split('Final Answer:')[0];
-          
-          if (thoughtPart.trim()) {
-            steps.push({
-              stepNumber: i + 1,
-              stepType: 'thought',
-              content: thoughtPart.trim(),
-            });
-            callbacks.onStep?.({
-              stepNumber: i + 1,
-              stepType: 'thought',
-              content: thoughtPart.trim(),
-            });
-          }
-          
-          const finalAnswerPart = stepText.substring(stepText.indexOf('Final Answer:') + 13).trim();
-          finalResponse = finalAnswerPart;
-
-          steps.push({
-            stepNumber: steps.length > 0 ? steps.length + 1 : i + 1,
-            stepType: 'final_answer',
-            content: finalAnswerPart,
-          });
-
-          break;
-        }
-
-        if (stepText.trim() && !stepText.includes('Thought:') && !stepText.includes('Action:')) {
-          steps.push({
-            stepNumber: steps.length + 1,
-            stepType: 'thought',
-            content: stepText.trim(),
-          });
-        }
-
-        if (toolCallDetected && typeof toolCallDetected === 'object') {
-          const tc = toolCallDetected as { name: string; args: any };
-          try {
-            const actionStep = {
-              stepNumber: steps.length + 1,
-              stepType: 'action' as const,
-              content: stepText.trim() || `需要调用工具 ${tc.name} 获取相关信息`,
-              toolName: tc.name,
-              toolArgs: tc.args,
-            };
-            steps.push(actionStep);
-            callbacks.onStep?.(actionStep);
-
-            const toolResult = await this.executeTool(tc.name, tc.args, context);
-
-            callbacks.onToolCall?.({
-              name: tc.name,
-              args: tc.args,
-              result: toolResult,
-            });
-
-            const resultText = typeof toolResult === 'object' ? JSON.stringify(toolResult, null, 2) : String(toolResult);
-            messages.push({ role: 'assistant', content: stepText });
-            currentPrompt = `工具 ${tc.name} 返回结果:\n${resultText}\n\n请基于以上结果继续回答用户问题。如果已经得到答案，使用 Final Answer 输出最终答案。`;
-
-            const observationStep = {
-              stepNumber: steps.length + 1,
-              stepType: 'observation' as const,
-              content: resultText,
-              toolName: tc.name,
-              toolOutput: toolResult,
-            };
-            steps.push(observationStep);
-            callbacks.onStep?.(observationStep);
-
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
-            
-            const actionStep = {
-              stepNumber: steps.length + 1,
-              stepType: 'action' as const,
-              content: stepText.trim() || `调用工具: ${tc.name}`,
-              toolName: tc.name,
-              toolArgs: tc.args,
-            };
-            steps.push(actionStep);
-            callbacks.onStep?.(actionStep);
-
-            const observationStep = {
-              stepNumber: steps.length + 1,
-              stepType: 'observation' as const,
-              content: `错误: ${errorMsg}`,
-              toolName: tc.name,
-              toolOutput: null,
-            };
-            steps.push(observationStep);
-            callbacks.onStep?.(observationStep);
-
-            currentPrompt = `工具执行失败: ${errorMsg}\n请尝试其他方式回答用户的问题。`;
-          }
-        } else if (!stepText.includes('Thought:') && !stepText.includes('Action:')) {
-          finalResponse = stepText.trim();
-          if (steps.length > 0 && steps[steps.length - 1].observation) {
-            steps[steps.length - 1].finalAnswer = finalResponse;
-          }
-          steps.push({
-            stepNumber: steps.length + 1,
-            stepType: 'final_answer',
-            content: finalResponse,
-          });
-          callbacks.onStep?.({
-            stepNumber: steps.length,
-            stepType: 'final_answer',
-            content: finalResponse,
-          });
-          break;
-        } else {
-          if (stepText.includes('已经得到答案') || stepText.includes('现在的时间') || stepText.includes('答案是') || stepText.includes('无需执行任何工具')) {
-            const answerText = this.extractFinalAnswer(stepText);
-            finalResponse = answerText;
-            steps.push({
-              stepNumber: steps.length + 1,
-              stepType: 'final_answer',
-              content: finalResponse,
-            });
-            callbacks.onStep?.({
-              stepNumber: steps.length,
-              stepType: 'final_answer',
-              content: finalResponse,
-            });
-            break;
-          }
-          const thoughtStep = {
-            stepNumber: steps.length + 1,
-            stepType: 'thought' as const,
-            content: this.extractFinalAnswer(stepText),
-          };
-          steps.push(thoughtStep);
-          callbacks.onStep?.(thoughtStep);
-          
-          messages.push({ role: 'assistant', content: stepText });
-          currentPrompt = `请继续思考并回答用户问题。如果已经得到答案，使用 Final Answer 输出最终答案。`;
-        }
-      }
-
-      if (!finalResponse) {
-        finalResponse = '抱歉，我无法在有限的步骤内完成您的请求。';
-      }
-
-      await this.conversationService.addMessage(
-        context.conversationId,
-        'assistant',
-        finalResponse,
-        { reasoningSteps: steps },
-      );
-
-      if (context.conversationHistory.length === 0) {
-        await this.conversationService.generateTitle(context.conversationId);
-      }
-
-      await this.saveLog(agent, context, { text: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
-
-      callbacks.onDone?.({
-        success: true,
-        response: finalResponse,
-        steps,
-        totalCostMs: Date.now() - startTime,
-        conversationId: context.conversationId,
-      });
-    } catch (error) {
-      callbacks.onError?.(error instanceof Error ? error.message : 'Unknown error');
-    }
-  }
-
-  private parseToolCallFromText(text: string): { toolCalls: Array<{ name: string; args: Record<string, unknown> }> } {
-    const toolCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
-
-    try {
-      // 尝试解析 JSON 格式的工具调用
-      const jsonMatch = text.match(/\{[\s\S]*"Action[\s\S]*":[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed.Action && parsed['Action Input']) {
-          toolCalls.push({
-            name: parsed.Action,
-            args: typeof parsed['Action Input'] === 'string' ? JSON.parse(parsed['Action Input']) : parsed['Action Input'],
-          });
-        }
-      } else {
-        // 尝试解析文本格式的工具调用（GLM4等模型使用这种格式）
-        const actionMatch = text.match(/Action:\s*(\S+)/);
-        const actionInputMatch = text.match(/Action Input:\s*(\{[\s\S]*?\})/);
-        
-        if (actionMatch && actionInputMatch) {
-          const toolName = actionMatch[1].trim();
-          try {
-            const toolArgs = JSON.parse(actionInputMatch[1].trim());
-            toolCalls.push({
-              name: toolName,
-              args: toolArgs,
-            });
-          } catch (e) {
-            this.logger.warn('Failed to parse Action Input JSON');
-          }
-        }
-      }
-    } catch (e) {
-      this.logger.warn('Failed to parse tool call from text');
-    }
-
-    return { toolCalls };
-  }
-
-  private extractFinalAnswer(text: string): string {
-    const content = text.trim();
-    
-    // 如果包含 "无需执行任何工具" 且之后只有很少内容（用户。），这可能是中间步骤，不是最终答案
-    if (content.includes('无需执行任何工具')) {
-      const afterAction = content.split('无需执行任何工具').pop()?.trim() || '';
-      // 如果 Action: 之后的内容很短（少于10个字符），可能是中间思考，不是答案
-      if (afterAction.length < 10) {
-        // 返回空白，表示这不是有效的最终答案
-        return '';
-      }
-      return afterAction;
-    }
-    
-    // 方法1：如果包含 "当前时间是" 或类似格式，直接提取答案
-    const timeMatch = content.match(/(当前时间是|现在的时间是)([^]。]+。?)/);
-    if (timeMatch) {
-      return (timeMatch[1] + timeMatch[2]).trim() + '。';
-    }
-    
-    // 方法2：如果包含 "答案是" 或类似格式，提取答案
-    const answerMatch = content.match(/(答案是)([^]。「.+?」?)。?/);
-    if (answerMatch) {
-      return (answerMatch[1] + answerMatch[2]).trim() + '。';
-    }
-    
-    // 方法3：如果有 Final Answer: 标记，提取其后的内容
-    if (content.includes('Final Answer:')) {
-      return content.split('Final Answer:').pop()?.trim() || content;
-    }
-    
-    // 方法5：移除 Thought: 和 Action: 标记，保留剩余内容
-    let cleaned = content
-      .replace(/Thought:\s*[\s\S]*?(?=Action:)/g, '')
-      .replace(/Action:\s*[^当][^。]*/g, '')
-      .replace(/Observation:\s*\{[\s\S]*?\}\s*/g, '')
-      .replace(/\n+/g, ' ')
-      .trim();
-    
-    return cleaned || content;
-  }
-
-  private async executeTool(name: string, args: Record<string, unknown>, context: any): Promise<unknown> {
-    this.logger.log(`Executing tool: ${name} with args: ${JSON.stringify(args)}`);
-
-    if (name.startsWith('mcp:')) {
-      const parts = name.split(':');
-      const serverName = parts[1];
-      const toolName = parts.slice(2).join(':');
-
-      const mcpServers = JSON.parse(context.agent.mcpServers || '[]');
-      const serverConfig = mcpServers.find((s: any) => s.name === serverName);
-
-      if (serverConfig) {
-        return this.mcpServerService.callTool([serverConfig], toolName, args);
-      }
-      throw new Error(`MCP server not found: ${serverName}`);
-    }
-
-    if (name === 'kb_search') {
-      const kbCodes = JSON.parse(context.agent.knowledgeBases || '[]');
-      return this.kbSearchTool.execute(context.agent.id, kbCodes, args as { query: string; kb_codes?: string[]; top_k?: number; similarity_threshold?: number });
-    }
-
-    return this.skillService.execute({
-      skillCode: name,
-      params: args,
-    });
-  }
-
   private async saveLog(
     agent: any,
     context: any,
@@ -1268,6 +619,352 @@ export class AgentService {
       });
     } catch (e) {
       this.logger.error('Failed to save log:', e);
+    }
+  }
+
+  /**
+   * 使用 Function Calling + ReAct 协同架构执行智能体对话
+   * 这是新的推荐方法，替代旧的文本解析方式
+   * @param agent 智能体配置
+   * @param context 执行上下文
+   * @param reasoningMode 推理模式
+   * @param startTime 开始时间
+   * @param clientIp 客户端IP
+   * @param uid 用户ID
+   * @param callbacks 流式回调函数
+   */
+  private async executeReActWithFunctionCalling(
+    agent: any,
+    context: any,
+    reasoningMode: ReasoningMode,
+    startTime: number,
+    clientIp: string,
+    uid: string | undefined,
+    callbacks: StreamCallbacks,
+  ): Promise<void> {
+    this.logger.log(`[ReAct+FC] 开始执行协同架构, reasoningMode: ${reasoningMode}`);
+
+    const messages: ModelMessage[] = [
+      { role: 'system', content: context.systemPrompt },
+      ...context.conversationHistory,
+      { role: 'user', content: context.userMessage },
+    ];
+
+    const steps: any[] = [];
+    let finalResponse = '';
+
+    // 将工具转换为 Function Calling 格式
+    const functionTools = ToolDefinitionBuilder.convertToFunctionCallingFormat(context.tools);
+    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
+
+    try {
+      await this.conversationService.addMessage(
+        context.conversationId,
+        'user',
+        context.userMessage,
+      );
+
+      // ReAct 推理循环
+      for (let i = 0; i < context.maxSteps; i++) {
+        this.logger.debug(`[ReAct+FC] Step ${i + 1}/${context.maxSteps}`);
+
+        let stepText = '';
+        let hasToolCall = false;
+
+        // 调用模型（使用 Function Calling）
+        await this.aiSdkProvider.streamText({
+          model: context.model,
+          messages,
+          tools,
+          temperature: context.temperature,
+          clientIp,
+          userAgent: 'agent-service',
+          uid,
+          onChunk: (chunk) => {
+            stepText += chunk;
+            callbacks.onChunk?.(chunk);
+          },
+          onToolCall: async (toolCall: { name: string; args: any }) => {
+            this.logger.log(`[ReAct+FC] 检测到工具调用: ${toolCall.name}`);
+            hasToolCall = true;
+
+            // 记录推理步骤
+            const thoughtStep = {
+              stepNumber: steps.length + 1,
+              stepType: 'thought',
+              content: stepText || `需要调用工具 ${toolCall.name}`,
+            };
+            steps.push(thoughtStep);
+            callbacks.onStep?.(thoughtStep);
+
+            // 记录行动步骤
+            const actionStep = {
+              stepNumber: steps.length + 1,
+              stepType: 'action',
+              content: `调用工具: ${toolCall.name}`,
+              action: toolCall.name,
+              actionInput: toolCall.args,
+            };
+            steps.push(actionStep);
+            callbacks.onStep?.(actionStep);
+
+            // 执行工具
+            const toolResult = await this.toolExecutor.executeToolCall(
+              {
+                id: `tc_${Date.now()}`,
+                function: {
+                  name: toolCall.name,
+                  arguments: JSON.stringify(toolCall.args),
+                },
+              },
+              { agent: context.agent, conversationId: context.conversationId, uid },
+            );
+
+            // 发送工具调用信息给前端
+            callbacks.onToolCall?.({
+              name: toolCall.name,
+              args: toolCall.args,
+              result: toolResult.result,
+            });
+
+            // 记录观察步骤
+            const resultText = typeof toolResult.result === 'object'
+              ? JSON.stringify(toolResult.result, null, 2)
+              : String(toolResult.result);
+
+            const observationStep = {
+              stepNumber: steps.length + 1,
+              stepType: 'observation',
+              content: resultText,
+              observation: resultText,
+              toolOutput: toolResult.result,
+            };
+            steps.push(observationStep);
+            callbacks.onStep?.(observationStep);
+
+            // 添加工具结果到消息历史
+            messages.push({
+              role: 'assistant',
+              content: stepText,
+            });
+            messages.push({
+              role: 'user',
+              content: `工具 ${toolCall.name} 返回结果:\n${resultText}\n\n请基于以上结果继续回答用户问题。如果已经得到答案，直接给出最终答案。`,
+            });
+          },
+        });
+
+        // 如果没有工具调用，说明已经得到最终答案
+        if (!hasToolCall) {
+          finalResponse = stepText.trim();
+          
+          const finalStep = {
+            stepNumber: steps.length + 1,
+            stepType: 'final_answer',
+            content: finalResponse,
+          };
+          steps.push(finalStep);
+          callbacks.onStep?.(finalStep);
+          break;
+        }
+      }
+
+      // 保存对话消息
+      await this.conversationService.addMessage(
+        context.conversationId,
+        'assistant',
+        finalResponse,
+      );
+
+      // 保存日志
+      await this.saveLog(agent, context, { response: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
+
+      // 返回最终结果
+      callbacks.onDone?.({
+        success: true,
+        response: finalResponse,
+        steps,
+        totalCostMs: Date.now() - startTime,
+        conversationId: context.conversationId,
+      });
+
+      this.logger.log(`[ReAct+FC] 执行完成, 耗时: ${Date.now() - startTime}ms`);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`[ReAct+FC] 执行失败:`, errorMsg);
+      callbacks.onError?.(errorMsg);
+    }
+  }
+
+  /**
+   * 使用 Function Calling + ReAct 协同架构执行智能体对话（同步版本）
+   * @param agent 智能体配置
+   * @param context 执行上下文
+   * @param reasoningMode 推理模式
+   * @param startTime 开始时间
+   * @param clientIp 客户端IP
+   * @param uid 用户ID
+   * @returns 执行结果
+   */
+  private async executeReActWithFunctionCallingSync(
+    agent: any,
+    context: any,
+    reasoningMode: ReasoningMode,
+    startTime: number,
+    clientIp: string,
+    uid: string | undefined,
+  ): Promise<Record<string, unknown>> {
+    this.logger.log(`[ReAct+FC Sync] 开始执行协同架构, reasoningMode: ${reasoningMode}`);
+
+    const messages: ModelMessage[] = [
+      { role: 'system', content: context.systemPrompt },
+      ...context.conversationHistory,
+      { role: 'user', content: context.userMessage },
+    ];
+
+    const steps: any[] = [];
+    let finalResponse = '';
+
+    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
+
+    try {
+      await this.conversationService.addMessage(
+        context.conversationId,
+        'user',
+        context.userMessage,
+      );
+
+      // ReAct 推理循环
+      for (let i = 0; i < context.maxSteps; i++) {
+        this.logger.debug(`[ReAct+FC Sync] Step ${i + 1}/${context.maxSteps}`);
+
+        // 调用模型（使用 Function Calling）
+        const result = await this.aiSdkProvider.generateText({
+          model: context.model,
+          messages,
+          tools,
+          temperature: context.temperature,
+          clientIp,
+          userAgent: 'agent-service',
+          uid,
+        });
+
+        const stepText = result.text;
+
+        // 检查是否有工具调用
+        if (result.toolCalls && result.toolCalls.length > 0) {
+          // 记录推理步骤
+          steps.push({
+            stepNumber: steps.length + 1,
+            stepType: 'thought',
+            content: stepText || `需要调用工具`,
+          });
+
+          // 执行工具
+          for (const toolCall of result.toolCalls) {
+            const toolResult = await this.toolExecutor.executeToolCall(
+              {
+                id: toolCall.toolCallId || `tc_${Date.now()}`,
+                function: {
+                  name: toolCall.toolName,
+                  arguments: JSON.stringify(toolCall.args),
+                },
+              },
+              { agent: context.agent, conversationId: context.conversationId, uid },
+            );
+
+            // 记录行动步骤
+            steps.push({
+              stepNumber: steps.length + 1,
+              stepType: 'action',
+              content: `调用工具: ${toolCall.toolName}`,
+              action: toolCall.toolName,
+              actionInput: toolCall.args,
+            });
+
+            // 记录观察步骤
+            const resultText = typeof toolResult.result === 'object'
+              ? JSON.stringify(toolResult.result, null, 2)
+              : String(toolResult.result);
+
+            steps.push({
+              stepNumber: steps.length + 1,
+              stepType: 'observation',
+              content: resultText,
+              observation: resultText,
+              toolOutput: toolResult.result,
+            });
+
+            // 添加工具结果到消息历史
+            messages.push({
+              role: 'assistant',
+              content: [
+                { type: 'text', text: stepText || '' },
+                {
+                  type: 'tool-call',
+                  toolCallId: toolCall.toolCallId || `tc_${Date.now()}`,
+                  toolName: toolCall.toolName,
+                  args: toolCall.args,
+                },
+              ],
+            } as any);
+            messages.push({
+              role: 'tool',
+              content: [
+                {
+                  type: 'tool-result',
+                  toolCallId: toolCall.toolCallId || `tc_${Date.now()}`,
+                  toolName: toolCall.toolName,
+                  result: resultText,
+                },
+              ],
+            } as any);
+          }
+        } else {
+          // 没有工具调用，返回最终答案
+          finalResponse = stepText.trim();
+          
+          steps.push({
+            stepNumber: steps.length + 1,
+            stepType: 'final_answer',
+            content: finalResponse,
+          });
+          break;
+        }
+      }
+
+      if (!finalResponse) {
+        finalResponse = '抱歉，我无法在有限的步骤内完成您的请求。';
+      }
+
+      // 保存对话消息
+      await this.conversationService.addMessage(
+        context.conversationId,
+        'assistant',
+        finalResponse,
+      );
+
+      // 保存日志
+      await this.saveLog(agent, context, { response: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
+
+      this.logger.log(`[ReAct+FC Sync] 执行完成, 耗时: ${Date.now() - startTime}ms`);
+
+      return {
+        response: finalResponse,
+        steps,
+        reasoningMode,
+        conversationId: context.conversationId,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`[ReAct+FC Sync] 执行失败:`, errorMsg);
+
+      return {
+        response: `执行失败: ${errorMsg}`,
+        steps,
+        reasoningMode,
+        conversationId: context.conversationId,
+      };
     }
   }
 }
