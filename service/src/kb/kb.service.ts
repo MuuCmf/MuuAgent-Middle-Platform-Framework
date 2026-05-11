@@ -84,10 +84,19 @@ export class KbService {
     };
 
     if (dto.keyword) {
-      where.OR = [
+      const keywordOr = [
         { kbName: { contains: dto.keyword } },
         { kbCode: { contains: dto.keyword } },
       ];
+      // 保留隔离条件的 OR，避免被 keyword 的 OR 覆盖
+      if (isolationWhere.OR) {
+        where.OR = isolationWhere.OR.map((cond: any) => ({
+          ...cond,
+          OR: keywordOr,
+        }));
+      } else {
+        where.OR = keywordOr;
+      }
     }
 
     if (dto.status !== undefined) {

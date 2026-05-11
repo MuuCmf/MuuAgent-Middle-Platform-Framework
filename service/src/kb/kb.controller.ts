@@ -152,8 +152,8 @@ export class ClientKbController {
       pageSize: 100,
     }, context);
 
-    const publicKbs = result.list.filter((kb: any) => kb.isPublic);
-    const safeKbs = publicKbs.map((kb: any) => this.filterSensitiveData(kb));
+    // buildIsolationWhere 已处理可见性逻辑：租户可见自己的（含私有）+ 公开的
+    const safeKbs = result.list.map((kb: any) => this.filterSensitiveData(kb));
 
     return success(safeKbs);
   }
@@ -171,8 +171,9 @@ export class ClientKbController {
     const context = extractIsolationContext(req);
     const kb = await this.kbService.findOne(kbId, context);
 
-    if (!kb.status || !kb.isPublic) {
-      return success(null, '知识库不存在或未公开');
+    // findOne 已通过 buildIsolationWhere 控制访问权限，只需检查启用状态
+    if (!kb.status) {
+      return success(null, '知识库未启用');
     }
 
     return success(this.filterSensitiveData(kb));

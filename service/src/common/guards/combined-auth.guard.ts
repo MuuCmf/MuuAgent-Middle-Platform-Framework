@@ -55,7 +55,7 @@ export class CombinedAuthGuard implements CanActivate {
         request.admin = payload;
         (request as any).authType = 'jwt';
         (request as any).isSuperAdmin = payload.isSuperAdmin ?? false;
-        (request as any).appCode = null;
+        (request as any).appCode = request.headers['x-app-code'] as string || payload.appCode || null;
         return true;
       }
     } else {

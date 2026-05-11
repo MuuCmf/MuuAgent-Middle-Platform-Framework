@@ -109,7 +109,7 @@ export const retrievalApi = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': 'AI-SVC-2026-MCP-KEY-666',
+          'x-api-key': import.meta.env.VITE_API_KEY || '',
         },
         body: JSON.stringify(data),
         signal: abortController.signal,

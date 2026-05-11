@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import type { RetrievalItem } from '../api/retrieval'
+import type { RetrievalItem } from '../../../api/retrieval'
 
 defineProps<{
   content: string
