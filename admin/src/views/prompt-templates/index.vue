@@ -7,8 +7,15 @@
 
     <div class="card">
       <div class="card-title">
-        模板列表
+        <span>模板列表</span>
         <el-tag type="info" size="small">{{ total }} 个</el-tag>
+        <AppSelector
+          v-if="isSuperAdmin"
+          v-model="filterAppCode"
+          placeholder="筛选应用"
+          style="margin-left: 16px;"
+          @change="handleAppFilterChange"
+        />
       </div>
 
       <div class="help-tip">
@@ -69,47 +76,58 @@
       </div>
 
       <el-table :data="templates" stripe v-loading="loading">
-        <el-table-column prop="name" label="名称" width="180" />
-        <el-table-column prop="code" label="标识" width="200">
+        <el-table-column prop="name" label="名称" width="150" />
+        <el-table-column prop="code" label="标识" width="150">
           <template #default="{ row }">
-            <el-tag type="info">{{ row.code }}</el-tag>
+            <el-tag type="info" size="small">{{ row.code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="category" label="分类" width="100">
+        <el-table-column prop="category" label="分类" width="90">
           <template #default="{ row }">
-            <el-tag :type="getCategoryType(row.category)">
+            <el-tag :type="getCategoryType(row.category)" size="small">
               {{ getCategoryLabel(row.category) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" show-overflow-tooltip>
+        <el-table-column prop="appCode" label="所属应用" width="100" v-if="isSuperAdmin">
+          <template #default="{ row }">
+            <el-tag v-if="row.appCode" type="warning" size="small">{{ row.appCode }}</el-tag>
+            <span v-else style="color: #999">全局</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="isPublic" label="公开状态" width="90">
+          <template #default="{ row }">
+            <el-tag :type="row.isPublic ? 'success' : 'info'" size="small">
+              {{ row.isPublic ? '公开' : '私有' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.description || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="version" label="版本" width="80" align="center">
+        <el-table-column prop="version" label="版本" width="70" align="center">
           <template #default="{ row }">
             <el-tag size="small">v{{ row.version }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="isDefault" label="默认" width="80" align="center">
+        <el-table-column prop="isDefault" label="默认" width="70" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.isDefault" type="success" size="small">是</el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="80" align="center">
+        <el-table-column prop="status" label="状态" width="70" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status ? 'success' : 'danger'" size="small">
               {{ row.status ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="handleView(row)">查看</el-button>
             <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button size="small" @click="handleRender(row)">渲染</el-button>
             <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
           </template>
         </el-table-column>
@@ -131,143 +149,26 @@
       :template="editingTemplate"
       @save="handleSave"
     />
-
-    <el-dialog v-model="renderDialogVisible" title="🎨 渲染模板" width="700px">
-      <div v-if="renderingTemplate" class="render-dialog-content">
-        <div class="render-template-info">
-          <p><strong>模板名称：</strong>{{ renderingTemplate.name }}</p>
-          <p><strong>模板标识：</strong><el-tag type="info" size="small">{{ renderingTemplate.code }}</el-tag></p>
-          <p><strong>模板分类：</strong><el-tag size="small">{{ getCategoryLabel(renderingTemplate.category) }}</el-tag></p>
-        </div>
-
-        <el-divider />
-
-        <el-form label-width="100px">
-          <el-form-item label="变量参数">
-            <div v-if="variables.length > 0">
-              <div v-for="variable in variables" :key="variable.name" style="margin-bottom: 12px;">
-                <el-input
-                  v-model="renderParams[variable.name]"
-                  :placeholder="`请输入 ${variable.name}`"
-                  style="width: 100%;"
-                >
-                  <template #prepend>
-                    <span style="width: 80px;">{{ variable.name }}</span>
-                  </template>
-                  <template #append>
-                    <el-tag size="small" :type="variable.required ? 'danger' : 'info'">
-                      {{ variable.required ? '必填' : '可选' }}
-                    </el-tag>
-                  </template>
-                </el-input>
-                <div v-if="variable.description" style="font-size: 12px; color: #999; margin-top: 4px;">
-                  {{ variable.description }}
-                </div>
-              </div>
-            </div>
-            <el-alert v-else type="info" :closable="false">
-              该模板没有定义变量，可以直接渲染
-            </el-alert>
-          </el-form-item>
-        </el-form>
-
-        <el-divider />
-
-        <div class="render-result">
-          <h4>渲染结果</h4>
-          <el-input
-            v-model="renderedPrompt"
-            type="textarea"
-            :rows="10"
-            readonly
-            placeholder="点击渲染按钮查看结果"
-          />
-        </div>
-      </div>
-
-      <template #footer>
-        <el-button @click="renderDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="executeRender" :loading="renderLoading">
-          渲染
-        </el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="viewDialogVisible" title="📄 查看模板" width="800px">
-      <div v-if="viewingTemplate" class="view-dialog-content">
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="模板名称">{{ viewingTemplate.name }}</el-descriptions-item>
-          <el-descriptions-item label="模板标识">
-            <el-tag type="info">{{ viewingTemplate.code }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="分类">
-            <el-tag :type="getCategoryType(viewingTemplate.category)">
-              {{ getCategoryLabel(viewingTemplate.category) }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="版本">
-            <el-tag size="small">v{{ viewingTemplate.version }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <el-tag :type="viewingTemplate.status ? 'success' : 'danger'" size="small">
-              {{ viewingTemplate.status ? '启用' : '禁用' }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="默认模板">
-            <el-tag v-if="viewingTemplate.isDefault" type="success" size="small">是</el-tag>
-            <span v-else>否</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="描述" :span="2">
-            {{ viewingTemplate.description || '-' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="创建时间" :span="2">
-            {{ formatDate(viewingTemplate.createdAt) }}
-          </el-descriptions-item>
-        </el-descriptions>
-
-        <el-divider />
-
-        <div class="view-content">
-          <h4>模板内容</h4>
-          <el-input
-            :model-value="viewingTemplate.content"
-            type="textarea"
-            :rows="15"
-            readonly
-          />
-        </div>
-
-        <div v-if="viewingTemplate.variables" class="view-variables">
-          <h4>变量定义</h4>
-          <el-table :data="parseVariables(viewingTemplate.variables)" border>
-            <el-table-column prop="name" label="变量名" width="150" />
-            <el-table-column prop="type" label="类型" width="100" />
-            <el-table-column prop="required" label="必填" width="80">
-              <template #default="{ row }">
-                <el-tag :type="row.required ? 'danger' : 'info'" size="small">
-                  {{ row.required ? '是' : '否' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="description" label="描述" />
-          </el-table>
-        </div>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
-import { promptTemplateApi, type PromptTemplate, type VariableDefinition } from '@/api/prompt-template'
+import { promptTemplateApi, type PromptTemplate } from '@/api/prompt-template'
+import { useUserStore } from '@/stores/user'
 import PromptTemplateEditDrawer from './components/PromptTemplateEditDrawer.vue'
+import AppSelector from '@/components/AppSelector.vue'
 
+const userStore = useUserStore()
 const loading = ref(false)
 const templates = ref<PromptTemplate[]>([])
 const drawerVisible = ref(false)
 const editingTemplate = ref<PromptTemplate | null>(null)
+
+const isSuperAdmin = computed(() => userStore.isSuperAdmin)
+const filterAppCode = ref('')
 
 const filters = reactive({
   category: '',
@@ -278,16 +179,6 @@ const filters = reactive({
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
-
-const renderDialogVisible = ref(false)
-const renderingTemplate = ref<PromptTemplate | null>(null)
-const renderParams = reactive<Record<string, any>>({})
-const variables = ref<VariableDefinition[]>([])
-const renderedPrompt = ref('')
-const renderLoading = ref(false)
-
-const viewDialogVisible = ref(false)
-const viewingTemplate = ref<PromptTemplate | null>(null)
 
 const fetchTemplates = async () => {
   loading.value = true
@@ -307,6 +198,11 @@ const fetchTemplates = async () => {
 }
 
 const handleFilter = () => {
+  page.value = 1
+  fetchTemplates()
+}
+
+const handleAppFilterChange = () => {
   page.value = 1
   fetchTemplates()
 }
@@ -332,43 +228,6 @@ const handleAdd = () => {
 const handleEdit = (row: PromptTemplate) => {
   editingTemplate.value = { ...row }
   drawerVisible.value = true
-}
-
-const handleView = (row: PromptTemplate) => {
-  viewingTemplate.value = row
-  viewDialogVisible.value = true
-}
-
-const handleRender = (row: PromptTemplate) => {
-  renderingTemplate.value = row
-  variables.value = row.variables ? JSON.parse(row.variables) : []
-  Object.keys(renderParams).forEach(key => delete renderParams[key])
-  renderedPrompt.value = ''
-  renderDialogVisible.value = true
-}
-
-const executeRender = async () => {
-  if (!renderingTemplate.value) return
-
-  const missingRequired = variables.value.filter(v => v.required && !renderParams[v.name])
-  if (missingRequired.length > 0) {
-    ElMessage.warning(`请填写必填变量: ${missingRequired.map(v => v.name).join(', ')}`)
-    return
-  }
-
-  renderLoading.value = true
-  try {
-    const response = await promptTemplateApi.render({
-      code: renderingTemplate.value.code,
-      variables: renderParams
-    })
-    renderedPrompt.value = response.data.data.renderedPrompt
-    ElMessage.success('渲染成功')
-  } catch (error: any) {
-    ElMessage.error(error.message || '渲染失败')
-  } finally {
-    renderLoading.value = false
-  }
 }
 
 const handleDelete = async (id: string) => {
@@ -414,18 +273,6 @@ const getCategoryLabel = (category: string) => {
     custom: '自定义'
   }
   return labels[category] || category
-}
-
-const parseVariables = (variablesStr: string): VariableDefinition[] => {
-  try {
-    return JSON.parse(variablesStr)
-  } catch {
-    return []
-  }
-}
-
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleString('zh-CN')
 }
 
 onMounted(() => {

@@ -15,6 +15,8 @@ export interface Skill {
   pluginName?: string
   functionName?: string
   codeContent?: string
+  appCode?: string
+  isPublic?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -32,6 +34,8 @@ export interface SkillForm {
   pluginName?: string
   functionName?: string
   codeContent?: string
+  appCode?: string
+  isPublic?: boolean
 }
 
 export interface SkillListResponse {

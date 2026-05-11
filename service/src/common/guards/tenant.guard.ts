@@ -71,6 +71,7 @@ export class TenantGuard implements CanActivate {
 
     (request as any).tenant = tenant;
     (request as any).appCode = tenant.code;
+    (request as any).isSuperAdmin = false;
 
     return true;
   }

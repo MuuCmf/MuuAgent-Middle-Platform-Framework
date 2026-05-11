@@ -71,6 +71,7 @@ export class AdminService {
       sub: admin.id,
       username: admin.username,
       role: admin.role,
+      isSuperAdmin: admin.isSuperAdmin,
     };
 
     const token = this.jwtService.sign(payload);

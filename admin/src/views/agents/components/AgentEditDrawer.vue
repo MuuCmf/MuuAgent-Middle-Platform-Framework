@@ -23,6 +23,28 @@
           </el-col>
         </el-row>
 
+        <el-row :gutter="16" v-if="isSuperAdmin">
+          <el-col :span="12">
+            <el-form-item label="所属应用">
+              <AppSelector
+                v-model="form.appCode"
+                placeholder="选择应用"
+                clearable
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="公开状态">
+              <el-switch
+                v-model="form.isPublic"
+                active-text="公开"
+                inactive-text="私有"
+              />
+              <div class="field-tip">公开的资源可被其他应用访问</div>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
         <el-form-item label="系统提示词" prop="systemPrompt" required>
           <el-input
             v-model="form.systemPrompt"
@@ -279,10 +301,12 @@ import type { KbInfo } from '@/api/kb'
 import type { PromptTemplate } from '@/api/prompt-template'
 import { kbApi } from '@/api/kb'
 import { promptTemplateApi } from '@/api/prompt-template'
+import { useUserStore } from '@/stores/user'
 import McpServerConfigDialog from './McpServerConfigDialog.vue'
 import McpServerCard from './McpServerCard.vue'
 import SkillSelectDialog from './SkillSelectDialog.vue'
 import KbSelectDialog from './KbSelectDialog.vue'
+import AppSelector from '@/components/AppSelector.vue'
 
 interface Props {
   visible: boolean
@@ -303,8 +327,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
+const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const saving = ref(false)
+
+const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 
 const form = ref<AgentForm>({
   name: '',
@@ -319,6 +346,8 @@ const form = ref<AgentForm>({
   reasoningMode: 'NONE',
   reasoningPrompt: '',
   kbRetrievalMode: 'tool',
+  appCode: '',
+  isPublic: false,
 })
 
 const editingAgent = computed(() => props.agent)
@@ -366,7 +395,9 @@ watch(() => props.visible, (newVal) => {
           ? JSON.stringify(editingAgent.value.skills) 
           : editingAgent.value.skills,
         mcpServers: editingAgent.value.mcpServers || '[]',
-        knowledgeBases: editingAgent.value.knowledgeBases || '[]'
+        knowledgeBases: editingAgent.value.knowledgeBases || '[]',
+        appCode: editingAgent.value.appCode || '',
+        isPublic: editingAgent.value.isPublic ?? false,
       }
       mcpServers.value = parseJsonSafe(editingAgent.value.mcpServers || '[]')
       selectedSkillCodes.value = parseJsonSafe(editingAgent.value.skills || '[]')
@@ -411,6 +442,8 @@ const resetForm = () => {
     reasoningMode: 'NONE',
     reasoningPrompt: '',
     kbRetrievalMode: 'tool',
+    appCode: '',
+    isPublic: false,
   }
   mcpServers.value = []
   selectedSkillCodes.value = []
@@ -741,6 +774,12 @@ const handleClose = () => {
   background: #fafafa;
   border: 1px solid #e4e7ed;
   border-radius: 4px;
+}
+
+.field-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
 }
 
 .mcp-list {

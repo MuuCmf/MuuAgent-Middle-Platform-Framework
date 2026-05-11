@@ -54,6 +54,8 @@ export class CombinedAuthGuard implements CanActivate {
       if (payload) {
         request.admin = payload;
         (request as any).authType = 'jwt';
+        (request as any).isSuperAdmin = payload.isSuperAdmin ?? false;
+        (request as any).appCode = null;
         return true;
       }
     } else {
@@ -66,6 +68,8 @@ export class CombinedAuthGuard implements CanActivate {
           scope: tokenInfo.scope,
         };
         (request as any).authType = 'oauth';
+        (request as any).isSuperAdmin = false;
+        (request as any).appCode = tokenInfo.appCode;
         return true;
       }
     }

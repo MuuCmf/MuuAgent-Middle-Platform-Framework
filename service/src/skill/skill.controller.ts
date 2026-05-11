@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SkillService } from './skill.service';
@@ -15,6 +16,7 @@ import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { AdminScope } from '../common/constants/scope.constants';
 import { RequireScope } from '../common/decorators/scope.decorator';
+import { extractIsolationContext } from '../common/utils/isolation.util';
 import {
   CreateSkillDto,
   UpdateSkillDto,
@@ -22,6 +24,7 @@ import {
   QuerySkillDto,
 } from './dto/skill.dto';
 import { success, page } from '../common/response/api.response';
+import { Request } from 'express';
 
 /**
  * 技能管理控制器
@@ -45,8 +48,9 @@ export class SkillController {
   @Post()
   @ApiOperation({ summary: '创建技能' })
   @RequireScope(AdminScope.SKILL_WRITE)
-  async create(@Body() dto: CreateSkillDto) {
-    const skill = await this.skillService.create(dto);
+  async create(@Body() dto: CreateSkillDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const skill = await this.skillService.create(dto, context);
     return success(skill, '技能创建成功');
   }
 
@@ -59,8 +63,9 @@ export class SkillController {
   @Put(':id')
   @ApiOperation({ summary: '更新技能' })
   @RequireScope(AdminScope.SKILL_WRITE)
-  async update(@Param('id') id: string, @Body() dto: UpdateSkillDto) {
-    const skill = await this.skillService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: UpdateSkillDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const skill = await this.skillService.update(id, dto, context);
     return success(skill, '技能更新成功');
   }
 
@@ -72,8 +77,9 @@ export class SkillController {
   @Delete(':id')
   @ApiOperation({ summary: '删除技能' })
   @RequireScope(AdminScope.SKILL_WRITE)
-  async remove(@Param('id') id: string) {
-    await this.skillService.remove(id);
+  async remove(@Param('id') id: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    await this.skillService.remove(id, context);
     return success(null, '技能删除成功');
   }
 
@@ -85,8 +91,9 @@ export class SkillController {
   @Get()
   @ApiOperation({ summary: '查询技能列表' })
   @RequireScope(AdminScope.SKILL_READ)
-  async findAll(@Query() query: QuerySkillDto) {
-    const { list, total, page: pageNum, pageSize } = await this.skillService.findAll(query);
+  async findAll(@Query() query: QuerySkillDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const { list, total, page: pageNum, pageSize } = await this.skillService.findAll(query, context);
     return page(list, total, pageNum, pageSize);
   }
 
@@ -98,8 +105,9 @@ export class SkillController {
   @Post('execute')
   @ApiOperation({ summary: '执行技能' })
   @RequireScope(AdminScope.SKILL_EXECUTE)
-  async execute(@Body() dto: ExecuteSkillDto) {
-    const result = await this.skillService.execute(dto);
+  async execute(@Body() dto: ExecuteSkillDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const result = await this.skillService.execute(dto, context);
     return success(result);
   }
 
@@ -139,10 +147,13 @@ export class SkillController {
       userRequest: string;
       availableSkills: string[];
     },
+    @Req() req: Request,
   ) {
+    const context = extractIsolationContext(req);
     const result = await this.skillService.selectSkill(
       body.userRequest,
       body.availableSkills,
+      context,
     );
     return success(result);
   }
@@ -155,8 +166,9 @@ export class SkillController {
   @Get(':id')
   @ApiOperation({ summary: '查询技能详情' })
   @RequireScope(AdminScope.SKILL_READ)
-  async findOne(@Param('id') id: string) {
-    const skill = await this.skillService.findOne(id);
+  async findOne(@Param('id') id: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const skill = await this.skillService.findOne(id, context);
     return success(skill);
   }
 

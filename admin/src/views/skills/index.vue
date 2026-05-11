@@ -7,8 +7,15 @@
 
     <div class="card">
       <div class="card-title">
-        技能列表
+        <span>技能列表</span>
         <el-tag type="info" size="small">{{ skills.length }} 个</el-tag>
+        <AppSelector
+          v-if="isSuperAdmin"
+          v-model="filterAppCode"
+          placeholder="筛选应用"
+          style="margin-left: 16px;"
+          @change="handleAppFilterChange"
+        />
       </div>
 
       <div class="help-tip">
@@ -38,33 +45,45 @@
       </el-space>
 
       <el-table :data="skills" stripe v-loading="loading">
-        <el-table-column prop="name" label="名称" width="150" />
-        <el-table-column prop="code" label="标识" width="180">
+        <el-table-column prop="name" label="名称" width="120" />
+        <el-table-column prop="code" label="标识" width="150">
           <template #default="{ row }">
             <el-tag type="info">{{ row.code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="type" label="类型" width="120">
+        <el-table-column prop="type" label="类型" width="100">
           <template #default="{ row }">
-            <el-tag>{{ row.type }}</el-tag>
+            <el-tag size="small">{{ row.type }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="描述">
+        <el-table-column prop="appCode" label="所属应用" width="100" v-if="isSuperAdmin">
+          <template #default="{ row }">
+            <el-tag v-if="row.appCode" type="warning" size="small">{{ row.appCode }}</el-tag>
+            <span v-else style="color: #999">全局</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="isPublic" label="公开状态" width="90">
+          <template #default="{ row }">
+            <el-tag :type="row.isPublic ? 'success' : 'info'" size="small">
+              {{ row.isPublic ? '公开' : '私有' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="description" label="描述" min-width="150">
           <template #default="{ row }">
             {{ row.description?.substring(0, 50) }}{{ row.description?.length > 50 ? '...' : '' }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" label="状态" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.status ? 'success' : 'danger'">
+            <el-tag :type="row.status ? 'success' : 'danger'" size="small">
               {{ row.status ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="400">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="handleTest(row)">测试</el-button>
-            <el-button size="small" @click="handleRenderPrompt(row)">渲染提示词</el-button>
             <el-button size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
           </template>
@@ -123,38 +142,6 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="renderPromptDialogVisible" title="🎨 渲染技能调用提示词" width="700px">
-      <div v-if="renderingSkill" class="render-dialog-content">
-        <div class="render-skill-info">
-          <p><strong>技能名称：</strong>{{ renderingSkill.name }}</p>
-          <p><strong>技能标识：</strong><el-tag type="info" size="small">{{ renderingSkill.code }}</el-tag></p>
-          <p><strong>技能类型：</strong><el-tag size="small">{{ renderingSkill.type }}</el-tag></p>
-        </div>
-
-        <el-divider />
-
-        <el-form label-width="100px">
-          <el-form-item label="用户请求">
-            <el-input v-model="renderUserRequest" type="textarea" :rows="3" placeholder="请输入用户请求，如：帮我查询北京的天气" />
-          </el-form-item>
-        </el-form>
-
-        <el-divider />
-
-        <div class="render-result">
-          <h4>渲染结果</h4>
-          <el-input v-model="renderedPrompt" type="textarea" :rows="10" readonly placeholder="点击渲染按钮查看结果" />
-        </div>
-      </div>
-
-      <template #footer>
-        <el-button @click="renderPromptDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="executeRenderPrompt" :loading="renderPromptLoading">
-          渲染
-        </el-button>
-      </template>
-    </el-dialog>
-
     <el-dialog v-model="selectSkillDialogVisible" title="智能选择技能" width="700px">
       <div class="select-dialog-content">
         <el-form label-width="100px">
@@ -173,17 +160,17 @@
 
         <el-divider />
 
-        <div v-if="selectedSkillResult" class="select-result">
+        <div v-if="selectSkillResult" class="select-result">
           <h4>选择结果</h4>
           <el-descriptions :column="1" border>
             <el-descriptions-item label="技能标识">
-              <el-tag type="primary">{{ selectedSkillResult.skillCode }}</el-tag>
+              <el-tag type="primary">{{ selectSkillResult.skillCode }}</el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="参数">
-              <pre class="params-json">{{ JSON.stringify(selectedSkillResult.params, null, 2) }}</pre>
+              <pre class="params-json">{{ JSON.stringify(selectSkillResult.params, null, 2) }}</pre>
             </el-descriptions-item>
-            <el-descriptions-item v-if="selectedSkillResult.reason" label="选择理由">
-              {{ selectedSkillResult.reason }}
+            <el-descriptions-item v-if="selectSkillResult.reason" label="选择理由">
+              {{ selectSkillResult.reason }}
             </el-descriptions-item>
           </el-descriptions>
         </div>
@@ -205,16 +192,20 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, MagicStick } from '@element-plus/icons-vue'
-import { useSkillStore } from '@/stores/skill'
+import { useSkillStore, useUserStore } from '@/stores'
 import { skillApi } from '@/api/skill'
 import type { Skill, SkillForm } from '@/api/skill'
 import SkillEditDrawer from './components/SkillEditDrawer.vue'
+import AppSelector from '@/components/AppSelector.vue'
 
 const skillStore = useSkillStore()
+const userStore = useUserStore()
 const { loadSkills, createSkill, updateSkill, deleteSkill } = skillStore
 
 const skills = computed(() => skillStore.skills)
 const loading = computed(() => skillStore.loading)
+const isSuperAdmin = computed(() => userStore.isSuperAdmin)
+const filterAppCode = ref('')
 
 
 const drawerVisible = ref(false)
@@ -227,17 +218,15 @@ const testResult = ref('')
 const testError = ref(false)
 const testLoading = ref(false)
 
-const renderPromptDialogVisible = ref(false)
-const renderingSkill = ref<Skill | null>(null)
-const renderUserRequest = ref('')
-const renderedPrompt = ref('')
-const renderPromptLoading = ref(false)
-
 const selectSkillDialogVisible = ref(false)
 const selectUserRequest = ref('')
 const selectedSkillCodes = ref<string[]>([])
-const selectedSkillResult = ref<{ skillCode: string; params: Record<string, unknown>; reason?: string } | null>(null)
+const selectSkillResult = ref<{ skillCode: string; params: Record<string, unknown>; reason?: string } | null>(null)
 const selectSkillLoading = ref(false)
+
+const handleAppFilterChange = () => {
+  loadSkills()
+}
 
 const handleAdd = () => {
   editingSkill.value = null
@@ -310,36 +299,6 @@ const executeTest = async () => {
   }
 }
 
-const handleRenderPrompt = (skill: Skill) => {
-  renderingSkill.value = skill
-  renderUserRequest.value = ''
-  renderedPrompt.value = ''
-  renderPromptDialogVisible.value = true
-}
-
-const executeRenderPrompt = async () => {
-  if (!renderingSkill.value) return
-
-  if (!renderUserRequest.value.trim()) {
-    ElMessage.warning('请输入用户请求')
-    return
-  }
-
-  renderPromptLoading.value = true
-  try {
-    const response = await skillApi.renderPrompt({
-      skillCode: renderingSkill.value.code,
-      userRequest: renderUserRequest.value,
-    })
-    renderedPrompt.value = response.data.data.renderedPrompt
-    ElMessage.success('渲染成功')
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || error.message || '渲染失败')
-  } finally {
-    renderPromptLoading.value = false
-  }
-}
-
 const executeSelectSkill = async () => {
   if (!selectUserRequest.value.trim()) {
     ElMessage.warning('请输入用户请求')
@@ -352,13 +311,13 @@ const executeSelectSkill = async () => {
   }
 
   selectSkillLoading.value = true
-  selectedSkillResult.value = null
+  selectSkillResult.value = null
   try {
     const response = await skillApi.selectSkill({
       userRequest: selectUserRequest.value,
       availableSkills: selectedSkillCodes.value,
     })
-    selectedSkillResult.value = response.data.data
+    selectSkillResult.value = response.data.data
     ElMessage.success('智能选择成功')
   } catch (error: any) {
     ElMessage.error(error.response?.data?.message || error.message || '智能选择失败')

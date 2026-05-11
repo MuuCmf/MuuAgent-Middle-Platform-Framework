@@ -17,6 +17,8 @@ export interface PromptTemplate {
   description?: string
   tags?: string
   metadata?: string
+  appCode?: string
+  isPublic?: boolean
   createdBy?: string
   createdAt: string
   updatedAt: string
@@ -36,6 +38,8 @@ export interface PromptTemplateForm {
   description?: string
   tags?: string[]
   metadata?: Record<string, any>
+  appCode?: string
+  isPublic?: boolean
   createdBy?: string
 }
 

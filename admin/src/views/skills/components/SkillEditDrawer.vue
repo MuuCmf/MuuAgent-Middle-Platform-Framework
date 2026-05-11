@@ -1,12 +1,6 @@
 <template>
-  <el-drawer
-    :model-value="visible"
-    :title="editingSkill ? '编辑技能' : '添加技能'"
-    direction="rtl"
-    size="600px"
-    class="skill-edit-drawer"
-    @update:model-value="handleClose"
-  >
+  <el-drawer :model-value="visible" :title="editingSkill ? '编辑技能' : '添加技能'" direction="rtl" size="600px"
+    class="skill-edit-drawer" @update:model-value="handleClose">
     <el-form :model="form" label-width="100px" class="skill-form">
       <div class="form-section">
         <div class="section-title">基本信息</div>
@@ -23,6 +17,15 @@
           </el-col>
         </el-row>
 
+        <el-form-item label="所属应用" v-if="isSuperAdmin">
+          <AppSelector v-model="form.appCode" placeholder="选择应用" clearable />
+        </el-form-item>
+
+        <el-form-item label="公开状态" v-if="isSuperAdmin">
+          <el-switch v-model="form.isPublic" active-text="公开" inactive-text="私有" />
+          <div class="field-tip">公开的资源可被其他应用访问</div>
+        </el-form-item>
+
         <el-form-item label="类型">
           <el-select v-model="form.type" class="w-full">
             <el-option label="HTTP请求 - 调用外部API" value="http" />
@@ -32,31 +35,17 @@
           </el-select>
         </el-form-item>
 
-        <function-editor
-          v-if="form.type === 'function'"
-          v-model:code-type="form.codeType"
-          v-model:plugin-name="form.pluginName"
-          v-model:function-name="form.functionName"
-          v-model:code-content="form.codeContent"
-        />
+        <function-editor v-if="form.type === 'function'" v-model:code-type="form.codeType"
+          v-model:plugin-name="form.pluginName" v-model:function-name="form.functionName"
+          v-model:code-content="form.codeContent" />
 
         <el-form-item label="功能描述" required>
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="3"
-            placeholder="描述此技能的功能，AI会根据此描述决定是否调用"
-          />
+          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="描述此技能的功能，AI会根据此描述决定是否调用" />
         </el-form-item>
 
         <el-form-item label="参数描述">
           <div class="params-wrapper">
-            <el-input
-              v-model="form.params"
-              type="textarea"
-              :rows="2"
-              placeholder='描述参数格式，如：{"city": "城市名称，如：北京"}'
-            />
+            <el-input v-model="form.params" type="textarea" :rows="2" placeholder='描述参数格式，如：{"city": "城市名称，如：北京"}' />
             <div class="params-help">
               <el-collapse>
                 <el-collapse-item title="📝 查看参数描述示例">
@@ -103,12 +92,7 @@
         <div class="section-title">执行配置</div>
         <el-form-item label="配置内容">
           <div class="config-wrapper">
-            <el-input
-              v-model="form.config"
-              type="textarea"
-              :rows="6"
-              placeholder="根据类型填写不同配置"
-            />
+            <el-input v-model="form.config" type="textarea" :rows="6" placeholder="根据类型填写不同配置" />
             <div class="config-help">
               <el-collapse>
                 <el-collapse-item title="📝 查看配置示例">
@@ -180,7 +164,9 @@
 import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Skill, SkillForm } from '@/api/skill'
+import { useUserStore } from '@/stores/user'
 import FunctionEditor from './FunctionEditor.vue'
+import AppSelector from '@/components/AppSelector.vue'
 
 interface Props {
   visible: boolean
@@ -199,7 +185,10 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
+const userStore = useUserStore()
 const saving = ref(false)
+
+const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 
 const form = ref<SkillForm & {
   codeType?: 'builtin' | 'plugin' | 'sandbox'
@@ -219,6 +208,8 @@ const form = ref<SkillForm & {
   pluginName: '',
   functionName: '',
   codeContent: '',
+  appCode: '',
+  isPublic: false,
 })
 
 const editingSkill = computed(() => props.skill)
@@ -239,6 +230,8 @@ watch(() => props.visible, (newVal) => {
         pluginName: editingSkill.value.pluginName || '',
         functionName: editingSkill.value.functionName || '',
         codeContent: editingSkill.value.codeContent || '',
+        appCode: editingSkill.value.appCode || '',
+        isPublic: editingSkill.value.isPublic ?? false,
       }
     } else {
       resetForm()
@@ -260,6 +253,8 @@ const resetForm = () => {
     pluginName: '',
     functionName: '',
     codeContent: '',
+    appCode: '',
+    isPublic: false,
   }
 }
 
@@ -440,5 +435,12 @@ const handleSave = () => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.field-tip {
+  width: 100%;
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
 }
 </style>

@@ -3,6 +3,8 @@ import * as bcrypt from 'bcrypt';
 
 /**
  * 初始化管理员账号脚本
+ * 
+ * npx ts-node prisma/init-admin.ts
  */
 const prisma = new PrismaClient();
 
@@ -29,6 +31,7 @@ async function main() {
       password: hashedPassword,
       nickname: '超级管理员',
       role: 'admin',
+      isSuperAdmin: true,
       status: 1,
     },
   });

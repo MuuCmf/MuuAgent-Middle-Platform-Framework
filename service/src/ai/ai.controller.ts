@@ -80,7 +80,8 @@ export class AiController {
     const clientIp = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || '';
     const uid = this.extractUid(req, dto);
-    return this.aiService.streamInvoke(dto, clientIp, userAgent, uid);
+    const appCode = (req as any).appCode;
+    return this.aiService.streamInvoke(dto, clientIp, userAgent, uid, appCode);
   }
 
   /**

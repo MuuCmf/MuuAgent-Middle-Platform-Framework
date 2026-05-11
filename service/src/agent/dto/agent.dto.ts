@@ -91,6 +91,16 @@ export class CreateAgentDto {
   @IsString()
   @IsOptional()
   kbRetrievalMode?: string;
+
+  @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用)' })
+  @IsString()
+  @IsOptional()
+  appCode?: string;
+
+  @ApiPropertyOptional({ description: '是否公开(公开=所有应用可用)', default: false })
+  @IsBoolean()
+  @IsOptional()
+  isPublic?: boolean;
 }
 
 /**
@@ -169,6 +179,16 @@ export class UpdateAgentDto {
   @IsString()
   @IsOptional()
   kbRetrievalMode?: string;
+
+  @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用)' })
+  @IsString()
+  @IsOptional()
+  appCode?: string;
+
+  @ApiPropertyOptional({ description: '是否公开(公开=所有应用可用)' })
+  @IsBoolean()
+  @IsOptional()
+  isPublic?: boolean;
 }
 
 /**

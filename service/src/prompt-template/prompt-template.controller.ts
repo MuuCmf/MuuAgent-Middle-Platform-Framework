@@ -23,7 +23,9 @@ import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { AdminScope } from '../common/constants/scope.constants';
 import { RequireScope } from '../common/decorators/scope.decorator';
+import { extractIsolationContext } from '../common/utils/isolation.util';
 import { success } from '../common/response/api.response';
+import { Request } from 'express';
 
 /**
  * Prompt 模板控制器
@@ -42,8 +44,9 @@ export class PromptTemplateController {
   @Post()
   @ApiOperation({ summary: '创建Prompt模板' })
   @RequireScope(AdminScope.PROMPT_TEMPLATE_WRITE)
-  async create(@Body() dto: CreatePromptTemplateDto) {
-    const template = await this.promptTemplateService.create(dto);
+  async create(@Body() dto: CreatePromptTemplateDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const template = await this.promptTemplateService.create(dto, context);
     return success(template, '模板创建成功');
   }
 
@@ -56,8 +59,10 @@ export class PromptTemplateController {
   async update(
     @Param('code') code: string,
     @Body() dto: UpdatePromptTemplateDto,
+    @Req() req: Request,
   ) {
-    const template = await this.promptTemplateService.update(code, dto);
+    const context = extractIsolationContext(req);
+    const template = await this.promptTemplateService.update(code, dto, context);
     return success(template, '模板更新成功');
   }
 
@@ -67,8 +72,9 @@ export class PromptTemplateController {
   @Delete(':id')
   @ApiOperation({ summary: '删除Prompt模板' })
   @RequireScope(AdminScope.PROMPT_TEMPLATE_WRITE)
-  async delete(@Param('id') id: string) {
-    await this.promptTemplateService.delete(id);
+  async delete(@Param('id') id: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    await this.promptTemplateService.delete(id, context);
     return success(null, '模板删除成功');
   }
 
@@ -78,8 +84,9 @@ export class PromptTemplateController {
   @Get(':id')
   @ApiOperation({ summary: '查询Prompt模板详情' })
   @RequireScope(AdminScope.PROMPT_TEMPLATE_READ)
-  async findOne(@Param('id') id: string) {
-    const template = await this.promptTemplateService.findOne(id);
+  async findOne(@Param('id') id: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const template = await this.promptTemplateService.findOne(id, context);
     return success(template);
   }
 
@@ -89,8 +96,9 @@ export class PromptTemplateController {
   @Get('code/:code')
   @ApiOperation({ summary: '根据标识查询Prompt模板' })
   @RequireScope(AdminScope.PROMPT_TEMPLATE_READ)
-  async findByCode(@Param('code') code: string) {
-    const template = await this.promptTemplateService.findByCode(code);
+  async findByCode(@Param('code') code: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const template = await this.promptTemplateService.findByCode(code, context);
     return success(template);
   }
 
@@ -100,8 +108,9 @@ export class PromptTemplateController {
   @Get()
   @ApiOperation({ summary: '查询Prompt模板列表' })
   @RequireScope(AdminScope.PROMPT_TEMPLATE_READ)
-  async findAll(@Query() query: QueryPromptTemplateDto) {
-    const result = await this.promptTemplateService.findAll(query);
+  async findAll(@Query() query: QueryPromptTemplateDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const result = await this.promptTemplateService.findAll(query, context);
     return success(result);
   }
 
@@ -151,11 +160,14 @@ export class PromptTemplateController {
     @Param('id') id: string,
     @Param('version') version: string,
     @Body() dto?: RollbackPromptTemplateDto,
+    @Req() req?: Request,
   ) {
+    const context = req ? extractIsolationContext(req) : undefined;
     const template = await this.promptTemplateService.rollback(
       id,
       parseInt(version),
       dto,
+      context,
     );
     return success(template, '版本回滚成功');
   }
@@ -166,8 +178,9 @@ export class PromptTemplateController {
   @Post(':id/set-default')
   @ApiOperation({ summary: '设置默认Prompt模板' })
   @RequireScope(AdminScope.PROMPT_TEMPLATE_WRITE)
-  async setDefault(@Param('id') id: string) {
-    const template = await this.promptTemplateService.setDefault(id);
+  async setDefault(@Param('id') id: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const template = await this.promptTemplateService.setDefault(id, context);
     return success(template, '设置默认模板成功');
   }
 
@@ -177,8 +190,9 @@ export class PromptTemplateController {
   @Get('default/:category')
   @ApiOperation({ summary: '获取分类的默认Prompt模板' })
   @RequireScope(AdminScope.PROMPT_TEMPLATE_READ)
-  async getDefaultTemplate(@Param('category') category: string) {
-    const template = await this.promptTemplateService.getDefaultTemplate(category);
+  async getDefaultTemplate(@Param('category') category: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const template = await this.promptTemplateService.getDefaultTemplate(category, context);
     return success(template);
   }
 }

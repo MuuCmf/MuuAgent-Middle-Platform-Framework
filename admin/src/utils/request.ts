@@ -57,6 +57,12 @@ adminService.interceptors.request.use(
     if (appConfig.apiKey) {
       config.headers['x-api-key'] = appConfig.apiKey
     }
+    
+    const currentAppCode = localStorage.getItem('current_app_code')
+    if (currentAppCode) {
+      config.headers['x-app-code'] = currentAppCode
+    }
+    
     return config
   },
   (error) => {

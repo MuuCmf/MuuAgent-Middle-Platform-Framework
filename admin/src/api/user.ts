@@ -8,6 +8,7 @@ export interface AdminUser {
   email?: string
   phone?: string
   role: string
+  isSuperAdmin: boolean
   status: number
   lastLoginAt?: string
   lastLoginIp?: string

@@ -1,4 +1,4 @@
-import request from '@/utils/request'
+import { adminRequest } from '@/utils/request'
 
 /**
  * 会话类型枚举
@@ -28,6 +28,7 @@ export interface Conversation {
   title: string | null
   status: ConversationStatus
   uid: string | null
+  appCode?: string
   messageCount: number
   lastMessageAt: Date | null
   createdAt: Date
@@ -99,7 +100,7 @@ export interface ConversationDetailResponse {
 }
 
 /**
- * 会话API
+ * 会话管理API（管理端）
  */
 export const conversationApi = {
   /**
@@ -108,7 +109,7 @@ export const conversationApi = {
    * @returns 会话列表
    */
   async getList(params?: QueryConversationParams): Promise<ConversationListResponse> {
-    const response = await request.get('/conversation', { params })
+    const response = await adminRequest.get('/admin/conversation', { params })
     return response.data.data
   },
 
@@ -120,7 +121,7 @@ export const conversationApi = {
    */
   async getDetail(id: string, messageLimit?: number): Promise<ConversationDetailResponse> {
     const params = messageLimit ? { messageLimit } : {}
-    const response = await request.get(`/conversation/${id}`, { params })
+    const response = await adminRequest.get(`/admin/conversation/${id}`, { params })
     return response.data.data
   },
 
@@ -130,7 +131,7 @@ export const conversationApi = {
    * @returns 创建的会话
    */
   async create(data: CreateConversationParams): Promise<Conversation> {
-    const response = await request.post('/conversation', data)
+    const response = await adminRequest.post('/admin/conversation', data)
     return response.data.data
   },
 
@@ -141,7 +142,7 @@ export const conversationApi = {
    * @returns 更新后的会话
    */
   async update(id: string, data: UpdateConversationParams): Promise<Conversation> {
-    const response = await request.patch(`/conversation/${id}`, data)
+    const response = await adminRequest.put(`/admin/conversation/${id}`, data)
     return response.data.data
   },
 
@@ -150,7 +151,7 @@ export const conversationApi = {
    * @param id 会话ID
    */
   async delete(id: string): Promise<void> {
-    await request.delete(`/conversation/${id}`)
+    await adminRequest.delete(`/admin/conversation/${id}`)
   },
 
   /**
@@ -161,7 +162,7 @@ export const conversationApi = {
    */
   async getMessages(id: string, limit?: number): Promise<Message[]> {
     const params = limit ? { limit } : {}
-    const response = await request.get(`/conversation/${id}/messages`, { params })
+    const response = await adminRequest.get(`/admin/conversation/${id}/messages`, { params })
     return response.data.data
   },
 
@@ -171,7 +172,7 @@ export const conversationApi = {
    * @returns 生成的标题
    */
   async generateTitle(id: string): Promise<{ title: string }> {
-    const response = await request.post(`/conversation/${id}/generate-title`)
+    const response = await adminRequest.post(`/admin/conversation/${id}/generate-title`)
     return response.data.data
   },
 }

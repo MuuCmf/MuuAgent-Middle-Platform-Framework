@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, HttpException, HttpStatus, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { SkillService } from '../skill/skill.service';
 import { McpServerService } from '../mcp-server/mcp-server.service';
@@ -12,6 +12,7 @@ import { ReActPromptBuilder } from './react/react.prompt';
 import { PromptTemplateService } from '../prompt-template/prompt-template.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationType } from '../conversation/dto/create-conversation.dto';
+import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
 import {
   CreateAgentDto,
   UpdateAgentDto,
@@ -52,31 +53,34 @@ export class AgentService {
     private conversationService: ConversationService,
   ) {}
 
-  async create(dto: CreateAgentDto) {
-    return this.prisma.agent.create({
-      data: {
-        name: dto.name,
-        code: dto.code,
-        description: dto.description,
-        systemPrompt: dto.systemPrompt,
-        modelId: dto.modelId,
-        skills: dto.skills || '[]',
-        mcpServers: dto.mcpServers || '[]',
-        knowledgeBases: dto.knowledgeBases || '[]',
-        maxSteps: dto.maxSteps ?? 5,
-        temperature: dto.temperature ?? 0.7,
-        status: dto.status ?? true,
-        reasoningMode: dto.reasoningMode || 'NONE',
-        reasoningPrompt: dto.reasoningPrompt,
-        kbRetrievalMode: 'tool',
-      },
-    });
+  async create(dto: CreateAgentDto, context?: IsolationContext) {
+    const data = buildCreateData({
+      name: dto.name,
+      code: dto.code,
+      description: dto.description,
+      systemPrompt: dto.systemPrompt,
+      modelId: dto.modelId,
+      skills: dto.skills || '[]',
+      mcpServers: dto.mcpServers || '[]',
+      knowledgeBases: dto.knowledgeBases || '[]',
+      maxSteps: dto.maxSteps ?? 5,
+      temperature: dto.temperature ?? 0.7,
+      status: dto.status ?? true,
+      reasoningMode: dto.reasoningMode || 'NONE',
+      reasoningPrompt: dto.reasoningPrompt,
+      kbRetrievalMode: 'tool',
+      appCode: dto.appCode,
+      isPublic: dto.isPublic ?? false,
+    }, context || { appCode: null, isSuperAdmin: false });
+
+    return this.prisma.agent.create({ data });
   }
 
-  async update(id: string, dto: UpdateAgentDto) {
-    const agent = await this.prisma.agent.findUnique({ where: { id } });
+  async update(id: string, dto: UpdateAgentDto, context?: IsolationContext) {
+    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const agent = await this.prisma.agent.findFirst({ where });
     if (!agent) {
-      throw new NotFoundException('智能体不存在');
+      throw new NotFoundException('智能体不存在或无权限操作');
     }
 
     return this.prisma.agent.update({
@@ -85,36 +89,44 @@ export class AgentService {
     });
   }
 
-  async remove(id: string): Promise<void> {
-    const agent = await this.prisma.agent.findUnique({ where: { id } });
+  async remove(id: string, context?: IsolationContext): Promise<void> {
+    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const agent = await this.prisma.agent.findFirst({ where });
     if (!agent) {
-      throw new NotFoundException('智能体不存在');
+      throw new NotFoundException('智能体不存在或无权限操作');
     }
 
     await this.prisma.agent.delete({ where: { id } });
   }
 
-  async findOne(id: string) {
-    const agent = await this.prisma.agent.findUnique({ where: { id } });
+  async findOne(id: string, context?: IsolationContext) {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const agent = await this.prisma.agent.findFirst({
+      where: { id, ...isolationWhere },
+    });
     if (!agent) {
       throw new NotFoundException('智能体不存在');
     }
     return agent;
   }
 
-  async findByCode(code: string) {
-    const agent = await this.prisma.agent.findFirst({ where: { code } });
+  async findByCode(code: string, context?: IsolationContext) {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const agent = await this.prisma.agent.findFirst({
+      where: { code, ...isolationWhere },
+    });
     if (!agent) {
       throw new NotFoundException('智能体不存在');
     }
     return agent;
   }
 
-  async findAll(query: QueryAgentDto) {
+  async findAll(query: QueryAgentDto, context?: IsolationContext) {
     const { status, page = 1, pageSize = 10 } = query;
     const skip = (page - 1) * pageSize;
 
-    const where: Record<string, unknown> = {};
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const where: Record<string, unknown> = { ...isolationWhere };
     if (status !== undefined) where.status = status;
 
     const [list, total] = await Promise.all([
@@ -135,11 +147,13 @@ export class AgentService {
    * @param dto 对话参数
    * @param clientIp 客户端IP
    * @param uid 用户ID
+   * @param appCode 应用标识
    */
    async syncChat(dto: AgentChatDto, clientIp: string, uid?: string, appCode?: string): Promise<Record<string, unknown>> {
     const startTime = Date.now();
-    const agent = await this.getAgent(dto.agentId);
-    const context = await this.buildExecutionContext(agent, dto, uid);
+    const isolationContext: IsolationContext = { appCode: appCode || null, isSuperAdmin: false };
+    const agent = await this.getAgent(dto.agentId, isolationContext);
+    const context = await this.buildExecutionContext(agent, dto, uid, isolationContext);
     const reasoningMode = (agent.reasoningMode as ReasoningMode) || ReasoningMode.NONE;
 
     if (reasoningMode === ReasoningMode.NONE) {
@@ -155,18 +169,21 @@ export class AgentService {
    * @param clientIp 客户端IP
    * @param uid 用户ID
    * @param callbacks 流式回调函数
+   * @param appCode 应用标识
    */
   async streamChat(
     dto: AgentChatDto,
     clientIp: string,
     uid: string | undefined,
     callbacks: StreamCallbacks,
+    appCode?: string,
   ): Promise<void> {
     this.logger.log(`[AgentStream] streamChat 开始, agentId: ${dto.agentId}`);
     const startTime = Date.now();
-    const agent = await this.getAgent(dto.agentId);
+    const isolationContext: IsolationContext = { appCode: appCode || null, isSuperAdmin: false };
+    const agent = await this.getAgent(dto.agentId, isolationContext);
     this.logger.log(`[AgentStream] 获取到智能体, id: ${agent.id}`);
-    const context = await this.buildExecutionContext(agent, dto, uid);
+    const context = await this.buildExecutionContext(agent, dto, uid, isolationContext);
     this.logger.log(`[AgentStream] 构建执行上下文完成`);
     
     if (callbacks.onConversationId && context.conversationId) {
@@ -196,19 +213,28 @@ export class AgentService {
   /**
    * 获取智能体
    * @param agentId 智能体ID或代码
+   * @param context 隔离上下文
    */
-  private async getAgent(agentId: string) {
+  private async getAgent(agentId: string, context?: IsolationContext) {
     this.logger.log(`[AgentStream] 获取智能体: ${agentId}`);
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    
     let agent;
     try {
       agent = await this.prisma.agent.findFirst({
-        where: { OR: [{ id: agentId }, { code: agentId }] },
+        where: { 
+          OR: [{ id: agentId }, { code: agentId }],
+          ...isolationWhere,
+        },
       });
       this.logger.log(`[AgentStream] 查询结果: ${JSON.stringify(agent)}`);
     } catch (e) {
       this.logger.error(`[AgentStream] 查询智能体失败: ${e}`);
       agent = await this.prisma.agent.findFirst({
-        where: { code: agentId },
+        where: { 
+          code: agentId,
+          ...isolationWhere,
+        },
       });
     }
 
@@ -229,7 +255,7 @@ export class AgentService {
    * @param dto 对话参数
    * @param uid 用户ID
    */
-  private async buildExecutionContext(agent: any, dto: AgentChatDto, uid?: string) {
+  private async buildExecutionContext(agent: any, dto: AgentChatDto, uid?: string, isolationContext?: IsolationContext) {
     let model;
     
     this.logger.debug(`buildExecutionContext: agent.modelId=${agent.modelId}`);
@@ -258,6 +284,7 @@ export class AgentService {
       agent.id,
       dto.conversationId,
       uid,
+      isolationContext,
     );
 
     let conversationHistory: ModelMessage[] = [];

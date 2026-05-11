@@ -74,12 +74,16 @@ LOG_LEVEL="info"
 ### 初始化数据库
 
 ```bash
-# 开发环境（SQLite）
-npx prisma db push
+# 开发环境推荐：使用 db push（快速同步，不生成迁移文件）
+npm run db:sync
 
-# 生产环境（MySQL）
-npx prisma migrate deploy
+# 生产环境：使用迁移（可追溯的数据库变更）
+npm run db:migrate:prod
 ```
+
+> 💡 **开发模式说明**
+> - `npm run db:sync`：直接同步 schema 到数据库，适合开发阶段快速迭代
+> - `npm run db:migrate`：创建迁移文件并应用，适合团队协作和生产环境
 
 ### 启动服务
 
@@ -389,18 +393,29 @@ async function callAI(message, uid) {
 
 ## 🔧 开发指南
 
-### 数据库迁移
+### 数据库开发
 
 ```bash
-# 创建迁移
-npx prisma migrate dev --name migration_name
+# 开发环境：快速同步 schema 到数据库（推荐）
+npm run db:sync
 
-# 应用迁移
-npx prisma migrate deploy
+# 生成 Prisma Client
+npm run db:generate
 
-# 重置数据库
-npx prisma migrate reset
+# 打开数据库可视化工具
+npm run db:studio
+
+# 生产环境：创建迁移文件
+npm run db:migrate -- --name migration_name
+
+# 生产环境：应用迁移
+npm run db:migrate:prod
 ```
+
+> ⚠️ **注意事项**
+> - 开发阶段使用 `db:sync`，不会生成迁移文件，也不会清空数据
+> - 生产部署前，请使用 `db:migrate` 创建迁移文件
+> - 修改 schema 后，记得运行 `db:generate` 更新 Prisma Client
 
 ### 代码规范
 

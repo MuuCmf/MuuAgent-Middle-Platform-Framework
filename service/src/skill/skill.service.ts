@@ -17,6 +17,7 @@ import { BuiltinExecutor } from './executors/builtin.executor';
 import { PluginExecutor } from './executors/plugin.executor';
 import { SandboxExecutor } from './executors/sandbox.executor';
 import { PluginLoader } from './plugin-loader';
+import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
 
 /**
  * 技能服务
@@ -53,37 +54,42 @@ export class SkillService {
   /**
    * 创建技能
    * @param dto 创建技能DTO
+   * @param context 隔离上下文
    * @returns {Promise<Object>} 创建的技能
    */
-  async create(dto: CreateSkillDto) {
-    return this.prisma.skill.create({
-      data: {
-        name: dto.name,
-        code: dto.code,
-        description: dto.description,
-        type: dto.type,
-        params: dto.params,
-        config: dto.config,
-        status: dto.status ?? true,
-        timeout: dto.timeout ?? 30000,
-        codeType: dto.codeType,
-        pluginName: dto.pluginName,
-        functionName: dto.functionName,
-        codeContent: dto.codeContent,
-      },
-    });
+  async create(dto: CreateSkillDto, context?: IsolationContext) {
+    const data = buildCreateData({
+      name: dto.name,
+      code: dto.code,
+      description: dto.description,
+      type: dto.type,
+      params: dto.params,
+      config: dto.config,
+      status: dto.status ?? true,
+      timeout: dto.timeout ?? 30000,
+      codeType: dto.codeType,
+      pluginName: dto.pluginName,
+      functionName: dto.functionName,
+      codeContent: dto.codeContent,
+      appCode: dto.appCode,
+      isPublic: dto.isPublic ?? false,
+    }, context || { appCode: null, isSuperAdmin: false });
+
+    return this.prisma.skill.create({ data });
   }
 
   /**
    * 更新技能
    * @param id 技能ID
    * @param dto 更新技能DTO
+   * @param context 隔离上下文
    * @returns {Promise<Object>} 更新后的技能
    */
-  async update(id: string, dto: UpdateSkillDto) {
-    const skill = await this.prisma.skill.findUnique({ where: { id } });
+  async update(id: string, dto: UpdateSkillDto, context?: IsolationContext) {
+    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const skill = await this.prisma.skill.findFirst({ where });
     if (!skill) {
-      throw new NotFoundException('技能不存在');
+      throw new NotFoundException('技能不存在或无权限操作');
     }
 
     return this.prisma.skill.update({
@@ -95,12 +101,14 @@ export class SkillService {
   /**
    * 删除技能
    * @param id 技能ID
+   * @param context 隔离上下文
    * @returns {Promise<void>}
    */
-  async remove(id: string): Promise<void> {
-    const skill = await this.prisma.skill.findUnique({ where: { id } });
+  async remove(id: string, context?: IsolationContext): Promise<void> {
+    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const skill = await this.prisma.skill.findFirst({ where });
     if (!skill) {
-      throw new NotFoundException('技能不存在');
+      throw new NotFoundException('技能不存在或无权限操作');
     }
 
     await this.prisma.skill.delete({ where: { id } });
@@ -109,10 +117,14 @@ export class SkillService {
   /**
    * 根据ID查询技能
    * @param id 技能ID
+   * @param context 隔离上下文
    * @returns {Promise<Object>} 技能详情
    */
-  async findOne(id: string) {
-    const skill = await this.prisma.skill.findUnique({ where: { id } });
+  async findOne(id: string, context?: IsolationContext) {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const skill = await this.prisma.skill.findFirst({
+      where: { id, ...isolationWhere },
+    });
     if (!skill) {
       throw new NotFoundException('技能不存在');
     }
@@ -122,10 +134,14 @@ export class SkillService {
   /**
    * 根据Code查询技能
    * @param code 技能标识
+   * @param context 隔离上下文
    * @returns {Promise<Object>} 技能详情
    */
-  async findByCode(code: string) {
-    const skill = await this.prisma.skill.findFirst({ where: { code } });
+  async findByCode(code: string, context?: IsolationContext) {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const skill = await this.prisma.skill.findFirst({
+      where: { code, ...isolationWhere },
+    });
     if (!skill) {
       throw new NotFoundException('技能不存在');
     }
@@ -135,13 +151,15 @@ export class SkillService {
   /**
    * 分页查询技能列表
    * @param query 查询参数
+   * @param context 隔离上下文
    * @returns {Promise<Object>} 分页技能列表
    */
-  async findAll(query: QuerySkillDto) {
+  async findAll(query: QuerySkillDto, context?: IsolationContext) {
     const { type, status, page = 1, pageSize = 10 } = query;
     const skip = (page - 1) * pageSize;
 
-    const where: Record<string, unknown> = {};
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const where: Record<string, unknown> = { ...isolationWhere };
     if (type) where.type = type;
     if (status !== undefined) where.status = status;
 
@@ -161,11 +179,13 @@ export class SkillService {
   /**
    * 执行技能
    * @param dto 执行技能DTO
+   * @param context 隔离上下文
    * @returns {Promise<Record<string, unknown>>} 执行结果
    */
-  async execute(dto: ExecuteSkillDto): Promise<Record<string, unknown>> {
+  async execute(dto: ExecuteSkillDto, context?: IsolationContext): Promise<Record<string, unknown>> {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const skill = await this.prisma.skill.findFirst({
-      where: { code: dto.skillCode },
+      where: { code: dto.skillCode, ...isolationWhere },
     });
 
     if (!skill) {
@@ -473,16 +493,20 @@ export class SkillService {
    * 智能选择技能（基于用户请求）
    * @param userRequest 用户请求
    * @param availableSkills 可用技能列表
+   * @param context 隔离上下文
    * @returns {Promise<{skillCode: string; params: Record<string, unknown>}>} 选择的技能和参数
    */
   async selectSkill(
     userRequest: string,
     availableSkills: string[],
+    context?: IsolationContext,
   ): Promise<{ skillCode: string; params: Record<string, unknown>; prompt: string; reason?: string }> {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const skills = await this.prisma.skill.findMany({
       where: {
         code: { in: availableSkills },
         status: true,
+        ...isolationWhere,
       },
     });
 

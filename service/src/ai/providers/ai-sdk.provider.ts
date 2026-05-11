@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Model } from '@prisma/client';
-import { ModelService } from '../../model/model.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { McpService } from '../../mcp/mcp.service';
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText, streamText, type ModelMessage, type Tool } from 'ai';
+import { resolveProvider, resolveBaseUrl, getProviderConfig } from './provider-registry';
 
 /**
  * AI SDK 模型提供者
@@ -15,7 +15,6 @@ export class AiSdkProvider {
   private readonly logger = new Logger(AiSdkProvider.name);
 
   constructor(
-    private readonly modelService: ModelService,
     private readonly prisma: PrismaService,
     private readonly mcpService: McpService,
   ) {}
@@ -26,102 +25,24 @@ export class AiSdkProvider {
    * @returns AI SDK provider
    */
   createProvider(model: Model): ReturnType<typeof createOpenAI> {
-    const provider = model.provider?.toLowerCase();
-    const endpoint = model.endpoint;
+    const provider = resolveProvider(model.provider, model.code || '');
     const apiKey = model.apiKey;
+    const config = getProviderConfig(provider);
+    const baseURL = resolveBaseUrl(model);
 
-    this.logger.debug(`创建 provider: provider=${provider}, endpoint=${endpoint}, hasApiKey=${!!apiKey}`);
+    this.logger.debug(`创建 provider: provider=${provider}, baseURL=${baseURL}, hasApiKey=${!!apiKey}, modelCode=${model.code}`);
 
-    switch (provider) {
-      case 'openai':
-        return createOpenAI({
-          apiKey: apiKey || process.env.OPENAI_API_KEY,
-        });
-
-      case 'ollama':
-        return createOpenAI({
-          apiKey: 'empty',
-          baseURL: this.normalizeOllamaURL(endpoint || 'http://localhost:11434'),
-        });
-
-      case 'azure':
-        return createOpenAI({
-          apiKey: apiKey ?? undefined,
-          baseURL: `${endpoint}/openai/deployments/${model.code}`,
-        });
-
-      case 'zhipu':
-        return createOpenAI({
-          apiKey: apiKey ?? undefined,
-          baseURL: 'https://open.bigmodel.cn/api/paas/v4/',
-        });
-
-      case 'deepseek':
-        return createOpenAI({
-          apiKey: apiKey ?? undefined,
-          baseURL: 'https://api.deepseek.com/v1',
-        });
-
-      case 'custom':
-        return createOpenAI({
-          apiKey: apiKey ?? 'empty',
-          baseURL: endpoint,
-        });
-
-      default:
-        this.logger.warn(`Unknown provider: ${provider}, falling back to OpenAI compatible`);
-        return createOpenAI({
-          apiKey: apiKey || process.env.OPENAI_API_KEY,
-        });
-    }
+    return createOpenAI({
+      apiKey: apiKey || (config.requireApiKey ? process.env.OPENAI_API_KEY : 'empty') || undefined,
+      ...(baseURL ? { baseURL } : {}),
+    });
   }
 
   /**
-   * 规范化 Ollama URL
-   */
-  private normalizeOllamaURL(endpoint: string): string {
-    if (!endpoint) {
-      return 'http://localhost:11434';
-    }
-    if (endpoint.endsWith('/api/chat')) {
-      return endpoint.replace('/api/chat', '');
-    }
-    if (endpoint.endsWith('/chat')) {
-      return endpoint.replace('/chat', '');
-    }
-    return endpoint;
-  }
-
-  /**
-   * 获取模型名称
-   * @param model 模型配置
-   * @returns 模型名称
+   * 获取模型名称（直接使用 model.code，AI SDK 会用此名称调用 API）
    */
   getModelName(model: Model): string {
-    const provider = model.provider?.toLowerCase();
-
-    switch (provider) {
-      case 'openai':
-        return model.code || 'gpt-4';
-
-      case 'ollama':
-        return model.code || 'llama3';
-
-      case 'azure':
-        return model.code || 'gpt-4';
-
-      case 'zhipu':
-        return model.code || 'glm-4';
-
-      case 'deepseek':
-        return model.code || 'deepseek-chat';
-
-      case 'custom':
-        return model.code || 'custom-model';
-
-      default:
-        return model.code || 'gpt-4';
-    }
+    return model.code || 'gpt-4';
   }
 
   /**

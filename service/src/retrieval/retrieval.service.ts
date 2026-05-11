@@ -12,6 +12,7 @@ import { RagChatDto } from './dto/rag-chat.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { AiInvokeDto } from '../ai/dto/ai.dto';
 import { Observable, defer } from 'rxjs';
+import { IsolationContext, buildIsolationWhere } from '../common/utils/isolation.util';
 
 /**
  * 检索结果项
@@ -76,14 +77,16 @@ export class RetrievalService {
   /**
    * 向量检索
    * @param dto 检索参数
+   * @param context 隔离上下文
    * @returns {Promise<any>} 检索结果
    */
-  async retrieval(dto: RetrievalDto): Promise<any> {
+  async retrieval(dto: RetrievalDto, context?: IsolationContext): Promise<any> {
     const startTime = Date.now();
     const requestId = uuidv4();
 
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const kb = await this.prisma.kbInfo.findFirst({
-      where: { id: dto.kbId, isDeleted: false, status: true },
+      where: { id: dto.kbId, isDeleted: false, status: true, ...isolationWhere },
     });
 
     if (!kb) {
@@ -331,17 +334,20 @@ export class RetrievalService {
   /**
    * RAG问答
    * @param dto RAG问答参数
+   * @param context 隔离上下文
    * @returns {Promise<any>} RAG问答结果
    */
-  async ragChat(dto: RagChatDto): Promise<any> {
+  async ragChat(dto: RagChatDto, context?: IsolationContext): Promise<any> {
     const startTime = Date.now();
     const requestId = uuidv4();
 
+    const isolationContext = context || { appCode: null, isSuperAdmin: false };
     const conversation = await this.conversationService.getOrCreate(
       ConversationType.KB_RAG,
       dto.kbId,
       dto.conversationId,
       dto.uid,
+      isolationContext,
     );
 
     let conversationHistory: Array<{ role: string; content: string }> = [];
@@ -359,8 +365,9 @@ export class RetrievalService {
       dto.query,
     );
 
+    const isolationWhere = buildIsolationWhere(isolationContext);
     const kb = await this.prisma.kbInfo.findFirst({
-      where: { id: dto.kbId, isDeleted: false, status: true },
+      where: { id: dto.kbId, isDeleted: false, status: true, ...isolationWhere },
     });
 
     if (!kb) {
@@ -478,8 +485,8 @@ export class RetrievalService {
     sources.sort((a, b) => b.score - a.score);
     const topSources = sources.slice(0, topN);
 
-    const context = topSources.map((s) => s.content).join('\n\n');
-    const prompt = await this.buildRagPrompt(dto.query, context, conversationHistory);
+    const retrievalContext = topSources.map((s) => s.content).join('\n\n');
+    const prompt = await this.buildRagPrompt(dto.query, retrievalContext, conversationHistory);
     const answer = await this.callLLM(prompt, dto.uid);
 
     const costTime = Date.now() - startTime;
@@ -521,17 +528,20 @@ export class RetrievalService {
   /**
    * 流式RAG问答
    * @param dto RAG问答参数
+   * @param context 隔离上下文
    * @returns {Observable<any>} 流式响应
    */
-  async ragChatStream(dto: RagChatDto): Promise<Observable<any>> {
+  async ragChatStream(dto: RagChatDto, context?: IsolationContext): Promise<Observable<any>> {
     const startTime = Date.now();
     const requestId = uuidv4();
 
+    const isolationContext = context || { appCode: null, isSuperAdmin: false };
     const conversation = await this.conversationService.getOrCreate(
       ConversationType.KB_RAG,
       dto.kbId,
       dto.conversationId,
       dto.uid,
+      isolationContext,
     );
 
     let conversationHistory: Array<{ role: string; content: string }> = [];
@@ -549,8 +559,9 @@ export class RetrievalService {
       dto.query,
     );
 
+    const isolationWhere = buildIsolationWhere(isolationContext);
     const kb = await this.prisma.kbInfo.findFirst({
-      where: { id: dto.kbId, isDeleted: false, status: true },
+      where: { id: dto.kbId, isDeleted: false, status: true, ...isolationWhere },
     });
 
     if (!kb) {
@@ -651,8 +662,8 @@ export class RetrievalService {
     sources.sort((a, b) => b.score - a.score);
     const topSources = sources.slice(0, topN);
 
-    const context = topSources.map((s) => s.content).join('\n\n');
-    const prompt = await this.buildRagPrompt(dto.query, context, conversationHistory);
+    const retrievalContext = topSources.map((s) => s.content).join('\n\n');
+    const prompt = await this.buildRagPrompt(dto.query, retrievalContext, conversationHistory);
 
     return defer(() => {
       return new Observable((observer) => {

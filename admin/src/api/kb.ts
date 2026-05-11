@@ -18,6 +18,7 @@ export interface KbInfo {
   status: boolean
   description: string
   createdBy: string
+  appCode?: string
   createdTime: string
   documentCount?: number
   chunkCount?: number

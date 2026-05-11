@@ -6,6 +6,7 @@ import { RagChatDto } from './dto/rag-chat.dto';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { AppUsageService } from '../common/services/app-usage.service';
+import { extractIsolationContext } from '../common/utils/isolation.util';
 import { success } from '../common/response/api.response';
 import type { Response, Request } from 'express';
 
@@ -39,7 +40,8 @@ export class RetrievalController {
   @ApiResponse({ status: 404, description: '知识库不存在或未启用' })
   async retrieval(@Body() dto: RetrievalDto, @Req() req: Request) {
     const appCode = (req as any).appCode;
-    const result = await this.retrievalService.retrieval(dto);
+    const context = extractIsolationContext(req);
+    const result = await this.retrievalService.retrieval(dto, context);
     
     if (appCode) {
       await this.appUsageService.incrementCallCount(appCode);
@@ -60,7 +62,8 @@ export class RetrievalController {
   @ApiResponse({ status: 404, description: '知识库不存在或未启用' })
   async ragChat(@Body() dto: RagChatDto, @Req() req: Request) {
     const appCode = (req as any).appCode;
-    const result = await this.retrievalService.ragChat(dto);
+    const context = extractIsolationContext(req);
+    const result = await this.retrievalService.ragChat(dto, context);
     
     if (appCode) {
       await this.appUsageService.incrementCallCount(appCode);
@@ -81,6 +84,7 @@ export class RetrievalController {
   @ApiResponse({ status: 404, description: '知识库不存在或未启用' })
   async ragChatStream(@Body() dto: RagChatDto, @Req() req: Request, @Res() res: Response) {
     const appCode = (req as any).appCode;
+    const context = extractIsolationContext(req);
     
     res.status(200);
     res.setHeader('Content-Type', 'text/event-stream');
@@ -89,7 +93,7 @@ export class RetrievalController {
     res.setHeader('Access-Control-Allow-Origin', '*');
 
     try {
-      const stream$ = await this.retrievalService.ragChatStream(dto);
+      const stream$ = await this.retrievalService.ragChatStream(dto, context);
       console.log('[Controller] 获取到 Observable');
       
       stream$.subscribe({

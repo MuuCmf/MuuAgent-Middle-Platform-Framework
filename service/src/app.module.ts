@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './common/prisma/prisma.module';
+import { CommonModule } from './common/common.module';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { AppModule as AppMgmtModule } from './app/app.module';
 import { ModelModule } from './model/model.module';
@@ -43,6 +44,8 @@ import { ConversationModule } from './conversation/conversation.module';
     ]),
 
     PrismaModule,
+
+    CommonModule,
 
     CacheModule,
 

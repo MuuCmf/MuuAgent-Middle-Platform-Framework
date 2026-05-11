@@ -14,6 +14,8 @@ import {
 import axios from 'axios';
 import { Observable } from 'rxjs';
 import { Model } from '@prisma/client';
+import { resolveEndpoint } from './providers/provider-registry';
+import { IsolationContext } from '../common/utils/isolation.util';
 
 /**
  * AI统一调用服务
@@ -59,11 +61,13 @@ export class AiService {
 
     const targetId = dto.modelCode || `mcp-${modelType}`;
 
+    const isolationContext: IsolationContext = { appCode: appCode || null, isSuperAdmin: false };
     const conversation = await this.conversationService.getOrCreate(
       ConversationType.MODEL,
       targetId,
       dto.conversationId,
       uid,
+      isolationContext,
     );
 
     let conversationHistory: Array<{ role: string; content: string }> = [];
@@ -116,7 +120,7 @@ export class AiService {
       console.log('API地址:', model.endpoint);
       console.log('请求数据:', JSON.stringify(requestData, null, 2));
 
-      const response = await axios.post(model.endpoint, requestData, {
+      const response = await axios.post(resolveEndpoint(model), requestData, {
         headers: this.buildHeaders(model),
         timeout: 30000,
       });
@@ -218,7 +222,7 @@ export class AiService {
    * @param uid 用户唯一标识(透传)
    * @returns {Observable<MessageEvent>} 流式响应
    */
-  streamInvoke(dto: AiInvokeDto, clientIp: string, userAgent: string, uid?: string): Observable<MessageEvent> {
+  streamInvoke(dto: AiInvokeDto, clientIp: string, userAgent: string, uid?: string, appCode?: string): Observable<MessageEvent> {
     return new Observable((observer) => {
       (async () => {
         const startTime = Date.now();
@@ -230,11 +234,13 @@ export class AiService {
 
         const targetId = dto.modelCode || `mcp-${modelType}`;
 
+        const isolationContext: IsolationContext = { appCode: appCode || null, isSuperAdmin: false };
         const conversation = await this.conversationService.getOrCreate(
           ConversationType.MODEL,
           targetId,
           dto.conversationId,
           uid,
+          isolationContext,
         );
 
         console.log('[Stream] 会话信息:', {
@@ -286,7 +292,7 @@ export class AiService {
 
           const requestData = this.buildRequestData(model, { ...dto, messages: messagesWithHistory }, true);
 
-          const response = await axios.post(model.endpoint, requestData, {
+          const response = await axios.post(resolveEndpoint(model), requestData, {
             headers: this.buildHeaders(model),
             responseType: 'stream',
             timeout: 0,
@@ -454,7 +460,7 @@ export class AiService {
       console.log('[Embedding] 模型信息:', { provider: model.provider, endpoint: model.endpoint });
 
       const response = await axios.post(
-        model.endpoint,
+        resolveEndpoint(model, 'embedding'),
         requestData,
         {
           headers: this.buildHeaders(model),
@@ -554,7 +560,7 @@ export class AiService {
 
     try {
       const response = await axios.post(
-        model.endpoint,
+        resolveEndpoint(model, 'image'),
         {
           prompt: dto.prompt,
           width: dto.width,

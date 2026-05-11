@@ -13,6 +13,7 @@ import {
   RenderPromptTemplateDto,
   RollbackPromptTemplateDto,
 } from './dto/prompt-template.dto';
+import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
 
 /**
  * Prompt 模板服务
@@ -27,11 +28,13 @@ export class PromptTemplateService {
   /**
    * 创建模板
    * @param dto 创建 DTO
+   * @param context 隔离上下文
    * @returns 创建的模板
    */
-  async create(dto: CreatePromptTemplateDto) {
+  async create(dto: CreatePromptTemplateDto, context?: IsolationContext) {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const existing = await this.prisma.promptTemplate.findFirst({
-      where: { code: dto.code },
+      where: { code: dto.code, ...isolationWhere },
     });
 
     if (existing) {
@@ -43,26 +46,29 @@ export class PromptTemplateService {
         where: {
           category: dto.category,
           isDefault: true,
+          ...isolationWhere,
         },
         data: { isDefault: false },
       });
     }
 
-    const template = await this.prisma.promptTemplate.create({
-      data: {
-        name: dto.name,
-        code: dto.code,
-        category: dto.category,
-        content: dto.content,
-        variables: dto.variables ? JSON.stringify(dto.variables) : null,
-        isDefault: dto.isDefault ?? false,
-        status: dto.status ?? true,
-        description: dto.description,
-        tags: dto.tags ? JSON.stringify(dto.tags) : null,
-        metadata: dto.metadata ? JSON.stringify(dto.metadata) : null,
-        createdBy: dto.createdBy,
-      },
-    });
+    const data = buildCreateData({
+      name: dto.name,
+      code: dto.code,
+      category: dto.category,
+      content: dto.content,
+      variables: dto.variables ? JSON.stringify(dto.variables) : null,
+      isDefault: dto.isDefault ?? false,
+      status: dto.status ?? true,
+      description: dto.description,
+      tags: dto.tags ? JSON.stringify(dto.tags) : null,
+      metadata: dto.metadata ? JSON.stringify(dto.metadata) : null,
+      createdBy: dto.createdBy,
+      appCode: dto.appCode,
+      isPublic: dto.isPublic ?? false,
+    }, context || { appCode: null, isSuperAdmin: false });
+
+    const template = await this.prisma.promptTemplate.create({ data });
 
     await this.prisma.promptVersion.create({
       data: {
@@ -84,15 +90,17 @@ export class PromptTemplateService {
    * 更新模板（创建新版本）
    * @param code 模板标识
    * @param dto 更新 DTO
+   * @param context 隔离上下文
    * @returns 更新后的模板
    */
-  async update(code: string, dto: UpdatePromptTemplateDto) {
+  async update(code: string, dto: UpdatePromptTemplateDto, context?: IsolationContext) {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const template = await this.prisma.promptTemplate.findFirst({
-      where: { code },
+      where: { code, ...isolationWhere },
     });
 
     if (!template) {
-      throw new NotFoundException('模板不存在');
+      throw new NotFoundException('模板不存在或无权限操作');
     }
 
     if (dto.isDefault) {
@@ -101,6 +109,7 @@ export class PromptTemplateService {
           category: template.category,
           isDefault: true,
           id: { not: template.id },
+          ...isolationWhere,
         },
         data: { isDefault: false },
       });
@@ -141,14 +150,16 @@ export class PromptTemplateService {
   /**
    * 删除模板
    * @param id 模板 ID
+   * @param context 隔离上下文
    */
-  async delete(id: string) {
-    const template = await this.prisma.promptTemplate.findUnique({
-      where: { id },
+  async delete(id: string, context?: IsolationContext) {
+    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const template = await this.prisma.promptTemplate.findFirst({
+      where: { ...where },
     });
 
     if (!template) {
-      throw new NotFoundException('模板不存在');
+      throw new NotFoundException('模板不存在或无权限操作');
     }
 
     await this.prisma.promptTemplate.delete({
@@ -161,11 +172,13 @@ export class PromptTemplateService {
   /**
    * 查询单个模板
    * @param id 模板 ID
+   * @param context 隔离上下文
    * @returns 模板详情
    */
-  async findOne(id: string) {
-    const template = await this.prisma.promptTemplate.findUnique({
-      where: { id },
+  async findOne(id: string, context?: IsolationContext) {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const template = await this.prisma.promptTemplate.findFirst({
+      where: { id, ...isolationWhere },
       include: {
         versions: {
           orderBy: { version: 'desc' },
@@ -184,11 +197,13 @@ export class PromptTemplateService {
   /**
    * 根据标识查询模板
    * @param code 模板标识
+   * @param context 隔离上下文
    * @returns 模板详情
    */
-  async findByCode(code: string) {
+  async findByCode(code: string, context?: IsolationContext) {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const template = await this.prisma.promptTemplate.findFirst({
-      where: { code },
+      where: { code, ...isolationWhere },
     });
 
     if (!template) {
@@ -201,14 +216,16 @@ export class PromptTemplateService {
   /**
    * 查询模板列表
    * @param query 查询条件
+   * @param context 隔离上下文
    * @returns 模板列表和总数
    */
-  async findAll(query: QueryPromptTemplateDto) {
+  async findAll(query: QueryPromptTemplateDto, context?: IsolationContext) {
     const page = Number(query.page) || 1;
     const pageSize = Number(query.pageSize) || 10;
     const skip = (page - 1) * pageSize;
 
-    const where: any = {};
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const where: any = { ...isolationWhere };
 
     if (query.code) {
       where.code = { contains: query.code };
@@ -366,15 +383,17 @@ export class PromptTemplateService {
    * @param id 模板 ID
    * @param version 目标版本号
    * @param dto 回滚 DTO
+   * @param context 隔离上下文
    * @returns 回滚后的模板
    */
-  async rollback(id: string, version: number, dto?: RollbackPromptTemplateDto) {
-    const template = await this.prisma.promptTemplate.findUnique({
-      where: { id },
+  async rollback(id: string, version: number, dto?: RollbackPromptTemplateDto, context?: IsolationContext) {
+    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const template = await this.prisma.promptTemplate.findFirst({
+      where: { ...where },
     });
 
     if (!template) {
-      throw new NotFoundException('模板不存在');
+      throw new NotFoundException('模板不存在或无权限操作');
     }
 
     const targetVersion = await this.prisma.promptVersion.findFirst({
@@ -414,14 +433,17 @@ export class PromptTemplateService {
   /**
    * 获取默认模板
    * @param category 分类
+   * @param context 隔离上下文
    * @returns 默认模板
    */
-  async getDefaultTemplate(category: string) {
+  async getDefaultTemplate(category: string, context?: IsolationContext) {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const template = await this.prisma.promptTemplate.findFirst({
       where: {
         category,
         isDefault: true,
         status: true,
+        ...isolationWhere,
       },
     });
 
@@ -431,15 +453,18 @@ export class PromptTemplateService {
   /**
    * 设置默认模板
    * @param id 模板 ID
+   * @param context 隔离上下文
    * @returns 更新后的模板
    */
-  async setDefault(id: string) {
-    const template = await this.prisma.promptTemplate.findUnique({
-      where: { id },
+  async setDefault(id: string, context?: IsolationContext) {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const template = await this.prisma.promptTemplate.findFirst({
+      where: { ...where },
     });
 
     if (!template) {
-      throw new NotFoundException('模板不存在');
+      throw new NotFoundException('模板不存在或无权限操作');
     }
 
     await this.prisma.$transaction([
@@ -447,6 +472,7 @@ export class PromptTemplateService {
         where: {
           category: template.category,
           isDefault: true,
+          ...isolationWhere,
         },
         data: { isDefault: false },
       }),

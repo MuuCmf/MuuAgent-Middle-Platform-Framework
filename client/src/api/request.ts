@@ -30,7 +30,7 @@ class HttpClient {
           config.headers.Authorization = `Bearer ${token}`
         }
         
-        config.headers['x-api-key'] = 'AI-SVC-2026-MCP-KEY-666'
+        config.headers['x-api-key'] = import.meta.env.VITE_API_KEY || ''
         
         return config
       },

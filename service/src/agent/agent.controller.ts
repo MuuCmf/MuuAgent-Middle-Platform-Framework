@@ -20,6 +20,7 @@ import { RequireScope } from "../common/decorators/scope.decorator";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { RateLimitGuard } from "../rate-limit/rate-limit.guard";
 import { AppUsageService } from "../common/services/app-usage.service";
+import { extractIsolationContext, IsolationContext } from "../common/utils/isolation.util";
 import {
   CreateAgentDto,
   UpdateAgentDto,
@@ -41,45 +42,50 @@ export class AgentAdminController {
   @Post()
   @ApiOperation({ summary: "创建智能体" })
   @RequireScope(AdminScope.AGENT_WRITE)
-  async create(@Body() dto: CreateAgentDto) {
-    const agent = await this.agentService.create(dto);
+  async create(@Body() dto: CreateAgentDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const agent = await this.agentService.create(dto, context);
     return success(agent, "智能体创建成功");
   }
 
   @Put(":id")
   @ApiOperation({ summary: "更新智能体" })
   @RequireScope(AdminScope.AGENT_WRITE)
-  async update(@Param("id") id: string, @Body() dto: UpdateAgentDto) {
-    const agent = await this.agentService.update(id, dto);
+  async update(@Param("id") id: string, @Body() dto: UpdateAgentDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const agent = await this.agentService.update(id, dto, context);
     return success(agent, "智能体更新成功");
   }
 
   @Delete(":id")
   @ApiOperation({ summary: "删除智能体" })
   @RequireScope(AdminScope.AGENT_WRITE)
-  async remove(@Param("id") id: string) {
-    await this.agentService.remove(id);
+  async remove(@Param("id") id: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    await this.agentService.remove(id, context);
     return success(null, "智能体删除成功");
   }
 
   @Get(":id")
   @ApiOperation({ summary: "查询智能体详情" })
   @RequireScope(AdminScope.AGENT_READ)
-  async findOne(@Param("id") id: string) {
-    const agent = await this.agentService.findOne(id);
+  async findOne(@Param("id") id: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const agent = await this.agentService.findOne(id, context);
     return success(agent);
   }
 
   @Get()
   @ApiOperation({ summary: "查询智能体列表" })
   @RequireScope(AdminScope.AGENT_READ)
-  async findAll(@Query() query: QueryAgentDto) {
+  async findAll(@Query() query: QueryAgentDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
     const {
       list,
       total,
       page: pageNum,
       pageSize,
-    } = await this.agentService.findAll(query);
+    } = await this.agentService.findAll(query, context);
     return page(list, total, pageNum, pageSize);
   }
 }
@@ -97,77 +103,6 @@ export class AgentController {
   private extractUid(req: Request, dto: { uid?: string }): string | undefined {
     return dto.uid || (req.headers["x-uid"] as string) || undefined;
   }
-
-  // @Post("chat/stream")
-  // @ApiOperation({ summary: "Agent对话（流式）" })
-  // async chatStream(
-  //   @Body() dto: AgentChatDto,
-  //   @Req() req: Request,
-  //   @Res({ passthrough: false }) res: Response,
-  // ) {
-  //   const uid = this.extractUid(req, dto);
-
-  //   res.setHeader("Content-Type", "text/event-stream");
-  //   res.setHeader("Cache-Control", "no-cache, no-transform");
-  //   res.setHeader("Connection", "keep-alive");
-  //   res.setHeader("Access-Control-Allow-Origin", "*");
-  //   res.setHeader("X-Accel-Buffering", "no");
-
-  //   const flush = () => {
-  //     const nativeRes = (res as any).req?.socket;
-  //     if (nativeRes && nativeRes.writable) {
-  //       nativeRes.write("");
-  //     }
-  //     if (typeof (res as any).flush === "function") {
-  //       (res as any).flush();
-  //     }
-  //   };
-
-  //   try {
-  //     await this.agentService.streamChat(dto, req.ip || "unknown", uid, {
-  //       onConversationId: (conversationId) => {
-  //         res.write(
-  //           `data: ${JSON.stringify({ type: "conversation_id", conversationId })}\n\n`,
-  //         );
-  //         flush();
-  //       },
-  //       onChunk: (chunk) => {
-  //         res.write(
-  //           `data: ${JSON.stringify({ type: "chunk", content: chunk })}\n\n`,
-  //         );
-  //         flush();
-  //       },
-  //       onStep: (step) => {
-  //         res.write(
-  //           `data: ${JSON.stringify({ type: "reasoning_step", step })}\n\n`,
-  //         );
-  //         flush();
-  //       },
-
-  //       onToolCall: (toolCall) => {
-  //         res.write(
-  //           `data: ${JSON.stringify({ type: "tool", ...toolCall })}\n\n`,
-  //         );
-  //         flush();
-  //       },
-  //       onDone: (result) => {
-  //         res.write(`data: ${JSON.stringify({ type: "done", ...result })}\n\n`);
-  //         res.end();
-  //       },
-  //       onError: (error) => {
-  //         res.write(
-  //           `data: ${JSON.stringify({ type: "error", content: error })}\n\n`,
-  //         );
-  //         res.end();
-  //       },
-  //     });
-  //   } catch (error) {
-  //     res.write(
-  //       `data: ${JSON.stringify({ type: "error", content: error instanceof Error ? error.message : "Unknown error" })}\n\n`,
-  //     );
-  //     res.end();
-  //   }
-  // }
 
   /**
    * Agent对话（同步）
@@ -208,6 +143,7 @@ export class AgentController {
     @Req() req: Request,
   ): Promise<Observable<MessageEvent>> {
     const uid = this.extractUid(req, dto);
+    const appCode = (req as any).appCode;
     const subject = new Subject<MessageEvent>();
 
     this.agentService.streamChat(dto, req.ip || "unknown", uid, {
@@ -249,7 +185,7 @@ export class AgentController {
         subject.next(new MessageEvent("message", { data: `[ERROR] ${error}` }));
         subject.complete();
       },
-    });
+    }, appCode);
 
     return subject.asObservable();
   }
@@ -260,12 +196,13 @@ export class AgentController {
    */
   @Get()
   @ApiOperation({ summary: "获取启用的智能体列表" })
-  async getEnabledAgents() {
+  async getEnabledAgents(@Req() req: Request) {
+    const context = extractIsolationContext(req);
     const agents = await this.agentService.findAll({
       status: true,
       page: 1,
       pageSize: 100,
-    });
+    }, context);
     const safeAgents = agents.list.map((agent) =>
       this.filterSensitiveData(agent),
     );
@@ -279,8 +216,9 @@ export class AgentController {
    */
   @Get(":code")
   @ApiOperation({ summary: "获取智能体详情" })
-  async getAgentByCode(@Param("code") code: string) {
-    const agent = await this.agentService.findByCode(code);
+  async getAgentByCode(@Param("code") code: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const agent = await this.agentService.findByCode(code, context);
     return success(this.filterSensitiveData(agent));
   }
 

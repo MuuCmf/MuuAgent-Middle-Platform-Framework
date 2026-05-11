@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { KbService } from './kb.service';
@@ -21,7 +22,9 @@ import { AdminScope } from '../common/constants/scope.constants';
 import { RequireScope } from '../common/decorators/scope.decorator';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
+import { extractIsolationContext } from '../common/utils/isolation.util';
 import { success, page } from '../common/response/api.response';
+import { Request } from 'express';
 
 /**
  * 知识库管理控制器（管理端）
@@ -45,8 +48,9 @@ export class KbController {
   @Post()
   @ApiOperation({ summary: '创建知识库' })
   @RequireScope(AdminScope.KB_WRITE)
-  async create(@Body() dto: CreateKbDto) {
-    const result = await this.kbService.create(dto);
+  async create(@Body() dto: CreateKbDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const result = await this.kbService.create(dto, context);
     return success(result, '创建知识库成功');
   }
 
@@ -58,8 +62,9 @@ export class KbController {
   @Get()
   @ApiOperation({ summary: '查询知识库列表' })
   @RequireScope(AdminScope.KB_READ)
-  async findAll(@Query() dto: QueryKbListDto) {
-    const result = await this.kbService.findAll(dto);
+  async findAll(@Query() dto: QueryKbListDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const result = await this.kbService.findAll(dto, context);
     return page(result.list, result.total, dto.pageNum || 1, dto.pageSize || 10);
   }
 
@@ -71,8 +76,9 @@ export class KbController {
   @Get(':kbId')
   @ApiOperation({ summary: '查询知识库详情' })
   @RequireScope(AdminScope.KB_READ)
-  async findOne(@Param('kbId') kbId: string) {
-    const result = await this.kbService.findOne(kbId);
+  async findOne(@Param('kbId') kbId: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const result = await this.kbService.findOne(kbId, context);
     return success(result);
   }
 
@@ -84,8 +90,9 @@ export class KbController {
   @Put()
   @ApiOperation({ summary: '更新知识库' })
   @RequireScope(AdminScope.KB_WRITE)
-  async update(@Body() dto: UpdateKbDto) {
-    const result = await this.kbService.update(dto);
+  async update(@Body() dto: UpdateKbDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const result = await this.kbService.update(dto, context);
     return success(result, '更新知识库成功');
   }
 
@@ -98,8 +105,9 @@ export class KbController {
   @Delete(':kbId')
   @ApiOperation({ summary: '删除知识库' })
   @RequireScope(AdminScope.KB_WRITE)
-  async delete(@Param('kbId') kbId: string, @Body() dto: DeleteKbDto) {
-    const result = await this.kbService.delete({ ...dto, kbId });
+  async delete(@Param('kbId') kbId: string, @Body() dto: DeleteKbDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const result = await this.kbService.delete({ ...dto, kbId }, context);
     return success(result, '删除知识库成功');
   }
 }
@@ -136,12 +144,13 @@ export class ClientKbController {
   @Get()
   @ApiOperation({ summary: '获取启用的知识库列表', description: '获取所有已启用且公开的知识库列表' })
   @ApiResponse({ status: 200, description: '获取成功' })
-  async getEnabledKbs() {
+  async getEnabledKbs(@Req() req: Request) {
+    const context = extractIsolationContext(req);
     const result = await this.kbService.findAll({
       status: 'true',
       pageNum: 1,
       pageSize: 100,
-    });
+    }, context);
 
     const publicKbs = result.list.filter((kb: any) => kb.isPublic);
     const safeKbs = publicKbs.map((kb: any) => this.filterSensitiveData(kb));
@@ -158,8 +167,9 @@ export class ClientKbController {
   @ApiOperation({ summary: '获取知识库详情', description: '根据知识库ID获取详情，仅返回已启用且公开的知识库' })
   @ApiResponse({ status: 200, description: '获取成功' })
   @ApiResponse({ status: 404, description: '知识库不存在或未公开' })
-  async getKbById(@Param('kbId') kbId: string) {
-    const kb = await this.kbService.findOne(kbId);
+  async getKbById(@Param('kbId') kbId: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const kb = await this.kbService.findOne(kbId, context);
 
     if (!kb.status || !kb.isPublic) {
       return success(null, '知识库不存在或未公开');

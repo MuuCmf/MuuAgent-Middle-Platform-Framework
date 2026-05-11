@@ -7,8 +7,15 @@
 
     <div class="card">
       <div class="card-title">
-        知识库列表
+        <span>知识库列表</span>
         <el-tag type="info" size="small">{{ total }} 个</el-tag>
+        <AppSelector
+          v-if="isSuperAdmin"
+          v-model="filterAppCode"
+          placeholder="筛选应用"
+          style="margin-left: 16px;"
+          @change="handleAppFilterChange"
+        />
       </div>
 
       <div class="help-tip">
@@ -70,6 +77,17 @@
               <span class="label">标识：</span>
               <el-tag type="info" size="small">{{ kb.kbCode }}</el-tag>
             </div>
+            <div class="info-item" v-if="isSuperAdmin">
+              <span class="label">所属应用：</span>
+              <el-tag v-if="kb.appCode" type="warning" size="small">{{ kb.appCode }}</el-tag>
+              <span v-else class="value">全局</span>
+            </div>
+            <div class="info-item">
+              <span class="label">公开状态：</span>
+              <el-tag :type="kb.isPublic ? 'success' : 'info'" size="small">
+                {{ kb.isPublic ? '公开' : '私有' }}
+              </el-tag>
+            </div>
             <div class="info-item" v-if="kb.description">
               <span class="label">描述：</span>
               <span class="value">{{ kb.description }}</span>
@@ -130,15 +148,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, FolderOpened, View, Edit, Delete } from '@element-plus/icons-vue'
 import { kbApi } from '@/api'
 import type { KbInfo } from '@/api/kb'
+import { useUserStore } from '@/stores/user'
 import KbEditDialog from './components/KbEditDialog.vue'
+import AppSelector from '@/components/AppSelector.vue'
 
 const router = useRouter()
+const userStore = useUserStore()
 
 const loading = ref(false)
 const kbList = ref<KbInfo[]>([])
@@ -147,6 +168,9 @@ const currentPage = ref(1)
 const pageSize = ref(12)
 const searchKeyword = ref('')
 const statusFilter = ref<boolean | ''>('')
+const filterAppCode = ref('')
+
+const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 
 const dialogVisible = ref(false)
 const editData = ref<KbInfo | null>(null)
@@ -170,6 +194,11 @@ const fetchKbList = async () => {
 }
 
 const handleSearch = () => {
+  currentPage.value = 1
+  fetchKbList()
+}
+
+const handleAppFilterChange = () => {
   currentPage.value = 1
   fetchKbList()
 }

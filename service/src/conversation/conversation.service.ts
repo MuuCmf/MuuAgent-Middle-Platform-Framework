@@ -3,6 +3,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateConversationDto, ConversationType } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { QueryConversationDto } from './dto/query-conversation.dto';
+import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
 
 /**
  * 会话服务
@@ -21,20 +22,21 @@ export class ConversationService {
   /**
    * 创建新会话
    * @param dto 创建参数
+   * @param context 隔离上下文
    * @returns 创建的会话
    */
-  async create(dto: CreateConversationDto) {
+  async create(dto: CreateConversationDto, context?: IsolationContext) {
     const conversationType = dto.conversationType || ConversationType.AGENT;
 
-    const conversation = await this.prisma.conversation.create({
-      data: {
-        conversationType,
-        targetId: dto.targetId,
-        title: dto.title,
-        uid: dto.uid,
-        status: 'active',
-      },
-    });
+    const data = buildCreateData({
+      conversationType,
+      targetId: dto.targetId,
+      title: dto.title,
+      uid: dto.uid,
+      status: 'active',
+    }, context || { appCode: null, isSuperAdmin: false });
+
+    const conversation = await this.prisma.conversation.create({ data });
 
     this.logger.log(
       `创建会话: ${conversation.id}, type: ${conversationType}, targetId: ${dto.targetId}`,
@@ -49,6 +51,7 @@ export class ConversationService {
    * @param targetId 目标ID
    * @param conversationId 会话ID（可选）
    * @param uid 用户ID（可选）
+   * @param context 隔离上下文
    * @returns 会话信息
    */
   async getOrCreate(
@@ -56,10 +59,12 @@ export class ConversationService {
     targetId: string,
     conversationId?: string,
     uid?: string,
+    context?: IsolationContext,
   ) {
     if (conversationId) {
-      const existing = await this.prisma.conversation.findUnique({
-        where: { id: conversationId },
+      const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, 'appCode', 'isPublic', false);
+      const existing = await this.prisma.conversation.findFirst({
+        where: { id: conversationId, ...isolationWhere },
       });
 
       if (existing) {
@@ -81,22 +86,24 @@ export class ConversationService {
       conversationType,
       targetId,
       uid,
-    });
+    }, context);
   }
 
   /**
    * 更新会话
    * @param id 会话ID
    * @param dto 更新参数
+   * @param context 隔离上下文
    * @returns 更新后的会话
    */
-  async update(id: string, dto: UpdateConversationDto) {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id },
+  async update(id: string, dto: UpdateConversationDto, context?: IsolationContext) {
+    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const conversation = await this.prisma.conversation.findFirst({
+      where: { ...where },
     });
 
     if (!conversation) {
-      throw new NotFoundException('会话不存在');
+      throw new NotFoundException('会话不存在或无权限操作');
     }
 
     return this.prisma.conversation.update({
@@ -108,14 +115,16 @@ export class ConversationService {
   /**
    * 删除会话（软删除）
    * @param id 会话ID
+   * @param context 隔离上下文
    */
-  async remove(id: string) {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id },
+  async remove(id: string, context?: IsolationContext) {
+    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const conversation = await this.prisma.conversation.findFirst({
+      where: { ...where },
     });
 
     if (!conversation) {
-      throw new NotFoundException('会话不存在');
+      throw new NotFoundException('会话不存在或无权限操作');
     }
 
     await this.prisma.conversation.update({
@@ -128,11 +137,13 @@ export class ConversationService {
    * 获取会话详情
    * @param id 会话ID
    * @param messageLimit 消息数量限制
+   * @param context 隔离上下文
    * @returns 会话详情（包含消息）
    */
-  async findOne(id: string, messageLimit?: number) {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id },
+  async findOne(id: string, messageLimit?: number, context?: IsolationContext) {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, 'appCode', 'isPublic', false);
+    const conversation = await this.prisma.conversation.findFirst({
+      where: { id, ...isolationWhere },
     });
 
     if (!conversation) {
@@ -170,13 +181,15 @@ export class ConversationService {
   /**
    * 分页查询会话列表
    * @param query 查询参数
+   * @param context 隔离上下文
    * @returns 会话列表
    */
-  async findAll(query: QueryConversationDto) {
+  async findAll(query: QueryConversationDto, context?: IsolationContext) {
     const { conversationType, targetId, uid, status, keyword, page = 1, pageSize = 20 } = query;
     const skip = (page - 1) * pageSize;
 
-    const where: any = {};
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, 'appCode', 'isPublic', false);
+    const where: any = { ...isolationWhere };
 
     if (conversationType) where.conversationType = conversationType;
     if (targetId) where.targetId = targetId;

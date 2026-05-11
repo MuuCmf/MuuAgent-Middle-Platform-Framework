@@ -37,6 +37,27 @@
           </el-select>
         </el-form-item>
 
+        <el-row :gutter="16" v-if="isSuperAdmin">
+          <el-col :span="12">
+            <el-form-item label="所属应用">
+              <AppSelector
+                v-model="form.appCode"
+                placeholder="选择应用"
+                clearable
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="公开状态">
+              <el-switch
+                v-model="form.isPublic"
+                active-text="公开"
+                inactive-text="私有"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
         <el-form-item label="描述">
           <el-input
             v-model="form.description"
@@ -204,6 +225,8 @@ import { ElMessage } from 'element-plus'
 import { Plus, Delete, QuestionFilled } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { promptTemplateApi, type PromptTemplate, type PromptTemplateForm } from '@/api/prompt-template'
+import { useUserStore } from '@/stores/user'
+import AppSelector from '@/components/AppSelector.vue'
 
 interface Props {
   visible: boolean
@@ -218,8 +241,11 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
+const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const saving = ref(false)
+
+const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 
 const form = reactive<PromptTemplateForm>({
   name: '',
@@ -231,7 +257,9 @@ const form = reactive<PromptTemplateForm>({
   status: true,
   description: '',
   tags: [],
-  metadata: {}
+  metadata: {},
+  appCode: '',
+  isPublic: false
 })
 
 const rules: FormRules = {
@@ -276,6 +304,8 @@ const resetForm = () => {
   form.description = ''
   form.tags = []
   form.metadata = {}
+  form.appCode = ''
+  form.isPublic = false
 }
 
 watch(() => props.template, (newTemplate) => {
@@ -290,6 +320,8 @@ watch(() => props.template, (newTemplate) => {
     form.description = newTemplate.description || ''
     form.tags = newTemplate.tags ? JSON.parse(newTemplate.tags) : []
     form.metadata = newTemplate.metadata ? JSON.parse(newTemplate.metadata) : {}
+    form.appCode = newTemplate.appCode || ''
+    form.isPublic = newTemplate.isPublic ?? false
   } else {
     resetForm()
   }

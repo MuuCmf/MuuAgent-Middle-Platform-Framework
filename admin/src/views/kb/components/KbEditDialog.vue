@@ -7,6 +7,26 @@
       <el-form-item label="知识库标识" prop="kbCode">
         <el-input v-model="formData.kbCode" placeholder="请输入知识库标识" :disabled="isEdit" />
       </el-form-item>
+      <el-row :gutter="16" v-if="isSuperAdmin">
+        <el-col :span="12">
+          <el-form-item label="所属应用">
+            <AppSelector
+              v-model="formData.appCode"
+              placeholder="选择应用"
+              clearable
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="公开状态">
+            <el-switch
+              v-model="formData.isPublic"
+              active-text="公开"
+              inactive-text="私有"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
       <el-form-item label="检索方式" prop="retrievalMethod">
         <el-select v-model="formData.retrievalMethod" placeholder="请选择检索方式" style="width: 100%">
           <el-option label="向量检索" value="vector" />
@@ -65,12 +85,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { kbApi, modelApi } from '@/api'
 import type { KbInfo } from '@/api/kb'
 import type { Model } from '@/api/model'
 import type { FormInstance, FormRules } from 'element-plus'
+import { useUserStore } from '@/stores/user'
+import AppSelector from '@/components/AppSelector.vue'
 
 const props = defineProps<{
   visible: boolean
@@ -82,10 +104,13 @@ const emit = defineEmits<{
   (e: 'success'): void
 }>()
 
+const userStore = useUserStore()
 const submitting = ref(false)
 const formRef = ref<FormInstance>()
 const embeddingModels = ref<Model[]>([])
 const dialogVisibleLocal = ref(false)
+
+const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 
 const isEdit = ref(false)
 const currentKbId = ref('')
@@ -99,7 +124,9 @@ const formData = reactive({
   similarityThresh: 0.7,
   topN: 5,
   retrievalMethod: 'vector',
-  description: ''
+  description: '',
+  appCode: '',
+  isPublic: false
 })
 
 const rules: FormRules = {
@@ -144,7 +171,9 @@ const resetForm = () => {
     similarityThresh: 0.7,
     topN: 5,
     retrievalMethod: 'vector',
-    description: ''
+    description: '',
+    appCode: '',
+    isPublic: false
   })
 }
 
@@ -207,7 +236,9 @@ watch(() => props.visible, (val) => {
         similarityThresh: props.editData.similarityThresh,
         topN: props.editData.topN,
         retrievalMethod: props.editData.retrievalMethod || 'vector',
-        description: props.editData.description
+        description: props.editData.description,
+        appCode: props.editData.appCode || '',
+        isPublic: props.editData.isPublic ?? false
       })
     } else {
       isEdit.value = false

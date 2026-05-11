@@ -4,6 +4,7 @@ import { CreateKbDto } from './dto/create-kb.dto';
 import { UpdateKbDto } from './dto/update-kb.dto';
 import { QueryKbListDto } from './dto/query-kb-list.dto';
 import { DeleteKbDto } from './dto/delete-kb.dto';
+import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
 
 /**
  * 知识库管理服务
@@ -19,9 +20,10 @@ export class KbService {
   /**
    * 创建知识库
    * @param dto 创建参数
+   * @param context 隔离上下文
    * @returns {Promise<any>} 创建结果
    */
-  async create(dto: CreateKbDto): Promise<any> {
+  async create(dto: CreateKbDto, context?: IsolationContext): Promise<any> {
     const retrievalMethod = dto.retrievalMethod || 'vector';
     const embeddingModel = dto.embeddingModel || 'doubao-embedding-v1';
     
@@ -38,20 +40,22 @@ export class KbService {
       }
     }
 
-    const kb = await this.prisma.kbInfo.create({
-      data: {
-        kbName: dto.kbName,
-        kbCode: dto.kbCode,
-        embeddingModel: embeddingModel,
-        chunkSize: dto.chunkSize || 500,
-        chunkOverlap: dto.chunkOverlap || 100,
-        similarityThresh: dto.similarityThresh || 0.7,
-        topN: dto.topN || 5,
-        retrievalMethod: retrievalMethod,
-        description: dto.description,
-        createdBy: dto.uid,
-      },
-    });
+    const data = buildCreateData({
+      kbName: dto.kbName,
+      kbCode: dto.kbCode,
+      embeddingModel: embeddingModel,
+      chunkSize: dto.chunkSize || 500,
+      chunkOverlap: dto.chunkOverlap || 100,
+      similarityThresh: dto.similarityThresh || 0.7,
+      topN: dto.topN || 5,
+      retrievalMethod: retrievalMethod,
+      description: dto.description,
+      createdBy: dto.uid,
+      appCode: dto.appCode,
+      isPublic: dto.isPublic ?? false,
+    }, context || { appCode: null, isSuperAdmin: false });
+
+    const kb = await this.prisma.kbInfo.create({ data });
 
     return {
       kbId: kb.id,
@@ -65,15 +69,18 @@ export class KbService {
   /**
    * 查询知识库列表
    * @param dto 查询参数
+   * @param context 隔离上下文
    * @returns {Promise<any>} 查询结果
    */
-  async findAll(dto: QueryKbListDto): Promise<any> {
+  async findAll(dto: QueryKbListDto, context?: IsolationContext): Promise<any> {
     const pageNum = dto.pageNum || 1;
     const pageSize = dto.pageSize || 10;
     const skip = (pageNum - 1) * pageSize;
 
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const where: any = {
       isDeleted: false,
+      ...isolationWhere,
     };
 
     if (dto.keyword) {
@@ -109,6 +116,7 @@ export class KbService {
           description: true,
           createdAt: true,
           createdBy: true,
+          appCode: true,
           _count: {
             select: {
               documents: { where: { isDeleted: false } },
@@ -136,6 +144,7 @@ export class KbService {
         description: item.description,
         createdTime: item.createdAt,
         createdBy: item.createdBy,
+        appCode: item.appCode,
         documentCount: item._count.documents,
         chunkCount: item._count.chunks,
       })),
@@ -147,11 +156,13 @@ export class KbService {
   /**
    * 查询知识库详情
    * @param kbId 知识库ID
+   * @param context 隔离上下文
    * @returns {Promise<any>} 知识库详情
    */
-  async findOne(kbId: string): Promise<any> {
+  async findOne(kbId: string, context?: IsolationContext): Promise<any> {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const kb = await this.prisma.kbInfo.findFirst({
-      where: { id: kbId, isDeleted: false },
+      where: { id: kbId, isDeleted: false, ...isolationWhere },
       include: {
         _count: {
           select: {
@@ -183,6 +194,7 @@ export class KbService {
       updatedTime: kb.updatedAt,
       createdBy: kb.createdBy,
       updatedBy: kb.updatedBy,
+      appCode: kb.appCode,
       documentCount: kb._count.documents,
       chunkCount: kb._count.chunks,
     };
@@ -191,15 +203,17 @@ export class KbService {
   /**
    * 更新知识库
    * @param dto 更新参数
+   * @param context 隔离上下文
    * @returns {Promise<any>} 更新结果
    */
-  async update(dto: UpdateKbDto): Promise<any> {
+  async update(dto: UpdateKbDto, context?: IsolationContext): Promise<any> {
+    const where = buildOwnerWhere(dto.kbId, context || { appCode: null, isSuperAdmin: false });
     const kb = await this.prisma.kbInfo.findFirst({
-      where: { id: dto.kbId, isDeleted: false },
+      where: { ...where, isDeleted: false },
     });
 
     if (!kb) {
-      throw new NotFoundException('知识库不存在');
+      throw new NotFoundException('知识库不存在或无权限操作');
     }
 
     const retrievalMethod = dto.retrievalMethod || kb.retrievalMethod || 'vector';
@@ -242,15 +256,17 @@ export class KbService {
   /**
    * 删除知识库（软删除）
    * @param dto 删除参数
+   * @param context 隔离上下文
    * @returns {Promise<any>} 删除结果
    */
-  async delete(dto: DeleteKbDto): Promise<any> {
+  async delete(dto: DeleteKbDto, context?: IsolationContext): Promise<any> {
+    const where = buildOwnerWhere(dto.kbId, context || { appCode: null, isSuperAdmin: false });
     const kb = await this.prisma.kbInfo.findFirst({
-      where: { id: dto.kbId, isDeleted: false },
+      where: { ...where, isDeleted: false },
     });
 
     if (!kb) {
-      throw new NotFoundException('知识库不存在');
+      throw new NotFoundException('知识库不存在或无权限操作');
     }
 
     await this.prisma.kbInfo.update({

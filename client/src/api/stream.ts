@@ -102,7 +102,7 @@ export async function streamRequest(params: StreamRequestParams): Promise<void> 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': 'AI-SVC-2026-MCP-KEY-666',
+        'x-api-key': import.meta.env.VITE_API_KEY || '',
       },
       body: JSON.stringify(body),
       async onopen(response) {

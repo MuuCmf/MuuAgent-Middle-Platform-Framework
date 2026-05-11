@@ -20,6 +20,8 @@ export interface Agent {
   reasoningPrompt?: string
   kbRetrievalMode?: string
   kbRetrievalMethod?: string
+  appCode?: string
+  isPublic?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -40,6 +42,8 @@ export interface AgentForm {
   reasoningPrompt?: string
   kbRetrievalMode?: string
   kbRetrievalMethod?: string
+  appCode?: string
+  isPublic?: boolean
 }
 
 export interface AgentListResponse {
