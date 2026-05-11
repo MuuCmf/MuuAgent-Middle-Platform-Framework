@@ -123,15 +123,29 @@ const KNOWN_LANGUAGES = new Set([
 
 /**
  * 预处理 markdown 内容，修正格式问题
- * 1. 修正代码块格式：```javascriptimport -> ```javascript\nimport
- * 2. 修正语言标识：```ph -> ```php
- * 3. 修正表格格式：分隔行前缺少表头时自动补充空表头
- * 4. 关闭未关闭的代码块（当内容包含表格时）
+ * 1. 过滤 ReAct 格式文本（Thought/Action/Action Input）
+ * 2. 修正代码块格式：```javascriptimport -> ```javascript\nimport
+ * 3. 修正语言标识：```ph -> ```php
+ * 4. 修正表格格式：分隔行前缺少表头时自动补充空表头
+ * 5. 关闭未关闭的代码块（当内容包含表格时）
  * @param content 原始 markdown 内容
  * @returns 修正后的 markdown 内容
  */
 function preprocessMarkdown(content: string): string {
-  const lines = content.split('\n')
+  let result = content
+  
+  // result = result.replace(/^Thought:\s*[\s\S]*?(?=Action:|$)/gi, '')
+  // result = result.replace(/Action:\s*[^\n]*/gi, '')
+  // result = result.replace(/Action\s*Input:\s*\{[\s\S]*?\}/gi, '')
+  // result = result.replace(/Action\s*Input:\s*[^\n]*/gi, '')
+  // result = result.replace(/^Final\s+Answer:\s*/gi, '')
+  // result = result.replace(/^\s*\n\s*\n/gm, '\n\n').trim()
+  
+  result = result.replace(/^(#{1,6})([^\s#])/gm, '$1 $2')
+  result = result.replace(/([^\s])(#{1,6})/g, '$1\n\n$2')
+  result = result.replace(/(#{1,6})\s*(#{1,6})/g, '$1\n\n$2')
+  
+  const lines = result.split('\n')
   
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i]
@@ -175,7 +189,7 @@ function preprocessMarkdown(content: string): string {
     }
   }
   
-  let result = lines.join('\n')
+  result = lines.join('\n')
   
   const codeBlockMatches = [...result.matchAll(/^```/gm)]
   if (codeBlockMatches.length % 2 !== 0) {

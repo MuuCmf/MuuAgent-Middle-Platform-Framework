@@ -321,11 +321,17 @@ export class AiSdkProvider {
       if (finishReason === 'tool-calls' && toolCalls.length > 0 && params.onToolCall) {
         for (const toolCall of toolCalls) {
           if (toolCall.toolName && params.onToolCall) {
-            params.onToolCall({
+            await params.onToolCall({
               name: toolCall.toolName,
               args: toolCall.input || {},
             });
           }
+        }
+      } else if (finishReason === 'stop' && params.onToolCall) {
+        const textToolCall = this.parseTextAction(fullText);
+        if (textToolCall) {
+          this.logger.debug(`检测到文本格式工具调用: ${textToolCall.name}`);
+          await params.onToolCall(textToolCall);
         }
       }
 
@@ -362,6 +368,42 @@ export class AiSdkProvider {
         params.onError(error);
       }
     }
+  }
+
+  /**
+   * 解析文本格式的 Action/Action Input
+   * 用于支持不支持 Function Calling 的模型
+   * @param text 模型输出的文本
+   * @returns 工具调用信息或 null
+   */
+  private parseTextAction(text: string): { name: string; args: any } | null {
+    const actionMatch = text.match(/Action:\s*([^\n]+)/i);
+    const actionInputMatch = text.match(/Action\s*Input:\s*(\{[\s\S]*?\}|\[.*?\]|"[^"]*"|[^,\n]+)/i);
+
+    if (actionMatch) {
+      const name = actionMatch[1].trim();
+      let args = {};
+
+      if (actionInputMatch) {
+        const argsStr = actionInputMatch[1].trim();
+        try {
+          if (argsStr.startsWith('{') || argsStr.startsWith('[')) {
+            args = JSON.parse(argsStr);
+          } else if (argsStr.startsWith('"') && argsStr.endsWith('"')) {
+            args = { input: argsStr.slice(1, -1) };
+          } else {
+            args = { input: argsStr };
+          }
+        } catch (e) {
+          this.logger.debug(`解析 Action Input 失败: ${argsStr}`);
+          args = { raw: argsStr };
+        }
+      }
+
+      return { name, args };
+    }
+
+    return null;
   }
 
   /**
