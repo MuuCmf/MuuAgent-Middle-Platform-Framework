@@ -97,6 +97,13 @@ export class CombinedAuthGuard implements CanActivate {
     try {
       const tokenRecord = await this.prisma.oAuthToken.findUnique({
         where: { accessToken: token },
+        include: {
+          client: {
+            select: {
+              appCode: true,
+            },
+          },
+        },
       });
 
       if (!tokenRecord) {
@@ -111,6 +118,7 @@ export class CombinedAuthGuard implements CanActivate {
         userId: tokenRecord.userId,
         scope: tokenRecord.scope,
         clientId: tokenRecord.clientId,
+        appCode: tokenRecord.client.appCode,
       };
     } catch {
       return null;

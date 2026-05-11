@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
+import { AppModule as AppMgmtModule } from './app/app.module';
 import { ModelModule } from './model/model.module';
 import { ModelTemplateModule } from './model-template/model-template.module';
 import { PromptTemplateModule } from './prompt-template/prompt-template.module';
@@ -17,7 +18,6 @@ import { AuthModule } from './auth/auth.module';
 import { KbModule } from './kb/kb.module';
 import { DocumentModule } from './document/document.module';
 import { RetrievalModule } from './retrieval/retrieval.module';
-import { PermissionModule } from './permission/permission.module';
 import { VectorModule } from './vector/vector.module';
 import { CacheModule } from './cache/cache.module';
 import { TaskModule } from './task/task.module';
@@ -52,6 +52,8 @@ import { ConversationModule } from './conversation/conversation.module';
 
     RateLimitModule,
 
+    AppMgmtModule,
+
     ModelModule,
     ModelTemplateModule,
     PromptTemplateModule,
@@ -65,7 +67,6 @@ import { ConversationModule } from './conversation/conversation.module';
     KbModule,
     DocumentModule,
     RetrievalModule,
-    PermissionModule,
     VectorModule,
 
     AdminModule,

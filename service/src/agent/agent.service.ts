@@ -103,7 +103,7 @@ export class AgentService {
   }
 
   async findByCode(code: string) {
-    const agent = await this.prisma.agent.findUnique({ where: { code } });
+    const agent = await this.prisma.agent.findFirst({ where: { code } });
     if (!agent) {
       throw new NotFoundException('智能体不存在');
     }
@@ -136,17 +136,17 @@ export class AgentService {
    * @param clientIp 客户端IP
    * @param uid 用户ID
    */
-   async syncChat(dto: AgentChatDto, clientIp: string, uid?: string): Promise<Record<string, unknown>> {
+   async syncChat(dto: AgentChatDto, clientIp: string, uid?: string, appCode?: string): Promise<Record<string, unknown>> {
     const startTime = Date.now();
     const agent = await this.getAgent(dto.agentId);
     const context = await this.buildExecutionContext(agent, dto, uid);
     const reasoningMode = (agent.reasoningMode as ReasoningMode) || ReasoningMode.NONE;
 
     if (reasoningMode === ReasoningMode.NONE) {
-      return this.executeDefaultSyncChat(agent, context, startTime, clientIp, uid);
+      return this.executeDefaultSyncChat(agent, context, startTime, clientIp, uid, appCode);
     }
 
-    return this.executeReActWithFunctionCallingSync(agent, context, reasoningMode, startTime, clientIp, uid);
+    return this.executeReActWithFunctionCallingSync(agent, context, reasoningMode, startTime, clientIp, uid, appCode);
   }
 
   /**
@@ -387,6 +387,7 @@ export class AgentService {
     startTime: number,
     clientIp: string,
     uid: string | undefined,
+    appCode?: string,
   ): Promise<Record<string, unknown>> {
     const messages: ModelMessage[] = [
       ...context.conversationHistory,
@@ -427,7 +428,7 @@ export class AgentService {
         await this.conversationService.generateTitle(context.conversationId);
       }
 
-      await this.saveLog(agent, context, { text: result.text }, clientIp, uid, ReasoningMode.NONE, startTime);
+      await this.saveLog(agent, context, { text: result.text }, clientIp, uid, ReasoningMode.NONE, startTime, appCode);
 
       return {
         response: result.text,
@@ -648,6 +649,7 @@ export class AgentService {
     uid: string | undefined,
     reasoningMode: ReasoningMode,
     startTime: number,
+    appCode?: string,
   ): Promise<void> {
     try {
       await this.prisma.agentInvokeLog.create({
@@ -662,6 +664,7 @@ export class AgentService {
           clientIp,
           uid,
           reasoningMode,
+          appCode,
         },
       });
     } catch (e) {
@@ -688,6 +691,7 @@ export class AgentService {
     clientIp: string,
     uid: string | undefined,
     callbacks: StreamCallbacks,
+    appCode?: string,
   ): Promise<void> {
     this.logger.log(`[ReAct+FC] 开始执行协同架构, reasoningMode: ${reasoningMode}`);
 
@@ -829,7 +833,7 @@ export class AgentService {
       }
 
       // 保存日志
-      await this.saveLog(agent, context, { response: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
+      await this.saveLog(agent, context, { response: finalResponse, steps }, clientIp, uid, reasoningMode, startTime, appCode);
 
       // 返回最终结果
       callbacks.onDone?.({
@@ -865,6 +869,7 @@ export class AgentService {
     startTime: number,
     clientIp: string,
     uid: string | undefined,
+    appCode?: string,
   ): Promise<Record<string, unknown>> {
     this.logger.log(`[ReAct+FC Sync] 开始执行协同架构, reasoningMode: ${reasoningMode}`);
 
@@ -1002,7 +1007,7 @@ export class AgentService {
       }
 
       // 保存日志
-      await this.saveLog(agent, context, { response: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
+      await this.saveLog(agent, context, { response: finalResponse, steps }, clientIp, uid, reasoningMode, startTime, appCode);
 
       this.logger.log(`[ReAct+FC Sync] 执行完成, 耗时: ${Date.now() - startTime}ms`);
 

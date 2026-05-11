@@ -125,7 +125,7 @@ export class SkillService {
    * @returns {Promise<Object>} 技能详情
    */
   async findByCode(code: string) {
-    const skill = await this.prisma.skill.findUnique({ where: { code } });
+    const skill = await this.prisma.skill.findFirst({ where: { code } });
     if (!skill) {
       throw new NotFoundException('技能不存在');
     }
@@ -164,7 +164,7 @@ export class SkillService {
    * @returns {Promise<Record<string, unknown>>} 执行结果
    */
   async execute(dto: ExecuteSkillDto): Promise<Record<string, unknown>> {
-    const skill = await this.prisma.skill.findUnique({
+    const skill = await this.prisma.skill.findFirst({
       where: { code: dto.skillCode },
     });
 
@@ -208,9 +208,10 @@ export class SkillService {
     // 记录调用日志
     await this.prisma.skillInvokeLog.create({
       data: {
+        skillId: skill.id,
         skillCode: skill.code,
-        request: JSON.stringify(params),
-        response: JSON.stringify(result),
+        params: JSON.stringify(params),
+        result: JSON.stringify(result),
         costMs: Date.now() - startTime,
         success,
         errorMessage,
@@ -439,7 +440,6 @@ export class SkillService {
   }
 
   /**
-   * 渲染技能调用提示词
    * @param skillCode 技能标识
    * @param userRequest 用户请求
    * @returns {Promise<string>} 渲染后的提示词
@@ -448,7 +448,7 @@ export class SkillService {
     skillCode: string,
     userRequest: string,
   ): Promise<string> {
-    const skill = await this.prisma.skill.findUnique({
+    const skill = await this.prisma.skill.findFirst({
       where: { code: skillCode },
     });
 

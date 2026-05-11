@@ -6,6 +6,10 @@
  * - execute: 执行类操作（独立权限）
  */
 export enum AdminScope {
+  // 应用管理
+  APP_READ = 'app:read',
+  APP_WRITE = 'app:write',
+
   // 模型管理
   MODEL_READ = 'model:read',
   MODEL_WRITE = 'model:write',
@@ -73,6 +77,7 @@ export enum AdminScope {
  * write scope 自动包含对应 read scope
  */
 export const SCOPE_HIERARCHY: Record<string, string[]> = {
+  [AdminScope.APP_WRITE]: [AdminScope.APP_READ],
   [AdminScope.MODEL_WRITE]: [AdminScope.MODEL_READ],
   [AdminScope.MODEL_TEMPLATE_WRITE]: [AdminScope.MODEL_TEMPLATE_READ],
   [AdminScope.AGENT_WRITE]: [AdminScope.AGENT_READ],
@@ -94,6 +99,7 @@ export const SCOPE_HIERARCHY: Record<string, string[]> = {
  * Scope 分组（用于授权页面展示和快速选择）
  */
 export const SCOPE_GROUPS: { label: string; scopes: AdminScope[] }[] = [
+  { label: '应用管理', scopes: [AdminScope.APP_READ, AdminScope.APP_WRITE] },
   { label: '模型管理', scopes: [AdminScope.MODEL_READ, AdminScope.MODEL_WRITE] },
   { label: '模型模板', scopes: [AdminScope.MODEL_TEMPLATE_READ, AdminScope.MODEL_TEMPLATE_WRITE] },
   { label: '智能体', scopes: [AdminScope.AGENT_READ, AdminScope.AGENT_WRITE] },
@@ -115,6 +121,8 @@ export const SCOPE_GROUPS: { label: string; scopes: AdminScope[] }[] = [
  * Scope 描述映射（用于前端展示）
  */
 export const SCOPE_DESCRIPTIONS: Record<AdminScope, string> = {
+  [AdminScope.APP_READ]: '查看应用列表和详情',
+  [AdminScope.APP_WRITE]: '创建、更新、删除应用',
   [AdminScope.MODEL_READ]: '查看模型列表和详情',
   [AdminScope.MODEL_WRITE]: '创建、更新、删除模型',
   [AdminScope.MODEL_TEMPLATE_READ]: '查看模型参数模板',

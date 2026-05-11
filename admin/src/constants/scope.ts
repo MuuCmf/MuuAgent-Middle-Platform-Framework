@@ -4,6 +4,45 @@
  */
 
 /**
+ * Admin Scope 枚举
+ */
+export enum AdminScope {
+  APP_READ = 'app:read',
+  APP_WRITE = 'app:write',
+  MODEL_READ = 'model:read',
+  MODEL_WRITE = 'model:write',
+  MODEL_TEMPLATE_READ = 'model-template:read',
+  MODEL_TEMPLATE_WRITE = 'model-template:write',
+  AGENT_READ = 'agent:read',
+  AGENT_WRITE = 'agent:write',
+  SKILL_READ = 'skill:read',
+  SKILL_WRITE = 'skill:write',
+  SKILL_EXECUTE = 'skill:execute',
+  KB_READ = 'kb:read',
+  KB_WRITE = 'kb:write',
+  DOCUMENT_READ = 'document:read',
+  DOCUMENT_WRITE = 'document:write',
+  CONVERSATION_READ = 'conversation:read',
+  CONVERSATION_WRITE = 'conversation:write',
+  PROMPT_TEMPLATE_READ = 'prompt-template:read',
+  PROMPT_TEMPLATE_WRITE = 'prompt-template:write',
+  MCP_READ = 'mcp:read',
+  MCP_WRITE = 'mcp:write',
+  MCP_SERVER_READ = 'mcp-server:read',
+  MCP_SERVER_WRITE = 'mcp-server:write',
+  OAUTH_READ = 'oauth:read',
+  OAUTH_WRITE = 'oauth:write',
+  RATE_LIMIT_READ = 'rate-limit:read',
+  RATE_LIMIT_WRITE = 'rate-limit:write',
+  TASK_READ = 'task:read',
+  TASK_WRITE = 'task:write',
+  LOG_READ = 'log:read',
+  LOG_WRITE = 'log:write',
+  ADMIN_READ = 'admin:read',
+  ADMIN_WRITE = 'admin:write',
+}
+
+/**
  * Scope 定义
  */
 export interface ScopeOption {
@@ -23,7 +62,9 @@ export interface ScopeGroup {
 /**
  * Scope 描述映射
  */
-const SCOPE_DESCRIPTIONS: Record<string, string> = {
+export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  'app:read': '查看应用列表和详情',
+  'app:write': '创建、更新、删除应用',
   'model:read': '查看模型列表和详情',
   'model:write': '创建、更新、删除模型',
   'model-template:read': '查看模型参数模板',
@@ -61,6 +102,8 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
  * Scope 中文标签映射
  */
 const SCOPE_LABELS: Record<string, string> = {
+  'app:read': '应用-读取',
+  'app:write': '应用-写入',
   'model:read': '模型-读取',
   'model:write': '模型-写入',
   'model-template:read': '模型模板-读取',
@@ -98,6 +141,13 @@ const SCOPE_LABELS: Record<string, string> = {
  * Scope 分组定义（用于编辑页面的分组选择器）
  */
 export const SCOPE_GROUPS: ScopeGroup[] = [
+  {
+    label: '应用管理',
+    scopes: [
+      { value: 'app:read', label: SCOPE_LABELS['app:read'], description: SCOPE_DESCRIPTIONS['app:read'] },
+      { value: 'app:write', label: SCOPE_LABELS['app:write'], description: SCOPE_DESCRIPTIONS['app:write'] },
+    ],
+  },
   {
     label: '模型管理',
     scopes: [

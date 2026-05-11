@@ -105,6 +105,7 @@ import { SCOPE_GROUPS } from '@/constants/scope'
 interface Props {
   visible: boolean
   client: OAuthClient | null
+  appCode?: string
 }
 
 interface Emits {
@@ -212,6 +213,7 @@ const handleSubmit = async () => {
           redirectUris: formData.value.redirectUris,
           scopes: formData.value.scopes,
           grants: formData.value.grants,
+          appCode: props.appCode,
         }
         const response = await oauthApi.createClient(createData)
         

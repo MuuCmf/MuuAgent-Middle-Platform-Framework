@@ -30,7 +30,7 @@ export class PromptTemplateService {
    * @returns 创建的模板
    */
   async create(dto: CreatePromptTemplateDto) {
-    const existing = await this.prisma.promptTemplate.findUnique({
+    const existing = await this.prisma.promptTemplate.findFirst({
       where: { code: dto.code },
     });
 
@@ -187,7 +187,7 @@ export class PromptTemplateService {
    * @returns 模板详情
    */
   async findByCode(code: string) {
-    const template = await this.prisma.promptTemplate.findUnique({
+    const template = await this.prisma.promptTemplate.findFirst({
       where: { code },
     });
 

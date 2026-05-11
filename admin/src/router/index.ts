@@ -21,6 +21,26 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '仪表盘', icon: 'Odometer' }
       },
       {
+        path: 'apps',
+        name: 'Apps',
+        meta: { title: '应用管理', icon: 'Grid' },
+        redirect: { name: 'AppList' },
+        children: [
+          {
+            path: 'list',
+            name: 'AppList',
+            component: () => import('@/views/apps/index.vue'),
+            meta: { title: '应用列表' }
+          },
+          {
+            path: 'detail/:id',
+            name: 'AppDetail',
+            component: () => import('@/views/apps/detail.vue'),
+            meta: { title: '应用详情' }
+          }
+        ]
+      },
+      {
         path: 'models',
         name: 'Models',
         component: () => import('@/views/models/index.vue'),
@@ -107,12 +127,6 @@ const routes: RouteRecordRaw[] = [
         name: 'Logs',
         component: () => import('@/views/logs/index.vue'),
         meta: { title: '调用日志', icon: 'Document' }
-      },
-      {
-        path: 'oauth-clients',
-        name: 'OAuthClients',
-        component: () => import('@/views/oauth-clients/index.vue'),
-        meta: { title: 'OAuth管理', icon: 'Key' }
       }
     ]
   }

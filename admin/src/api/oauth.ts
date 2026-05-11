@@ -12,6 +12,7 @@ export interface OAuthClient {
   redirectUris: string[]
   scopes: string[]
   grants: string[]
+  appCode?: string
   status: number
   createdAt: string
   updatedAt: string
@@ -26,6 +27,7 @@ export interface CreateClientDto {
   redirectUris: string[]
   scopes: string[]
   grants?: string[]
+  appCode?: string
 }
 
 /**
@@ -36,6 +38,7 @@ export interface UpdateClientDto {
   redirectUris?: string[]
   scopes?: string[]
   grants?: string[]
+  appCode?: string
   status?: number
 }
 
@@ -79,15 +82,18 @@ export const oauthApi = {
    * @param page 页码
    * @param pageSize 每页数量
    * @param search 搜索关键词
+   * @param appCode 应用标识
    * @returns {Promise<AxiosResponse>} 客户端列表响应
    */
   getClients(
     page: number = 1,
     pageSize: number = 10,
-    search?: string
+    search?: string,
+    appCode?: string
   ): Promise<AxiosResponse<ApiResponse<ClientListResponse>>> {
     const params: any = { page, pageSize }
     if (search) params.search = search
+    if (appCode) params.appCode = appCode
     return adminRequest.get<ClientListResponse>('/admin/oauth/clients', { params })
   },
 

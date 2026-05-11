@@ -39,6 +39,8 @@ export class ModelService {
         status: dto.status ?? true,
         description: dto.description,
         config: dto.config,
+        tags: dto.tags,
+        category: dto.category,
       },
     });
   }

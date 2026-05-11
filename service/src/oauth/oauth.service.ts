@@ -197,6 +197,13 @@ export class OAuthService {
   async validateAccessToken(accessToken: string) {
     const token = await this.prisma.oAuthToken.findUnique({
       where: { accessToken },
+      include: {
+        client: {
+          select: {
+            appCode: true,
+          },
+        },
+      },
     });
 
     if (!token) {
@@ -211,6 +218,7 @@ export class OAuthService {
       userId: token.userId,
       scope: token.scope,
       clientId: token.clientId,
+      appCode: token.client.appCode,
     };
   }
 
@@ -235,9 +243,10 @@ export class OAuthService {
    * @param page 页码
    * @param pageSize 每页数量
    * @param search 搜索关键词
+   * @param appCode 应用标识
    * @returns {Promise<any>} 客户端列表
    */
-  async getClients(page: number = 1, pageSize: number = 10, search?: string) {
+  async getClients(page: number = 1, pageSize: number = 10, search?: string, appCode?: string) {
     const where: any = {};
     
     if (search) {
@@ -245,6 +254,10 @@ export class OAuthService {
         { name: { contains: search } },
         { clientId: { contains: search } },
       ];
+    }
+
+    if (appCode) {
+      where.appCode = appCode;
     }
 
     const [total, clients] = await Promise.all([
@@ -307,6 +320,7 @@ export class OAuthService {
     redirectUris: string[];
     scopes: string[];
     grants?: string[];
+    appCode?: string;
   }) {
     const clientId = crypto.randomUUID();
     const clientSecret = crypto.randomBytes(32).toString('hex');
@@ -319,6 +333,7 @@ export class OAuthService {
         redirectUris: JSON.stringify(data.redirectUris),
         scopes: JSON.stringify(data.scopes),
         grants: JSON.stringify(data.grants || ['authorization_code', 'refresh_token']),
+        appCode: data.appCode || null,
         status: 1,
       },
     });

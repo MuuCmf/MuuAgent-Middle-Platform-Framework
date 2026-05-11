@@ -100,42 +100,50 @@ model McpRule {
 model Skill {
   id          String   @id @default(uuid())
   name        String   /// 技能名称
-  code        String   @unique /// 技能唯一标识
-  description String   /// 功能描述(给LLM看)
+  code        String   /// 技能唯一标识
+  description String   @db.Text /// 功能描述(给LLM看)
   type        String   /// 类型: http / function / database / rpc / mcp
-  params      String   /// 入参描述(JSON格式)
-  config      String   /// 执行配置(JSON格式)
+  params      String   @db.Text /// 入参描述(JSON格式)
+  config      String   @db.Text /// 执行配置(JSON格式)
   status      Boolean  @default(true) /// 是否启用
   timeout     Int      @default(30000) /// 超时时间(毫秒)
-  
+
   // ===== 函数技能专用字段 =====
   codeType      String?  @map("code_type") /// 代码类型: builtin / plugin / sandbox
   pluginName    String?  @map("plugin_name") /// 插件名称(plugin类型专用)
   functionName  String?  @map("function_name") /// 函数名称
   codeContent   String?  @map("code_content") @db.Text /// 沙箱代码内容(sandbox类型专用)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
-  /// 关联调用日志
-  invokeLogs SkillInvokeLog[]
+  // ===== 应用隔离 =====
+  appCode       String?  @map("app_code") /// 所属应用标识
+  isPublic      Boolean  @default(false) @map("is_public") /// 是否公开（公开=所有应用可用）
 
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  /// 关联
+  app           AppTenant? @relation(fields: [appCode], references: [code])
+  invokeLogs    SkillInvokeLog[]
+
+  @@unique([code, appCode]) /// 同一应用下code唯一
   @@index([type, status])
   @@index([codeType])
+  @@index([appCode])
+  @@index([isPublic])
 }
 
 /// 智能体表 - AI Agent配置
 model Agent {
   id              String   @id @default(uuid())
   name            String   /// 智能体名称
-  code            String   @unique /// 智能体唯一标识
+  code            String   /// 智能体唯一标识
   description     String?  /// 智能体描述
-  systemPrompt    String   /// 系统提示词
+  systemPrompt    String   @db.Text /// 系统提示词
   promptTemplateCode String? @map("prompt_template_code") /// 使用的提示词模板标识
   modelId         String?  /// 绑定模型ID
-  skills          String   @default("[]") /// 绑定的技能code列表(JSON数组)
-  mcpServers      String?  @default("[]") /// 绑定的MCP Server配置(JSON数组)
-  knowledgeBases  String?  @default("[]") /// 绑定的知识库code列表(JSON数组)
+  skills          String   @db.Text /// 绑定的技能code列表(JSON数组)
+  mcpServers      String?  @db.Text /// 绑定的MCP Server配置(JSON数组)
+  knowledgeBases  String?  @db.Text /// 绑定的知识库code列表(JSON数组)
   maxSteps        Int      @default(5) /// 最大执行步数
   temperature     Float    @default(0.7) /// 温度参数
   status          Boolean  @default(true) /// 是否启用
@@ -147,57 +155,74 @@ model Agent {
   // ===== 知识库检索配置 =====
   kbRetrievalMode   String  @default("tool") @map("kb_retrieval_mode") /// 知识库检索模式: tool
 
+  // ===== 应用隔离 =====
+  appCode         String?  @map("app_code") /// 所属应用标识
+  isPublic        Boolean  @default(false) @map("is_public") /// 是否公开（公开=所有应用可用）
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  /// 关联调用日志
-  invokeLogs AgentInvokeLog[]
+  /// 关联
+  app             AppTenant? @relation(fields: [appCode], references: [code])
+  invokeLogs      AgentInvokeLog[]
 
+  @@unique([code, appCode]) /// 同一应用下code唯一
   @@index([status])
+  @@index([appCode])
+  @@index([isPublic])
   @@index([promptTemplateCode])
 }
 
 /// AI调用日志表 - 记录所有AI模型调用
 model AiInvokeLog {
   id          String   @id @default(uuid())
-  modelId     String?  /// 调用的模型ID
-  modelCode   String   /// 模型标识码
-  modelType   String   /// 模型类型
+  modelId     String?  @map("model_id") /// 调用的模型ID
+  modelCode   String   @map("model_code") /// 模型标识码
+  modelType   String   @map("model_type") /// 模型类型
   request     String   @db.Text /// 请求数据(JSON)
   response    String?  @db.Text /// 响应数据(JSON)
-  costMs      Int      /// 耗时(毫秒)
-  inputTokens Int?     /// 输入Token数
-  outputTokens Int?    /// 输出Token数
+  costMs      Int      @map("cost_ms") /// 耗时(毫秒)
+  inputTokens Int?     @map("input_tokens") /// 输入Token数
+  outputTokens Int?    @map("output_tokens") /// 输出Token数
   success     Boolean  /// 是否成功
-  errorMessage String? @db.Text /// 错误信息
-  clientIp    String?  /// 客户端IP
-  userAgent   String?  /// 用户代理
+  errorMessage String? @map("error_message") @db.Text /// 错误信息
+  clientIp    String?  @map("client_ip") /// 客户端IP
+  userAgent   String?  @map("user_agent") /// 用户代理
   uid         String?  /// 调用用户唯一标识(透传)
+
+  // ===== 应用隔离 =====
+  appCode     String?  @map("app_code") /// 应用标识
+
   createdAt   DateTime @default(now())
 
-  model Model? @relation(fields: [modelId], references: [id])
+  model       Model? @relation(fields: [modelId], references: [id])
+  app         AppTenant? @relation(fields: [appCode], references: [code])
 
   @@index([modelId, createdAt])
   @@index([modelType, createdAt])
   @@index([success, createdAt])
   @@index([uid, createdAt])
+  @@index([appCode, createdAt])
 }
 
-/// 技能调用日志表 - 记录技能调用
+/// 技能调用日志表 - 记录技能调用情况
 model SkillInvokeLog {
-  id        String   @id @default(uuid())
-  skillCode String   /// 技能标识码
-  agentId   String?  /// 调用的智能体ID
-  request   String   @db.Text /// 请求数据(JSON)
-  response  String?  @db.Text /// 响应数据(JSON)
-  costMs    Int      /// 耗时(毫秒)
-  success   Boolean  /// 是否成功
-  errorMessage String? @db.Text /// 错误信息
-  uid       String?  /// 调用用户唯一标识(透传)
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  skillId      String   @map("skill_id") /// 技能ID
+  skillCode    String   @map("skill_code") /// 技能标识
+  agentLogId   String?  @map("agent_invoke_log_id") /// 关联Agent调用日志ID
+  params       String?  @db.Text /// 调用参数(JSON)
+  result       String?  @db.Text /// 返回结果(JSON)
+  success      Boolean  /// 是否成功
+  errorMessage String?  @map("error_message") @db.Text /// 错误信息
+  costMs       Int      @map("cost_ms") /// 耗时(毫秒)
+  clientIp     String?  @map("client_ip") /// 客户端IP
+  uid          String?  /// 调用用户唯一标识(透传)
+  createdAt    DateTime @default(now())
 
-  skill Skill @relation(fields: [skillCode], references: [code])
+  skill        Skill @relation(fields: [skillId], references: [id])
 
+  @@index([skillId, createdAt])
   @@index([skillCode, createdAt])
   @@index([uid, createdAt])
 }
@@ -205,25 +230,29 @@ model SkillInvokeLog {
 /// 智能体调用日志表 - 记录Agent对话
 model AgentInvokeLog {
   id           String   @id @default(uuid())
-  agentId      String   /// 智能体ID
-  conversationId String? /// 会话ID
-  userMessage  String   @db.Text /// 用户消息
-  agentResponse String? @db.Text /// 智能体回复
+  agentId      String   @map("agent_id") /// 智能体ID
+  conversationId String? @map("conversation_id") /// 会话ID
+  userMessage  String   @map("user_message") @db.Text /// 用户消息
+  agentResponse String? @map("agent_response") @db.Text /// 智能体回复
   steps        String?  @db.Text /// 执行步骤(JSON)
-  totalCostMs  Int      /// 总耗时(毫秒)
+  totalCostMs  Int      @map("total_cost_ms") /// 总耗时(毫秒)
   success      Boolean  /// 是否成功
-  errorMessage String?  @db.Text /// 错误信息
-  clientIp     String?  /// 客户端IP
+  errorMessage String?  @map("error_message") @db.Text /// 错误信息
+  clientIp     String?  @map("client_ip") /// 客户端IP
   uid          String?  /// 调用用户唯一标识(透传)
-  inputTokens  Int?     /// 输入token数
-  outputTokens Int?     /// 输出token数
+  inputTokens  Int?     @map("input_tokens") /// 输入token数
+  outputTokens Int?     @map("output_tokens") /// 输出token数
 
   // ===== 推理模式 =====
   reasoningMode String? @map("reasoning_mode") /// 推理模式: NONE/REACT/PLAN/REFLECT
 
+  // ===== 应用隔离 =====
+  appCode      String?  @map("app_code") /// 应用标识
+
   createdAt    DateTime @default(now())
 
-  agent Agent @relation(fields: [agentId], references: [id])
+  agent        Agent @relation(fields: [agentId], references: [id])
+  app          AppTenant? @relation(fields: [appCode], references: [code])
 
   /// 关联推理步骤
   reasoningSteps ReasoningStep[]
@@ -231,6 +260,7 @@ model AgentInvokeLog {
   @@index([agentId, createdAt])
   @@index([conversationId])
   @@index([uid, createdAt])
+  @@index([appCode, createdAt])
 }
 
 /// 模型健康检查记录表
@@ -254,17 +284,60 @@ model AppTenant {
   code        String   @unique /// 应用标识
   apiKey      String   @unique /// API密钥
   secretKey   String   /// 密钥
-  allowedModels String? /// 允许使用的模型(JSON数组)
-  allowedSkills String? /// 允许使用的技能(JSON数组)
-  qpsLimit    Int      @default(100) /// QPS限制
-  dailyLimit  Int      @default(10000) /// 每日调用限制
-  status      Boolean  @default(true) /// 是否启用
-  expireAt    DateTime? /// 过期时间
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  // ===== 资源权限配置 =====
+  allowedModels String? @map("allowed_models") @db.Text /// 允许使用的模型(JSON数组): ["gpt-4", "claude-3"]
+  allowedAgents String? @map("allowed_agents") @db.Text /// 允许使用的智能体(JSON数组)
+  allowedSkills String? @map("allowed_skills") @db.Text /// 允许使用的技能(JSON数组)
+  allowedKbs    String? @map("allowed_kbs") @db.Text /// 允许访问的知识库(JSON数组)
+
+  // ===== 配额限制 =====
+  qpsLimit      Int      @default(100) @map("qps_limit") /// QPS限制
+  dailyLimit    Int      @default(10000) @map("daily_limit") /// 每日调用限制
+  tokenLimit    Int      @default(1000000) @map("token_limit") /// Token配额（月）
+
+  // ===== OAuth 配置 =====
+  enableOAuth   Boolean  @default(false) @map("enable_oauth") /// 是否启用OAuth
+
+  // ===== 状态 =====
+  status        Boolean  @default(true)
+  expireAt      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // ===== 关联 =====
+  agents        Agent[]
+  skills        Skill[]
+  kbInfos       KbInfo[]
+  conversations Conversation[]
+  promptTemplates PromptTemplate[]
+  oauthClients  OAuthClient[]
+  aiInvokeLogs  AiInvokeLog[]
+  agentInvokeLogs AgentInvokeLog[]
+  appUsages     AppUsage[]
 
   @@index([code])
   @@index([apiKey])
+  @@index([status])
+  @@map("app_tenants")
+}
+
+/// 应用每日使用量统计表
+model AppUsage {
+  id          String   @id @default(uuid())
+  appCode     String   @map("app_code") /// 应用标识
+  date        DateTime /// 日期
+  callCount   Int      @default(0) @map("call_count") /// 调用次数
+  tokenCount  Int      @default(0) @map("token_count") /// Token使用量
+  inputTokens Int      @default(0) @map("input_tokens") /// 输入Token
+  outputTokens Int     @default(0) @map("output_tokens") /// 输出Token
+
+  app         AppTenant @relation(fields: [appCode], references: [code])
+
+  @@unique([appCode, date])
+  @@index([appCode])
+  @@index([date])
+  @@map("app_usage")
 }
 
 /// 限流规则表 - 支持多级别限流配置
@@ -342,39 +415,45 @@ model AdminUser {
   @@index([status])
 }
 
-/// 知识库表 - 公共知识库，所有用户可检索
+/// 知识库表 - 应用级隔离
 model KbInfo {
   id              String   @id @default(uuid())
   kbName          String   /// 知识库名称
-  kbCode          String   @unique /// 知识库唯一标识
-  
-  /// 配置参数
-  embeddingModel  String   @default("doubao-embedding-v1") /// 向量模型
-  chunkSize       Int      @default(500) /// 切片大小
-  chunkOverlap    Int      @default(100) /// 切片重叠
-  similarityThresh Float   @default(0.7) /// 相似度阈值
+  kbCode          String   /// 知识库唯一标识
+
+  // ===== 配置参数 =====
+  embeddingModel  String   @default("doubao-embedding-v1") @map("embedding_model") /// 向量模型
+  chunkSize       Int      @default(500) @map("chunk_size") /// 切片大小
+  chunkOverlap    Int      @default(100) @map("chunk_overlap") /// 切片重叠
+  similarityThresh Float   @default(0.7) @map("similarity_thresh") /// 相似度阈值
   topN            Int      @default(5) /// 召回条数
-  retrievalMethod String   @default("vector") /// 检索方式: vector=向量检索, bm25=BM25检索
-  
-  /// 权限与状态
-  isPublic        Boolean  @default(true) /// 是否公开（公开=所有用户可检索）
+  retrievalMethod String   @default("vector") @map("retrieval_method") /// 检索方式: vector=向量检索, bm25=BM25检索
+
+  // ===== 权限与状态 =====
+  isPublic        Boolean  @default(false) @map("is_public") /// 是否公开（公开=所有应用可检索）
   status          Boolean  @default(true) /// 状态：true=启用，false=禁用
-  description     String?  /// 描述
-  
-  /// 创建者信息（仅用于记录，不做数据隔离）
-  createdBy       String?  /// 创建者uid（记录谁创建的）
+  description     String?  @db.Text /// 描述
+
+  // ===== 应用隔离 =====
+  appCode         String?  @map("app_code") /// 所属应用标识
+
+  // ===== 创建者信息 =====
+  createdBy       String?  /// 创建者uid
   updatedBy       String?  /// 更新者uid
-  
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  isDeleted       Boolean  @default(false) /// 软删除
+  isDeleted       Boolean  @default(false) @map("is_deleted") /// 软删除
 
+  /// 关联
+  app             AppTenant? @relation(fields: [appCode], references: [code])
   documents       KbDocument[]
   chunks          KbChunk[]
   retrievalLogs   KbRetrievalLog[]
-  permissions     KbPermission[]
 
+  @@unique([kbCode, appCode]) /// 同一应用下kbCode唯一
   @@index([kbCode])
+  @@index([appCode])
   @@index([isPublic, status])
   @@index([createdBy])
 }
@@ -382,24 +461,24 @@ model KbInfo {
 /// 文档表 - 知识库下的文档
 model KbDocument {
   id              String   @id @default(uuid())
-  kbId            String   /// 所属知识库ID
-  docName         String   /// 文档名称
-  docCode         String?  /// 文档唯一标识
-  fileType        String   /// 文档类型: pdf/word/txt/md
-  fileUrl         String   /// 文档存储路径
-  fileSizeKb      Int      /// 文档大小
-  
-  /// 状态管理
+  kbId            String   @map("kb_id") /// 所属知识库ID
+  docName         String   @map("doc_name") /// 文档名称
+  docCode         String?  @map("doc_code") /// 文档唯一标识
+  fileType        String   @map("file_type") /// 文档类型: pdf/word/txt/md
+  fileUrl         String   @map("file_url") /// 文档存储路径
+  fileSizeKb      Int      @map("file_size_kb") /// 文档大小
+
+  // ===== 状态管理 =====
   status          Int      @default(0) /// 状态: 0=解析中,1=正常,2=失败,3=禁用
-  totalChunks     Int      @default(0) /// 切片总数
-  
-  /// 创建者信息
-  createdBy       String?  /// 创建者uid
-  updatedBy       String?  /// 更新者uid
-  
+  totalChunks     Int      @default(0) @map("total_chunks") /// 切片总数
+
+  // ===== 创建者信息 =====
+  createdBy       String?  @map("created_by") /// 创建者uid
+  updatedBy       String?  @map("updated_by") /// 更新者uid
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  isDeleted       Boolean  @default(false)
+  isDeleted       Boolean  @default(false) @map("is_deleted")
 
   kbInfo          KbInfo   @relation(fields: [kbId], references: [id], onDelete: Cascade)
   chunks          KbChunk[]
@@ -411,16 +490,16 @@ model KbDocument {
 /// 切片表 - 文档切片元数据
 model KbChunk {
   id              String   @id @default(uuid())
-  kbId            String   /// 所属知识库ID
-  docId           String   /// 所属文档ID
+  kbId            String   @map("kb_id") /// 所属知识库ID
+  docId           String   @map("doc_id") /// 所属文档ID
   content         String   @db.Text /// 切片文本内容
-  chunkIndex      Int      /// 切片序号
-  vectorId        String?  /// 向量库ID
+  chunkIndex      Int      @map("chunk_index") /// 切片序号
+  vectorId        String?  @map("vector_id") /// 向量库ID
   status          Int      @default(0) /// 状态: 0=未向量化,1=已向量化,2=失败
-  
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  isDeleted       Boolean  @default(false)
+  isDeleted       Boolean  @default(false) @map("is_deleted")
 
   kbInfo          KbInfo   @relation(fields: [kbId], references: [id], onDelete: Cascade)
   document        KbDocument @relation(fields: [docId], references: [id], onDelete: Cascade)
@@ -433,16 +512,16 @@ model KbChunk {
 /// 检索日志表 - 记录检索历史
 model KbRetrievalLog {
   id              String   @id @default(uuid())
-  kbId            String   /// 知识库ID
+  kbId            String   @map("kb_id") /// 知识库ID
   uid             String?  /// 调用者uid（仅用于日志记录）
-  query           String   /// 查询问题
+  query           String   @db.Text /// 查询问题
   topN            Int      /// 召回条数
-  similarityThresh Float   /// 相似度阈值
-  retrievalCount  Int      @default(0) /// 召回切片数量
+  similarityThresh Float   @map("similarity_thresh") /// 相似度阈值
+  retrievalCount  Int      @default(0) @map("retrieval_count") /// 召回切片数量
   results         String?  @db.Text /// 检索结果(JSON数组): [{"chunkId":"xxx","score":0.85,"docName":"文档名","content":"切片内容摘要"}]
-  costTime        Int      /// 检索耗时
-  requestId       String   /// 链路ID
-  clientIp        String?  /// 客户端IP
+  costTime        Int      @map("cost_time") /// 检索耗时
+  requestId       String   @map("request_id") /// 链路ID
+  clientIp        String?  @map("client_ip") /// 客户端IP
   createdAt       DateTime @default(now())
 
   kbInfo          KbInfo   @relation(fields: [kbId], references: [id], onDelete: Cascade)
@@ -452,41 +531,30 @@ model KbRetrievalLog {
   @@index([requestId])
 }
 
-/// 知识库权限表 - 管理谁可以编辑知识库
-model KbPermission {
-  id              String   @id @default(uuid())
-  kbId            String   /// 知识库ID
-  uid             String   /// 用户ID
-  role            String   /// 角色: owner=所有者,admin=管理员,editor=编辑者
-  permissions     String   /// 权限列表(JSON数组): ["create","read","update","delete"]
-  grantedBy       String?  /// 授权人uid
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  kbInfo          KbInfo   @relation(fields: [kbId], references: [id], onDelete: Cascade)
-
-  @@unique([kbId, uid])
-  @@index([kbId])
-  @@index([uid])
-}
-
 /// OAuth客户端
 model OAuthClient {
   id                String   @id @default(uuid())
-  clientId          String   @unique @default(uuid()) /// 客户端ID
-  clientSecret      String   /// 客户端密钥
+  clientId          String   @unique @default(uuid()) @map("client_id") /// 客户端ID
+  clientSecret      String   @map("client_secret") /// 客户端密钥
   name              String   /// 客户端名称
-  redirectUris      String   @db.Text /// 回调地址列表(JSON数组)
-  scopes            String   @db.Text /// 权限范围(JSON数组)
+  redirectUris      String   @map("redirect_uris") @db.Text /// 回调地址列表(JSON数组)
+  scopes            String   @map("scopes") @db.Text /// 权限范围(JSON数组)
   grants            String   @default("[\"authorization_code\",\"refresh_token\"]") /// 授权类型(JSON数组)
   status            Int      @default(1) /// 状态: 1正常 0禁用
+
+  // ===== 应用隔离 =====
+  appCode           String?  @map("app_code") /// 绑定的应用标识
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  /// 关联
+  app               AppTenant? @relation(fields: [appCode], references: [code])
   tokens            OAuthToken[]
   codes             OAuthCode[]
 
   @@index([clientId])
+  @@index([appCode])
   @@map("oauth_clients")
 }
 
@@ -494,12 +562,12 @@ model OAuthClient {
 model OAuthCode {
   id                String   @id @default(uuid())
   code              String   @unique /// 授权码
-  clientId          String   /// 客户端ID
-  userId            String   /// 用户ID
-  redirectUri       String   /// 回调地址
+  clientId          String   @map("client_id") /// 客户端ID
+  userId            String   @map("user_id") /// 用户ID
+  redirectUri       String   @map("redirect_uri") /// 回调地址
   scope             String   @db.Text /// 权限范围
   state             String?  /// 状态参数
-  expiresAt         DateTime /// 过期时间
+  expiresAt         DateTime @map("expires_at") /// 过期时间
   createdAt         DateTime @default(now())
 
   client            OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
@@ -512,13 +580,13 @@ model OAuthCode {
 /// 访问令牌
 model OAuthToken {
   id                String    @id @default(uuid())
-  accessToken       String    @unique /// 访问令牌
-  refreshToken      String?   @unique /// 刷新令牌
-  clientId          String    /// 客户端ID
-  userId            String    /// 用户ID
+  accessToken       String    @unique @map("access_token") /// 访问令牌
+  refreshToken      String?   @unique @map("refresh_token") /// 刷新令牌
+  clientId          String    @map("client_id") /// 客户端ID
+  userId            String    @map("user_id") /// 用户ID
   scope             String    @db.Text /// 权限范围
-  expiresAt         DateTime  /// 访问令牌过期时间
-  refreshExpiresAt  DateTime? /// 刷新令牌过期时间
+  expiresAt         DateTime  @map("expires_at") /// 访问令牌过期时间
+  refreshExpiresAt  DateTime? @map("refresh_expires_at") /// 刷新令牌过期时间
   createdAt         DateTime  @default(now())
 
   client            OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
@@ -536,10 +604,10 @@ model ReasoningStep {
   stepNumber  Int      @map("step_number") /// 步骤序号
   thought     String?  @db.Text /// 思考内容
   action      String?  /// 执行的动作
-  actionInput String?  @db.Text /// 动作输入参数
+  actionInput String?  @map("action_input") @db.Text /// 动作输入参数
   observation String?  @db.Text /// 观察结果
   status      String   @default("pending") /// 状态: pending/success/failed
-  costMs      Int?     /// 耗时(毫秒)
+  costMs      Int?     @map("cost_ms") /// 耗时(毫秒)
   createdAt   DateTime @default(now())
 
   agentLog    AgentInvokeLog @relation(fields: [agentLogId], references: [id], onDelete: Cascade)
@@ -551,34 +619,40 @@ model ReasoningStep {
 /// 会话表 - 管理对话会话（支持多种对话类型）
 model Conversation {
   id               String   @id @default(uuid())
-  conversationType String   @default("agent") /// 会话类型: agent/model/kb-rag
-  targetId         String   /// 目标ID（智能体ID/模型标识/知识库ID）
+  conversationType String   @default("agent") @map("conversation_type") /// 会话类型: agent/model/kb-rag
+  targetId         String   @map("target_id") /// 目标ID（智能体ID/模型标识/知识库ID）
   title            String?  /// 会话标题（自动生成或用户设置）
   uid              String?  /// 用户唯一标识（用于用户隔离）
   status           String   @default("active") /// 状态: active/archived/deleted
-  lastMessageAt    DateTime @default(now()) /// 最后消息时间
-  messageCount     Int      @default(0) /// 消息数量
+  lastMessageAt    DateTime @default(now()) @map("last_message_at") /// 最后消息时间
+  messageCount     Int      @default(0) @map("message_count") /// 消息数量
+
+  // ===== 应用隔离 =====
+  appCode          String?  @map("app_code") /// 所属应用标识
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   /// 关联
+  app              AppTenant? @relation(fields: [appCode], references: [code])
   messages         Message[]
 
   @@index([conversationType, targetId, createdAt])
   @@index([uid, createdAt])
+  @@index([appCode])
   @@index([status])
 }
 
 /// 消息表 - 存储对话消息
 model Message {
   id             String   @id @default(uuid())
-  conversationId String   /// 会话ID
+  conversationId String   @map("conversation_id") /// 会话ID
   role           String   /// 角色: user/assistant/system/tool
   content        String   @db.Text /// 消息内容
-  toolCalls      String?  @db.Text /// 工具调用信息(JSON)
-  toolCallId     String?  /// 工具调用ID
-  tokenCount     Int?     /// Token数量
-  reasoningSteps String?  @db.Text /// 推理步骤(JSON)
+  toolCalls      String?  @map("tool_calls") @db.Text /// 工具调用信息(JSON)
+  toolCallId     String?  @map("tool_call_id") /// 工具调用ID
+  tokenCount     Int?     @map("token_count") /// Token数量
+  reasoningSteps String?  @map("reasoning_steps") @db.Text /// 推理步骤(JSON)
   metadata       String?  @db.Text /// 额外元数据(JSON)，如检索结果、模型参数等
   createdAt      DateTime @default(now())
 
@@ -591,28 +665,35 @@ model Message {
 /// Prompt模板表 - 存储提示词模板
 model PromptTemplate {
   id          String   @id @default(uuid())
-  code        String   @unique /// 模板唯一标识
+  code        String   /// 模板唯一标识
   name        String   /// 模板名称
   category    String   /// 分类: agent/rag/react/skill/custom
   content     String   @db.Text /// Prompt内容（支持变量占位符）
   variables   String?  @db.Text /// 变量定义（JSON格式）
   version     Int      @default(1) /// 当前版本号
-  isDefault   Boolean  @default(false) /// 是否默认模板
+  isDefault   Boolean  @default(false) @map("is_default") /// 是否默认模板
   status      Boolean  @default(true) /// 是否启用
   description String?  @db.Text /// 模板描述
   tags        String?  /// 标签（JSON数组）
   metadata    String?  @db.Text /// 元数据（JSON格式）
-  createdBy   String?  /// 创建者
+  createdBy   String?  @map("created_by") /// 创建者
+
+  // ===== 应用隔离 =====
+  appCode     String?  @map("app_code") /// 所属应用标识
+  isPublic    Boolean  @default(false) @map("is_public") /// 是否公开
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  /// 关联版本历史
+  /// 关联
+  app         AppTenant? @relation(fields: [appCode], references: [code])
   versions    PromptVersion[]
-  /// 关联调用日志
   invokeLogs  PromptInvokeLog[]
 
+  @@unique([code, appCode]) /// 同一应用下code唯一
   @@index([category, status])
-  @@index([code, version])
+  @@index([appCode])
+  @@index([isPublic])
   @@index([isDefault])
   @@index([createdAt])
   @@map("prompt_templates")
@@ -621,13 +702,13 @@ model PromptTemplate {
 /// Prompt版本历史表 - 记录模板版本变更
 model PromptVersion {
   id          String   @id @default(uuid())
-  templateId  String   /// 关联模板ID
+  templateId  String   @map("template_id") /// 关联模板ID
   version     Int      /// 版本号
   content     String   @db.Text /// Prompt内容
   variables   String?  @db.Text /// 变量定义
-  changeLog   String?  @db.Text /// 变更说明
-  changeType  String   @default("update") /// 变更类型: create/update/rollback
-  createdBy   String?  /// 创建者
+  changeLog   String?  @map("change_log") @db.Text /// 变更说明
+  changeType  String   @default("update") @map("change_type") /// 变更类型: create/update/rollback
+  createdBy   String?  @map("created_by") /// 创建者
   createdAt   DateTime @default(now())
 
   template PromptTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
@@ -641,17 +722,17 @@ model PromptVersion {
 /// Prompt调用日志表 - 记录模板调用情况
 model PromptInvokeLog {
   id            String   @id @default(uuid())
-  templateId    String?  /// 关联模板ID
-  templateCode  String   /// 模板标识
-  templateVersion Int    /// 模板版本
+  templateId    String?  @map("template_id") /// 关联模板ID
+  templateCode  String   @map("template_code") /// 模板标识
+  templateVersion Int    @map("template_version") /// 模板版本
   variables     String?  @db.Text /// 渲染变量（JSON格式）
-  renderedPrompt String  @db.Text /// 渲染后的Prompt
-  modelId       String?  /// 调用的模型ID
-  modelCode     String?  /// 模型标识
+  renderedPrompt String  @map("rendered_prompt") @db.Text /// 渲染后的Prompt
+  modelId       String?  @map("model_id") /// 调用的模型ID
+  modelCode     String?  @map("model_code") /// 模型标识
   success       Boolean  /// 是否成功
-  errorMessage  String?  @db.Text /// 错误信息
-  costMs        Int      /// 渲染耗时(毫秒)
-  clientIp      String?  /// 客户端IP
+  errorMessage  String?  @map("error_message") @db.Text /// 错误信息
+  costMs        Int      @map("cost_ms") /// 渲染耗时(毫秒)
+  clientIp      String?  @map("client_ip") /// 客户端IP
   uid           String?  /// 调用用户唯一标识
   createdAt     DateTime @default(now())
 
@@ -668,7 +749,7 @@ model Plugin {
   id          String   @id @default(uuid())
   name        String   @unique /// 插件名称
   version     String   /// 插件版本
-  description String   /// 插件描述
+  description String   @db.Text /// 插件描述
   author      String?  /// 作者
   status      Boolean  @default(true) /// 状态
   path        String   /// 插件路径

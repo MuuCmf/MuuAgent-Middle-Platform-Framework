@@ -33,7 +33,6 @@ export class TenantGuard implements CanActivate {
       throw new HttpException('缺少API密钥', HttpStatus.UNAUTHORIZED);
     }
 
-    // 查找租户
     const tenant = await this.prisma.appTenant.findUnique({
       where: { apiKey },
     });
@@ -50,8 +49,28 @@ export class TenantGuard implements CanActivate {
       throw new HttpException('租户已过期', HttpStatus.FORBIDDEN);
     }
 
-    // 将租户信息附加到请求对象
-    (request as Request & { tenant: typeof tenant }).tenant = tenant;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const usage = await this.prisma.appUsage.findUnique({
+      where: {
+        appCode_date: {
+          appCode: tenant.code,
+          date: today,
+        },
+      },
+    });
+
+    const todayCalls = usage?.callCount || 0;
+    if (tenant.dailyLimit > 0 && todayCalls >= tenant.dailyLimit) {
+      throw new HttpException(
+        `已超过每日调用限额 (${tenant.dailyLimit})`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    (request as any).tenant = tenant;
+    (request as any).appCode = tenant.code;
 
     return true;
   }

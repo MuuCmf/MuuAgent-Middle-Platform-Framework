@@ -19,7 +19,8 @@ import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { AdminScope } from '../common/constants/scope.constants';
 import { RequireScope } from '../common/decorators/scope.decorator';
-import { ApiKeyGuard } from '../common/guards/api-key.guard';
+import { TenantGuard } from '../common/guards/tenant.guard';
+import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { success, page } from '../common/response/api.response';
 
 /**
@@ -109,7 +110,7 @@ export class KbController {
  */
 @ApiTags('知识库（业务端）')
 @ApiBearerAuth()
-@UseGuards(ApiKeyGuard)
+@UseGuards(TenantGuard, RateLimitGuard)
 @Controller('kb')
 export class ClientKbController {
   /**

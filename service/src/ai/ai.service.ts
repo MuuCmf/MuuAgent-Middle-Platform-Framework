@@ -48,6 +48,7 @@ export class AiService {
     clientIp: string,
     userAgent: string,
     uid?: string,
+    appCode?: string,
   ): Promise<Record<string, unknown>> {
     const startTime = Date.now();
     const modelType = dto.modelType || 'llm';
@@ -150,6 +151,7 @@ export class AiService {
         inputTokens: tokenInfo.inputTokens,
         outputTokens: tokenInfo.outputTokens,
         uid,
+        appCode,
       });
 
       return {
@@ -196,6 +198,7 @@ export class AiService {
         userAgent,
         errorMessage: errorMsg,
         uid,
+        appCode,
       });
 
       throw new HttpException(
@@ -820,6 +823,7 @@ export class AiService {
     inputTokens?: number;
     outputTokens?: number;
     uid?: string;
+    appCode?: string;
   }): Promise<void> {
     try {
       await this.prisma.aiInvokeLog.create({
@@ -837,6 +841,7 @@ export class AiService {
           inputTokens: data.inputTokens,
           outputTokens: data.outputTokens,
           uid: data.uid,
+          appCode: data.appCode,
         },
       });
     } catch (error) {

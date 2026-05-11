@@ -152,6 +152,7 @@ export class OAuthAdminController {
    * @param page 页码
    * @param pageSize 每页数量
    * @param search 搜索关键词
+   * @param appCode 应用标识
    * @returns {Promise<any>} 客户端列表
    */
   @Get('clients')
@@ -161,8 +162,9 @@ export class OAuthAdminController {
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
     @Query('search') search?: string,
+    @Query('appCode') appCode?: string,
   ) {
-    const data = await this.oauthService.getClients(page, pageSize, search);
+    const data = await this.oauthService.getClients(page, pageSize, search, appCode);
     return success(data);
   }
 
@@ -194,6 +196,7 @@ export class OAuthAdminController {
       redirectUris: string[];
       scopes: string[];
       grants?: string[];
+      appCode?: string;
     },
   ) {
     const data = await this.oauthService.createClient(body);

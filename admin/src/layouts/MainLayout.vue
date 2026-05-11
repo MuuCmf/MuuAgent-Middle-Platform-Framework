@@ -62,12 +62,12 @@
           :collapse="isCollapsed"
         >
           <el-menu-item
-            v-for="route in menuRoutes"
-            :key="route.path"
-            :index="route.redirect || route.path"
+            v-for="r in menuRoutes"
+            :key="r.path"
+            :index="getMenuIndex(r)"
           >
-            <el-icon><component :is="route.meta?.icon" /></el-icon>
-            <template #title>{{ route.meta?.title }}</template>
+            <el-icon><component :is="r.meta?.icon" /></el-icon>
+            <template #title>{{ r.meta?.title }}</template>
           </el-menu-item>
         </el-menu>
       </el-aside>
@@ -184,6 +184,22 @@ const menuRoutes = computed(() => {
   const children = mainRoute?.children || []
   return children.filter(route => !route.meta?.hidden)
 })
+
+/**
+ * 获取菜单索引
+ * @param route 路由对象
+ * @returns {string} 菜单索引
+ */
+const getMenuIndex = (route: any): string => {
+  if (typeof route.redirect === 'string') {
+    return route.redirect.replace(/^\//, '')
+  }
+  if (route.redirect && typeof route.redirect === 'object' && route.redirect.name) {
+    const targetRoute = router.resolve({ name: route.redirect.name })
+    return targetRoute.path.replace(/^\//, '')
+  }
+  return route.path
+}
 
 const passwordForm = reactive({
   oldPassword: '',

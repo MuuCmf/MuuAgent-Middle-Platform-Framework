@@ -1,0 +1,326 @@
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../common/prisma/prisma.service';
+import { CreateAppDto, UpdateAppDto, QueryAppDto, ResetSecretDto } from './dto/app.dto';
+import { randomUUID } from 'crypto';
+
+/**
+ * 应用管理服务
+ * 
+ * 提供应用的CRUD操作，包括：
+ * - 创建应用
+ * - 更新应用
+ * - 删除应用
+ * - 查询应用列表
+ * - 查询应用详情
+ * - 重置应用密钥
+ * - 获取应用使用统计
+ */
+@Injectable()
+export class AppService {
+  /**
+   * 构造函数
+   * @param prisma Prisma服务
+   */
+  constructor(private prisma: PrismaService) {}
+
+  /**
+   * 创建应用
+   * @param dto 创建DTO
+   * @returns {Promise<object>} 创建结果
+   */
+  async create(dto: CreateAppDto) {
+    const existing = await this.prisma.appTenant.findUnique({
+      where: { code: dto.code },
+    });
+
+    if (existing) {
+      throw new BadRequestException('应用标识已存在');
+    }
+
+    const apiKey = `ak_${randomUUID().replace(/-/g, '')}`;
+    const secretKey = `sk_${randomUUID().replace(/-/g, '')}`;
+
+    const app = await this.prisma.appTenant.create({
+      data: {
+        name: dto.name,
+        code: dto.code,
+        apiKey,
+        secretKey,
+        allowedModels: dto.allowedModels ? JSON.stringify(dto.allowedModels) : null,
+        allowedAgents: dto.allowedAgents ? JSON.stringify(dto.allowedAgents) : null,
+        allowedSkills: dto.allowedSkills ? JSON.stringify(dto.allowedSkills) : null,
+        allowedKbs: dto.allowedKbs ? JSON.stringify(dto.allowedKbs) : null,
+        qpsLimit: dto.qpsLimit || 100,
+        dailyLimit: dto.dailyLimit || 10000,
+        tokenLimit: dto.tokenLimit || 1000000,
+        enableOAuth: dto.enableOAuth || false,
+        status: dto.status !== false,
+        expireAt: dto.expireAt ? new Date(dto.expireAt) : null,
+      },
+    });
+
+    return this.formatApp(app);
+  }
+
+  /**
+   * 更新应用
+   * @param id 应用ID
+   * @param dto 更新DTO
+   * @returns {Promise<object>} 更新结果
+   */
+  async update(id: string, dto: UpdateAppDto) {
+    const existing = await this.prisma.appTenant.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('应用不存在');
+    }
+
+    if (dto.code && dto.code !== existing.code) {
+      const codeExists = await this.prisma.appTenant.findUnique({
+        where: { code: dto.code },
+      });
+      if (codeExists) {
+        throw new BadRequestException('应用标识已存在');
+      }
+    }
+
+    const app = await this.prisma.appTenant.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        code: dto.code,
+        allowedModels: dto.allowedModels ? JSON.stringify(dto.allowedModels) : existing.allowedModels,
+        allowedAgents: dto.allowedAgents ? JSON.stringify(dto.allowedAgents) : existing.allowedAgents,
+        allowedSkills: dto.allowedSkills ? JSON.stringify(dto.allowedSkills) : existing.allowedSkills,
+        allowedKbs: dto.allowedKbs ? JSON.stringify(dto.allowedKbs) : existing.allowedKbs,
+        qpsLimit: dto.qpsLimit,
+        dailyLimit: dto.dailyLimit,
+        tokenLimit: dto.tokenLimit,
+        enableOAuth: dto.enableOAuth,
+        status: dto.status,
+        expireAt: dto.expireAt ? new Date(dto.expireAt) : existing.expireAt,
+      },
+    });
+
+    return this.formatApp(app);
+  }
+
+  /**
+   * 删除应用
+   * @param id 应用ID
+   * @returns {Promise<void>}
+   */
+  async delete(id: string) {
+    const existing = await this.prisma.appTenant.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('应用不存在');
+    }
+
+    await this.prisma.appTenant.delete({
+      where: { id },
+    });
+  }
+
+  /**
+   * 查询应用列表
+   * @param query 查询DTO
+   * @returns {Promise<object>} 列表结果
+   */
+  async findAll(query: QueryAppDto) {
+    const page = query.page || 1;
+    const pageSize = query.pageSize || 10;
+    const skip = (page - 1) * pageSize;
+
+    const where: any = {};
+
+    if (query.keyword) {
+      where.OR = [
+        { name: { contains: query.keyword } },
+        { code: { contains: query.keyword } },
+      ];
+    }
+
+    if (query.status !== undefined) {
+      where.status = query.status;
+    }
+
+    const [total, list] = await Promise.all([
+      this.prisma.appTenant.count({ where }),
+      this.prisma.appTenant.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      list: list.map((app) => this.formatApp(app)),
+      total,
+    };
+  }
+
+  /**
+   * 查询应用详情
+   * @param id 应用ID
+   * @returns {Promise<object>} 应用详情
+   */
+  async findOne(id: string) {
+    const app = await this.prisma.appTenant.findUnique({
+      where: { id },
+    });
+
+    if (!app) {
+      throw new NotFoundException('应用不存在');
+    }
+
+    return this.formatApp(app, true);
+  }
+
+  /**
+   * 根据code查询应用详情
+   * @param code 应用标识
+   * @returns {Promise<object>} 应用详情
+   */
+  async findByCode(code: string) {
+    const app = await this.prisma.appTenant.findUnique({
+      where: { code },
+    });
+
+    if (!app) {
+      throw new NotFoundException('应用不存在');
+    }
+
+    return this.formatApp(app, true);
+  }
+
+  /**
+   * 重置应用密钥
+   * @param id 应用ID
+   * @param dto 重置DTO
+   * @returns {Promise<object>} 新的密钥信息
+   */
+  async resetSecret(id: string, dto: ResetSecretDto) {
+    const existing = await this.prisma.appTenant.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('应用不存在');
+    }
+
+    const secretKey = `sk_${randomUUID().replace(/-/g, '')}`;
+    let apiKey = existing.apiKey;
+
+    if (dto.resetApiKey) {
+      apiKey = `ak_${randomUUID().replace(/-/g, '')}`;
+    }
+
+    const app = await this.prisma.appTenant.update({
+      where: { id },
+      data: {
+        apiKey,
+        secretKey,
+      },
+    });
+
+    return {
+      id: app.id,
+      apiKey: app.apiKey,
+      secretKey: app.secretKey,
+    };
+  }
+
+  /**
+   * 获取应用使用统计
+   * @param id 应用ID
+   * @returns {Promise<object>} 使用统计
+   */
+  async getUsage(id: string) {
+    const app = await this.prisma.appTenant.findUnique({
+      where: { id },
+    });
+
+    if (!app) {
+      throw new NotFoundException('应用不存在');
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [
+      agentCount,
+      skillCount,
+      kbCount,
+      todayAiLogs,
+      todayAgentLogs,
+      monthAiLogs,
+      monthAgentLogs,
+    ] = await Promise.all([
+      this.prisma.agent.count({ where: { appCode: app.code } }),
+      this.prisma.skill.count({ where: { appCode: app.code } }),
+      this.prisma.kbInfo.count({ where: { appCode: app.code } }),
+      this.prisma.aiInvokeLog.count({
+        where: { appCode: app.code, createdAt: { gte: today } },
+      }),
+      this.prisma.agentInvokeLog.count({
+        where: { appCode: app.code, createdAt: { gte: today } },
+      }),
+      this.prisma.aiInvokeLog.count({
+        where: {
+          appCode: app.code,
+          createdAt: { gte: new Date(today.getFullYear(), today.getMonth(), 1) },
+        },
+      }),
+      this.prisma.agentInvokeLog.count({
+        where: {
+          appCode: app.code,
+          createdAt: { gte: new Date(today.getFullYear(), today.getMonth(), 1) },
+        },
+      }),
+    ]);
+
+    return {
+      agentCount,
+      skillCount,
+      kbCount,
+      todayCalls: todayAiLogs + todayAgentLogs,
+      monthCalls: monthAiLogs + monthAgentLogs,
+      dailyLimit: app.dailyLimit,
+      tokenLimit: app.tokenLimit,
+    };
+  }
+
+  /**
+   * 格式化应用数据
+   * @param app 应用数据
+   * @param showSecret 是否显示密钥
+   * @returns {object} 格式化后的数据
+   */
+  private formatApp(app: any, showSecret: boolean = false) {
+    return {
+      id: app.id,
+      name: app.name,
+      code: app.code,
+      apiKey: app.apiKey,
+      secretKey: showSecret ? app.secretKey : '******',
+      allowedModels: app.allowedModels ? JSON.parse(app.allowedModels) : null,
+      allowedAgents: app.allowedAgents ? JSON.parse(app.allowedAgents) : null,
+      allowedSkills: app.allowedSkills ? JSON.parse(app.allowedSkills) : null,
+      allowedKbs: app.allowedKbs ? JSON.parse(app.allowedKbs) : null,
+      qpsLimit: app.qpsLimit,
+      dailyLimit: app.dailyLimit,
+      tokenLimit: app.tokenLimit,
+      enableOAuth: app.enableOAuth,
+      status: app.status,
+      expireAt: app.expireAt,
+      createdAt: app.createdAt,
+      updatedAt: app.updatedAt,
+    };
+  }
+}

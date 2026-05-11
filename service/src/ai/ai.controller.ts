@@ -1,8 +1,9 @@
 import { Controller, Post, Body, Req, Sse, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AiService } from './ai.service';
-import { ApiKeyGuard } from '../common/guards/api-key.guard';
+import { TenantGuard } from '../common/guards/tenant.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
+import { AppUsageService } from '../common/services/app-usage.service';
 import {
   AiInvokeDto,
   EmbeddingDto,
@@ -18,14 +19,18 @@ import { Request } from 'express';
  */
 @ApiTags('模型（业务端）')
 @ApiBearerAuth('api-key')
-@UseGuards(ApiKeyGuard, RateLimitGuard)
+@UseGuards(TenantGuard, RateLimitGuard)
 @Controller('ai')
 export class AiController {
   /**
    * 构造函数
    * @param aiService AI服务
+   * @param appUsageService 应用使用量服务
    */
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    private readonly appUsageService: AppUsageService,
+  ) {}
 
   /**
    * 从请求中提取用户标识
@@ -49,7 +54,13 @@ export class AiController {
     const clientIp = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || '';
     const uid = this.extractUid(req, dto);
-    const result = await this.aiService.invoke(dto, clientIp, userAgent, uid);
+    const appCode = (req as any).appCode;
+    const result = await this.aiService.invoke(dto, clientIp, userAgent, uid, appCode);
+    
+    if (appCode && result.inputTokens && result.outputTokens) {
+      await this.appUsageService.incrementTokenCount(appCode, result.inputTokens as number, result.outputTokens as number);
+    }
+    
     return success(result);
   }
 

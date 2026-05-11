@@ -17,8 +17,9 @@ import { CombinedAuthGuard } from "../common/guards/combined-auth.guard";
 import { ScopeGuard } from "../common/guards/scope.guard";
 import { AdminScope } from "../common/constants/scope.constants";
 import { RequireScope } from "../common/decorators/scope.decorator";
-import { ApiKeyGuard } from "../common/guards/api-key.guard";
+import { TenantGuard } from "../common/guards/tenant.guard";
 import { RateLimitGuard } from "../rate-limit/rate-limit.guard";
+import { AppUsageService } from "../common/services/app-usage.service";
 import {
   CreateAgentDto,
   UpdateAgentDto,
@@ -85,10 +86,13 @@ export class AgentAdminController {
 
 @ApiTags("智能体 (业务端)")
 @ApiBearerAuth("api-key")
-@UseGuards(ApiKeyGuard, RateLimitGuard)
+@UseGuards(TenantGuard, RateLimitGuard)
 @Controller("agent")
 export class AgentController {
-  constructor(private readonly agentService: AgentService) {}
+  constructor(
+    private readonly agentService: AgentService,
+    private readonly appUsageService: AppUsageService,
+  ) {}
 
   private extractUid(req: Request, dto: { uid?: string }): string | undefined {
     return dto.uid || (req.headers["x-uid"] as string) || undefined;
@@ -175,11 +179,18 @@ export class AgentController {
   @ApiOperation({ summary: "Agent对话（同步）" })
   async chat(@Body() dto: AgentChatDto, @Req() req: Request) {
     const uid = this.extractUid(req, dto);
+    const appCode = (req as any).appCode;
     const result = await this.agentService.syncChat(
       dto,
       req.ip || "unknown",
       uid,
+      appCode,
     );
+    
+    if (appCode) {
+      await this.appUsageService.incrementCallCount(appCode);
+    }
+    
     return success(result);
   }
 
