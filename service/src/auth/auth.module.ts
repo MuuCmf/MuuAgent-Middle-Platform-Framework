@@ -2,10 +2,12 @@ import { Module, Global } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
 
 /**
  * 认证模块（全局模块）
- * 提供JWT认证守卫给所有模块使用
+ * 提供JWT认证守卫、组合认证守卫和Scope校验守卫给所有模块使用
  */
 @Global()
 @Module({
@@ -21,7 +23,7 @@ import { AdminGuard } from '../common/guards/admin.guard';
       }),
     }),
   ],
-  providers: [AdminGuard],
-  exports: [JwtModule, AdminGuard],
+  providers: [AdminGuard, CombinedAuthGuard, ScopeGuard],
+  exports: [JwtModule, AdminGuard, CombinedAuthGuard, ScopeGuard],
 })
 export class AuthModule {}

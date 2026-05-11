@@ -2,12 +2,17 @@ import { Controller, Post, Get, Put, Delete, Body, Query, Param, Res, UseGuards,
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { OAuthService } from './oauth.service';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { RequireScope } from '../common/decorators/scope.decorator';
+import { AdminScope, SCOPE_DESCRIPTIONS } from '../common/constants/scope.constants';
+import { success } from '../common/response/api.response';
 import { Response, Request } from 'express';
 
 /**
  * OAuth认证控制器
  */
-@ApiTags('OAuth认证')
+@ApiTags('OAuth（业务端）')
 @Controller('oauth')
 export class OAuthController {
   /**
@@ -37,9 +42,17 @@ export class OAuthController {
   ) {
     const client = await this.oauthService.validateClient(clientId, undefined, redirectUri);
 
+    // 解析 scope 并附带描述信息
+    const scopes = scope ? scope.split(' ') : [];
+    const scopeDetails = scopes.map((s) => ({
+      scope: s,
+      description: (SCOPE_DESCRIPTIONS as Record<string, string>)[s] || s,
+    }));
+
     res.json({
       client_name: client.name,
       scope,
+      scope_details: scopeDetails,
       state,
       redirect_uri: redirectUri,
     });
@@ -123,9 +136,9 @@ export class OAuthController {
 /**
  * OAuth管理端控制器
  */
-@ApiTags('OAuth管理')
+@ApiTags('OAuth（管理端）')
 @Controller('admin/oauth')
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 @ApiBearerAuth()
 export class OAuthAdminController {
   /**
@@ -143,12 +156,14 @@ export class OAuthAdminController {
    */
   @Get('clients')
   @ApiOperation({ summary: '获取客户端列表' })
+  @RequireScope(AdminScope.OAUTH_READ)
   async getClients(
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
     @Query('search') search?: string,
   ) {
-    return this.oauthService.getClients(page, pageSize, search);
+    const data = await this.oauthService.getClients(page, pageSize, search);
+    return success(data);
   }
 
   /**
@@ -158,8 +173,10 @@ export class OAuthAdminController {
    */
   @Get('clients/:id')
   @ApiOperation({ summary: '获取客户端详情' })
+  @RequireScope(AdminScope.OAUTH_READ)
   async getClient(@Param('id') id: string) {
-    return this.oauthService.getClientById(id);
+    const data = await this.oauthService.getClientById(id);
+    return success(data);
   }
 
   /**
@@ -169,6 +186,7 @@ export class OAuthAdminController {
    */
   @Post('clients')
   @ApiOperation({ summary: '创建客户端' })
+  @RequireScope(AdminScope.OAUTH_WRITE)
   async createClient(
     @Body()
     body: {
@@ -178,7 +196,8 @@ export class OAuthAdminController {
       grants?: string[];
     },
   ) {
-    return this.oauthService.createClient(body);
+    const data = await this.oauthService.createClient(body);
+    return success(data, '客户端创建成功');
   }
 
   /**
@@ -189,6 +208,7 @@ export class OAuthAdminController {
    */
   @Put('clients/:id')
   @ApiOperation({ summary: '更新客户端' })
+  @RequireScope(AdminScope.OAUTH_WRITE)
   async updateClient(
     @Param('id') id: string,
     @Body()
@@ -200,7 +220,8 @@ export class OAuthAdminController {
       status?: number;
     },
   ) {
-    return this.oauthService.updateClient(id, body);
+    const data = await this.oauthService.updateClient(id, body);
+    return success(data, '客户端更新成功');
   }
 
   /**
@@ -210,9 +231,10 @@ export class OAuthAdminController {
    */
   @Delete('clients/:id')
   @ApiOperation({ summary: '删除客户端' })
+  @RequireScope(AdminScope.OAUTH_WRITE)
   async deleteClient(@Param('id') id: string) {
     await this.oauthService.deleteClient(id);
-    return { message: '客户端已删除' };
+    return success(null, '客户端已删除');
   }
 
   /**
@@ -222,8 +244,10 @@ export class OAuthAdminController {
    */
   @Post('clients/:id/reset-secret')
   @ApiOperation({ summary: '重置客户端密钥' })
+  @RequireScope(AdminScope.OAUTH_WRITE)
   async resetSecret(@Param('id') id: string) {
-    return this.oauthService.resetClientSecret(id);
+    const data = await this.oauthService.resetClientSecret(id);
+    return success(data, '密钥重置成功');
   }
 
   /**
@@ -235,12 +259,14 @@ export class OAuthAdminController {
    */
   @Get('tokens')
   @ApiOperation({ summary: '获取令牌列表' })
+  @RequireScope(AdminScope.OAUTH_READ)
   async getTokens(
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
     @Query('clientId') clientId?: string,
   ) {
-    return this.oauthService.getTokens(page, pageSize, clientId);
+    const data = await this.oauthService.getTokens(page, pageSize, clientId);
+    return success(data);
   }
 
   /**
@@ -250,8 +276,9 @@ export class OAuthAdminController {
    */
   @Post('tokens/:id/revoke')
   @ApiOperation({ summary: '撤销令牌' })
+  @RequireScope(AdminScope.OAUTH_WRITE)
   async revokeToken(@Param('id') id: string) {
     await this.oauthService.revokeTokenById(id);
-    return { message: '令牌已撤销' };
+    return success(null, '令牌已撤销');
   }
 }

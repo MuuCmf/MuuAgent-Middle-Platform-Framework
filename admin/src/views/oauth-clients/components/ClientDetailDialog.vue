@@ -38,14 +38,19 @@
 
       <el-descriptions-item label="权限范围">
         <el-space wrap>
-          <el-tag
+          <el-tooltip
             v-for="scope in client.scopes"
             :key="scope"
-            type="warning"
-            size="small"
+            :content="getScopeDescription(scope)"
+            placement="top"
           >
-            {{ scope }}
-          </el-tag>
+            <el-tag
+              :type="getScopeTagType(scope)"
+              size="small"
+            >
+              {{ scope }}
+            </el-tag>
+          </el-tooltip>
         </el-space>
       </el-descriptions-item>
 
@@ -90,6 +95,7 @@
 import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { OAuthClient } from '@/api/oauth'
+import { getScopeDescription, getScopeTagType } from '@/constants/scope'
 
 interface Props {
   visible: boolean

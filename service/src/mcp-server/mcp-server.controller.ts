@@ -1,7 +1,10 @@
 import { Controller, Post, Body, Put, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { McpServerService } from './mcp-server.service';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { AdminScope } from '../common/constants/scope.constants';
+import { RequireScope } from '../common/decorators/scope.decorator';
 import {
   DiscoverToolsDto,
   TestConnectionDto,
@@ -14,8 +17,9 @@ import { success } from '../common/response/api.response';
  * 提供MCP Server的管理接口
  */
 @ApiTags('MCP Server（管理端）')
+@ApiBearerAuth()
 @Controller('admin/mcp-server')
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 export class McpServerController {
   /**
    * 构造函数
@@ -31,6 +35,7 @@ export class McpServerController {
   @Post('discover')
   @ApiOperation({ summary: '发现MCP Server工具' })
   @ApiResponse({ status: 200, description: '成功获取工具列表' })
+  @RequireScope(AdminScope.MCP_SERVER_WRITE)
   async discoverTools(@Body() dto: DiscoverToolsDto) {
     const tools = await this.mcpServerService.discoverTools(dto);
     return success({ tools });
@@ -44,6 +49,7 @@ export class McpServerController {
   @Post('test')
   @ApiOperation({ summary: '测试MCP Server连接' })
   @ApiResponse({ status: 200, description: '测试完成' })
+  @RequireScope(AdminScope.MCP_SERVER_WRITE)
   async testConnection(@Body() dto: TestConnectionDto) {
     const result = await this.mcpServerService.testConnection(dto);
     return success(result);
@@ -58,6 +64,7 @@ export class McpServerController {
   @Put('agent/:id/mcp-servers')
   @ApiOperation({ summary: '更新智能体MCP Server配置' })
   @ApiResponse({ status: 200, description: '配置更新成功' })
+  @RequireScope(AdminScope.MCP_SERVER_WRITE)
   async updateAgentMcpServers(
     @Param('id') id: string,
     @Body() dto: UpdateAgentMcpServersDto,

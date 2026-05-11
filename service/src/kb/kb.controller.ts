@@ -15,7 +15,10 @@ import { CreateKbDto } from './dto/create-kb.dto';
 import { UpdateKbDto } from './dto/update-kb.dto';
 import { QueryKbListDto } from './dto/query-kb-list.dto';
 import { DeleteKbDto } from './dto/delete-kb.dto';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { AdminScope } from '../common/constants/scope.constants';
+import { RequireScope } from '../common/decorators/scope.decorator';
 import { ApiKeyGuard } from '../common/guards/api-key.guard';
 import { success, page } from '../common/response/api.response';
 
@@ -24,7 +27,7 @@ import { success, page } from '../common/response/api.response';
  */
 @ApiTags('知识库（管理端）')
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller('admin/kb')
 export class KbController {
   /**
@@ -40,6 +43,7 @@ export class KbController {
    */
   @Post()
   @ApiOperation({ summary: '创建知识库' })
+  @RequireScope(AdminScope.KB_WRITE)
   async create(@Body() dto: CreateKbDto) {
     const result = await this.kbService.create(dto);
     return success(result, '创建知识库成功');
@@ -52,6 +56,7 @@ export class KbController {
    */
   @Get()
   @ApiOperation({ summary: '查询知识库列表' })
+  @RequireScope(AdminScope.KB_READ)
   async findAll(@Query() dto: QueryKbListDto) {
     const result = await this.kbService.findAll(dto);
     return page(result.list, result.total, dto.pageNum || 1, dto.pageSize || 10);
@@ -64,6 +69,7 @@ export class KbController {
    */
   @Get(':kbId')
   @ApiOperation({ summary: '查询知识库详情' })
+  @RequireScope(AdminScope.KB_READ)
   async findOne(@Param('kbId') kbId: string) {
     const result = await this.kbService.findOne(kbId);
     return success(result);
@@ -76,6 +82,7 @@ export class KbController {
    */
   @Put()
   @ApiOperation({ summary: '更新知识库' })
+  @RequireScope(AdminScope.KB_WRITE)
   async update(@Body() dto: UpdateKbDto) {
     const result = await this.kbService.update(dto);
     return success(result, '更新知识库成功');
@@ -89,6 +96,7 @@ export class KbController {
    */
   @Delete(':kbId')
   @ApiOperation({ summary: '删除知识库' })
+  @RequireScope(AdminScope.KB_WRITE)
   async delete(@Param('kbId') kbId: string, @Body() dto: DeleteKbDto) {
     const result = await this.kbService.delete({ ...dto, kbId });
     return success(result, '删除知识库成功');

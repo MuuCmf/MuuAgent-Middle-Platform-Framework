@@ -11,7 +11,10 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ModelService } from './model.service';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { AdminScope } from '../common/constants/scope.constants';
+import { RequireScope } from '../common/decorators/scope.decorator';
 import {
   CreateModelDto,
   UpdateModelDto,
@@ -25,7 +28,7 @@ import { success, page } from '../common/response/api.response';
  */
 @ApiTags('模型（管理端）')
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller('admin/model')
 export class ModelAdminController {
   /**
@@ -41,6 +44,7 @@ export class ModelAdminController {
    */
   @Post()
   @ApiOperation({ summary: '创建模型' })
+  @RequireScope(AdminScope.MODEL_WRITE)
   async create(@Body() dto: CreateModelDto) {
     const model = await this.modelService.create(dto);
     return success(model, '模型创建成功');
@@ -54,6 +58,7 @@ export class ModelAdminController {
    */
   @Put(':id')
   @ApiOperation({ summary: '更新模型' })
+  @RequireScope(AdminScope.MODEL_WRITE)
   async update(@Param('id') id: string, @Body() dto: UpdateModelDto) {
     const model = await this.modelService.update(id, dto);
     return success(model, '模型更新成功');
@@ -66,6 +71,7 @@ export class ModelAdminController {
    */
   @Delete(':id')
   @ApiOperation({ summary: '删除模型' })
+  @RequireScope(AdminScope.MODEL_WRITE)
   async remove(@Param('id') id: string) {
     await this.modelService.remove(id);
     return success(null, '模型删除成功');
@@ -78,6 +84,7 @@ export class ModelAdminController {
    */
   @Get(':id')
   @ApiOperation({ summary: '查询模型详情' })
+  @RequireScope(AdminScope.MODEL_READ)
   async findOne(@Param('id') id: string) {
     const model = await this.modelService.findOne(id);
     return success(model);
@@ -90,6 +97,7 @@ export class ModelAdminController {
    */
   @Get()
   @ApiOperation({ summary: '查询模型列表' })
+  @RequireScope(AdminScope.MODEL_READ)
   async findAll(@Query() query: QueryModelDto) {
     const { list, total, page: pageNum, pageSize } = await this.modelService.findAll(query);
     return page(list, total, pageNum, pageSize);
@@ -102,6 +110,7 @@ export class ModelAdminController {
    */
   @Get(':id/health')
   @ApiOperation({ summary: '模型健康检查' })
+  @RequireScope(AdminScope.MODEL_READ)
   async healthCheck(@Param('id') id: string) {
     const result = await this.modelService.healthCheck(id);
     return success(result);
@@ -113,6 +122,7 @@ export class ModelAdminController {
    */
   @Get('health/all')
   @ApiOperation({ summary: '批量健康检查' })
+  @RequireScope(AdminScope.MODEL_READ)
   async healthCheckAll() {
     const results = await this.modelService.healthCheckAll();
     return success(results);
@@ -126,6 +136,7 @@ export class ModelAdminController {
    */
   @Put(':id/status')
   @ApiOperation({ summary: '切换模型状态' })
+  @RequireScope(AdminScope.MODEL_WRITE)
   async toggleStatus(@Param('id') id: string, @Body('status') status: boolean) {
     const model = await this.modelService.toggleStatus(id, status);
     return success(model, '状态更新成功');

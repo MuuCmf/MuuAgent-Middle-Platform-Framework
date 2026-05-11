@@ -16,7 +16,10 @@ import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { QueryConversationDto } from './dto/query-conversation.dto';
 import { AddMessageDto } from './dto/add-message.dto';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { AdminScope } from '../common/constants/scope.constants';
+import { RequireScope } from '../common/decorators/scope.decorator';
 import { success, page } from '../common/response/api.response';
 
 /**
@@ -168,7 +171,7 @@ export class ConversationController {
  */
 @ApiTags('会话管理（管理端）')
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller('admin/conversation')
 export class ConversationAdminController {
   /**
@@ -184,6 +187,7 @@ export class ConversationAdminController {
    */
   @Get()
   @ApiOperation({ summary: '查询会话列表' })
+  @RequireScope(AdminScope.CONVERSATION_READ)
   async findAll(@Query() query: QueryConversationDto) {
     const result = await this.conversationService.findAll(query);
     return page(result.list, result.total, result.page, result.pageSize);
@@ -197,6 +201,7 @@ export class ConversationAdminController {
    */
   @Get(':id')
   @ApiOperation({ summary: '查询会话详情' })
+  @RequireScope(AdminScope.CONVERSATION_READ)
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('messageLimit') messageLimit?: number,
@@ -212,6 +217,7 @@ export class ConversationAdminController {
    */
   @Delete(':id')
   @ApiOperation({ summary: '删除会话' })
+  @RequireScope(AdminScope.CONVERSATION_WRITE)
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.conversationService.remove(id);
     return success(null, '删除会话成功');

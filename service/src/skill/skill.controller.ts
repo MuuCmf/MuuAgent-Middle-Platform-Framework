@@ -11,7 +11,10 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SkillService } from './skill.service';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { AdminScope } from '../common/constants/scope.constants';
+import { RequireScope } from '../common/decorators/scope.decorator';
 import {
   CreateSkillDto,
   UpdateSkillDto,
@@ -25,7 +28,7 @@ import { success, page } from '../common/response/api.response';
  */
 @ApiTags('技能（管理端）')
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller('admin/skill')
 export class SkillController {
   /**
@@ -41,6 +44,7 @@ export class SkillController {
    */
   @Post()
   @ApiOperation({ summary: '创建技能' })
+  @RequireScope(AdminScope.SKILL_WRITE)
   async create(@Body() dto: CreateSkillDto) {
     const skill = await this.skillService.create(dto);
     return success(skill, '技能创建成功');
@@ -54,6 +58,7 @@ export class SkillController {
    */
   @Put(':id')
   @ApiOperation({ summary: '更新技能' })
+  @RequireScope(AdminScope.SKILL_WRITE)
   async update(@Param('id') id: string, @Body() dto: UpdateSkillDto) {
     const skill = await this.skillService.update(id, dto);
     return success(skill, '技能更新成功');
@@ -66,6 +71,7 @@ export class SkillController {
    */
   @Delete(':id')
   @ApiOperation({ summary: '删除技能' })
+  @RequireScope(AdminScope.SKILL_WRITE)
   async remove(@Param('id') id: string) {
     await this.skillService.remove(id);
     return success(null, '技能删除成功');
@@ -78,6 +84,7 @@ export class SkillController {
    */
   @Get()
   @ApiOperation({ summary: '查询技能列表' })
+  @RequireScope(AdminScope.SKILL_READ)
   async findAll(@Query() query: QuerySkillDto) {
     const { list, total, page: pageNum, pageSize } = await this.skillService.findAll(query);
     return page(list, total, pageNum, pageSize);
@@ -90,6 +97,7 @@ export class SkillController {
    */
   @Post('execute')
   @ApiOperation({ summary: '执行技能' })
+  @RequireScope(AdminScope.SKILL_EXECUTE)
   async execute(@Body() dto: ExecuteSkillDto) {
     const result = await this.skillService.execute(dto);
     return success(result);
@@ -102,6 +110,7 @@ export class SkillController {
    */
   @Post('render-prompt')
   @ApiOperation({ summary: '渲染技能调用提示词' })
+  @RequireScope(AdminScope.SKILL_EXECUTE)
   async renderPrompt(
     @Body()
     body: {
@@ -123,6 +132,7 @@ export class SkillController {
    */
   @Post('select')
   @ApiOperation({ summary: '智能选择技能' })
+  @RequireScope(AdminScope.SKILL_EXECUTE)
   async selectSkill(
     @Body()
     body: {
@@ -144,6 +154,7 @@ export class SkillController {
    */
   @Get(':id')
   @ApiOperation({ summary: '查询技能详情' })
+  @RequireScope(AdminScope.SKILL_READ)
   async findOne(@Param('id') id: string) {
     const skill = await this.skillService.findOne(id);
     return success(skill);
@@ -155,6 +166,7 @@ export class SkillController {
    */
   @Get('builtin-functions/list')
   @ApiOperation({ summary: '获取内置函数列表' })
+  @RequireScope(AdminScope.SKILL_READ)
   async getBuiltinFunctions() {
     const functions = this.skillService.getBuiltinFunctions();
     return success(functions);
@@ -166,6 +178,7 @@ export class SkillController {
    */
   @Get('plugins/list')
   @ApiOperation({ summary: '获取插件列表' })
+  @RequireScope(AdminScope.SKILL_READ)
   async getPlugins() {
     const plugins = this.skillService.getPlugins();
     return success(plugins);
@@ -178,6 +191,7 @@ export class SkillController {
    */
   @Post('analyze-code')
   @ApiOperation({ summary: '分析沙箱代码' })
+  @RequireScope(AdminScope.SKILL_EXECUTE)
   async analyzeCode(
     @Body()
     body: {
@@ -195,6 +209,7 @@ export class SkillController {
    */
   @Post('test-function')
   @ApiOperation({ summary: '测试函数' })
+  @RequireScope(AdminScope.SKILL_EXECUTE)
   async testFunction(
     @Body()
     body: {

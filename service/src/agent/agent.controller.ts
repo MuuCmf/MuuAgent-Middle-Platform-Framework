@@ -13,7 +13,10 @@ import {
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { AgentService } from "./agent.service";
-import { AdminGuard } from "../common/guards/admin.guard";
+import { CombinedAuthGuard } from "../common/guards/combined-auth.guard";
+import { ScopeGuard } from "../common/guards/scope.guard";
+import { AdminScope } from "../common/constants/scope.constants";
+import { RequireScope } from "../common/decorators/scope.decorator";
 import { ApiKeyGuard } from "../common/guards/api-key.guard";
 import { RateLimitGuard } from "../rate-limit/rate-limit.guard";
 import {
@@ -27,15 +30,16 @@ import { Request, Response } from "express";
 import { Observable, Subject } from 'rxjs';
 import { Sse } from '@nestjs/common';
 
-@ApiTags("智能体管理")
+@ApiTags("智能体 (管理端)")
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller("admin/agent")
 export class AgentAdminController {
   constructor(private readonly agentService: AgentService) {}
 
   @Post()
   @ApiOperation({ summary: "创建智能体" })
+  @RequireScope(AdminScope.AGENT_WRITE)
   async create(@Body() dto: CreateAgentDto) {
     const agent = await this.agentService.create(dto);
     return success(agent, "智能体创建成功");
@@ -43,6 +47,7 @@ export class AgentAdminController {
 
   @Put(":id")
   @ApiOperation({ summary: "更新智能体" })
+  @RequireScope(AdminScope.AGENT_WRITE)
   async update(@Param("id") id: string, @Body() dto: UpdateAgentDto) {
     const agent = await this.agentService.update(id, dto);
     return success(agent, "智能体更新成功");
@@ -50,6 +55,7 @@ export class AgentAdminController {
 
   @Delete(":id")
   @ApiOperation({ summary: "删除智能体" })
+  @RequireScope(AdminScope.AGENT_WRITE)
   async remove(@Param("id") id: string) {
     await this.agentService.remove(id);
     return success(null, "智能体删除成功");
@@ -57,6 +63,7 @@ export class AgentAdminController {
 
   @Get(":id")
   @ApiOperation({ summary: "查询智能体详情" })
+  @RequireScope(AdminScope.AGENT_READ)
   async findOne(@Param("id") id: string) {
     const agent = await this.agentService.findOne(id);
     return success(agent);
@@ -64,6 +71,7 @@ export class AgentAdminController {
 
   @Get()
   @ApiOperation({ summary: "查询智能体列表" })
+  @RequireScope(AdminScope.AGENT_READ)
   async findAll(@Query() query: QueryAgentDto) {
     const {
       list,
@@ -75,7 +83,7 @@ export class AgentAdminController {
   }
 }
 
-@ApiTags("智能体对话")
+@ApiTags("智能体 (业务端)")
 @ApiBearerAuth("api-key")
 @UseGuards(ApiKeyGuard, RateLimitGuard)
 @Controller("agent")

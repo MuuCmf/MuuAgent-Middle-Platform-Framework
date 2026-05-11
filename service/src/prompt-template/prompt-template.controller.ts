@@ -19,7 +19,10 @@ import {
   RenderPromptTemplateDto,
   RollbackPromptTemplateDto,
 } from './dto/prompt-template.dto';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { AdminScope } from '../common/constants/scope.constants';
+import { RequireScope } from '../common/decorators/scope.decorator';
 import { success } from '../common/response/api.response';
 
 /**
@@ -28,7 +31,7 @@ import { success } from '../common/response/api.response';
  */
 @ApiTags('Prompt模板管理')
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller('admin/prompt-template')
 export class PromptTemplateController {
   constructor(private readonly promptTemplateService: PromptTemplateService) {}
@@ -38,6 +41,7 @@ export class PromptTemplateController {
    */
   @Post()
   @ApiOperation({ summary: '创建Prompt模板' })
+  @RequireScope(AdminScope.PROMPT_TEMPLATE_WRITE)
   async create(@Body() dto: CreatePromptTemplateDto) {
     const template = await this.promptTemplateService.create(dto);
     return success(template, '模板创建成功');
@@ -48,6 +52,7 @@ export class PromptTemplateController {
    */
   @Put(':code')
   @ApiOperation({ summary: '更新Prompt模板' })
+  @RequireScope(AdminScope.PROMPT_TEMPLATE_WRITE)
   async update(
     @Param('code') code: string,
     @Body() dto: UpdatePromptTemplateDto,
@@ -61,6 +66,7 @@ export class PromptTemplateController {
    */
   @Delete(':id')
   @ApiOperation({ summary: '删除Prompt模板' })
+  @RequireScope(AdminScope.PROMPT_TEMPLATE_WRITE)
   async delete(@Param('id') id: string) {
     await this.promptTemplateService.delete(id);
     return success(null, '模板删除成功');
@@ -71,6 +77,7 @@ export class PromptTemplateController {
    */
   @Get(':id')
   @ApiOperation({ summary: '查询Prompt模板详情' })
+  @RequireScope(AdminScope.PROMPT_TEMPLATE_READ)
   async findOne(@Param('id') id: string) {
     const template = await this.promptTemplateService.findOne(id);
     return success(template);
@@ -81,6 +88,7 @@ export class PromptTemplateController {
    */
   @Get('code/:code')
   @ApiOperation({ summary: '根据标识查询Prompt模板' })
+  @RequireScope(AdminScope.PROMPT_TEMPLATE_READ)
   async findByCode(@Param('code') code: string) {
     const template = await this.promptTemplateService.findByCode(code);
     return success(template);
@@ -91,6 +99,7 @@ export class PromptTemplateController {
    */
   @Get()
   @ApiOperation({ summary: '查询Prompt模板列表' })
+  @RequireScope(AdminScope.PROMPT_TEMPLATE_READ)
   async findAll(@Query() query: QueryPromptTemplateDto) {
     const result = await this.promptTemplateService.findAll(query);
     return success(result);
@@ -101,6 +110,7 @@ export class PromptTemplateController {
    */
   @Post('render')
   @ApiOperation({ summary: '渲染Prompt模板' })
+  @RequireScope(AdminScope.PROMPT_TEMPLATE_WRITE)
   async render(@Body() dto: RenderPromptTemplateDto, @Req() req: any) {
     const clientIp = req.ip || req.connection.remoteAddress;
     const uid = req.user?.uid;
@@ -119,6 +129,7 @@ export class PromptTemplateController {
    */
   @Get(':id/versions')
   @ApiOperation({ summary: '获取Prompt模板版本历史' })
+  @RequireScope(AdminScope.PROMPT_TEMPLATE_READ)
   async getVersionHistory(
     @Param('id') id: string,
     @Query('limit') limit?: number,
@@ -135,6 +146,7 @@ export class PromptTemplateController {
    */
   @Post(':id/rollback/:version')
   @ApiOperation({ summary: 'Prompt模板版本回滚' })
+  @RequireScope(AdminScope.PROMPT_TEMPLATE_WRITE)
   async rollback(
     @Param('id') id: string,
     @Param('version') version: string,
@@ -153,6 +165,7 @@ export class PromptTemplateController {
    */
   @Post(':id/set-default')
   @ApiOperation({ summary: '设置默认Prompt模板' })
+  @RequireScope(AdminScope.PROMPT_TEMPLATE_WRITE)
   async setDefault(@Param('id') id: string) {
     const template = await this.promptTemplateService.setDefault(id);
     return success(template, '设置默认模板成功');
@@ -163,6 +176,7 @@ export class PromptTemplateController {
    */
   @Get('default/:category')
   @ApiOperation({ summary: '获取分类的默认Prompt模板' })
+  @RequireScope(AdminScope.PROMPT_TEMPLATE_READ)
   async getDefaultTemplate(@Param('category') category: string) {
     const template = await this.promptTemplateService.getDefaultTemplate(category);
     return success(template);

@@ -60,12 +60,19 @@
                 </el-space>
               </template>
             </el-table-column>
-            <el-table-column prop="scopes" label="权限范围" width="200">
+            <el-table-column prop="scopes" label="权限范围" width="220">
               <template #default="{ row }">
                 <el-space wrap>
-                  <el-tag v-for="scope in row.scopes" :key="scope" size="small" type="warning">
-                    {{ scope }}
-                  </el-tag>
+                  <el-tooltip
+                    v-for="scope in row.scopes"
+                    :key="scope"
+                    :content="getScopeDescription(scope)"
+                    placement="top"
+                  >
+                    <el-tag :type="getScopeTagType(scope)" size="small">
+                      {{ scope }}
+                    </el-tag>
+                  </el-tooltip>
                 </el-space>
               </template>
             </el-table-column>
@@ -153,9 +160,20 @@
                 <el-tag size="small">{{ row.userId }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="scope" label="权限范围" width="150">
+            <el-table-column prop="scope" label="权限范围" width="220">
               <template #default="{ row }">
-                <el-tag type="warning" size="small">{{ row.scope }}</el-tag>
+                <el-space wrap>
+                  <el-tooltip
+                    v-for="s in row.scope.split(' ')"
+                    :key="s"
+                    :content="getScopeDescription(s)"
+                    placement="top"
+                  >
+                    <el-tag :type="getScopeTagType(s)" size="small">
+                      {{ s }}
+                    </el-tag>
+                  </el-tooltip>
+                </el-space>
               </template>
             </el-table-column>
             <el-table-column prop="expiresAt" label="过期时间" width="180">
@@ -223,6 +241,7 @@ import { ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { oauthApi, type OAuthClient, type OAuthToken } from '@/api/oauth'
+import { getScopeDescription, getScopeTagType } from '@/constants/scope'
 import ClientEditDrawer from './components/ClientEditDrawer.vue'
 import ClientDetailDialog from './components/ClientDetailDialog.vue'
 

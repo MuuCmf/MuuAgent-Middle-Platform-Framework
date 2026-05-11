@@ -43,19 +43,29 @@
       </el-form-item>
 
       <el-form-item label="权限范围" prop="scopes">
-        <el-select
-          v-model="formData.scopes"
-          multiple
-          filterable
-          allow-create
-          default-first-option
-          placeholder="请选择或输入权限范围"
-          style="width: 100%;"
-        >
-          <el-option label="读取用户信息" value="read" />
-          <el-option label="写入用户信息" value="write" />
-          <el-option label="管理员权限" value="admin" />
-        </el-select>
+        <div style="width: 100%;">
+          <div
+            v-for="group in SCOPE_GROUPS"
+            :key="group.label"
+            style="margin-bottom: 12px;"
+          >
+            <div style="font-weight: 500; margin-bottom: 4px; color: #606266; font-size: 13px;">
+              {{ group.label }}
+            </div>
+            <el-checkbox-group v-model="formData.scopes" style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <el-tooltip
+                v-for="scope in group.scopes"
+                :key="scope.value"
+                :content="scope.description"
+                placement="top"
+              >
+                <el-checkbox :label="scope.value">
+                  {{ scope.label }}
+                </el-checkbox>
+              </el-tooltip>
+            </el-checkbox-group>
+          </div>
+        </div>
       </el-form-item>
 
       <el-form-item label="授权类型" prop="grants">
@@ -90,6 +100,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { oauthApi, type OAuthClient, type CreateClientDto, type UpdateClientDto } from '@/api/oauth'
+import { SCOPE_GROUPS } from '@/constants/scope'
 
 interface Props {
   visible: boolean

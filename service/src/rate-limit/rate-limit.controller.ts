@@ -2,7 +2,10 @@ import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nes
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { RateLimitService, RateLimitLevel } from './rate-limit.service';
 import { CreateRateLimitRuleDto, UpdateRateLimitRuleDto, AddBlacklistDto } from './dto/rate-limit.dto';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { RequireScope } from '../common/decorators/scope.decorator';
+import { AdminScope } from '../common/constants/scope.constants';
 import { success } from '../common/response/api.response';
 
 /**
@@ -11,7 +14,7 @@ import { success } from '../common/response/api.response';
  */
 @ApiTags('限流管理')
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller('admin/rate-limit')
 export class RateLimitController {
   /**
@@ -27,6 +30,7 @@ export class RateLimitController {
    */
   @Post('rule')
   @ApiOperation({ summary: '创建或更新限流规则' })
+  @RequireScope(AdminScope.RATE_LIMIT_WRITE)
   async upsertRule(@Body() dto: CreateRateLimitRuleDto) {
     const rule = await this.rateLimitService.upsertRule(
       dto.level as RateLimitLevel,
@@ -50,6 +54,7 @@ export class RateLimitController {
    */
   @Get('rules')
   @ApiOperation({ summary: '获取所有限流规则' })
+  @RequireScope(AdminScope.RATE_LIMIT_READ)
   async getAllRules() {
     const rules = await this.rateLimitService.getAllRules();
     return success(rules);
@@ -61,6 +66,7 @@ export class RateLimitController {
    */
   @Get('statistics')
   @ApiOperation({ summary: '获取限流统计信息' })
+  @RequireScope(AdminScope.RATE_LIMIT_READ)
   async getStatistics() {
     const stats = await this.rateLimitService.getStatistics();
     return success(stats);
@@ -73,6 +79,7 @@ export class RateLimitController {
    */
   @Post('blacklist')
   @ApiOperation({ summary: '添加IP到黑名单' })
+  @RequireScope(AdminScope.RATE_LIMIT_WRITE)
   async addToBlacklist(@Body() dto: AddBlacklistDto) {
     await this.rateLimitService.addToBlacklist(dto.clientIp, dto.reason, dto.duration);
     return success(null, 'IP已添加到黑名单');
@@ -84,6 +91,7 @@ export class RateLimitController {
    */
   @Post('init')
   @ApiOperation({ summary: '初始化默认限流规则' })
+  @RequireScope(AdminScope.RATE_LIMIT_WRITE)
   async initDefaultRules() {
     // 全局限流规则
     await this.rateLimitService.upsertRule(RateLimitLevel.GLOBAL, 'global', {

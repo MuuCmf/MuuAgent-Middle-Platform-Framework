@@ -1,7 +1,10 @@
 import { Controller, Get, Query, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { LogService } from './log.service';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { RequireScope } from '../common/decorators/scope.decorator';
+import { AdminScope } from '../common/constants/scope.constants';
 import { success, page } from '../common/response/api.response';
 
 /**
@@ -9,7 +12,7 @@ import { success, page } from '../common/response/api.response';
  */
 @ApiTags('日志查询（管理端）')
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller('admin/log')
 export class LogController {
   /**
@@ -26,6 +29,7 @@ export class LogController {
   @Get('retrieval')
   @ApiOperation({ summary: '查询检索日志', description: '查询知识库检索日志，支持按知识库ID、用户ID、查询内容、时间范围筛选' })
   @ApiResponse({ status: 200, description: '查询成功' })
+  @RequireScope(AdminScope.LOG_READ)
   async getRetrievalLogs(@Query() query: Record<string, unknown>) {
     const result = await this.logService.getRetrievalLogs(query as Parameters<typeof this.logService.getRetrievalLogs>[0]);
     return page(result.list, result.total, result.page, result.pageSize);
@@ -40,6 +44,7 @@ export class LogController {
   @ApiOperation({ summary: '查询单个检索日志详情', description: '根据日志ID查询检索日志的详细信息' })
   @ApiResponse({ status: 200, description: '查询成功' })
   @ApiResponse({ status: 404, description: '日志不存在' })
+  @RequireScope(AdminScope.LOG_READ)
   async getRetrievalLogById(@Param('id') id: string) {
     const result = await this.logService.getRetrievalLogById(id);
     return success(result);
@@ -55,6 +60,7 @@ export class LogController {
   @Get('retrieval/statistics')
   @ApiOperation({ summary: '获取检索统计', description: '获取知识库检索的统计数据，包括检索次数、平均耗时等' })
   @ApiResponse({ status: 200, description: '查询成功' })
+  @RequireScope(AdminScope.LOG_READ)
   async getRetrievalStatistics(
     @Query('kbId') kbId?: string,
     @Query('startTime') startTime?: string,
@@ -71,6 +77,7 @@ export class LogController {
    */
   @Get('ai')
   @ApiOperation({ summary: '查询AI调用日志' })
+  @RequireScope(AdminScope.LOG_READ)
   async getAiLogs(@Query() query: Record<string, unknown>) {
     const result = await this.logService.getAiLogs(query as Parameters<typeof this.logService.getAiLogs>[0]);
     return page(result.list, result.total, result.page, result.pageSize);
@@ -83,6 +90,7 @@ export class LogController {
    */
   @Get('ai/:id')
   @ApiOperation({ summary: '查询单个AI调用日志详情' })
+  @RequireScope(AdminScope.LOG_READ)
   async getAiLogById(@Param('id') id: string) {
     const result = await this.logService.getAiLogById(id);
     return success(result);
@@ -95,6 +103,7 @@ export class LogController {
    */
   @Get('skill')
   @ApiOperation({ summary: '查询技能调用日志' })
+  @RequireScope(AdminScope.LOG_READ)
   async getSkillLogs(@Query() query: Record<string, unknown>) {
     const result = await this.logService.getSkillLogs(query as Parameters<typeof this.logService.getSkillLogs>[0]);
     return page(result.list, result.total, result.page, result.pageSize);
@@ -107,6 +116,7 @@ export class LogController {
    */
   @Get('agent')
   @ApiOperation({ summary: '查询Agent调用日志' })
+  @RequireScope(AdminScope.LOG_READ)
   async getAgentLogs(@Query() query: Record<string, unknown>) {
     const result = await this.logService.getAgentLogs(query as Parameters<typeof this.logService.getAgentLogs>[0]);
     return page(result.list, result.total, result.page, result.pageSize);
@@ -121,6 +131,7 @@ export class LogController {
   @ApiOperation({ summary: '查询单个Agent调用日志详情' })
   @ApiResponse({ status: 200, description: '查询成功' })
   @ApiResponse({ status: 404, description: '日志不存在' })
+  @RequireScope(AdminScope.LOG_READ)
   async getAgentLogById(@Param('id') id: string) {
     const result = await this.logService.getAgentLogById(id);
     return success(result);
@@ -135,6 +146,7 @@ export class LogController {
   @ApiOperation({ summary: '获取Agent调用日志的推理步骤', description: '获取指定Agent调用日志的推理步骤详情' })
   @ApiResponse({ status: 200, description: '查询成功' })
   @ApiResponse({ status: 404, description: '日志不存在' })
+  @RequireScope(AdminScope.LOG_READ)
   async getAgentLogReasoningSteps(@Param('id') id: string) {
     const result = await this.logService.getAgentLogReasoningSteps(id);
     return success(result);
@@ -149,6 +161,7 @@ export class LogController {
   @ApiOperation({ summary: '查询单个Skill调用日志详情' })
   @ApiResponse({ status: 200, description: '查询成功' })
   @ApiResponse({ status: 404, description: '日志不存在' })
+  @RequireScope(AdminScope.LOG_READ)
   async getSkillLogById(@Param('id') id: string) {
     const result = await this.logService.getSkillLogById(id);
     return success(result);
@@ -162,6 +175,7 @@ export class LogController {
    */
   @Get('statistics')
   @ApiOperation({ summary: '获取调用统计' })
+  @RequireScope(AdminScope.LOG_READ)
   async getStatistics(
     @Query('startTime') startTime?: string,
     @Query('endTime') endTime?: string,

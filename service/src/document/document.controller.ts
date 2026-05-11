@@ -21,7 +21,10 @@ import { DocumentService } from './document.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import { QueryDocumentListDto } from './dto/query-document-list.dto';
 import { DeleteDocumentDto } from './dto/delete-document.dto';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { AdminScope } from '../common/constants/scope.constants';
+import { RequireScope } from '../common/decorators/scope.decorator';
 import { success, fail } from '../common/response/api.response';
 
 /**
@@ -30,7 +33,7 @@ import { success, fail } from '../common/response/api.response';
 @Controller('admin/kb/document')
 @ApiTags('知识库（管理端）')
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 export class DocumentController {
   /**
    * 构造函数
@@ -50,6 +53,7 @@ export class DocumentController {
   @ApiResponse({ status: 200, description: '上传成功' })
   @ApiResponse({ status: 400, description: '参数错误' })
   @UseInterceptors(FileInterceptor('file'))
+  @RequireScope(AdminScope.DOCUMENT_WRITE)
   async upload(
     @Body() dto: UploadDocumentDto,
     @UploadedFile() file: Express.Multer.File,
@@ -73,6 +77,7 @@ export class DocumentController {
   @ApiResponse({ status: 200, description: '上传成功' })
   @ApiResponse({ status: 400, description: '参数错误' })
   @UseInterceptors(FilesInterceptor('files', 10))
+  @RequireScope(AdminScope.DOCUMENT_WRITE)
   async batchUpload(
     @Body() dto: UploadDocumentDto,
     @UploadedFiles() files: Express.Multer.File[],
@@ -92,6 +97,7 @@ export class DocumentController {
   @Get('list')
   @ApiOperation({ summary: '查询文档列表', description: '根据条件查询知识库文档列表' })
   @ApiResponse({ status: 200, description: '查询成功' })
+  @RequireScope(AdminScope.DOCUMENT_READ)
   async findAll(@Query() dto: QueryDocumentListDto) {
     const result = await this.documentService.findAll(dto);
     return success(result, '查询成功');
@@ -106,6 +112,7 @@ export class DocumentController {
   @ApiOperation({ summary: '删除文档', description: '从知识库中删除指定文档' })
   @ApiResponse({ status: 200, description: '删除成功' })
   @ApiResponse({ status: 404, description: '文档不存在' })
+  @RequireScope(AdminScope.DOCUMENT_WRITE)
   async delete(@Body() dto: DeleteDocumentDto) {
     const result = await this.documentService.delete(dto);
     return success(result, '删除文档成功');

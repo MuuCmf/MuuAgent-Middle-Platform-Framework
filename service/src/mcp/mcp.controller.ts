@@ -10,7 +10,10 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { McpService } from './mcp.service';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { AdminScope } from '../common/constants/scope.constants';
+import { RequireScope } from '../common/decorators/scope.decorator';
 import {
   CreateMcpStrategyDto,
   UpdateMcpStrategyDto,
@@ -25,7 +28,7 @@ import { success } from '../common/response/api.response';
  */
 @ApiTags('MCP调度（管理端）')
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller('admin/mcp')
 export class McpController {
   /**
@@ -41,6 +44,7 @@ export class McpController {
    */
   @Post('strategy')
   @ApiOperation({ summary: '创建调度策略' })
+  @RequireScope(AdminScope.MCP_WRITE)
   async createStrategy(@Body() dto: CreateMcpStrategyDto) {
     const strategy = await this.mcpService.createStrategy(dto);
     return success(strategy, '策略创建成功');
@@ -54,6 +58,7 @@ export class McpController {
    */
   @Put('strategy/:modelType')
   @ApiOperation({ summary: '更新调度策略' })
+  @RequireScope(AdminScope.MCP_WRITE)
   async updateStrategy(
     @Param('modelType') modelType: string,
     @Body() dto: UpdateMcpStrategyDto,
@@ -69,6 +74,7 @@ export class McpController {
    */
   @Get('strategy/:modelType')
   @ApiOperation({ summary: '获取调度策略' })
+  @RequireScope(AdminScope.MCP_READ)
   async getStrategy(@Param('modelType') modelType: string) {
     const strategy = await this.mcpService.getStrategy(modelType);
     return success(strategy);
@@ -80,6 +86,7 @@ export class McpController {
    */
   @Get('strategies')
   @ApiOperation({ summary: '获取所有调度策略' })
+  @RequireScope(AdminScope.MCP_READ)
   async getAllStrategies() {
     const strategies = await this.mcpService.getAllStrategies();
     return success(strategies);
@@ -91,6 +98,7 @@ export class McpController {
    */
   @Get('rules')
   @ApiOperation({ summary: '获取所有熔断规则' })
+  @RequireScope(AdminScope.MCP_READ)
   async getAllRules() {
     const rules = await this.mcpService.getAllRules();
     return success(rules);
@@ -103,6 +111,7 @@ export class McpController {
    */
   @Post('rule')
   @ApiOperation({ summary: '创建或更新模型规则' })
+  @RequireScope(AdminScope.MCP_WRITE)
   async upsertRule(@Body() dto: CreateMcpRuleDto) {
     const rule = await this.mcpService.upsertRule(dto.modelId, dto);
     return success(rule, '规则配置成功');
@@ -116,6 +125,7 @@ export class McpController {
    */
   @Put('rule/:modelId')
   @ApiOperation({ summary: '更新模型规则' })
+  @RequireScope(AdminScope.MCP_WRITE)
   async updateRule(
     @Param('modelId') modelId: string,
     @Body() dto: UpdateMcpRuleDto,
@@ -131,6 +141,7 @@ export class McpController {
    */
   @Get('rule/:modelId')
   @ApiOperation({ summary: '获取模型规则' })
+  @RequireScope(AdminScope.MCP_READ)
   async getRule(@Param('modelId') modelId: string) {
     const rule = await this.mcpService.getRule(modelId);
     return success(rule);
@@ -143,6 +154,7 @@ export class McpController {
    */
   @Delete('rule/:modelId')
   @ApiOperation({ summary: '删除模型规则' })
+  @RequireScope(AdminScope.MCP_WRITE)
   async deleteRule(@Param('modelId') modelId: string) {
     await this.mcpService.deleteRule(modelId);
     return success(null, '规则删除成功');
@@ -155,6 +167,7 @@ export class McpController {
    */
   @Post('circuit/reset/:modelId')
   @ApiOperation({ summary: '重置熔断状态' })
+  @RequireScope(AdminScope.MCP_WRITE)
   async resetCircuit(@Param('modelId') modelId: string) {
     const rule = await this.mcpService.resetCircuit(modelId);
     return success(rule, '熔断状态已重置');
@@ -166,6 +179,7 @@ export class McpController {
    */
   @Get('status')
   @ApiOperation({ summary: '获取所有模型状态' })
+  @RequireScope(AdminScope.MCP_READ)
   async getAllModelStatus() {
     const statuses = await this.mcpService.getAllModelStatus();
     return success(statuses);

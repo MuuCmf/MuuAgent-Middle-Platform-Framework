@@ -16,7 +16,10 @@ import { AdminService } from './admin.service';
 import { LoginDto } from './dto/login.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../common/guards/scope.guard';
+import { RequireScope } from '../common/decorators/scope.decorator';
+import { AdminScope } from '../common/constants/scope.constants';
 import { CurrentAdmin } from '../common/decorators/current-admin.decorator';
 import { Request } from 'express';
 import { success, ApiResponse } from '../common/response/api.response';
@@ -58,11 +61,12 @@ export class AdminController {
    * @returns {Promise<Object>} 创建的管理员信息
    */
   @Post()
-  @UseGuards(AdminGuard)
+  @UseGuards(CombinedAuthGuard, ScopeGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建管理员' })
   @SwaggerApiResponse({ status: 201, description: '创建成功' })
   @SwaggerApiResponse({ status: 409, description: '账号已存在' })
+  @RequireScope(AdminScope.ADMIN_WRITE)
   async create(@Body() createAdminDto: CreateAdminDto) {
     const result = await this.adminService.createAdmin(createAdminDto);
     return success(result, '创建成功');
@@ -74,7 +78,7 @@ export class AdminController {
    * @returns {Promise<Object>} 管理员信息
    */
   @Get('profile')
-  @UseGuards(AdminGuard)
+  @UseGuards(CombinedAuthGuard, ScopeGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取当前登录管理员信息' })
   @SwaggerApiResponse({ status: 200, description: '获取成功' })
@@ -89,7 +93,7 @@ export class AdminController {
    * @returns {Promise<Object>} 修改结果
    */
   @Patch('password')
-  @UseGuards(AdminGuard)
+  @UseGuards(CombinedAuthGuard, ScopeGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改密码' })
   @SwaggerApiResponse({ status: 200, description: '修改成功' })
@@ -107,10 +111,11 @@ export class AdminController {
    * @returns {Promise<Object>} 管理员列表
    */
   @Get()
-  @UseGuards(AdminGuard)
+  @UseGuards(CombinedAuthGuard, ScopeGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取管理员列表' })
   @SwaggerApiResponse({ status: 200, description: '获取成功' })
+  @RequireScope(AdminScope.ADMIN_READ)
   async findAll() {
     const result = await this.adminService.findAll();
     return success(result, '获取成功');
@@ -123,10 +128,11 @@ export class AdminController {
    * @returns {Promise<Object>} 更新后的管理员信息
    */
   @Patch(':id/status')
-  @UseGuards(AdminGuard)
+  @UseGuards(CombinedAuthGuard, ScopeGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新管理员状态' })
   @SwaggerApiResponse({ status: 200, description: '更新成功' })
+  @RequireScope(AdminScope.ADMIN_WRITE)
   async updateStatus(
     @Param('id') id: string,
     @Body('status') status: number,
@@ -141,10 +147,11 @@ export class AdminController {
    * @returns {Promise<ApiResponse<null>>}
    */
   @Delete(':id')
-  @UseGuards(AdminGuard)
+  @UseGuards(CombinedAuthGuard, ScopeGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除管理员' })
   @SwaggerApiResponse({ status: 200, description: '删除成功' })
+  @RequireScope(AdminScope.ADMIN_WRITE)
   async delete(@Param('id') id: string): Promise<ApiResponse<null>> {
     await this.adminService.delete(id);
     return success(null, '删除成功');
