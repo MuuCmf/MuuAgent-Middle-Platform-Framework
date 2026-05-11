@@ -10,12 +10,12 @@
       <ReasoningProcess 
         v-if="message.role === 'assistant' && message.reasoningSteps && message.reasoningSteps.length > 0"
         :steps="message.reasoningSteps"
-        :finalAnswer="message.content"
+        :isStreaming="isStreaming"
       />
       
       <!-- RAG消息显示 -->
       <RagAnswer
-        v-else-if="message.role === 'assistant' && message.type === 'rag'"
+        v-if="message.role === 'assistant' && message.type === 'rag'"
         :content="message.content"
         :sources="message.sources"
       />
@@ -42,21 +42,22 @@
         class="message-text"
       >{{ message.content }}</div>
       
-      <!-- AI消息：使用vue-stream-markdown渲染 -->
-      <Markdown
-        v-else
-        :content="processedContent"
-        :mode="isStreaming ? 'streaming' : 'static'"
-        :controls="markdownControls"
-        :codeOptions="codeOptions"
-        :shikiOptions="shikiOptions"
-        @copied="handleCopied"
-      />
-      
-      <!-- 流式输出时的打字光标 -->
-      <div v-if="isStreaming && message.role === 'assistant'" class="typing-cursor">
-        <span class="cursor"></span>
-      </div>
+      <!-- AI消息：使用vue-stream-markdown渲染（流式返回） -->
+      <template v-else-if="message.role === 'assistant' && !message.type">
+        <Markdown
+          :content="processedContent"
+          :mode="isStreaming ? 'streaming' : 'static'"
+          :controls="markdownControls"
+          :codeOptions="codeOptions"
+          :shikiOptions="shikiOptions"
+          @copied="handleCopied"
+        />
+        
+        <!-- 流式输出时的打字光标 -->
+        <div v-if="isStreaming" class="typing-cursor">
+          <span class="cursor"></span>
+        </div>
+      </template>
     </div>
   </div>
 </template>

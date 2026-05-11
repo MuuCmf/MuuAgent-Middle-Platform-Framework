@@ -45,6 +45,7 @@ export interface RagStreamCallbacks {
   onMessage: (content: string) => void
   onError: (error: Error) => void
   onComplete: (sources?: RetrievalItem[]) => void
+  onConversationId?: (conversationId: string) => void
 }
 
 /**
@@ -97,7 +98,7 @@ export const retrievalApi = {
     },
     callbacks: RagStreamCallbacks
   ): Promise<void> {
-    const { onMessage, onError, onComplete } = callbacks
+    const { onMessage, onError, onComplete, onConversationId } = callbacks
     const abortController = new AbortController()
     let sources: RetrievalItem[] = []
 
@@ -144,6 +145,10 @@ export const retrievalApi = {
 
             if (parsed.sources) {
               sources = parsed.sources
+            } else if (parsed.conversationId) {
+              if (onConversationId) {
+                onConversationId(parsed.conversationId)
+              }
             } else if (parsed.choices && parsed.choices[0]?.delta?.content) {
               onMessage(parsed.choices[0].delta.content)
             } else if (parsed.choices && parsed.choices[0]?.message?.content) {

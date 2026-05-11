@@ -130,7 +130,13 @@ export class AgentService {
     return { list, total, page, pageSize };
   }
 
-  async syncChat(dto: AgentChatDto, clientIp: string, uid?: string): Promise<Record<string, unknown>> {
+  /**
+   * 同步对话
+   * @param dto 对话参数
+   * @param clientIp 客户端IP
+   * @param uid 用户ID
+   */
+   async syncChat(dto: AgentChatDto, clientIp: string, uid?: string): Promise<Record<string, unknown>> {
     const startTime = Date.now();
     const agent = await this.getAgent(dto.agentId);
     const context = await this.buildExecutionContext(agent, dto, uid);
@@ -187,6 +193,10 @@ export class AgentService {
     }
   }
 
+  /**
+   * 获取智能体
+   * @param agentId 智能体ID或代码
+   */
   private async getAgent(agentId: string) {
     this.logger.log(`[AgentStream] 获取智能体: ${agentId}`);
     let agent;
@@ -213,6 +223,12 @@ export class AgentService {
     return agent;
   }
 
+  /**
+   * 构建执行上下文
+   * @param agent 智能体
+   * @param dto 对话参数
+   * @param uid 用户ID
+   */
   private async buildExecutionContext(agent: any, dto: AgentChatDto, uid?: string) {
     let model;
     
@@ -446,6 +462,17 @@ export class AgentService {
     }
   }
 
+  /**
+   * 执行默认流式模式
+   * @param agent 智能体
+   * @param context 执行上下文
+   * @param startTime 开始时间
+   * @param clientIp 客户端IP
+   * @param uid 用户ID
+   * @param callbacks 流式回调
+   * @param messages 已发送消息
+   * @param toolCallCount 已调用工具次数
+   */
   private async executeDefaultStream(
     agent: any,
     context: any,
@@ -603,6 +630,16 @@ export class AgentService {
     }
   }
 
+  /**
+   * 保存对话日志
+   * @param agent 智能体配置
+   * @param context 执行上下文
+   * @param result 对话结果
+   * @param clientIp 客户端IP
+   * @param uid 用户ID
+   * @param reasoningMode 推理模式
+   * @param startTime 开始时间
+   */
   private async saveLog(
     agent: any,
     context: any,
@@ -786,6 +823,11 @@ export class AgentService {
         finalResponse,
       );
 
+      // 新会话生成标题
+      if (context.conversationHistory.length === 0) {
+        await this.conversationService.generateTitle(context.conversationId);
+      }
+
       // 保存日志
       await this.saveLog(agent, context, { response: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
 
@@ -953,6 +995,11 @@ export class AgentService {
         'assistant',
         finalResponse,
       );
+
+      // 新会话生成标题
+      if (context.conversationHistory.length === 0) {
+        await this.conversationService.generateTitle(context.conversationId);
+      }
 
       // 保存日志
       await this.saveLog(agent, context, { response: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);

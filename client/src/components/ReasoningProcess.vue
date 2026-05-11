@@ -1,5 +1,5 @@
 <template>
-  <div class="reasoning-container">
+  <div class="reasoning-container" :class="{ streaming: isStreaming }">
     <div class="reasoning-header" @click="toggleExpand">
       <div class="reasoning-title-row">
         <span class="reasoning-brain-icon">🧠</span>
@@ -15,7 +15,7 @@
           <span class="step-number">{{ sIdx + 1 }}</span>
           <span class="step-type" :class="'type-' + step.stepType">
             <template v-if="step.stepType === 'thought'">💭 思考</template>
-            <template v-else-if="step.stepType === 'action'">⚡ {{ step.toolName || '工具调用' }}</template>
+            <template v-else-if="step.stepType === 'action'">⚡ {{ step.action || step.toolName || '工具调用' }}</template>
             <template v-else>📊 执行结果</template>
           </span>
         </div>
@@ -31,7 +31,7 @@
           </template>
           <template v-else>
             <div class="code-block">
-              <pre>{{ formatObservation(step.content || step.toolOutput) }}</pre>
+              <pre>{{ formatObservation(step.content || step.observation || step.toolOutput) }}</pre>
             </div>
           </template>
         </div>
@@ -41,15 +41,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { ReasoningStep } from '../api/reasoning'
 
 const props = defineProps<{
   steps?: ReasoningStep[]
-  finalAnswer?: string
+  isStreaming?: boolean
 }>()
 
 const isExpanded = ref(false)
+
+watch(() => props.isStreaming, (streaming) => {
+  if (streaming) {
+    isExpanded.value = true
+  } else if (props.steps && props.steps.length > 0) {
+    isExpanded.value = false
+  }
+}, { immediate: true })
 
 const toggleExpand = () => {
   isExpanded.value = !isExpanded.value
@@ -88,15 +96,24 @@ const filteredSteps = computed(() => {
   background: #ffffff;
 }
 
+.reasoning-container.streaming {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
 .reasoning-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 8px 12px;
   background: #f8fafc;
   cursor: pointer;
   user-select: none;
   transition: background 0.2s;
+}
+
+.reasoning-container.streaming .reasoning-header {
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
 }
 
 .reasoning-header:hover {
@@ -106,29 +123,29 @@ const filteredSteps = computed(() => {
 .reasoning-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .reasoning-brain-icon {
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .reasoning-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   color: #374151;
 }
 
 .step-count {
-  font-size: 12px;
+  font-size: 11px;
   color: #6b7280;
   background: #e5e7eb;
-  padding: 2px 8px;
-  border-radius: 12px;
+  padding: 1px 6px;
+  border-radius: 10px;
 }
 
 .expand-icon {
-  font-size: 12px;
+  font-size: 10px;
   color: #9ca3af;
   transition: transform 0.2s;
 }
@@ -138,15 +155,15 @@ const filteredSteps = computed(() => {
 }
 
 .reasoning-content {
-  padding: 12px 16px;
+  padding: 8px 12px;
   border-top: 1px solid #e5e7eb;
-  max-height: 400px;
+  max-height: 300px;
   overflow-y: auto;
 }
 
 .step-item {
-  margin-bottom: 12px;
-  padding-bottom: 12px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
   border-bottom: 1px solid #f3f4f6;
 }
 
@@ -159,25 +176,25 @@ const filteredSteps = computed(() => {
 .step-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 6px;
+  margin-bottom: 4px;
 }
 
 .step-number {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #6366f1;
   color: white;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
 }
 
 .step-type {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 500;
 }
 
@@ -194,8 +211,8 @@ const filteredSteps = computed(() => {
 }
 
 .step-body p {
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 11px;
+  line-height: 1.5;
   color: #4b5563;
   margin: 0;
 }
@@ -203,14 +220,14 @@ const filteredSteps = computed(() => {
 .code-block {
   background: #f8fafc;
   border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 8px 12px;
+  border-radius: 4px;
+  padding: 4px 8px;
   overflow-x: auto;
 }
 
 .code-block code,
 .code-block pre {
-  font-size: 12px;
+  font-size: 10px;
   font-family: 'Courier New', monospace;
   color: #374151;
   margin: 0;

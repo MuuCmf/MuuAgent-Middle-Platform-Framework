@@ -70,11 +70,11 @@ export const useChatStore = defineStore('chat', () => {
             },
             () => {
               isLoading.value = false
+              loadConversations()
               resolve()
             },
             (conversationId: string) => {
               currentConversationId.value = conversationId
-              loadConversations()
             }
           )
         })
@@ -96,11 +96,11 @@ export const useChatStore = defineStore('chat', () => {
             },
             () => {
               isLoading.value = false
+              loadConversations()
               resolve()
             },
             (conversationId: string) => {
               currentConversationId.value = conversationId
-              loadConversations()
             },
             (step: ReasoningStep) => {
               if (debugMode.value && messages.value[assistantIndex].reasoningSteps) {

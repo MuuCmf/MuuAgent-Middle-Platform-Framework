@@ -78,6 +78,7 @@
       />
       
       <ConversationList
+        v-if="chatMode === 'chat' || chatMode === 'rag'"
         :conversations="chatStore.conversations"
         :current-id="chatStore.currentConversationId"
         @select="handleSelectConversation"
@@ -138,6 +139,7 @@ import { ElMessage } from 'element-plus'
 import { useChatStore } from '../stores/chat'
 import { kbApi, type KbInfo } from '../api/kb'
 import { retrievalApi, type RetrievalItem } from '../api/retrieval'
+import { conversationApi } from '../api/conversation'
 import ChatMessage from '../components/ChatMessage.vue'
 import ChatInput from '../components/ChatInput.vue'
 import ModelSelector from '../components/ModelSelector.vue'
@@ -199,18 +201,49 @@ const loadKbList = async () => {
 /**
  * 处理模式切换
  */
-const handleModeChange = () => {
+const handleModeChange = async () => {
   chatStore.clearMessages()
+  chatStore.currentConversationId = null
+  chatStore.conversations = []
+
   if (chatMode.value !== 'chat' && kbList.value.length === 0) {
-    loadKbList()
+    await loadKbList()
+  }
+
+  if (chatMode.value === 'rag') {
+    await loadRagConversations()
+  } else if (chatMode.value === 'chat') {
+    await chatStore.loadConversations()
+  }
+}
+
+/**
+ * 加载RAG问答历史会话
+ */
+const loadRagConversations = async () => {
+  try {
+    const params: any = {
+      conversationType: 'kb-rag',
+      pageSize: 20,
+    }
+    if (selectedKb.value) {
+      params.targetId = selectedKb.value
+    }
+    const response = await conversationApi.getList(params)
+    chatStore.conversations = response.data.list || []
+  } catch (error) {
+    console.error('加载RAG会话列表失败:', error)
   }
 }
 
 /**
  * 处理知识库变更
  */
-const handleKbChange = () => {
+const handleKbChange = async () => {
   chatStore.clearMessages()
+  if (chatMode.value === 'rag') {
+    await loadRagConversations()
+  }
 }
 
 const handleSendMessage = async (content: string) => {
@@ -254,7 +287,8 @@ const handleRagChat = async (query: string) => {
         kbId: selectedKb.value,
         query,
         topN: topN.value,
-        similarityThresh: similarityThresh.value
+        similarityThresh: similarityThresh.value,
+        conversationId: chatStore.currentConversationId || undefined
       },
       {
         onMessage: (content: string) => {
@@ -271,6 +305,10 @@ const handleRagChat = async (query: string) => {
             chatStore.messages[assistantIndex].sources = sources
           }
           chatStore.isLoading = false
+          loadRagConversations()
+        },
+        onConversationId: (conversationId: string) => {
+          chatStore.currentConversationId = conversationId
         }
       }
     )
@@ -328,13 +366,38 @@ const handleSelectorChange = async (data: { type: 'model' | 'agent'; value: stri
 }
 
 const handleSelectConversation = async (conversationId: string) => {
-  await chatStore.switchConversation(conversationId)
-  scrollToBottom()
+  try {
+    const response = await conversationApi.getDetail(conversationId)
+    const conversation = response.data.conversation
+    const rawMessages = response.data.messages || []
+
+    chatStore.currentConversationId = conversation.id
+    chatStore.messages = rawMessages
+
+    if (conversation.conversationType === 'kb-rag') {
+      chatMode.value = 'rag'
+      selectedKb.value = conversation.targetId
+      if (kbList.value.length === 0) {
+        await loadKbList()
+      }
+    } else {
+      chatMode.value = 'chat'
+      chatStore.selectedType = conversation.conversationType as 'model' | 'agent'
+      chatStore.selectedModel = conversation.targetId
+    }
+
+    scrollToBottom()
+  } catch (error) {
+    console.error('加载会话失败:', error)
+  }
 }
 
 const handleDeleteConversation = async (conversationId: string) => {
   try {
     await chatStore.deleteConversation(conversationId)
+    if (chatMode.value === 'rag') {
+      await loadRagConversations()
+    }
     ElMessage.success('会话已删除')
   } catch (error) {
     ElMessage.error('删除失败')

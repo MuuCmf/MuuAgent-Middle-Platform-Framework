@@ -50,13 +50,9 @@ ${toolDescriptions}
 - 当用户询问时间、日期等实时信息时 → 调用 get_time 工具
 - 当需要查询知识库时 → 调用 kb_search 工具
 - 当需要执行特定技能时 → 调用相应的技能工具
+- 当需要执行 MCP 操作时 → 调用 MCP 工具
+- 内容的Thought、Action、Action Input、Final Answer都需要换行
 - 如果不需要工具就能回答问题 → 直接回答
-
-## 示例
-
-**用户问题**：现在几点了？
-**正确做法**：直接调用 get_time 工具函数
-**错误做法**：写 "Action: get_time, Action Input: {}"
 
 现在请开始回答用户的问题！`;
   }
