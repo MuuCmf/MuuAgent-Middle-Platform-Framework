@@ -64,15 +64,15 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, computed } from 'vue'
-import { User, ChatDotRound } from '@element-plus/icons-vue'
+import { User } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import type { Message } from '../api'
+import type { Message } from '../../../api'
 import ReasoningProcess from './ReasoningProcess.vue'
 import RagAnswer from './RagAnswer.vue'
 import { Markdown } from 'vue-stream-markdown'
 import type { ControlsConfig, CodeOptions, ShikiOptions } from 'vue-stream-markdown'
 import 'vue-stream-markdown/index.css'
-import '../styles/markdown.css'
+import '../../../styles/markdown.css'
 
 interface Props {
   message: Message

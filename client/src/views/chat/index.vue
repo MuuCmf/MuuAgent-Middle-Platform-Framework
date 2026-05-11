@@ -136,14 +136,14 @@
 import { onMounted, nextTick, ref, watch, computed } from 'vue'
 import { Plus, ChatDotRound } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { useChatStore } from '../stores/chat'
-import { kbApi, type KbInfo } from '../api/kb'
-import { retrievalApi, type RetrievalItem } from '../api/retrieval'
-import { conversationApi } from '../api/conversation'
-import ChatMessage from '../components/ChatMessage.vue'
-import ChatInput from '../components/ChatInput.vue'
-import ModelSelector from '../components/ModelSelector.vue'
-import ConversationList from '../components/ConversationList.vue'
+import { useChatStore } from '../../stores/chat'
+import { kbApi, type KbInfo } from '../../api/kb'
+import { retrievalApi, type RetrievalItem } from '../../api/retrieval'
+import { conversationApi } from '../../api/conversation'
+import ChatMessage from './components/ChatMessage.vue'
+import ChatInput from './components/ChatInput.vue'
+import ModelSelector from './components/ModelSelector.vue'
+import ConversationList from './components/ConversationList.vue'
 
 const chatStore = useChatStore()
 const messagesRef = ref<HTMLElement>()
