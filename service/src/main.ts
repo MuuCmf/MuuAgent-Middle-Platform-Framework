@@ -16,10 +16,9 @@ async function bootstrap(): Promise<void> {
   // 设置全局前缀
   app.setGlobalPrefix('api');
 
-  // 配置静态文件服务（/admin 路径映射到 public 目录）
-  app.useStaticAssets(join(__dirname, '..', '..', 'public'), {
-    prefix: '/admin/',
-  });
+  // 配置静态文件服务（ public 目录）
+  app.useStaticAssets(join(__dirname, '..', 'public', 'client'));
+  app.useStaticAssets(join(__dirname, '..', 'public', 'admin'), { prefix: '/admin' });
 
   // 启用CORS跨域
   app.enableCors();
@@ -32,7 +31,7 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  // SPA 路由支持：/admin 路径返回管理前端
+  // SPA 路由支持
   app.use((req: Request, res: Response, next: NextFunction) => {
     // 如果是 API 路由或静态文件，继续正常处理
     if (
@@ -48,28 +47,25 @@ async function bootstrap(): Promise<void> {
       return next();
     }
 
-    // /admin 路径返回管理前端 index.html
+    // ======================
+    // 管理端：/admin/* → 返回 admin/index.html
+    // ======================
     if (req.path.startsWith('/admin')) {
-      const indexPath = join(__dirname, '..', '..', 'public', 'index.html');
-      const fs = require('fs');
-      if (!fs.existsSync(indexPath)) {
-        return res.status(404).json({
-          statusCode: 404,
-          message: 'Admin page not found',
-          error: 'Not Found'
-        });
-      }
-      return res.sendFile(indexPath);
+      return res.sendFile(join(__dirname, '..', 'public', 'admin', 'index.html'));
     }
+
+    // ======================
+    // 用户端：其他所有 → 返回 client/index.html
+    // ======================
+    //return res.sendFile(join(__dirname, '..', 'public', 'client', 'index.html'));
 
     // 根路径返回欢迎信息
     if (req.path === '/') {
       return res.json({
         name: 'MuuAI-Middle-Platform',
-        description: 'AI模型管理 + MCP调度网关 + Skill + Agent 智能中台',
+        description: 'AI模型管理 + MCP调度网关 + Skill + Agent + RAG知识库 智能中台',
         version: '1.0.0',
         endpoints: {
-          admin: '/admin',
           api: '/api',
           docs: '/api-docs'
         }

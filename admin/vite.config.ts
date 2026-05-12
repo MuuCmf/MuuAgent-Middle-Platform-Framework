@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd())
   
   return {
-    base: '/',
+    base: './',
     plugins: [vue()],
     resolve: {
       alias: {
@@ -41,7 +41,7 @@ export default defineConfig(({ mode }) => {
       }
     },
     build: {
-      outDir: '../service/public',
+      outDir: '../service/public/admin',
       emptyOutDir: true
     }
   }
