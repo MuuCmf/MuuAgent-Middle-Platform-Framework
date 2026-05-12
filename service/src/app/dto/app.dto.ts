@@ -4,7 +4,6 @@ import {
   IsOptional,
   IsBoolean,
   IsInt,
-  IsArray,
   IsDateString,
   MaxLength,
   Min,
@@ -24,26 +23,6 @@ export class CreateAppDto {
   @IsString()
   @MaxLength(50)
   code: string;
-
-  @ApiPropertyOptional({ description: '允许使用的模型(JSON数组)', example: ['gpt-4', 'claude-3'] })
-  @IsOptional()
-  @IsArray()
-  allowedModels?: string[];
-
-  @ApiPropertyOptional({ description: '允许使用的智能体(JSON数组)' })
-  @IsOptional()
-  @IsArray()
-  allowedAgents?: string[];
-
-  @ApiPropertyOptional({ description: '允许使用的技能(JSON数组)' })
-  @IsOptional()
-  @IsArray()
-  allowedSkills?: string[];
-
-  @ApiPropertyOptional({ description: '允许访问的知识库(JSON数组)' })
-  @IsOptional()
-  @IsArray()
-  allowedKbs?: string[];
 
   @ApiPropertyOptional({ description: 'QPS限制', default: 100 })
   @IsOptional()

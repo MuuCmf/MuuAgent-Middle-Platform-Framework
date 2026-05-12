@@ -25,52 +25,6 @@
         />
       </el-form-item>
 
-      <el-divider content-position="left">资源权限配置</el-divider>
-
-      <el-form-item label="允许使用的模型">
-        <el-select
-          v-model="form.allowedModels"
-          multiple
-          filterable
-          allow-create
-          placeholder="选择或输入模型标识"
-          style="width: 100%"
-        />
-      </el-form-item>
-
-      <el-form-item label="允许使用的智能体">
-        <el-select
-          v-model="form.allowedAgents"
-          multiple
-          filterable
-          allow-create
-          placeholder="选择或输入智能体标识"
-          style="width: 100%"
-        />
-      </el-form-item>
-
-      <el-form-item label="允许使用的技能">
-        <el-select
-          v-model="form.allowedSkills"
-          multiple
-          filterable
-          allow-create
-          placeholder="选择或输入技能标识"
-          style="width: 100%"
-        />
-      </el-form-item>
-
-      <el-form-item label="允许访问的知识库">
-        <el-select
-          v-model="form.allowedKbs"
-          multiple
-          filterable
-          allow-create
-          placeholder="选择或输入知识库标识"
-          style="width: 100%"
-        />
-      </el-form-item>
-
       <el-divider content-position="left">配额限制</el-divider>
 
       <el-row :gutter="20">
@@ -168,10 +122,6 @@ const submitting = ref(false)
 const form = reactive<AppForm>({
   name: '',
   code: '',
-  allowedModels: [],
-  allowedAgents: [],
-  allowedSkills: [],
-  allowedKbs: [],
   qpsLimit: 100,
   dailyLimit: 10000,
   tokenLimit: 1000000,
@@ -209,10 +159,6 @@ watch(
         Object.assign(form, {
           name: props.app.name,
           code: props.app.code,
-          allowedModels: props.app.allowedModels || [],
-          allowedAgents: props.app.allowedAgents || [],
-          allowedSkills: props.app.allowedSkills || [],
-          allowedKbs: props.app.allowedKbs || [],
           qpsLimit: props.app.qpsLimit,
           dailyLimit: props.app.dailyLimit,
           tokenLimit: props.app.tokenLimit,
@@ -231,10 +177,6 @@ const resetForm = () => {
   Object.assign(form, {
     name: '',
     code: '',
-    allowedModels: [],
-    allowedAgents: [],
-    allowedSkills: [],
-    allowedKbs: [],
     qpsLimit: 100,
     dailyLimit: 10000,
     tokenLimit: 1000000,

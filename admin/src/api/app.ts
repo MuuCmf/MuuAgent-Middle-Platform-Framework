@@ -10,10 +10,6 @@ export interface App {
   code: string
   apiKey: string
   secretKey: string
-  allowedModels: string[] | null
-  allowedAgents: string[] | null
-  allowedSkills: string[] | null
-  allowedKbs: string[] | null
   qpsLimit: number
   dailyLimit: number
   tokenLimit: number
@@ -30,10 +26,6 @@ export interface App {
 export interface AppForm {
   name: string
   code: string
-  allowedModels?: string[]
-  allowedAgents?: string[]
-  allowedSkills?: string[]
-  allowedKbs?: string[]
   qpsLimit?: number
   dailyLimit?: number
   tokenLimit?: number
@@ -66,12 +58,31 @@ export interface AppListResponse {
  * 应用使用统计
  */
 export interface AppUsage {
+  /** 智能体数量 */
   agentCount: number
+  /** 技能数量 */
   skillCount: number
+  /** 知识库数量 */
   kbCount: number
+  /** 今日调用次数 */
   todayCalls: number
+  /** 今日Token用量 */
+  todayTokens: number
+  /** 今日输入Token用量 */
+  todayInputTokens: number
+  /** 今日输出Token用量 */
+  todayOutputTokens: number
+  /** 本月调用次数 */
   monthCalls: number
+  /** 本月Token用量 */
+  monthTokens: number
+  /** 本月输入Token用量 */
+  monthInputTokens: number
+  /** 本月输出Token用量 */
+  monthOutputTokens: number
+  /** 每日调用限制 */
   dailyLimit: number
+  /** Token配额 */
   tokenLimit: number
 }
 

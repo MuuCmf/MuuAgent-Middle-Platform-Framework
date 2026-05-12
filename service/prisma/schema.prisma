@@ -289,12 +289,6 @@ model AppTenant {
   apiKey      String   @unique /// API密钥
   secretKey   String   /// 密钥
 
-  // ===== 资源权限配置 =====
-  allowedModels String? @map("allowed_models") @db.Text /// 允许使用的模型(JSON数组): ["gpt-4", "claude-3"]
-  allowedAgents String? @map("allowed_agents") @db.Text /// 允许使用的智能体(JSON数组)
-  allowedSkills String? @map("allowed_skills") @db.Text /// 允许使用的技能(JSON数组)
-  allowedKbs    String? @map("allowed_kbs") @db.Text /// 允许访问的知识库(JSON数组)
-
   // ===== 配额限制 =====
   qpsLimit      Int      @default(100) @map("qps_limit") /// QPS限制
   dailyLimit    Int      @default(10000) @map("daily_limit") /// 每日调用限制
