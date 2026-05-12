@@ -302,6 +302,7 @@ export class AiService {
           let buffer = '';
           let tokenInfo: { inputTokens?: number; outputTokens?: number } = {};
           let finalResponse: Record<string, unknown> | null = null;
+          let accumulatedContent = '';
 
           response.data.on('data', (chunk: Buffer) => {
             const text = chunk.toString();
@@ -342,11 +343,14 @@ export class AiService {
                       const delta = parsed.choices[0].delta;
                       if (delta.content) {
                         contentToSend = delta.content;
+                        accumulatedContent += delta.content;
                       } else if (delta.reasoning_content) {
                         contentToSend = delta.reasoning_content;
+                        accumulatedContent += delta.reasoning_content;
                       }
                     } else if (parsed.choices && parsed.choices[0]?.message?.content) {
                       contentToSend = parsed.choices[0].message.content;
+                      accumulatedContent += contentToSend;
                     }
                     
                     if (contentToSend) {
@@ -367,7 +371,7 @@ export class AiService {
               finalResponse = this.mergeStreamResponses(fullResponse);
             }
 
-            const assistantMessage = finalResponse ? this.extractAssistantMessage(finalResponse) : null;
+            const assistantMessage = accumulatedContent || (finalResponse ? this.extractAssistantMessage(finalResponse) : null);
             if (assistantMessage) {
               console.log('[Stream] 保存助手消息:', assistantMessage);
               await this.conversationService.addMessage(
@@ -384,12 +388,21 @@ export class AiService {
               console.warn('[Stream] 未提取到助手消息');
             }
 
+            const logResponse = finalResponse || {};
+            if (accumulatedContent && (!logResponse.choices || !Array.isArray(logResponse.choices) || logResponse.choices.length === 0)) {
+              logResponse.choices = [{
+                index: 0,
+                message: { role: 'assistant', content: accumulatedContent },
+                finish_reason: 'stop',
+              }];
+            }
+
             await this.saveLog({
               modelId: model.id,
               modelCode: model.code,
               modelType,
               request: JSON.stringify(dto),
-              response: finalResponse ? JSON.stringify(finalResponse) : JSON.stringify(fullResponse),
+              response: JSON.stringify(logResponse),
               costMs: Date.now() - startTime,
               success: true,
               clientIp,

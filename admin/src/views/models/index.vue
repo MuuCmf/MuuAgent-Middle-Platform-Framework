@@ -206,19 +206,12 @@
                 <el-option label="Ollama (本地)" value="ollama" />
                 <el-option label="OpenAI" value="openai" />
                 <el-option label="Azure OpenAI" value="azure" />
+                <el-option label="DeepSeek" value="deepseek" />
+                <el-option label="智谱AI" value="zhipu" />
                 <el-option label="阿里云通义" value="aliyun" />
                 <el-option label="腾讯混元" value="tencent" />
-                <el-option label="字节豆包" value="doubao" />
-                <el-option label="科大讯飞星火" value="xfyun" />
-                <el-option label="华为云盘古" value="huawei" />
-                <el-option label="百川智能" value="baichuan" />
-                <el-option label="MINIMAX" value="minimax" />
-                <el-option label="智谱AI" value="zhipu" />
-                <el-option label="DeepSeek" value="deepseek" />
-                <el-option label="商汤日日新" value="sensetime" />
-                <el-option label="京东言犀" value="jd" />
                 <el-option label="火山引擎" value="volcengine" />
-                <el-option label="百度文心" value="baidu" />
+                <el-option label="MINIMAX" value="minimax" />
                 <el-option label="自定义" value="custom" />
               </el-select>
             </el-form-item>
