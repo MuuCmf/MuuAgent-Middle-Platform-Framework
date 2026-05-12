@@ -218,13 +218,19 @@ model SkillInvokeLog {
   costMs       Int      @map("cost_ms") /// 耗时(毫秒)
   clientIp     String?  @map("client_ip") /// 客户端IP
   uid          String?  /// 调用用户唯一标识(透传)
+
+  // ===== 应用隔离 =====
+  appCode      String?  @map("app_code") /// 应用标识
+
   createdAt    DateTime @default(now())
 
   skill        Skill @relation(fields: [skillId], references: [id])
+  app          AppTenant? @relation(fields: [appCode], references: [code])
 
   @@index([skillId, createdAt])
   @@index([skillCode, createdAt])
   @@index([uid, createdAt])
+  @@index([appCode, createdAt])
 }
 
 /// 智能体调用日志表 - 记录Agent对话
@@ -240,8 +246,6 @@ model AgentInvokeLog {
   errorMessage String?  @map("error_message") @db.Text /// 错误信息
   clientIp     String?  @map("client_ip") /// 客户端IP
   uid          String?  /// 调用用户唯一标识(透传)
-  inputTokens  Int?     @map("input_tokens") /// 输入token数
-  outputTokens Int?     @map("output_tokens") /// 输出token数
 
   // ===== 推理模式 =====
   reasoningMode String? @map("reasoning_mode") /// 推理模式: NONE/REACT/PLAN/REFLECT
@@ -314,6 +318,8 @@ model AppTenant {
   oauthClients  OAuthClient[]
   aiInvokeLogs  AiInvokeLog[]
   agentInvokeLogs AgentInvokeLog[]
+  skillInvokeLogs SkillInvokeLog[]
+  kbRetrievalLogs KbRetrievalLog[]
   appUsages     AppUsage[]
 
   @@index([code])
@@ -524,13 +530,19 @@ model KbRetrievalLog {
   costTime        Int      @map("cost_time") /// 检索耗时
   requestId       String   @map("request_id") /// 链路ID
   clientIp        String?  @map("client_ip") /// 客户端IP
+
+  // ===== 应用隔离 =====
+  appCode         String?  @map("app_code") /// 应用标识
+
   createdAt       DateTime @default(now())
 
   kbInfo          KbInfo   @relation(fields: [kbId], references: [id], onDelete: Cascade)
+  app             AppTenant? @relation(fields: [appCode], references: [code])
 
   @@index([kbId, createdAt])
   @@index([uid, createdAt])
   @@index([requestId])
+  @@index([appCode, createdAt])
 }
 
 /// OAuth客户端

@@ -51,8 +51,6 @@ export interface ExecutionResult {
   response: string;
   steps: ReasoningStep[];
   totalCostMs: number;
-  inputTokens?: number;
-  outputTokens?: number;
   errorMessage?: string;
   conversationId?: string;
 }

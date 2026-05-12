@@ -60,6 +60,7 @@ export class AiSdkProvider {
     clientIp?: string;
     userAgent?: string;
     uid?: string;
+    appCode?: string;
   }): Promise<{
     text: string;
     finishReason: string;
@@ -112,6 +113,7 @@ export class AiSdkProvider {
         inputTokens,
         outputTokens,
         uid: params.uid,
+        appCode: params.appCode,
       });
 
       return {
@@ -147,6 +149,7 @@ export class AiSdkProvider {
         userAgent: params.userAgent,
         errorMessage: errorMsg,
         uid: params.uid,
+        appCode: params.appCode,
       });
 
       throw error;
@@ -171,6 +174,7 @@ export class AiSdkProvider {
     clientIp?: string;
     userAgent?: string;
     uid?: string;
+    appCode?: string;
   }): Promise<void> {
     const startTime = Date.now();
     const provider = this.createProvider(params.model);
@@ -237,6 +241,7 @@ export class AiSdkProvider {
         inputTokens,
         outputTokens,
         uid: params.uid,
+        appCode: params.appCode,
       });
 
       if (finishReason === 'tool-calls' && toolCalls.length > 0 && params.onToolCall) {
@@ -283,6 +288,7 @@ export class AiSdkProvider {
         userAgent: params.userAgent,
         errorMessage: errorMsg,
         uid: params.uid,
+        appCode: params.appCode,
       });
 
       if (params.onError) {
@@ -345,6 +351,7 @@ export class AiSdkProvider {
     inputTokens?: number;
     outputTokens?: number;
     uid?: string;
+    appCode?: string;
   }): Promise<void> {
     try {
       await this.prisma.aiInvokeLog.create({
@@ -362,6 +369,7 @@ export class AiSdkProvider {
           inputTokens: data.inputTokens,
           outputTokens: data.outputTokens,
           uid: data.uid,
+          appCode: data.appCode,
         },
       });
     } catch (error) {

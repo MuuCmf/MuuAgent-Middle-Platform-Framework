@@ -235,6 +235,7 @@ export class SkillService {
         costMs: Date.now() - startTime,
         success,
         errorMessage,
+        appCode: context?.appCode || skill.appCode,
       },
     });
 

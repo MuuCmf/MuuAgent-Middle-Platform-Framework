@@ -4,7 +4,6 @@ import { AiService } from './ai.service';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
-import { AppUsageService } from '../common/services/app-usage.service';
 import {
   AiInvokeDto,
   EmbeddingDto,
@@ -27,11 +26,9 @@ export class AiController {
   /**
    * 构造函数
    * @param aiService AI服务
-   * @param appUsageService 应用使用量服务
    */
   constructor(
     private readonly aiService: AiService,
-    private readonly appUsageService: AppUsageService,
   ) {}
 
   /**
@@ -58,11 +55,6 @@ export class AiController {
     const uid = this.extractUid(req, dto);
     const appCode = (req as any).appCode;
     const result = await this.aiService.invoke(dto, clientIp, userAgent, uid, appCode);
-    
-    if (appCode && result.inputTokens && result.outputTokens) {
-      await this.appUsageService.incrementTokenCount(appCode, result.inputTokens as number, result.outputTokens as number);
-    }
-    
     return success(result);
   }
 
@@ -98,7 +90,8 @@ export class AiController {
     const clientIp = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || '';
     const uid = this.extractUid(req, dto);
-    const result = await this.aiService.imageGenerate(dto, clientIp, userAgent, uid);
+    const appCode = (req as any).appCode;
+    const result = await this.aiService.imageGenerate(dto, clientIp, userAgent, uid, appCode);
     return success(result);
   }
 }

@@ -36,8 +36,8 @@ export class RateLimitGuard implements CanActivate {
     // 获取请求路径
     const path = request.route?.path || request.path;
 
-    // 获取应用标识（从header或query中获取）
-    const appCode = request.headers['x-app-code'] || request.query.appCode;
+    // 获取应用标识（由 TenantGuard 从 x-api-key 解析后设置到 request.appCode）
+    const appCode = request.appCode;
 
     // 收集命中的规则ID，供拦截器释放并发计数
     const ruleIds: string[] = [];
@@ -68,8 +68,9 @@ export class RateLimitGuard implements CanActivate {
       }
 
       // 2. 应用级限流检查
+      let appResult: any = null;
       if (appCode) {
-        const appResult = await this.rateLimitService.checkRateLimit(
+        appResult = await this.rateLimitService.checkRateLimit(
           RateLimitLevel.APP,
           appCode,
           clientIp,
@@ -115,10 +116,10 @@ export class RateLimitGuard implements CanActivate {
         ruleIds.push(interfaceResult.ruleId);
       }
 
-      // 设置限流信息到请求对象
+      // 设置限流信息到请求对象（复用已有的检查结果，避免重复调用导致并发计数器泄漏）
       request.rateLimit = {
         global: globalResult,
-        app: appCode ? await this.rateLimitService.checkRateLimit(RateLimitLevel.APP, appCode, clientIp) : null,
+        app: appResult || null,
         interface: interfaceResult,
       };
 

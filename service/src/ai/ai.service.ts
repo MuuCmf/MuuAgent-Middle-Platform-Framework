@@ -397,6 +397,7 @@ export class AiService {
               inputTokens: tokenInfo.inputTokens,
               outputTokens: tokenInfo.outputTokens,
               uid,
+              appCode,
             });
 
             await this.mcpService.releaseConcurrency(model.id);
@@ -439,6 +440,7 @@ export class AiService {
     clientIp: string,
     userAgent: string,
     uid?: string,
+    appCode?: string,
   ): Promise<Record<string, unknown>> {
     const startTime = Date.now();
     const modelType = dto.modelType || 'embedding';
@@ -488,6 +490,7 @@ export class AiService {
         inputTokens: tokenInfo.inputTokens,
         outputTokens: tokenInfo.outputTokens,
         uid,
+        appCode,
       });
 
       return response.data;
@@ -545,6 +548,7 @@ export class AiService {
     clientIp: string,
     userAgent: string,
     uid?: string,
+    appCode?: string,
   ): Promise<Record<string, unknown>> {
     const startTime = Date.now();
     const modelType = dto.modelType || 'image';
@@ -591,6 +595,7 @@ export class AiService {
         inputTokens: tokenInfo.inputTokens,
         outputTokens: tokenInfo.outputTokens,
         uid,
+        appCode,
       });
 
       return response.data;

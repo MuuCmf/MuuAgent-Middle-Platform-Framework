@@ -195,7 +195,7 @@ export class AgentService {
 
     if (reasoningMode === ReasoningMode.NONE) {
       this.logger.log(`[AgentStream] 执行默认流式模式`);
-      await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks);
+      await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks, undefined, 0, appCode);
     } else {
       this.logger.log(`[AgentStream] 执行 Function Calling + ReAct 协同架构`);
       await this.executeReActWithFunctionCalling(
@@ -443,6 +443,7 @@ export class AgentService {
         clientIp,
         userAgent: 'agent-service',
         uid,
+        appCode,
       });
 
       await this.conversationService.addMessage(
@@ -478,6 +479,7 @@ export class AgentService {
           clientIp,
           uid,
           reasoningMode: ReasoningMode.NONE,
+          appCode,
         },
       });
 
@@ -510,6 +512,7 @@ export class AgentService {
     callbacks: StreamCallbacks,
     messages?: ModelMessage[],
     toolCallCount: number = 0,
+    appCode?: string,
   ): Promise<void> {
     const maxToolCalls = 3;
     
@@ -541,6 +544,7 @@ export class AgentService {
         clientIp,
         userAgent: 'agent-service',
         uid,
+        appCode,
         onChunk: (chunk) => {
           this.logger.debug(`[executeDefaultStream] 收到 chunk: ${chunk.substring(0, 50)}...`);
           callbacks.onChunk?.(chunk);
@@ -563,7 +567,7 @@ export class AgentService {
               await this.conversationService.generateTitle(context.conversationId);
             }
 
-            await this.saveLog(agent, context, { text: result.text }, clientIp, uid, ReasoningMode.NONE, startTime);
+            await this.saveLog(agent, context, { text: result.text }, clientIp, uid, ReasoningMode.NONE, startTime, appCode);
             callbacks.onDone?.({
               success: true,
               response: result.text || '',
@@ -604,7 +608,7 @@ export class AgentService {
                 },
               ];
 
-              await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks, newMessages, toolCallCount + 1);
+              await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks, newMessages, toolCallCount + 1, appCode);
             } catch (error) {
               const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
               this.logger.error(`[executeDefaultStream] 工具执行失败: ${errorMsg}`);
@@ -615,7 +619,7 @@ export class AgentService {
                 result: `工具执行失败: ${errorMsg}`,
               });
 
-              await this.saveLog(agent, context, { text: `抱歉，工具执行失败: ${errorMsg}` }, clientIp, uid, ReasoningMode.NONE, startTime);
+              await this.saveLog(agent, context, { text: `抱歉，工具执行失败: ${errorMsg}` }, clientIp, uid, ReasoningMode.NONE, startTime, appCode);
               callbacks.onDone?.({
                 success: false,
                 response: `抱歉，工具执行失败: ${errorMsg}`,
@@ -637,7 +641,7 @@ export class AgentService {
               await this.conversationService.generateTitle(context.conversationId);
             }
 
-            await this.saveLog(agent, context, { text: finalResponse }, clientIp, uid, ReasoningMode.NONE, startTime);
+            await this.saveLog(agent, context, { text: finalResponse }, clientIp, uid, ReasoningMode.NONE, startTime, appCode);
             callbacks.onDone?.({
               success: true,
               response: finalResponse,
@@ -758,6 +762,7 @@ export class AgentService {
           clientIp,
           userAgent: 'agent-service',
           uid,
+          appCode,
           onChunk: (chunk) => {
             stepText += chunk;
             callbacks.onChunk?.(chunk);
@@ -931,6 +936,7 @@ export class AgentService {
           clientIp,
           userAgent: 'agent-service',
           uid,
+          appCode,
         });
 
         const stepText = result.text;

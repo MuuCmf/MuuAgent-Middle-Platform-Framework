@@ -394,8 +394,6 @@ export class LogService {
       response: log.agentResponse,
       costMs: log.totalCostMs,
       userAgent: undefined,
-      inputTokens: log.inputTokens,
-      outputTokens: log.outputTokens,
     }));
 
     return { list, total, page, pageSize };
@@ -434,8 +432,6 @@ export class LogService {
       response: log.agentResponse,
       costMs: log.totalCostMs,
       userAgent: undefined,
-      inputTokens: log.inputTokens,
-      outputTokens: log.outputTokens,
     };
   }
 

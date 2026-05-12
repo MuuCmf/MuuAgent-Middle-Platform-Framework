@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { AppUsageService } from '../common/services/app-usage.service';
 import { CreateAppDto, UpdateAppDto, QueryAppDto, ResetSecretDto } from './dto/app.dto';
 import { randomUUID } from 'crypto';
 
@@ -21,7 +22,10 @@ export class AppService {
    * 构造函数
    * @param prisma Prisma服务
    */
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private appUsageService: AppUsageService,
+  ) {}
 
   /**
    * 创建应用
@@ -257,40 +261,34 @@ export class AppService {
       agentCount,
       skillCount,
       kbCount,
-      todayAiLogs,
-      todayAgentLogs,
-      monthAiLogs,
-      monthAgentLogs,
+      todayUsage,
+      monthUsage,
+      todayTokens,
+      monthTokens,
     ] = await Promise.all([
       this.prisma.agent.count({ where: { appCode: app.code } }),
       this.prisma.skill.count({ where: { appCode: app.code } }),
       this.prisma.kbInfo.count({ where: { appCode: app.code } }),
-      this.prisma.aiInvokeLog.count({
-        where: { appCode: app.code, createdAt: { gte: today } },
+      this.prisma.appUsage.findUnique({
+        where: { appCode_date: { appCode: app.code, date: today } },
       }),
-      this.prisma.agentInvokeLog.count({
-        where: { appCode: app.code, createdAt: { gte: today } },
-      }),
-      this.prisma.aiInvokeLog.count({
-        where: {
-          appCode: app.code,
-          createdAt: { gte: new Date(today.getFullYear(), today.getMonth(), 1) },
-        },
-      }),
-      this.prisma.agentInvokeLog.count({
-        where: {
-          appCode: app.code,
-          createdAt: { gte: new Date(today.getFullYear(), today.getMonth(), 1) },
-        },
-      }),
+      this.appUsageService.getMonthlyUsage(app.code),
+      this.appUsageService.getTokenUsageFromLogs(app.code, today),
+      this.appUsageService.getTokenUsageFromLogs(app.code, new Date(today.getFullYear(), today.getMonth(), 1)),
     ]);
 
     return {
       agentCount,
       skillCount,
       kbCount,
-      todayCalls: todayAiLogs + todayAgentLogs,
-      monthCalls: monthAiLogs + monthAgentLogs,
+      todayCalls: todayUsage?.callCount || 0,
+      todayTokens: todayTokens.inputTokens + todayTokens.outputTokens,
+      todayInputTokens: todayTokens.inputTokens,
+      todayOutputTokens: todayTokens.outputTokens,
+      monthCalls: monthUsage.callCount,
+      monthTokens: monthTokens.inputTokens + monthTokens.outputTokens,
+      monthInputTokens: monthTokens.inputTokens,
+      monthOutputTokens: monthTokens.outputTokens,
       dailyLimit: app.dailyLimit,
       tokenLimit: app.tokenLimit,
     };

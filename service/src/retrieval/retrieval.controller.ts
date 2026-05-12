@@ -6,7 +6,6 @@ import { RagChatDto } from './dto/rag-chat.dto';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
-import { AppUsageService } from '../common/services/app-usage.service';
 import { extractIsolationContext } from '../common/utils/isolation.util';
 import { success } from '../common/response/api.response';
 import type { Response, Request } from 'express';
@@ -27,7 +26,6 @@ export class RetrievalController {
    */
   constructor(
     private readonly retrievalService: RetrievalService,
-    private readonly appUsageService: AppUsageService,
   ) {}
 
   /**
@@ -41,14 +39,8 @@ export class RetrievalController {
   @ApiResponse({ status: 200, description: '检索成功' })
   @ApiResponse({ status: 404, description: '知识库不存在或未启用' })
   async retrieval(@Body() dto: RetrievalDto, @Req() req: Request) {
-    const appCode = (req as any).appCode;
     const context = extractIsolationContext(req);
     const result = await this.retrievalService.retrieval(dto, context);
-    
-    if (appCode) {
-      await this.appUsageService.incrementCallCount(appCode);
-    }
-    
     return success(result, '检索成功');
   }
 
@@ -63,14 +55,8 @@ export class RetrievalController {
   @ApiResponse({ status: 200, description: '问答成功' })
   @ApiResponse({ status: 404, description: '知识库不存在或未启用' })
   async ragChat(@Body() dto: RagChatDto, @Req() req: Request) {
-    const appCode = (req as any).appCode;
     const context = extractIsolationContext(req);
     const result = await this.retrievalService.ragChat(dto, context);
-    
-    if (appCode) {
-      await this.appUsageService.incrementCallCount(appCode);
-    }
-    
     return success(result, 'RAG问答成功');
   }
 
@@ -85,7 +71,6 @@ export class RetrievalController {
   @ApiResponse({ status: 200, description: '问答成功' })
   @ApiResponse({ status: 404, description: '知识库不存在或未启用' })
   async ragChatStream(@Body() dto: RagChatDto, @Req() req: Request, @Res() res: Response) {
-    const appCode = (req as any).appCode;
     const context = extractIsolationContext(req);
     
     res.status(200);
@@ -109,9 +94,6 @@ export class RetrievalController {
           res.end();
         },
         complete: () => {
-          if (appCode) {
-            this.appUsageService.incrementCallCount(appCode).catch(console.error);
-          }
           res.write(`data: [DONE]\n\n`);
           res.end();
         },

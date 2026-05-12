@@ -132,6 +132,7 @@ export class RetrievalService {
           results: this.formatResultsForLog(cachedResult.list),
           costTime,
           requestId,
+          appCode: context?.appCode || kb.appCode,
         },
       });
       return { ...cachedResult, costTime, cacheHit: true };
@@ -159,6 +160,7 @@ export class RetrievalService {
           results: this.formatResultsForLog(bm25Results),
           costTime,
           requestId,
+          appCode: context?.appCode || kb.appCode,
         },
       });
 
@@ -211,6 +213,7 @@ export class RetrievalService {
           results: this.formatResultsForLog(bm25Results),
           costTime,
           requestId,
+          appCode: context?.appCode || kb.appCode,
         },
       });
 
@@ -262,6 +265,7 @@ export class RetrievalService {
           results: this.formatResultsForLog(bm25Results),
           costTime,
           requestId,
+          appCode: context?.appCode || kb.appCode,
         },
       });
 
@@ -320,6 +324,7 @@ export class RetrievalService {
         results: this.formatResultsForLog(finalResults),
         costTime,
         requestId,
+        appCode: context?.appCode || kb.appCode,
       },
     });
 
@@ -438,6 +443,7 @@ export class RetrievalService {
           results: null,
           costTime: Date.now() - startTime,
           requestId,
+          appCode: isolationContext?.appCode || kb.appCode,
         },
       });
 
@@ -502,6 +508,7 @@ export class RetrievalService {
         results: this.formatResultsForLog(topSources),
         costTime,
         requestId,
+        appCode: isolationContext?.appCode || kb.appCode,
       },
     });
 
@@ -767,6 +774,7 @@ export class RetrievalService {
               results: this.formatResultsForLog(topSources),
               costTime,
               requestId,
+              appCode: isolationContext?.appCode || kb.appCode,
             },
           });
           
