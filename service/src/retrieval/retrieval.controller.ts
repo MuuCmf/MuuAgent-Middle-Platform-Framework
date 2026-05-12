@@ -1,10 +1,11 @@
-import { Controller, Post, Body, UseGuards, Res, Req } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, UseInterceptors, Res, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { RetrievalService } from './retrieval.service';
 import { RetrievalDto } from './dto/retrieval.dto';
 import { RagChatDto } from './dto/rag-chat.dto';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
+import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
 import { AppUsageService } from '../common/services/app-usage.service';
 import { extractIsolationContext } from '../common/utils/isolation.util';
 import { success } from '../common/response/api.response';
@@ -17,6 +18,7 @@ import type { Response, Request } from 'express';
 @ApiTags('知识库（业务端）')
 @ApiBearerAuth()
 @UseGuards(TenantGuard, RateLimitGuard)
+@UseInterceptors(RateLimitInterceptor)
 export class RetrievalController {
   /**
    * 构造函数

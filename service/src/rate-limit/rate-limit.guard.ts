@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { RateLimitService, RateLimitLevel } from './rate-limit.service';
 
+/** 限流检查中命中的规则ID列表，存放到 request.rateLimitRuleIds */
+
 /**
  * 限流守卫
  * 在请求到达控制器前进行限流检查
@@ -37,6 +39,10 @@ export class RateLimitGuard implements CanActivate {
     // 获取应用标识（从header或query中获取）
     const appCode = request.headers['x-app-code'] || request.query.appCode;
 
+    // 收集命中的规则ID，供拦截器释放并发计数
+    const ruleIds: string[] = [];
+    request.rateLimitRuleIds = ruleIds;
+
     try {
       // 1. 全局限流检查
       const globalResult = await this.rateLimitService.checkRateLimit(
@@ -55,6 +61,10 @@ export class RateLimitGuard implements CanActivate {
           },
           HttpStatus.TOO_MANY_REQUESTS,
         );
+      }
+
+      if (globalResult.ruleId) {
+        ruleIds.push(globalResult.ruleId);
       }
 
       // 2. 应用级限流检查
@@ -76,6 +86,10 @@ export class RateLimitGuard implements CanActivate {
             HttpStatus.TOO_MANY_REQUESTS,
           );
         }
+
+        if (appResult.ruleId) {
+          ruleIds.push(appResult.ruleId);
+        }
       }
 
       // 3. 接口级限流检查
@@ -95,6 +109,10 @@ export class RateLimitGuard implements CanActivate {
           },
           HttpStatus.TOO_MANY_REQUESTS,
         );
+      }
+
+      if (interfaceResult.ruleId) {
+        ruleIds.push(interfaceResult.ruleId);
       }
 
       // 设置限流信息到请求对象

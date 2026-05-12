@@ -9,6 +9,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
   Res,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
@@ -19,6 +20,7 @@ import { AdminScope } from "../common/constants/scope.constants";
 import { RequireScope } from "../common/decorators/scope.decorator";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { RateLimitGuard } from "../rate-limit/rate-limit.guard";
+import { RateLimitInterceptor } from "../rate-limit/rate-limit.interceptor";
 import { AppUsageService } from "../common/services/app-usage.service";
 import { extractIsolationContext, IsolationContext } from "../common/utils/isolation.util";
 import {
@@ -93,6 +95,7 @@ export class AgentAdminController {
 @ApiTags("智能体 (业务端)")
 @ApiBearerAuth("api-key")
 @UseGuards(TenantGuard, RateLimitGuard)
+@UseInterceptors(RateLimitInterceptor)
 @Controller("agent")
 export class AgentController {
   constructor(

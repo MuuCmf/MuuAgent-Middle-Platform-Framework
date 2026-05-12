@@ -9,6 +9,7 @@ import {
   Query,
   ParseUUIDPipe,
   UseGuards,
+  UseInterceptors,
   Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
@@ -23,6 +24,7 @@ import { AdminScope } from '../common/constants/scope.constants';
 import { RequireScope } from '../common/decorators/scope.decorator';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
+import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
 import { extractIsolationContext } from '../common/utils/isolation.util';
 import { success, page } from '../common/response/api.response';
 import { Request } from 'express';
@@ -32,6 +34,7 @@ import { Request } from 'express';
  */
 @ApiTags('会话管理（业务端）')
 @UseGuards(TenantGuard, RateLimitGuard)
+@UseInterceptors(RateLimitInterceptor)
 @Controller('conversation')
 export class ConversationController {
   /**

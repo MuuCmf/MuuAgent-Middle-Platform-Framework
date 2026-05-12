@@ -1,8 +1,9 @@
-import { Controller, Post, Body, Req, Sse, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Req, Sse, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AiService } from './ai.service';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
+import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
 import { AppUsageService } from '../common/services/app-usage.service';
 import {
   AiInvokeDto,
@@ -20,6 +21,7 @@ import { Request } from 'express';
 @ApiTags('模型（业务端）')
 @ApiBearerAuth('api-key')
 @UseGuards(TenantGuard, RateLimitGuard)
+@UseInterceptors(RateLimitInterceptor)
 @Controller('ai')
 export class AiController {
   /**

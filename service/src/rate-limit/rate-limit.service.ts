@@ -21,6 +21,7 @@ export interface RateLimitResult {
   currentQps?: number;
   currentConcurrent?: number;
   remainingQuota?: number;
+  ruleId?: string;
 }
 
 /**
@@ -75,6 +76,7 @@ export class RateLimitService {
       return {
         allowed: false,
         reason: 'IP已被封禁',
+        ruleId: rule.id,
       };
     }
 
@@ -87,6 +89,7 @@ export class RateLimitService {
         allowed: false,
         reason: '已超过每日调用限额',
         remainingQuota: 0,
+        ruleId: rule.id,
       };
     }
 
@@ -94,7 +97,7 @@ export class RateLimitService {
     if (rule.concurrentLimit > 0) {
       const concurrentResult = await this.checkConcurrent(rule.id, rule.concurrentLimit);
       if (!concurrentResult.allowed) {
-        return concurrentResult;
+        return { ...concurrentResult, ruleId: rule.id };
       }
     }
 
@@ -102,7 +105,7 @@ export class RateLimitService {
     if (rule.qpsLimit > 0) {
       const qpsResult = await this.checkQps(rule.id, rule.qpsLimit, rule.burstSize);
       if (!qpsResult.allowed) {
-        return qpsResult;
+        return { ...qpsResult, ruleId: rule.id };
       }
     }
 
@@ -114,6 +117,7 @@ export class RateLimitService {
       currentQps: counter.currentQps,
       currentConcurrent: counter.currentConcurrent,
       remainingQuota: rule.dailyLimit > 0 ? rule.dailyLimit - counter.todayCount - 1 : undefined,
+      ruleId: rule.id,
     };
   }
 
