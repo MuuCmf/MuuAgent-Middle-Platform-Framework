@@ -6,7 +6,7 @@ import { ModelService } from '../model/model.service';
 import { AgentKbService } from './agent-kb.service';
 import { KbSearchTool } from './tools/kb-search.tool';
 import { ToolExecutor, ToolCall, ToolExecutionResult } from './tools/tool-executor';
-import { ToolDefinitionBuilder, FunctionToolDefinition } from './tools/tool-definitions';
+import { ToolDefinitionBuilder, FunctionToolDefinition, BUILTIN_TOOL_DEFINITIONS } from './tools/tool-definitions';
 import { ReasoningMode, ExecutionResult, ToolDefinition } from './react/react.types';
 import { ReActPromptBuilder } from './react/react.prompt';
 import { PromptTemplateService } from '../prompt-template/prompt-template.service';
@@ -358,6 +358,17 @@ export class AgentService {
       }
     }
 
+    for (const [name, def] of Object.entries(BUILTIN_TOOL_DEFINITIONS)) {
+      if (!tools.some(t => t.name === name)) {
+        tools.push({
+          name: def.function.name,
+          description: def.function.description,
+          parameters: def.function.parameters as Record<string, any>,
+          type: 'builtin',
+        });
+      }
+    }
+
     let templateCode = agent.promptTemplateCode;
     
     if (!templateCode) {
@@ -554,83 +565,97 @@ export class AgentService {
           toolCallToExecute = toolCall;
         },
         onFinish: async (result) => {
-          this.logger.log(`[executeDefaultStream] 收到 finish，text length: ${result.text?.length || 0}`);
-          
+          this.logger.log(`[executeDefaultStream] 收到 finish，text length: ${result.text?.length || 0}, toolCallToExecute: ${toolCallToExecute?.name || 'none'}`);
+
+          const isFunctionCallText = this.aiSdkProvider.containsFunctionCallMarkers(result.text || '');
+          const hasToolCall = toolCallToExecute || isFunctionCallText;
+
+          if (hasToolCall && toolCallCount < maxToolCalls) {
+            const toolCall = toolCallToExecute || this.aiSdkProvider.parseTextAction(result.text || '');
+
+            if (toolCall) {
+              try {
+                const toolResult = await this.toolExecutor.executeToolCall(
+                  {
+                    id: `tc_${Date.now()}`,
+                    function: {
+                      name: toolCall.name,
+                      arguments: JSON.stringify(toolCall.args),
+                    },
+                  },
+                  { agent: context.agent, conversationId: context.conversationId, uid },
+                );
+
+                callbacks.onToolCall?.({
+                  name: toolCall.name,
+                  args: toolCall.args,
+                  result: toolResult.result,
+                });
+
+                const resultText = typeof toolResult.result === 'object' ? JSON.stringify(toolResult.result, null, 2) : String(toolResult.result);
+
+                const newMessages: ModelMessage[] = [
+                  ...currentMessages,
+                  {
+                    role: 'assistant' as const,
+                    content: `Action: ${toolCall.name}\nAction Input: ${JSON.stringify(toolCall.args)}\nObservation: ${resultText}`,
+                  },
+                  {
+                    role: 'user' as const,
+                    content: `请基于工具返回结果用自然语言回答用户问题。工具返回: ${resultText}`,
+                  },
+                ];
+
+                await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks, newMessages, toolCallCount + 1, appCode);
+              } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
+                this.logger.error(`[executeDefaultStream] 工具执行失败: ${errorMsg}`);
+
+                callbacks.onToolCall?.({
+                  name: toolCall.name,
+                  args: toolCall.args,
+                  result: `工具执行失败: ${errorMsg}`,
+                });
+
+                await this.saveLog(agent, context, { text: `抱歉，工具执行失败: ${errorMsg}` }, clientIp, uid, ReasoningMode.NONE, startTime, appCode);
+                callbacks.onDone?.({
+                  success: false,
+                  response: `抱歉，工具执行失败: ${errorMsg}`,
+                  steps: [],
+                  totalCostMs: Date.now() - startTime,
+                  conversationId: context.conversationId,
+                });
+              }
+              return;
+            }
+          }
+
           if (result.text && result.text.length > 0) {
-            await this.conversationService.addMessage(
-              context.conversationId,
-              'assistant',
-              result.text,
-            );
+            const cleanText = this.aiSdkProvider.stripFunctionCallMarkers(result.text);
+
+            if (cleanText) {
+              await this.conversationService.addMessage(
+                context.conversationId,
+                'assistant',
+                cleanText,
+              );
+            }
 
             if (context.conversationHistory.length === 0 && !messages) {
               await this.conversationService.generateTitle(context.conversationId);
             }
 
-            await this.saveLog(agent, context, { text: result.text }, clientIp, uid, ReasoningMode.NONE, startTime, appCode);
+            await this.saveLog(agent, context, { text: cleanText || result.text }, clientIp, uid, ReasoningMode.NONE, startTime, appCode);
             callbacks.onDone?.({
               success: true,
-              response: result.text || '',
+              response: cleanText || '',
               steps: [],
               totalCostMs: Date.now() - startTime,
               conversationId: context.conversationId,
             });
-          } else if (toolCallToExecute && toolCallCount < maxToolCalls) {
-            try {
-              const toolResult = await this.toolExecutor.executeToolCall(
-                {
-                  id: `tc_${Date.now()}`,
-                  function: {
-                    name: toolCallToExecute.name,
-                    arguments: JSON.stringify(toolCallToExecute.args),
-                  },
-                },
-                { agent: context.agent, conversationId: context.conversationId, uid },
-              );
-              
-              callbacks.onToolCall?.({
-                name: toolCallToExecute.name,
-                args: toolCallToExecute.args,
-                result: toolResult.result,
-              });
-
-              const resultText = typeof toolResult.result === 'object' ? JSON.stringify(toolResult.result, null, 2) : String(toolResult.result);
-              
-              const newMessages: ModelMessage[] = [
-                ...currentMessages,
-                { 
-                  role: 'assistant' as const, 
-                  content: `Action: ${toolCallToExecute.name}\nAction Input: ${JSON.stringify(toolCallToExecute.args)}\nObservation: ${resultText}` 
-                },
-                { 
-                  role: 'user' as const, 
-                  content: `请基于工具返回结果用自然语言回答用户问题。工具返回: ${resultText}` 
-                },
-              ];
-
-              await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks, newMessages, toolCallCount + 1, appCode);
-            } catch (error) {
-              const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
-              this.logger.error(`[executeDefaultStream] 工具执行失败: ${errorMsg}`);
-              
-              callbacks.onToolCall?.({
-                name: toolCallToExecute.name,
-                args: toolCallToExecute.args,
-                result: `工具执行失败: ${errorMsg}`,
-              });
-
-              await this.saveLog(agent, context, { text: `抱歉，工具执行失败: ${errorMsg}` }, clientIp, uid, ReasoningMode.NONE, startTime, appCode);
-              callbacks.onDone?.({
-                success: false,
-                response: `抱歉，工具执行失败: ${errorMsg}`,
-                steps: [],
-                totalCostMs: Date.now() - startTime,
-                conversationId: context.conversationId,
-              });
-            }
           } else {
             const finalResponse = result.text || '抱歉，我无法回答您的问题。';
-            
+
             await this.conversationService.addMessage(
               context.conversationId,
               'assistant',

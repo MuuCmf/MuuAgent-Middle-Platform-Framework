@@ -202,13 +202,42 @@ export class AiSdkProvider {
       let finishReason: string | undefined;
       let usage: any;
       let toolCalls: any[] = [];
+      let chunkBuffer = '';
+
+      const FUNCTION_CALL_BEGIN = '<|FunctionCallBegin|>';
+      const FUNCTION_CALL_END = '<|FunctionCallEnd|>';
 
       for await (const part of streamResult.fullStream) {
         this.logger.debug(`stream part: type=${part.type}`);
         if (part.type === 'text-delta' && params.onChunk) {
           fullText += part.text;
           this.logger.debug(`text-delta: "${part.text}"`);
-          params.onChunk(part.text);
+
+          chunkBuffer += part.text;
+
+          if (chunkBuffer.includes(FUNCTION_CALL_BEGIN)) {
+            const beginIdx = chunkBuffer.indexOf(FUNCTION_CALL_BEGIN);
+            const beforeMarker = chunkBuffer.substring(0, beginIdx);
+            if (beforeMarker) {
+              params.onChunk(beforeMarker);
+            }
+
+            if (chunkBuffer.includes(FUNCTION_CALL_END)) {
+              const endIdx = chunkBuffer.indexOf(FUNCTION_CALL_END) + FUNCTION_CALL_END.length;
+              const afterMarker = chunkBuffer.substring(endIdx);
+              chunkBuffer = '';
+              if (afterMarker) {
+                params.onChunk(afterMarker);
+              }
+            }
+          } else {
+            const safeLength = Math.max(0, chunkBuffer.length - FUNCTION_CALL_BEGIN.length);
+            if (safeLength > 0) {
+              const safeText = chunkBuffer.substring(0, safeLength);
+              chunkBuffer = chunkBuffer.substring(safeLength);
+              params.onChunk(safeText);
+            }
+          }
         } else if (part.type === 'tool-call') {
           toolCalls.push(part);
           this.logger.debug(`tool call detected: ${JSON.stringify(part)}`);
@@ -219,6 +248,14 @@ export class AiSdkProvider {
           usage = part.totalUsage;
           this.logger.debug(`stream finish: finishReason=${finishReason}`);
         }
+      }
+
+      if (chunkBuffer && params.onChunk) {
+        const remaining = this.stripFunctionCallMarkers(chunkBuffer);
+        if (remaining) {
+          params.onChunk(remaining);
+        }
+        chunkBuffer = '';
       }
 
       this.logger.debug(`stream 完成: fullText.length=${fullText.length}, toolCalls.length=${toolCalls.length}`);
@@ -298,12 +335,31 @@ export class AiSdkProvider {
   }
 
   /**
-   * 解析文本格式的 Action/Action Input
-   * 用于支持不支持 Function Calling 的模型
+   * 解析文本格式的工具调用
+   * 支持三种格式：
+   * 1. ReAct 格式：Action: xxx / Action Input: xxx
+   * 2. 豆包格式：<|FunctionCallBegin|>[{"name":"xxx","parameters":{}}]<|FunctionCallEnd|>
+   * 3. 通用 JSON 格式：[{"name":"xxx","arguments":{}}]
    * @param text 模型输出的文本
    * @returns 工具调用信息或 null
    */
-  private parseTextAction(text: string): { name: string; args: any } | null {
+  parseTextAction(text: string): { name: string; args: any } | null {
+    const functionCallMatch = text.match(/<\|FunctionCallBegin\|>([\s\S]*?)<\|FunctionCallEnd\|>/);
+    if (functionCallMatch) {
+      try {
+        const calls = JSON.parse(functionCallMatch[1].trim());
+        if (Array.isArray(calls) && calls.length > 0) {
+          const call = calls[0];
+          return {
+            name: call.name,
+            args: call.parameters || call.arguments || call.args || {},
+          };
+        }
+      } catch (e) {
+        this.logger.debug(`解析 FunctionCallBegin 格式失败: ${functionCallMatch[1]}`);
+      }
+    }
+
     const actionMatch = text.match(/Action:\s*([^\n]+)/i);
     const actionInputMatch = text.match(/Action\s*Input:\s*(\{[\s\S]*?\}|\[.*?\]|"[^"]*"|[^,\n]+)/i);
 
@@ -331,6 +387,24 @@ export class AiSdkProvider {
     }
 
     return null;
+  }
+
+  /**
+   * 检测文本中是否包含函数调用标记
+   * @param text 模型输出的文本
+   * @returns {boolean} 是否包含函数调用标记
+   */
+  containsFunctionCallMarkers(text: string): boolean {
+    return /<\|FunctionCallBegin\|>/.test(text);
+  }
+
+  /**
+   * 清除文本中的函数调用标记
+   * @param text 模型输出的文本
+   * @returns {string} 清除标记后的文本
+   */
+  stripFunctionCallMarkers(text: string): string {
+    return text.replace(/<\|FunctionCallBegin\|>[\s\S]*?<\|FunctionCallEnd\|>/g, '').trim();
   }
 
   /**

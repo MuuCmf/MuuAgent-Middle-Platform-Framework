@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SkillService } from '../../skill/skill.service';
 import { McpServerService } from '../../mcp-server/mcp-server.service';
 import { KbSearchTool } from './kb-search.tool';
+import { BuiltinExecutor } from '../../skill/executors/builtin.executor';
+import { BUILTIN_TOOL_DEFINITIONS } from './tool-definitions';
 
 /**
  * 工具调用信息
@@ -58,6 +60,7 @@ export class ToolExecutor {
     private readonly skillService: SkillService,
     private readonly mcpServerService: McpServerService,
     private readonly kbSearchTool: KbSearchTool,
+    private readonly builtinExecutor: BuiltinExecutor,
   ) {}
 
   /**
@@ -165,17 +168,18 @@ export class ToolExecutor {
     args: Record<string, unknown>,
     context: ToolExecutionContext,
   ): Promise<unknown> {
-    // MCP 工具
     if (name.startsWith('mcp:')) {
       return await this.executeMcpTool(name, args, context);
     }
 
-    // 知识库检索工具
     if (name === 'kb_search') {
       return await this.executeKbSearch(args, context);
     }
 
-    // 技能工具
+    if (BUILTIN_TOOL_DEFINITIONS[name]) {
+      return await this.executeBuiltinTool(name, args);
+    }
+
     return await this.executeSkill(name, args);
   }
 
@@ -223,6 +227,25 @@ export class ToolExecutor {
       top_k: args.top_k as number | undefined,
       similarity_threshold: args.similarity_threshold as number | undefined,
     });
+  }
+
+  /**
+   * 执行内置工具
+   * @param name 工具名称
+   * @param args 工具参数
+   * @returns 内置工具执行结果
+   */
+  private async executeBuiltinTool(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    const result = await this.builtinExecutor.execute(name, args);
+
+    if (!result.success) {
+      throw new Error(result.error || `内置工具 ${name} 执行失败`);
+    }
+
+    return result.data;
   }
 
   /**

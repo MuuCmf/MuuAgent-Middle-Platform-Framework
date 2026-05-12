@@ -173,6 +173,21 @@ export class ToolDefinitionBuilder {
         };
       }
 
+      if (tool.type === 'builtin') {
+        return {
+          type: 'function',
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: {
+              type: 'object',
+              properties: tool.parameters?.properties || {},
+              required: tool.parameters?.required || [],
+            },
+          },
+        };
+      }
+
       throw new Error(`Unknown tool type: ${tool.type}`);
     });
   }

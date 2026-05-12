@@ -40,7 +40,7 @@ export interface ToolDefinition {
   name: string;
   description: string;
   parameters: Record<string, any>;
-  type: 'skill' | 'mcp' | 'kb';
+  type: 'skill' | 'mcp' | 'kb' | 'builtin';
 }
 
 /**

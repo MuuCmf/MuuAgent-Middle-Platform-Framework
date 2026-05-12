@@ -4,7 +4,7 @@ import {
   ExecutionContext,
   CallHandler,
 } from '@nestjs/common';
-import { Observable, tap } from 'rxjs';
+import { Observable, finalize } from 'rxjs';
 import { RateLimitService } from './rate-limit.service';
 import { AppUsageService } from '../common/services/app-usage.service';
 
@@ -12,6 +12,8 @@ import { AppUsageService } from '../common/services/app-usage.service';
  * 限流拦截器
  * 1. 请求完成后释放并发计数，确保并发计数器不会只增不减
  * 2. 统一记录应用调用次数（appCode 由 TenantGuard 从 x-api-key 解析）
+ *
+ * 注意：SSE 流式请求使用 finalize 替代 tap({ complete }) 确保流结束时释放并发计数
  */
 @Injectable()
 export class RateLimitInterceptor implements NestInterceptor {
@@ -32,14 +34,9 @@ export class RateLimitInterceptor implements NestInterceptor {
     const appCode: string | undefined = request.appCode;
 
     return next.handle().pipe(
-      tap({
-        complete: () => {
-          this.releaseAll(ruleIds);
-          this.recordUsage(appCode);
-        },
-        error: () => {
-          this.releaseAll(ruleIds);
-        },
+      finalize(() => {
+        this.releaseAll(ruleIds);
+        this.recordUsage(appCode);
       }),
     );
   }

@@ -24,6 +24,6 @@ import { PluginLoader } from './plugin-loader';
     SandboxExecutor,
     PluginLoader,
   ],
-  exports: [SkillService, McpClientService],
+  exports: [SkillService, McpClientService, BuiltinExecutor],
 })
 export class SkillModule {}
