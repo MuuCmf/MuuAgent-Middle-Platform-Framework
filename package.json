@@ -10,6 +10,10 @@
     "build:admin": "cd admin && npm run build",
     "build:service": "cd service && npm run build",
     "build:all": "npm run build:client && npm run build:admin && npm run build:service",
-    "start:service": "cd service && node dist/src/main"
+    "start:service": "cd service && node dist/src/main",
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0"
+  },
+  "devDependencies": {
+    "conventional-changelog-cli": "^4.1.0"
   }
 }
