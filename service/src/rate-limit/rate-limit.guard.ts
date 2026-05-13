@@ -77,6 +77,7 @@ export class RateLimitGuard implements CanActivate {
         );
 
         if (!appResult.allowed) {
+          this.releaseAll(ruleIds);
           this.setRateLimitHeaders(response, appResult);
           throw new HttpException(
             {
@@ -101,6 +102,7 @@ export class RateLimitGuard implements CanActivate {
       );
 
       if (!interfaceResult.allowed) {
+        this.releaseAll(ruleIds);
         this.setRateLimitHeaders(response, interfaceResult);
         throw new HttpException(
           {
@@ -128,12 +130,24 @@ export class RateLimitGuard implements CanActivate {
 
       return true;
     } catch (error) {
+      // 发生异常时，也要释放已增加的并发计数（防止计数器泄漏）
+      this.releaseAll(ruleIds);
       if (error instanceof HttpException) {
         throw error;
       }
       // 其他错误允许通过，避免限流服务异常影响正常请求
       console.error('Rate limit check failed:', error);
       return true;
+    }
+  }
+
+  /**
+   * 释放所有规则的并发计数
+   * @param ruleIds 规则ID列表
+   */
+  private releaseAll(ruleIds: string[]) {
+    for (const ruleId of ruleIds) {
+      this.rateLimitService.releaseConcurrent(ruleId).catch(() => {});
     }
   }
 

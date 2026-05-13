@@ -3,15 +3,15 @@
     <div class="selector-header">
       <span class="selector-title">模型选择</span>
       <span v-if="selectedModelInfo" class="model-tag">
-        {{ selectedModelInfo.type === 'mcp' ? '自动调度' : '指定模型' }}
+        {{ selectedModelInfo.type === 'mcp-llm' ? '自动调度' : '指定模型' }}
       </span>
     </div>
     
     <div class="selector-body">
       <!-- MCP调度选项 -->
       <div
-        :class="['model-card', { active: modelCode === 'mcp' || !modelCode }]"
-        @click="selectModel('mcp')"
+        :class="['model-card', { active: modelCode === 'mcp-llm' || !modelCode }]"
+        @click="selectModel('mcp-llm')"
       >
         <div class="model-icon mcp-icon">
           <el-icon :size="24"><Star /></el-icon>
@@ -21,7 +21,7 @@
           <div class="model-desc">自动选择最优模型，支持负载均衡和故障转移</div>
         </div>
         <div class="model-check">
-          <el-icon v-if="modelCode === 'mcp' || !modelCode"><Check /></el-icon>
+          <el-icon v-if="modelCode === 'mcp-llm' || !modelCode"><Check /></el-icon>
         </div>
       </div>
 
@@ -82,8 +82,8 @@ const enabledModels = computed(() => {
 })
 
 const selectedModelInfo = computed(() => {
-  if (props.modelCode === 'mcp' || !props.modelCode) {
-    return { type: 'mcp', name: 'MCP智能调度' }
+  if (props.modelCode === 'mcp-llm' || !props.modelCode) {
+    return { type: 'mcp-llm', name: 'MCP智能调度' }
   }
   const model = enabledModels.value.find(m => m.code === props.modelCode)
   return model ? { type: 'specified', name: model.name } : null

@@ -129,10 +129,14 @@ const handleSend = () => {
 }
 
 const handleModeChange = (mode: 'chat' | 'rag' | 'retrieval') => {
+  const wasChatMode = currentMode.value === 'chat'
   currentMode.value = mode
   if (mode !== 'chat') {
+    // 切换到非聊天模式时，清空智能体选择但不触发事件（避免重复加载）
     selectedAgent.value = ''
-    emit('agent-change', '')
+  } else if (!wasChatMode) {
+    // 从非聊天模式切换回聊天模式时，触发智能体变化事件
+    emit('agent-change', selectedAgent.value)
   }
   emit('update:mode', mode)
   emit('mode-change', mode)

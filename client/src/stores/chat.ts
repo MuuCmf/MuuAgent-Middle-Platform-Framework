@@ -11,9 +11,9 @@ export const useChatStore = defineStore('chat', () => {
   const isLoading = ref(false)
   const currentConversationId = ref<string | null>(null)
   const selectedType = ref<'model' | 'agent'>('model')
-  const selectedModel = ref<string>('mcp')
+  const selectedModel = ref<string>('mcp-llm')
   const selectedAgent = ref<string>('')
-  const selectedLlmModel = ref<string>('mcp')
+  const selectedLlmModel = ref<string>('mcp-llm')
   const conversations = ref<Conversation[]>([])
   const models = ref<any[]>([])
   const agents = ref<any[]>([])
@@ -32,7 +32,7 @@ export const useChatStore = defineStore('chat', () => {
    * 获取当前使用的模型代码
    */
   const currentModelCode = computed(() => {
-    return selectedLlmModel.value === 'mcp' ? undefined : selectedLlmModel.value
+    return selectedLlmModel.value === 'mcp-llm' ? undefined : selectedLlmModel.value
   })
 
   /**
@@ -198,7 +198,7 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       if (selectedType.value === 'model') {
-        if (selectedModel.value && selectedModel.value !== 'mcp') {
+        if (selectedModel.value && selectedModel.value !== 'mcp-llm') {
           params.targetId = String(selectedModel.value)
         }
       } else if (selectedType.value === 'agent') {

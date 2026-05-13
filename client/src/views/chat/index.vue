@@ -6,7 +6,7 @@
         <div class="section-header">
           <span class="section-title">LLM模型</span>
           <span class="section-badge">
-            {{ selectedLlmModel === 'mcp' ? '自动调度' : '指定模型' }}
+            {{ selectedLlmModel === 'mcp-llm' ? '自动调度' : '指定模型' }}
           </span>
         </div>
         <ModelSelector
@@ -89,7 +89,7 @@
         <div class="header-left">
           <h2>{{ chatStore.currentConversationTitle }}</h2>
           <div class="header-subtitle">
-            <span v-if="selectedLlmModel === 'mcp'" class="model-tag mcp-tag">
+            <span v-if="selectedLlmModel === 'mcp-llm'" class="model-tag mcp-tag">
               <el-icon :size="14"><Star /></el-icon>
               MCP智能调度
             </span>
@@ -176,7 +176,7 @@ const chatMode = ref<'chat' | 'rag' | 'retrieval'>('chat')
 const kbList = ref<KbInfo[]>([])
 const selectedKb = ref<string>('')
 const selectedAgent = ref<string>('')
-const selectedLlmModel = ref<string>('mcp')
+const selectedLlmModel = ref<string>('mcp-llm')
 const topN = ref(5)
 const similarityThresh = ref(0.7)
 
@@ -308,7 +308,7 @@ const handleRagChat = async (query: string) => {
   const assistantIndex = chatStore.messages.length - 1
 
   try {
-    const modelCode = selectedLlmModel.value === 'mcp' ? undefined : selectedLlmModel.value
+    const modelCode = selectedLlmModel.value === 'mcp-llm' ? undefined : selectedLlmModel.value
     
     await retrievalApi.ragChatStream(
       {
@@ -398,10 +398,23 @@ const handleSelectConversation = async (conversationId: string) => {
       if (kbList.value.length === 0) {
         await loadKbList()
       }
+    } else if (conversation.conversationType === 'agent') {
+      chatMode.value = 'chat'
+      chatStore.selectedType = 'agent'
+      selectedAgent.value = conversation.targetId || ''
+      chatStore.selectedAgent = selectedAgent.value
     } else {
       chatMode.value = 'chat'
-      chatStore.selectedType = conversation.conversationType as 'model' | 'agent'
-      selectedAgent.value = conversation.conversationType === 'agent' ? conversation.targetId : ''
+      chatStore.selectedType = 'model'
+      selectedAgent.value = ''
+      chatStore.selectedAgent = ''
+      // 更新模型选择为会话对应的模型
+      if (conversation.targetId) {
+        // 直接使用后端返回的 targetId，前端与后端保持一致
+        const modelCode = conversation.targetId
+        selectedLlmModel.value = modelCode
+        chatStore.selectedLlmModel = modelCode
+      }
     }
 
     scrollToBottom()

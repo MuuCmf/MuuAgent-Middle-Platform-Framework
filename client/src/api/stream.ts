@@ -13,6 +13,13 @@ export interface StreamCallbacks {
 }
 
 /**
+ * 流式请求状态
+ */
+interface StreamState {
+  completed: boolean
+}
+
+/**
  * SSE 流式请求参数
  */
 export interface StreamRequestParams {
@@ -25,10 +32,23 @@ export interface StreamRequestParams {
  * 处理 SSE 流式响应数据
  * @param data 原始数据字符串
  * @param callbacks 回调函数
+ * @param state 流式请求状态
  */
-function handleSSEData(data: string, callbacks: StreamCallbacks): void {
+function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamState): void {
+  // 使用安全的完成回调，防止重复调用
+  const safeComplete = () => {
+    if (state) {
+      if (!state.completed) {
+        state.completed = true
+        callbacks.onComplete()
+      }
+    } else {
+      callbacks.onComplete()
+    }
+  }
+
   if (data === '[DONE]') {
-    callbacks.onComplete()
+    safeComplete()
     return
   }
 
@@ -85,7 +105,7 @@ function handleSSEData(data: string, callbacks: StreamCallbacks): void {
     } else if (parsed.type === 'error' && parsed.content) {
       callbacks.onError(new Error(parsed.content))
     } else if (parsed.type === 'done') {
-      callbacks.onComplete()
+      safeComplete()
     }
   } catch (e) {
     callbacks.onMessage(data)
@@ -98,6 +118,17 @@ function handleSSEData(data: string, callbacks: StreamCallbacks): void {
  */
 export async function streamRequest(params: StreamRequestParams): Promise<void> {
   const { url, body, callbacks } = params
+
+  // 防止 onComplete 被调用多次
+  const state: StreamState = { completed: false }
+
+  // 安全的完成回调
+  const safeComplete = () => {
+    if (!state.completed) {
+      state.completed = true
+      callbacks.onComplete()
+    }
+  }
 
   try {
     await fetchEventSource(url, {
@@ -117,7 +148,7 @@ export async function streamRequest(params: StreamRequestParams): Promise<void> 
       },
       onmessage(msg) {
         if (msg.data) {
-          handleSSEData(msg.data, callbacks)
+          handleSSEData(msg.data, callbacks, state)
         }
       },
       onerror(err) {
@@ -126,7 +157,7 @@ export async function streamRequest(params: StreamRequestParams): Promise<void> 
         throw err
       },
       onclose() {
-        callbacks.onComplete()
+        safeComplete()
       },
     })
   } catch (error) {

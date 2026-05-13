@@ -197,7 +197,9 @@ export class AgentController {
   @Get()
   @ApiOperation({ summary: "获取启用的智能体列表" })
   async getEnabledAgents(@Req() req: Request) {
+    // 仅返回当前应用的智能体
     const context = extractIsolationContext(req);
+    // 仅返回当前应用的智能体
     const agents = await this.agentService.findAll({
       status: true,
       page: 1,

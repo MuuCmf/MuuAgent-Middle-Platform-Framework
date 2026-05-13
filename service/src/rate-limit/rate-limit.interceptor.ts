@@ -30,8 +30,16 @@ export class RateLimitInterceptor implements NestInterceptor {
    */
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
+    const response = context.switchToHttp().getResponse();
     const ruleIds: string[] = request.rateLimitRuleIds || [];
     const appCode: string | undefined = request.appCode;
+
+    // 为 SSE 流式响应添加连接关闭监听器
+    if (response && response.on) {
+      response.on('close', () => {
+        this.releaseAll(ruleIds);
+      });
+    }
 
     return next.handle().pipe(
       finalize(() => {
@@ -42,13 +50,16 @@ export class RateLimitInterceptor implements NestInterceptor {
   }
 
   /**
-   * 释放所有规则的并发计数
+   * 释放所有规则的并发计数（同步执行，确保计数正确释放）
    * @param ruleIds 规则ID列表
    */
   private releaseAll(ruleIds: string[]) {
-    for (const ruleId of ruleIds) {
-      this.rateLimitService.releaseConcurrent(ruleId).catch(() => {});
-    }
+    // 使用 Promise.all 确保所有释放操作都完成
+    Promise.all(
+      ruleIds.map((ruleId) => this.rateLimitService.releaseConcurrent(ruleId)),
+    ).catch((error) => {
+      console.error('Failed to release concurrent counters:', error);
+    });
   }
 
   /**
