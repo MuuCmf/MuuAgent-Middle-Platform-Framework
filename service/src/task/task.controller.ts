@@ -15,7 +15,7 @@ import { AdminScope } from '../common/constants/scope.constants';
 @ApiBearerAuth()
 @UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller('admin/task')
-export class TaskController {
+export class TaskAdminController {
   /**
    * 构造函数
    * @param taskService 任务服务

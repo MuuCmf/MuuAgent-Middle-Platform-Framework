@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DocumentController } from './document.controller';
+import { DocumentAdminController } from './document.controller';
 import { DocumentService } from './document.service';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { VectorModule } from '../vector/vector.module';
@@ -10,7 +10,7 @@ import { TaskModule } from '../task/task.module';
  */
 @Module({
   imports: [PrismaModule, VectorModule, TaskModule],
-  controllers: [DocumentController],
+  controllers: [DocumentAdminController],
   providers: [DocumentService],
   exports: [DocumentService],
 })

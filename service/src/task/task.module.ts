@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TaskService } from './task.service';
-import { TaskController } from './task.controller';
+import { TaskAdminController } from './task.controller';
 import { DocumentProcessor } from './processors/document.processor';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { VectorModule } from '../vector/vector.module';
@@ -32,7 +32,7 @@ import { AiModule } from '../ai/ai.module';
     VectorModule,
     AiModule,
   ],
-  controllers: [TaskController],
+  controllers: [TaskAdminController],
   providers: [TaskService, DocumentProcessor],
   exports: [TaskService],
 })

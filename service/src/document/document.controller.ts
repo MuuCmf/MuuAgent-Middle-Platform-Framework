@@ -34,7 +34,7 @@ import { success, fail } from '../common/response/api.response';
 @ApiTags('知识库（管理端）')
 @ApiBearerAuth()
 @UseGuards(CombinedAuthGuard, ScopeGuard)
-export class DocumentController {
+export class DocumentAdminController {
   /**
    * 构造函数
    * @param documentService 文档服务

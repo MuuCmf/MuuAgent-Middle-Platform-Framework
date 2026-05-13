@@ -5,6 +5,7 @@ import { VectorService } from '../../vector/vector.service';
 import { AiService } from '../../ai/ai.service';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
+import * as iconv from 'iconv-lite';
 
 /**
  * 文档处理处理器
@@ -132,7 +133,7 @@ export class DocumentProcessor {
       // 更新文档状态为完成
       await this.prisma.kbDocument.update({
         where: { id: docId },
-        data: { status: 3 },
+        data: { status: 1 },
       });
 
       console.log(`[DocumentProcessor] 文档处理完成: ${docId}, 切片数: ${chunks.length}`);
@@ -147,13 +148,47 @@ export class DocumentProcessor {
   }
 
   /**
-   * 提取文本内容
+   * 检测字符串是否包含乱码字符
+   * @param str 字符串
+   * @returns {boolean} 是否包含乱码
+   */
+  private containsGarbledChars(str: string): boolean {
+    // 检测替换字符（UTF-8解码失败时产生）
+    const replacementCharCount = (str.match(/\uFFFD/g) || []).length;
+    // 如果替换字符占比超过5%，认为是编码错误
+    return replacementCharCount > str.length * 0.05;
+  }
+
+  /**
+   * 提取文本内容（支持GBK/GB2312/UTF-8编码自动检测）
    * @param filePath 文件路径
    * @returns {Promise<string>} 文本内容
    */
   private async extractText(filePath: string): Promise<string> {
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
+      // 先读取原始字节
+      const buffer = fs.readFileSync(filePath);
+      
+      // 先尝试按UTF-8解码
+      let content = buffer.toString('utf-8');
+      
+      // 检测是否包含乱码字符
+      if (this.containsGarbledChars(content)) {
+        // UTF-8解码失败，尝试GBK解码
+        try {
+          content = iconv.decode(buffer, 'GBK');
+          console.log(`[DocumentProcessor] 文件 ${filePath} 使用GBK编码解码`);
+        } catch (gbkError) {
+          // GBK解码也失败，尝试GB2312
+          try {
+            content = iconv.decode(buffer, 'GB2312');
+            console.log(`[DocumentProcessor] 文件 ${filePath} 使用GB2312编码解码`);
+          } catch (gb2312Error) {
+            console.warn(`[DocumentProcessor] 文件 ${filePath} 编码检测失败，使用原始UTF-8内容`);
+          }
+        }
+      }
+      
       return content;
     } catch (error) {
       console.error('文本提取失败:', error);
