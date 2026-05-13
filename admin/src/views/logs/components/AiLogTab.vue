@@ -116,6 +116,8 @@
           <el-descriptions-item label="输出Token">{{ currentLog.outputTokens || 0 }}</el-descriptions-item>
           <el-descriptions-item label="客户端IP">{{ currentLog.clientIp || '-' }}</el-descriptions-item>
           <el-descriptions-item label="用户代理">{{ currentLog.userAgent || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="用户标识">{{ currentLog.uid || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="应用标识">{{ currentLog.appCode || '-' }}</el-descriptions-item>
         </el-descriptions>
 
         <div v-if="currentLog.errorMessage" class="error-section">

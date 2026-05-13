@@ -42,7 +42,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import type { ReasoningStep } from '../api/reasoning'
+import type { ReasoningStep } from '@/api/reasoning'
 
 const props = defineProps<{
   steps?: ReasoningStep[]

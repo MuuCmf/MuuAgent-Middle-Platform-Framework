@@ -16,6 +16,8 @@ export interface Log {
   errorMessage?: string
   clientIp?: string
   userAgent?: string
+  uid?: string
+  appCode?: string
   createdAt: string
   model?: {
     id: string
@@ -60,12 +62,20 @@ export interface SkillLog {
   errorMessage?: string
   clientIp?: string
   userAgent?: string
+  uid?: string
+  appCode?: string
   createdAt: string
+  skill?: {
+    id: string
+    name: string
+    code: string
+  }
 }
 
 export interface AgentLog {
   id: string
   agentId: string
+  conversationId?: string
   userMessage?: string
   agentResponse?: string
   request: string
@@ -78,10 +88,10 @@ export interface AgentLog {
   clientIp?: string
   userAgent?: string
   createdAt: string
-  inputTokens?: number
-  outputTokens?: number
   reasoningMode?: string
   reasoningSteps?: ReasoningStep[]
+  uid?: string
+  appCode?: string
   agent?: {
     id: string
     name: string

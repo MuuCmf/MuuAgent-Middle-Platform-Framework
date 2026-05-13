@@ -77,8 +77,8 @@
         <el-descriptions :column="2" border>
           <el-descriptions-item label="日志ID">{{ currentLog.id }}</el-descriptions-item>
           <el-descriptions-item label="调用时间">{{ formatTime(currentLog.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="技能代码">{{ currentLog.skillCode }}</el-descriptions-item>
-          <el-descriptions-item label="技能名称">{{ currentLog.skillName }}</el-descriptions-item>
+          <el-descriptions-item label="技能代码">{{ currentLog.skill?.code || currentLog.skillCode }}</el-descriptions-item>
+          <el-descriptions-item label="技能名称">{{ currentLog.skill?.name || currentLog.skillName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="耗时">{{ currentLog.costMs }}ms</el-descriptions-item>
           <el-descriptions-item label="调用状态">
             <el-tag :type="currentLog.success ? 'success' : 'danger'">
@@ -87,6 +87,8 @@
           </el-descriptions-item>
           <el-descriptions-item label="客户端IP">{{ currentLog.clientIp || '-' }}</el-descriptions-item>
           <el-descriptions-item label="用户代理">{{ currentLog.userAgent || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="用户标识">{{ currentLog.uid || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="应用标识">{{ currentLog.appCode || '-' }}</el-descriptions-item>
         </el-descriptions>
 
         <div v-if="currentLog.errorMessage" class="error-section">

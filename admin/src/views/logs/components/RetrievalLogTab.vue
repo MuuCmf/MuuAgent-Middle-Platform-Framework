@@ -94,6 +94,7 @@
           <el-descriptions-item label="耗时">{{ currentLog.costTime }}ms</el-descriptions-item>
           <el-descriptions-item label="请求ID">{{ currentLog.requestId || '-' }}</el-descriptions-item>
           <el-descriptions-item label="客户端IP">{{ currentLog.clientIp || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="用户标识">{{ currentLog.uid || '-' }}</el-descriptions-item>
         </el-descriptions>
 
         <div class="query-section">

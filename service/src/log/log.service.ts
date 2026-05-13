@@ -302,15 +302,30 @@ export class LogService {
       if (endTime) where.createdAt.lte = new Date(endTime);
     }
 
-    const [list, total] = await Promise.all([
+    const [rawList, total] = await Promise.all([
       this.prisma.skillInvokeLog.findMany({
         where,
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
+        include: {
+          skill: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
       }),
       this.prisma.skillInvokeLog.count({ where }),
     ]);
+
+    const list = rawList.map((log) => ({
+      ...log,
+      request: log.params,
+      response: log.result,
+    }));
 
     return { list, total, page, pageSize };
   }
@@ -471,13 +486,27 @@ export class LogService {
   async getSkillLogById(id: string) {
     const log = await this.prisma.skillInvokeLog.findUnique({
       where: { id },
+      include: {
+        skill: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+      },
     });
 
     if (!log) {
       throw new Error('Skill调用日志不存在');
     }
 
-    return log;
+    return {
+      ...log,
+      request: log.params,
+      response: log.result,
+      skillName: log.skill?.name || log.skillCode,
+    };
   }
 
   /**

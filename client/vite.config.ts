@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
       alias: {
         "@": resolve(__dirname, "src"),
       },
+      extensions: [".js", ".jsx", ".ts", ".tsx", ".json"],
     },
     server: {
       port: parseInt(env.VITE_PORT || '5173'),

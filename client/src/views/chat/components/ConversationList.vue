@@ -46,7 +46,7 @@
 
 <script setup lang="ts">
 import { ChatLineRound, Plus, Delete } from '@element-plus/icons-vue'
-import type { Conversation } from '../api'
+import type { Conversation } from '@/api'
 
 interface Props {
   conversations: Conversation[]

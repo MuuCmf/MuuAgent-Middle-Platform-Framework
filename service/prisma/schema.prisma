@@ -37,6 +37,7 @@ model Model {
   @@index([type, status])
   @@index([provider])
   @@index([category])
+  @@map("models")
 }
 
 /// 模型参数模板表 - 预设模型调用参数
@@ -60,6 +61,7 @@ model ModelTemplate {
   @@index([modelType, status])
   @@index([sceneTag])
   @@index([isDefault])
+  @@map("model_templates")
 }
 
 /// MCP调度策略表 - 模型控制平面配置
@@ -75,6 +77,8 @@ model McpStrategy {
   circuitTimeout   Int @default(300000) /// 熔断恢复时间(毫秒)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@map("mcp_strategies")
 }
 
 /// MCP限流熔断规则表 - 单模型级别的限流配置
@@ -94,6 +98,7 @@ model McpRule {
   model Model @relation(fields: [modelId], references: [id], onDelete: Cascade)
 
   @@index([modelId])
+  @@map("mcp_rules")
 }
 
 /// 技能表 - 可被Agent调用的工具
@@ -130,6 +135,7 @@ model Skill {
   @@index([codeType])
   @@index([appCode])
   @@index([isPublic])
+  @@map("skills")
 }
 
 /// 智能体表 - AI Agent配置
@@ -171,6 +177,7 @@ model Agent {
   @@index([appCode])
   @@index([isPublic])
   @@index([promptTemplateCode])
+  @@map("agents")
 }
 
 /// AI调用日志表 - 记录所有AI模型调用
@@ -203,6 +210,7 @@ model AiInvokeLog {
   @@index([success, createdAt])
   @@index([uid, createdAt])
   @@index([appCode, createdAt])
+  @@map("ai_invoke_logs")
 }
 
 /// 技能调用日志表 - 记录技能调用情况
@@ -231,6 +239,7 @@ model SkillInvokeLog {
   @@index([skillCode, createdAt])
   @@index([uid, createdAt])
   @@index([appCode, createdAt])
+  @@map("skill_invoke_logs")
 }
 
 /// 智能体调用日志表 - 记录Agent对话
@@ -265,6 +274,7 @@ model AgentInvokeLog {
   @@index([conversationId])
   @@index([uid, createdAt])
   @@index([appCode, createdAt])
+  @@map("agent_invoke_logs")
 }
 
 /// 模型健康检查记录表
@@ -279,6 +289,7 @@ model ModelHealth {
   model Model @relation(fields: [modelId], references: [id], onDelete: Cascade)
 
   @@index([modelId, checkedAt])
+  @@map("model_health_records")
 }
 
 /// 应用/租户表 - 多租户支持
@@ -361,6 +372,7 @@ model RateLimitRule {
 
   @@unique([level, target])
   @@index([level, status])
+  @@map("rate_limit_rules")
 }
 
 /// 限流计数器表 - 实时统计限流数据
@@ -381,6 +393,7 @@ model RateLimitCounter {
   rateLimitRule RateLimitRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
   @@index([ruleId])
+  @@map("rate_limit_counters")
 }
 
 /// 限流黑名单表 - 记录被限流的请求
@@ -394,6 +407,7 @@ model RateLimitBlacklist {
 
   @@index([clientIp, blockUntil])
   @@index([appId, blockUntil])
+  @@map("rate_limit_blacklists")
 }
 
 /// 管理员表 - 中台管理后台用户
@@ -415,6 +429,7 @@ model AdminUser {
   @@index([username])
   @@index([status])
   @@index([isSuperAdmin])
+  @@map("admin_users")
 }
 
 /// 知识库表 - 应用级隔离
@@ -458,6 +473,7 @@ model KbInfo {
   @@index([appCode])
   @@index([isPublic, status])
   @@index([createdBy])
+  @@map("kb_infos")
 }
 
 /// 文档表 - 知识库下的文档
@@ -487,6 +503,7 @@ model KbDocument {
 
   @@index([kbId, status])
   @@index([createdBy])
+  @@map("kb_documents")
 }
 
 /// 切片表 - 文档切片元数据
@@ -509,6 +526,7 @@ model KbChunk {
   @@index([kbId, docId])
   @@index([kbId, status])
   @@index([vectorId])
+  @@map("kb_chunks")
 }
 
 /// 检索日志表 - 记录检索历史
@@ -537,6 +555,7 @@ model KbRetrievalLog {
   @@index([uid, createdAt])
   @@index([requestId])
   @@index([appCode, createdAt])
+  @@map("kb_retrieval_logs")
 }
 
 /// OAuth客户端
@@ -649,6 +668,7 @@ model Conversation {
   @@index([uid, createdAt])
   @@index([appCode])
   @@index([status])
+  @@map("conversations")
 }
 
 /// 消息表 - 存储对话消息
@@ -668,6 +688,7 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
+  @@map("messages")
 }
 
 /// Prompt模板表 - 存储提示词模板

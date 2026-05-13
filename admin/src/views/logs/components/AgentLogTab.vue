@@ -36,15 +36,6 @@
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="Token使用" width="140" align="right">
-        <template #default="{ row }">
-          <div v-if="row.inputTokens || row.outputTokens" style="font-size: 12px">
-            <div>输入: {{ row.inputTokens || 0 }}</div>
-            <div>输出: {{ row.outputTokens || 0 }}</div>
-          </div>
-          <span v-else style="color: #999">-</span>
-        </template>
-      </el-table-column>
       <el-table-column label="状态" width="80" align="center">
         <template #default="{ row }">
           <el-tag :type="row.success ? 'success' : 'danger'" size="small">
@@ -89,8 +80,6 @@
           <el-descriptions-item label="Agent代码">{{ currentLog.agent?.code || currentLog.agentId }}</el-descriptions-item>
           <el-descriptions-item label="Agent名称">{{ currentLog.agent?.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="耗时">{{ currentLog.costMs }}ms</el-descriptions-item>
-          <el-descriptions-item label="输入Token">{{ currentLog.inputTokens || 0 }}</el-descriptions-item>
-          <el-descriptions-item label="输出Token">{{ currentLog.outputTokens || 0 }}</el-descriptions-item>
           <el-descriptions-item label="调用状态">
             <el-tag :type="currentLog.success ? 'success' : 'danger'">
               {{ currentLog.success ? '成功' : '失败' }}
@@ -103,6 +92,9 @@
             <span v-else style="color: #999">-</span>
           </el-descriptions-item>
           <el-descriptions-item label="客户端IP">{{ currentLog.clientIp || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="用户标识">{{ currentLog.uid || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="应用标识">{{ currentLog.appCode || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="会话ID">{{ currentLog.conversationId || '-' }}</el-descriptions-item>
         </el-descriptions>
 
         <div v-if="currentLog.errorMessage" class="error-section">
