@@ -146,7 +146,6 @@ model Agent {
   description     String?  /// 智能体描述
   systemPrompt    String   @db.Text /// 系统提示词
   promptTemplateCode String? @map("prompt_template_code") /// 使用的提示词模板标识
-  modelId         String?  /// 绑定模型ID
   skills          String   @db.Text /// 绑定的技能code列表(JSON数组)
   mcpServers      String?  @db.Text /// 绑定的MCP Server配置(JSON数组)
   knowledgeBases  String?  @db.Text /// 绑定的知识库code列表(JSON数组)

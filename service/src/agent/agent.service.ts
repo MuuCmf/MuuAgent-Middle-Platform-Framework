@@ -2,7 +2,6 @@ import { Injectable, Logger, NotFoundException, HttpException, HttpStatus, Forbi
 import { PrismaService } from '../common/prisma/prisma.service';
 import { SkillService } from '../skill/skill.service';
 import { McpServerService } from '../mcp-server/mcp-server.service';
-import { ModelService } from '../model/model.service';
 import { AgentKbService } from './agent-kb.service';
 import { KbSearchTool } from './tools/kb-search.tool';
 import { ToolExecutor, ToolCall, ToolExecutionResult } from './tools/tool-executor';
@@ -44,7 +43,6 @@ export class AgentService {
     private prisma: PrismaService,
     private skillService: SkillService,
     private mcpServerService: McpServerService,
-    private modelService: ModelService,
     private agentKbService: AgentKbService,
     private kbSearchTool: KbSearchTool,
     private toolExecutor: ToolExecutor,
@@ -59,7 +57,6 @@ export class AgentService {
       code: dto.code,
       description: dto.description,
       systemPrompt: dto.systemPrompt,
-      modelId: dto.modelId,
       skills: dto.skills || '[]',
       mcpServers: dto.mcpServers || '[]',
       knowledgeBases: dto.knowledgeBases || '[]',
@@ -263,23 +260,10 @@ export class AgentService {
     
     this.logger.debug(`buildExecutionContext: dto.agentId=${dto.agentId}, agent.id=${agent.id}, agent.code=${agent.code}, dto.conversationId=${dto.conversationId}`);
     
-    if (agent.modelId) {
-      try {
-        model = await this.modelService.findByCode(agent.modelId);
-        this.logger.debug(`模型查询成功: model.code=${model.code}, provider=${model.provider}`);
-      } catch (error) {
-        this.logger.warn(`模型 ${agent.modelId} 未找到，尝试查找可用的 LLM 模型`);
-        model = await this.prisma.model.findFirst({ where: { type: 'llm', status: true } });
-        if (!model) {
-          throw new NotFoundException('没有可用的模型');
-        }
-      }
-    } else {
-      this.logger.debug('智能体未配置模型，查找可用的 LLM 模型');
-      model = await this.prisma.model.findFirst({ where: { type: 'llm', status: true } });
-      if (!model) {
-        throw new NotFoundException('没有可用的模型');
-      }
+    this.logger.debug('智能体未配置模型，查找可用的 LLM 模型');
+    model = await this.prisma.model.findFirst({ where: { type: 'llm', status: true } });
+    if (!model) {
+      throw new NotFoundException('没有可用的模型');
     }
 
     const conversation = await this.conversationService.getOrCreate(

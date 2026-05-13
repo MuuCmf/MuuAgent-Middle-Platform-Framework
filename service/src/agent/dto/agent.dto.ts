@@ -34,11 +34,6 @@ export class CreateAgentDto {
   @IsNotEmpty()
   systemPrompt: string;
 
-  @ApiPropertyOptional({ description: '绑定模型ID' })
-  @IsString()
-  @IsOptional()
-  modelId?: string;
-
   @ApiPropertyOptional({ description: '绑定的技能code列表(JSON数组)', example: '["get_weather","get_time"]' })
   @IsString()
   @IsOptional()
@@ -121,11 +116,6 @@ export class UpdateAgentDto {
   @IsString()
   @IsOptional()
   systemPrompt?: string;
-
-  @ApiPropertyOptional({ description: '绑定模型ID' })
-  @IsString()
-  @IsOptional()
-  modelId?: string;
 
   @ApiPropertyOptional({ description: '绑定的技能code列表(JSON数组)' })
   @IsString()

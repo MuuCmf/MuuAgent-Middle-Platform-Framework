@@ -9,7 +9,6 @@ export interface Agent {
   code: string
   description?: string
   systemPrompt: string
-  modelId?: number
   skills: string
   mcpServers?: string
   knowledgeBases?: string
@@ -31,7 +30,6 @@ export interface AgentForm {
   code: string
   description?: string
   systemPrompt: string
-  modelId?: number
   skills: string
   mcpServers?: string
   knowledgeBases?: string
