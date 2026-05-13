@@ -1,22 +1,6 @@
 <template>
   <div class="chat-view">
     <div class="sidebar">
-      <!-- 模式选择 -->
-      <div class="mode-selector">
-        <div class="mode-title">对话模式</div>
-        <div class="mode-buttons">
-          <div
-            v-for="item in modeOptions"
-            :key="item.value"
-            :class="['mode-btn', { active: chatMode === item.value }]"
-            @click="chatMode = item.value; handleModeChange()"
-          >
-            <span class="mode-icon">{{ item.icon }}</span>
-            <span class="mode-label">{{ item.label }}</span>
-          </div>
-        </div>
-      </div>
-
       <!-- LLM模型选择器 -->
       <div class="model-selector-section">
         <div class="section-header">
@@ -30,34 +14,6 @@
           :models="chatStore.models"
           @change="handleLlmModelChange"
         />
-      </div>
-
-      <!-- 智能体选择器 -->
-      <div v-if="chatMode === 'chat'" class="agent-selector-section">
-        <div class="section-header">
-          <span class="section-title">智能体</span>
-        </div>
-        <div class="agent-selector">
-          <el-select
-            v-model="selectedAgent"
-            placeholder="选择智能体（可选）"
-            style="width: 100%"
-            clearable
-          >
-            <el-option
-              v-for="agent in enabledAgents"
-              :key="agent.id"
-              :label="agent.name"
-              :value="agent.id"
-            >
-              <div class="agent-option">
-                <el-icon><User /></el-icon>
-                <span>{{ agent.name }}</span>
-                <span v-if="agent.description" class="agent-desc">{{ agent.description }}</span>
-              </div>
-            </el-option>
-          </el-select>
-        </div>
       </div>
 
       <!-- RAG知识库选择 -->
@@ -190,7 +146,11 @@
 
       <ChatInput
         :is-loading="chatStore.isLoading"
+        :mode="chatMode"
+        :agents="enabledAgents"
         @send="handleSendMessage"
+        @mode-change="handleModeChangeFromInput"
+        @agent-change="handleAgentChange"
       />
     </div>
   </div>
@@ -219,12 +179,6 @@ const selectedAgent = ref<string>('')
 const selectedLlmModel = ref<string>('mcp')
 const topN = ref(5)
 const similarityThresh = ref(0.7)
-
-const modeOptions = [
-  { value: 'chat' as const, label: '普通对话', icon: '💬' },
-  { value: 'rag' as const, label: 'RAG问答', icon: '📚' },
-  { value: 'retrieval' as const, label: '向量检索', icon: '🔍' },
-]
 
 const selectedKbInfo = computed(() => {
   return kbList.value.find(kb => kb.kbId === selectedKb.value)
@@ -257,20 +211,25 @@ const loadKbList = async () => {
   }
 }
 
-const handleModeChange = async () => {
+const handleModeChange = async (mode: 'chat' | 'rag' | 'retrieval') => {
+  chatMode.value = mode
   chatStore.clearMessages()
   chatStore.currentConversationId = null
   chatStore.conversations = []
 
-  if (chatMode.value !== 'chat' && kbList.value.length === 0) {
+  if (mode !== 'chat' && kbList.value.length === 0) {
     await loadKbList()
   }
 
-  if (chatMode.value === 'rag') {
+  if (mode === 'rag') {
     await loadRagConversations()
-  } else if (chatMode.value === 'chat') {
+  } else if (mode === 'chat') {
     await chatStore.loadConversations()
   }
+}
+
+const handleModeChangeFromInput = (mode: 'chat' | 'rag' | 'retrieval') => {
+  handleModeChange(mode)
 }
 
 const loadRagConversations = async () => {
@@ -299,6 +258,15 @@ const handleKbChange = async () => {
 const handleLlmModelChange = (modelCode: string) => {
   selectedLlmModel.value = modelCode
   chatStore.setLlmModel(modelCode)
+}
+
+const handleAgentChange = async (agentId: string) => {
+  selectedAgent.value = agentId
+  chatStore.setAgent(agentId)
+  chatStore.clearMessages()
+  chatStore.currentConversationId = null
+  chatStore.selectedType = agentId ? 'agent' : 'model'
+  await chatStore.loadConversations()
 }
 
 const handleSendMessage = async (content: string) => {
@@ -520,58 +488,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-}
-
-.mode-selector {
-  padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.mode-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 12px;
-}
-
-.mode-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mode-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 8px;
-  border: 1px solid #dcdfe6;
-  cursor: pointer;
-  transition: all 0.3s;
-  font-size: 14px;
-  color: #606266;
-  background: #fff;
-}
-
-.mode-btn:hover {
-  border-color: #667eea;
-  color: #667eea;
-}
-
-.mode-btn.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-color: #667eea;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
-}
-
-.mode-icon {
-  font-size: 16px;
-}
-
-.mode-label {
-  flex: 1;
 }
 
 .model-selector-section,

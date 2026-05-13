@@ -196,17 +196,17 @@ export const useChatStore = defineStore('chat', () => {
         conversationType: selectedType.value,
         pageSize: 20,
       }
-      
+
       if (selectedType.value === 'model') {
         if (selectedModel.value && selectedModel.value !== 'mcp') {
           params.targetId = String(selectedModel.value)
         }
-      } else {
-        if (selectedModel.value) {
-          params.targetId = String(selectedModel.value)
+      } else if (selectedType.value === 'agent') {
+        if (selectedAgent.value) {
+          params.targetId = String(selectedAgent.value)
         }
       }
-      
+
       const response = await conversationApi.getList(params)
       conversations.value = response.data.list || []
     } catch (error) {
