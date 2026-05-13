@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, HttpException, HttpStatus, Forbi
 import { PrismaService } from '../common/prisma/prisma.service';
 import { SkillService } from '../skill/skill.service';
 import { McpServerService } from '../mcp-server/mcp-server.service';
+import { McpService } from '../mcp/mcp.service';
 import { AgentKbService } from './agent-kb.service';
 import { KbSearchTool } from './tools/kb-search.tool';
 import { ToolExecutor, ToolCall, ToolExecutionResult } from './tools/tool-executor';
@@ -49,6 +50,7 @@ export class AgentService {
     private aiSdkProvider: AiSdkProvider,
     private promptTemplateService: PromptTemplateService,
     private conversationService: ConversationService,
+    private mcpService: McpService,
   ) {}
 
   async create(dto: CreateAgentDto, context?: IsolationContext) {
@@ -258,10 +260,18 @@ export class AgentService {
   private async buildExecutionContext(agent: any, dto: AgentChatDto, uid?: string, isolationContext?: IsolationContext) {
     let model;
     
-    this.logger.debug(`buildExecutionContext: dto.agentId=${dto.agentId}, agent.id=${agent.id}, agent.code=${agent.code}, dto.conversationId=${dto.conversationId}`);
+    this.logger.debug(`buildExecutionContext: dto.agentId=${dto.agentId}, agent.id=${agent.id}, agent.code=${agent.code}, dto.conversationId=${dto.conversationId}, dto.modelCode=${dto.modelCode}`);
     
-    this.logger.debug('智能体未配置模型，查找可用的 LLM 模型');
-    model = await this.prisma.model.findFirst({ where: { type: 'llm', status: true } });
+    if (dto.modelCode && dto.modelCode !== 'mcp') {
+      // 客户端指定了固定模型
+      model = await this.prisma.model.findFirst({ where: { code: dto.modelCode, type: 'llm', status: true } });
+      this.logger.debug(`使用指定模型: ${dto.modelCode}`);
+    } else {
+      // 使用MCP调度选择最优模型
+      model = await this.mcpService.selectModel('llm');
+      this.logger.debug(`MCP调度选择模型: ${model?.code || 'none'}`);
+    }
+    
     if (!model) {
       throw new NotFoundException('没有可用的模型');
     }

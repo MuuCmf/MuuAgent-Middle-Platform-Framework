@@ -493,7 +493,7 @@ export class RetrievalService {
 
     const retrievalContext = topSources.map((s) => s.content).join('\n\n');
     const prompt = await this.buildRagPrompt(dto.query, retrievalContext, conversationHistory);
-    const answer = await this.callLLM(prompt, dto.uid);
+    const answer = await this.callLLM(prompt, dto.uid, dto.modelCode);
 
     const costTime = Date.now() - startTime;
 
@@ -681,6 +681,7 @@ export class RetrievalService {
         const llmDto: AiInvokeDto = {
           messages: [{ role: 'user', content: prompt }],
           modelType: 'llm',
+          modelCode: dto.modelCode && dto.modelCode !== 'mcp' ? dto.modelCode : undefined,
           temperature: 0.7,
           maxTokens: 4096,
         };
@@ -868,9 +869,10 @@ ${context}
    * 调用LLM生成回答
    * @param prompt 提示词
    * @param uid 用户标识
+   * @param modelCode 指定模型CODE（可选）
    * @returns {Promise<string>} 生成的回答
    */
-  private async callLLM(prompt: string, uid?: string): Promise<string> {
+  private async callLLM(prompt: string, uid?: string, modelCode?: string): Promise<string> {
     try {
       const dto: AiInvokeDto = {
         messages: [
@@ -880,6 +882,7 @@ ${context}
           },
         ],
         modelType: 'llm',
+        modelCode: modelCode && modelCode !== 'mcp' ? modelCode : undefined,
         temperature: 0.7,
         maxTokens: 4096,
       };

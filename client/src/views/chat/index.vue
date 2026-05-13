@@ -1,6 +1,7 @@
 <template>
   <div class="chat-view">
     <div class="sidebar">
+      <!-- 模式选择 -->
       <div class="mode-selector">
         <div class="mode-title">对话模式</div>
         <div class="mode-buttons">
@@ -15,68 +16,108 @@
           </div>
         </div>
       </div>
-      
-      <div v-if="chatMode !== 'chat'" class="kb-selector">
-        <div class="kb-title">知识库选择</div>
-        <el-select
-          v-model="selectedKb"
-          placeholder="请选择知识库"
-          style="width: 100%"
-          @change="handleKbChange"
-        >
-          <el-option
-            v-for="kb in kbList"
-            :key="kb.kbId"
-            :label="kb.kbName"
-            :value="kb.kbId"
-          />
-        </el-select>
-        
-        <div v-if="selectedKbInfo" class="kb-info">
-          <div class="info-item">
-            <span class="info-label">检索方式：</span>
-            <span>{{ selectedKbInfo.retrievalMethod === 'bm25' ? 'BM25' : '向量检索' }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">文档数量：</span>
-            <span>{{ selectedKbInfo.documentCount || 0 }}</span>
-          </div>
+
+      <!-- LLM模型选择器 -->
+      <div class="model-selector-section">
+        <div class="section-header">
+          <span class="section-title">LLM模型</span>
+          <span class="section-badge">
+            {{ selectedLlmModel === 'mcp' ? '自动调度' : '指定模型' }}
+          </span>
         </div>
-        
-        <div class="retrieval-params">
-          <div class="param-item">
-            <span class="param-label">返回数量 (TopN)</span>
-            <el-input-number
-              v-model="topN"
-              :min="1"
-              :max="20"
-              :step="1"
-              style="width: 100%"
+        <ModelSelector
+          :model-code="selectedLlmModel"
+          :models="chatStore.models"
+          @change="handleLlmModelChange"
+        />
+      </div>
+
+      <!-- 智能体选择器 -->
+      <div v-if="chatMode === 'chat'" class="agent-selector-section">
+        <div class="section-header">
+          <span class="section-title">智能体</span>
+        </div>
+        <div class="agent-selector">
+          <el-select
+            v-model="selectedAgent"
+            placeholder="选择智能体（可选）"
+            style="width: 100%"
+            clearable
+          >
+            <el-option
+              v-for="agent in enabledAgents"
+              :key="agent.id"
+              :label="agent.name"
+              :value="agent.id"
+            >
+              <div class="agent-option">
+                <el-icon><User /></el-icon>
+                <span>{{ agent.name }}</span>
+                <span v-if="agent.description" class="agent-desc">{{ agent.description }}</span>
+              </div>
+            </el-option>
+          </el-select>
+        </div>
+      </div>
+
+      <!-- RAG知识库选择 -->
+      <div v-if="chatMode === 'rag' || chatMode === 'retrieval'" class="kb-selector-section">
+        <div class="section-header">
+          <span class="section-title">知识库</span>
+        </div>
+        <div class="kb-selector">
+          <el-select
+            v-model="selectedKb"
+            placeholder="请选择知识库"
+            style="width: 100%"
+            @change="handleKbChange"
+          >
+            <el-option
+              v-for="kb in kbList"
+              :key="kb.kbId"
+              :label="kb.kbName"
+              :value="kb.kbId"
             />
+          </el-select>
+
+          <div v-if="selectedKbInfo" class="kb-info">
+            <div class="info-item">
+              <span class="info-label">检索方式：</span>
+              <span>{{ selectedKbInfo.retrievalMethod === 'bm25' ? 'BM25' : '向量检索' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">文档数量：</span>
+              <span>{{ selectedKbInfo.documentCount || 0 }}</span>
+            </div>
           </div>
-          <div class="param-item">
-            <span class="param-label">相似度阈值</span>
-            <el-slider
-              v-model="similarityThresh"
-              :min="0"
-              :max="1"
-              :step="0.1"
-              show-input
-              :show-input-controls="false"
-            />
+
+          <div class="retrieval-params">
+            <div class="param-item">
+              <span class="param-label">返回数量 (TopN)</span>
+              <el-input-number
+                v-model="topN"
+                :min="1"
+                :max="20"
+                :step="1"
+                style="width: 100%"
+              />
+            </div>
+            <div class="param-item">
+              <span class="param-label">相似度阈值</span>
+              <el-slider
+                v-model="similarityThresh"
+                :min="0"
+                :max="1"
+                :step="0.1"
+                show-input
+                :show-input-controls="false"
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      <ModelSelector
-        v-if="chatMode === 'chat'"
-        :type="chatStore.selectedType"
-        :model="chatStore.selectedModel"
-        :models="chatStore.models"
-        :agents="chatStore.agents"
-        @change="handleSelectorChange"
-      />
-      
+      <!-- 会话列表 -->
       <ConversationList
         v-if="chatMode === 'chat' || chatMode === 'rag'"
         :conversations="chatStore.conversations"
@@ -86,11 +127,32 @@
         @new="handleNewConversation"
       />
     </div>
+
     <div class="main-content">
       <div class="chat-header">
-        <h2>{{ chatStore.currentConversationTitle }}</h2>
+        <div class="header-left">
+          <h2>{{ chatStore.currentConversationTitle }}</h2>
+          <div class="header-subtitle">
+            <span v-if="selectedLlmModel === 'mcp'" class="model-tag mcp-tag">
+              <el-icon :size="14"><Star /></el-icon>
+              MCP智能调度
+            </span>
+            <span v-else class="model-tag specified-tag">
+              <el-icon :size="14"><Cpu /></el-icon>
+              {{ getModelName(selectedLlmModel) }}
+            </span>
+            <span v-if="selectedAgent && chatMode === 'chat'" class="agent-tag">
+              <el-icon :size="14"><User /></el-icon>
+              {{ getAgentName(selectedAgent) }}
+            </span>
+            <span v-if="selectedKb && (chatMode === 'rag' || chatMode === 'retrieval')" class="kb-tag">
+              <el-icon :size="14"><ChatLineRound /></el-icon>
+              {{ getKbName(selectedKb) }}
+            </span>
+          </div>
+        </div>
         <div class="header-actions">
-          <div v-if="chatStore.selectedType === 'agent'" class="debug-mode-switch">
+          <div v-if="chatMode === 'chat' && selectedAgent" class="debug-mode-switch">
             <span class="debug-label">调试模式</span>
             <el-switch
               v-model="chatStore.debugMode"
@@ -109,6 +171,7 @@
           </el-button>
         </div>
       </div>
+
       <div class="messages-container" ref="messagesRef">
         <div class="messages-wrapper">
           <ChatMessage
@@ -119,11 +182,12 @@
           />
           <div v-if="chatStore.messages.length === 0" class="empty-state">
             <el-icon :size="80" color="#ddd"><ChatDotRound /></el-icon>
-            <h3>开始新的对话</h3>
-            <p>输入消息开始与AI助手对话</p>
+            <h3>{{ getEmptyTitle() }}</h3>
+            <p>{{ getEmptyDescription() }}</p>
           </div>
         </div>
       </div>
+
       <ChatInput
         :is-loading="chatStore.isLoading"
         @send="handleSendMessage"
@@ -134,7 +198,7 @@
 
 <script setup lang="ts">
 import { onMounted, nextTick, ref, watch, computed } from 'vue'
-import { Plus, ChatDotRound } from '@element-plus/icons-vue'
+import { Plus, ChatDotRound, Cpu, Star, User, ChatLineRound } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useChatStore } from '../../stores/chat'
 import { kbApi, type KbInfo } from '../../api/kb'
@@ -151,12 +215,11 @@ const messagesRef = ref<HTMLElement>()
 const chatMode = ref<'chat' | 'rag' | 'retrieval'>('chat')
 const kbList = ref<KbInfo[]>([])
 const selectedKb = ref<string>('')
+const selectedAgent = ref<string>('')
+const selectedLlmModel = ref<string>('mcp')
 const topN = ref(5)
 const similarityThresh = ref(0.7)
 
-/**
- * 对话模式选项
- */
 const modeOptions = [
   { value: 'chat' as const, label: '普通对话', icon: '💬' },
   { value: 'rag' as const, label: 'RAG问答', icon: '📚' },
@@ -167,11 +230,10 @@ const selectedKbInfo = computed(() => {
   return kbList.value.find(kb => kb.kbId === selectedKb.value)
 })
 
-/**
- * 判断指定索引的消息是否正在流式输出
- * @param index 消息索引
- * @returns 是否正在流式输出
- */
+const enabledAgents = computed(() => {
+  return chatStore.agents.filter(a => a.status === true)
+})
+
 const isMessageStreaming = (index: number): boolean => {
   const messages = chatStore.messages
   if (!chatStore.isLoading) return false
@@ -186,9 +248,6 @@ const scrollToBottom = async () => {
   }
 }
 
-/**
- * 加载知识库列表
- */
 const loadKbList = async () => {
   try {
     const res = await kbApi.getList()
@@ -198,9 +257,6 @@ const loadKbList = async () => {
   }
 }
 
-/**
- * 处理模式切换
- */
 const handleModeChange = async () => {
   chatStore.clearMessages()
   chatStore.currentConversationId = null
@@ -217,9 +273,6 @@ const handleModeChange = async () => {
   }
 }
 
-/**
- * 加载RAG问答历史会话
- */
 const loadRagConversations = async () => {
   try {
     const params: any = {
@@ -236,9 +289,6 @@ const loadRagConversations = async () => {
   }
 }
 
-/**
- * 处理知识库变更
- */
 const handleKbChange = async () => {
   chatStore.clearMessages()
   if (chatMode.value === 'rag') {
@@ -246,9 +296,14 @@ const handleKbChange = async () => {
   }
 }
 
+const handleLlmModelChange = (modelCode: string) => {
+  selectedLlmModel.value = modelCode
+  chatStore.setLlmModel(modelCode)
+}
+
 const handleSendMessage = async (content: string) => {
   if (chatMode.value === 'chat') {
-    await chatStore.sendMessage(content)
+    await handleChatMessage(content)
   } else if (chatMode.value === 'rag') {
     await handleRagChat(content)
   } else if (chatMode.value === 'retrieval') {
@@ -257,10 +312,13 @@ const handleSendMessage = async (content: string) => {
   scrollToBottom()
 }
 
-/**
- * 处理RAG问答
- * @param query 用户问题
- */
+const handleChatMessage = async (content: string) => {
+  chatStore.selectedType = selectedAgent.value ? 'agent' : 'model'
+  chatStore.selectedAgent = selectedAgent.value
+  chatStore.selectedLlmModel = selectedLlmModel.value
+  await chatStore.sendMessage(content)
+}
+
 const handleRagChat = async (query: string) => {
   if (!selectedKb.value) {
     ElMessage.warning('请先选择知识库')
@@ -268,10 +326,10 @@ const handleRagChat = async (query: string) => {
   }
 
   chatStore.isLoading = true
-  
+
   const userMessage = { role: 'user' as const, content: query }
   chatStore.messages.push(userMessage)
-  
+
   const assistantMessage = {
     role: 'assistant' as const,
     content: '',
@@ -282,13 +340,16 @@ const handleRagChat = async (query: string) => {
   const assistantIndex = chatStore.messages.length - 1
 
   try {
+    const modelCode = selectedLlmModel.value === 'mcp' ? undefined : selectedLlmModel.value
+    
     await retrievalApi.ragChatStream(
       {
         kbId: selectedKb.value,
         query,
         topN: topN.value,
         similarityThresh: similarityThresh.value,
-        conversationId: chatStore.currentConversationId || undefined
+        conversationId: chatStore.currentConversationId || undefined,
+        modelCode,
       },
       {
         onMessage: (content: string) => {
@@ -319,10 +380,6 @@ const handleRagChat = async (query: string) => {
   }
 }
 
-/**
- * 处理向量检索
- * @param query 检索查询
- */
 const handleRetrieval = async (query: string) => {
   if (!selectedKb.value) {
     ElMessage.warning('请先选择知识库')
@@ -330,7 +387,7 @@ const handleRetrieval = async (query: string) => {
   }
 
   chatStore.isLoading = true
-  
+
   const userMessage = { role: 'user' as const, content: query }
   chatStore.messages.push(userMessage)
 
@@ -358,13 +415,6 @@ const handleRetrieval = async (query: string) => {
   }
 }
 
-const handleSelectorChange = async (data: { type: 'model' | 'agent'; value: string }) => {
-  chatStore.selectedType = data.type
-  chatStore.selectedModel = data.value
-  chatStore.clearMessages()
-  await chatStore.loadConversations()
-}
-
 const handleSelectConversation = async (conversationId: string) => {
   try {
     const response = await conversationApi.getDetail(conversationId)
@@ -383,7 +433,7 @@ const handleSelectConversation = async (conversationId: string) => {
     } else {
       chatMode.value = 'chat'
       chatStore.selectedType = conversation.conversationType as 'model' | 'agent'
-      chatStore.selectedModel = conversation.targetId
+      selectedAgent.value = conversation.conversationType === 'agent' ? conversation.targetId : ''
     }
 
     scrollToBottom()
@@ -412,6 +462,39 @@ const handleDebugModeChange = (value: boolean) => {
   ElMessage.success(value ? '已开启调试模式，将显示推理过程' : '已关闭调试模式')
 }
 
+const getModelName = (modelCode: string): string => {
+  const model = chatStore.models.find(m => m.code === modelCode)
+  return model?.name || modelCode
+}
+
+const getAgentName = (agentId: string): string => {
+  const agent = chatStore.agents.find(a => a.id === agentId)
+  return agent?.name || agentId
+}
+
+const getKbName = (kbId: string): string => {
+  const kb = kbList.value.find(k => k.kbId === kbId)
+  return kb?.kbName || kbId
+}
+
+const getEmptyTitle = (): string => {
+  switch (chatMode.value) {
+    case 'chat': return '开始新的对话'
+    case 'rag': return '开始RAG问答'
+    case 'retrieval': return '开始向量检索'
+    default: return '开始新的对话'
+  }
+}
+
+const getEmptyDescription = (): string => {
+  switch (chatMode.value) {
+    case 'chat': return '输入消息开始与AI助手对话'
+    case 'rag': return '选择知识库后输入问题，基于文档内容进行问答'
+    case 'retrieval': return '选择知识库后输入关键词进行向量检索'
+    default: return '输入消息开始与AI助手对话'
+  }
+}
+
 watch(() => chatStore.messages.length, () => {
   scrollToBottom()
 })
@@ -431,7 +514,7 @@ onMounted(async () => {
 }
 
 .sidebar {
-  width: 280px;
+  width: 300px;
   background: white;
   border-right: 1px solid #e8e8e8;
   display: flex;
@@ -442,110 +525,133 @@ onMounted(async () => {
 .mode-selector {
   padding: 16px 20px;
   border-bottom: 1px solid #f0f0f0;
+}
 
-  .mode-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 12px;
-  }
+.mode-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
 
-  .mode-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
+.mode-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-  .mode-btn {
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #dcdfe6;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 14px;
+  color: #606266;
+  background: #fff;
+}
+
+.mode-btn:hover {
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.mode-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+.mode-icon {
+  font-size: 16px;
+}
+
+.mode-label {
+  flex: 1;
+}
+
+.model-selector-section,
+.agent-selector-section,
+.kb-selector-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.section-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: #e8f4fd;
+  color: #20a0ff;
+  border-radius: 10px;
+}
+
+.agent-selector {
+  .agent-option {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 16px;
-    border-radius: 8px;
-    border: 1px solid #dcdfe6;
-    cursor: pointer;
-    transition: all 0.3s;
-    font-size: 14px;
-    color: #606266;
-    background: #fff;
-
-    &:hover {
-      border-color: #667eea;
-      color: #667eea;
-    }
-
-    &.active {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-color: #667eea;
-      color: #fff;
-      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
-    }
-
-    .mode-icon {
-      font-size: 16px;
-    }
-
-    .mode-label {
-      flex: 1;
-    }
+  }
+  .agent-desc {
+    font-size: 12px;
+    color: #999;
+    margin-left: auto;
   }
 }
 
 .kb-selector {
-  padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
-
-  .kb-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 12px;
-  }
-
   .kb-info {
     background: #f8f9fa;
     border-radius: 8px;
-    padding: 12px;
-    margin-top: 12px;
-
-    .info-item {
-      display: flex;
-      font-size: 13px;
-      margin-bottom: 8px;
-
-      &:last-child {
-        margin-bottom: 0;
-      }
-
-      .info-label {
-        color: #999;
-        width: 80px;
-        flex-shrink: 0;
-      }
-
-      span:last-child {
-        color: #333;
-      }
+    padding: 10px;
+    margin-top: 10px;
+  }
+  .info-item {
+    display: flex;
+    font-size: 12px;
+    margin-bottom: 6px;
+    &:last-child {
+      margin-bottom: 0;
     }
   }
-
+  .info-label {
+    color: #999;
+    width: 70px;
+    flex-shrink: 0;
+  }
+  .info-item span:last-child {
+    color: #333;
+  }
   .retrieval-params {
-    margin-top: 12px;
-
-    .param-item {
-      margin-bottom: 12px;
-
-      &:last-child {
-        margin-bottom: 0;
-      }
-
-      .param-label {
-        display: block;
-        font-size: 13px;
-        color: #666;
-        margin-bottom: 8px;
-      }
+    margin-top: 10px;
+  }
+  .param-item {
+    margin-bottom: 10px;
+    &:last-child {
+      margin-bottom: 0;
     }
+  }
+  .param-label {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 6px;
   }
 }
 
@@ -566,6 +672,10 @@ onMounted(async () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
+.header-left {
+  flex: 1;
+}
+
 .chat-header h2 {
   margin: 0;
   font-size: 20px;
@@ -574,6 +684,44 @@ onMounted(async () => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.header-subtitle {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.model-tag,
+.agent-tag,
+.kb-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 16px;
+}
+
+.model-tag.mcp-tag {
+  background: #fff3e6;
+  color: #f59e0b;
+}
+
+.model-tag.specified-tag {
+  background: #e8f4fd;
+  color: #20a0ff;
+}
+
+.agent-tag {
+  background: #f0f5ff;
+  color: #667eea;
+}
+
+.kb-tag {
+  background: #f0fff4;
+  color: #67c23a;
 }
 
 .header-actions {
@@ -637,5 +785,17 @@ onMounted(async () => {
 
 :deep(.el-button--primary:hover) {
   background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+:deep(.el-select__wrapper) {
+  border-radius: 8px;
+}
+
+:deep(.el-select__wrapper:hover) {
+  border-color: #667eea;
+}
+
+:deep(.el-select__wrapper.is-focus) {
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
 }
 </style>

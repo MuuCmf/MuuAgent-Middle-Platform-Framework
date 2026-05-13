@@ -78,6 +78,7 @@ export const retrievalApi = {
     topN?: number
     similarityThresh?: number
     conversationId?: string
+    modelCode?: string
   }): Promise<{ data: RagChatResponse }> {
     const response = await httpClient.getInstance().post('/api/kb/chat/rag', data)
     return { data: response.data.data }
@@ -95,6 +96,7 @@ export const retrievalApi = {
       topN?: number
       similarityThresh?: number
       conversationId?: string
+      modelCode?: string
     },
     callbacks: RagStreamCallbacks
   ): Promise<void> {

@@ -49,6 +49,7 @@ export const agentApi = {
       agentId: string
       message: string
       conversationId?: string | null
+      modelCode?: string
       showReasoning?: boolean
     },
     onMessage: (content: string) => void,

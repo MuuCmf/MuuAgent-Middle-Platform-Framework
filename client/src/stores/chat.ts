@@ -12,6 +12,8 @@ export const useChatStore = defineStore('chat', () => {
   const currentConversationId = ref<string | null>(null)
   const selectedType = ref<'model' | 'agent'>('model')
   const selectedModel = ref<string>('mcp')
+  const selectedAgent = ref<string>('')
+  const selectedLlmModel = ref<string>('mcp')
   const conversations = ref<Conversation[]>([])
   const models = ref<any[]>([])
   const agents = ref<any[]>([])
@@ -27,10 +29,31 @@ export const useChatStore = defineStore('chat', () => {
   })
 
   /**
+   * 获取当前使用的模型代码
+   */
+  const currentModelCode = computed(() => {
+    return selectedLlmModel.value === 'mcp' ? undefined : selectedLlmModel.value
+  })
+
+  /**
    * 切换调试模式
    */
   const toggleDebugMode = () => {
     debugMode.value = !debugMode.value
+  }
+
+  /**
+   * 设置选中的LLM模型
+   */
+  const setLlmModel = (modelCode: string) => {
+    selectedLlmModel.value = modelCode
+  }
+
+  /**
+   * 设置选中的智能体
+   */
+  const setAgent = (agentId: string) => {
+    selectedAgent.value = agentId
   }
 
   /**
@@ -57,7 +80,7 @@ export const useChatStore = defineStore('chat', () => {
         await new Promise<void>((resolve, reject) => {
           aiApi.streamChat(
             {
-              modelCode: selectedModel.value === 'mcp' ? undefined : selectedModel.value,
+              modelCode: currentModelCode.value,
               messages: [userMessage],
               conversationId: currentConversationId.value,
             },
@@ -81,15 +104,17 @@ export const useChatStore = defineStore('chat', () => {
       } else {
         await new Promise<void>((resolve, reject) => {
           console.log('[Chat] Agent stream params:', {
-            agentId: selectedModel.value,
+            agentId: selectedAgent.value,
             conversationId: currentConversationId.value,
             selectedType: selectedType.value,
+            modelCode: currentModelCode.value,
           })
           agentApi.streamChat(
             {
-              agentId: selectedModel.value,
+              agentId: selectedAgent.value,
               message: content,
               conversationId: currentConversationId.value,
+              modelCode: currentModelCode.value,
               showReasoning: debugMode.value,
             },
             (chunk: string) => {
@@ -235,6 +260,9 @@ export const useChatStore = defineStore('chat', () => {
     currentConversationTitle,
     selectedType,
     selectedModel,
+    selectedAgent,
+    selectedLlmModel,
+    currentModelCode,
     conversations,
     models,
     agents,
@@ -248,5 +276,7 @@ export const useChatStore = defineStore('chat', () => {
     loadModels,
     loadAgents,
     toggleDebugMode,
+    setLlmModel,
+    setAgent,
   }
 })

@@ -214,6 +214,11 @@ export class AgentChatDto {
   @IsBoolean()
   @IsOptional()
   showReasoning?: boolean;
+
+  @ApiPropertyOptional({ description: '指定模型CODE（不传或传"mcp"则MCP自动调度）' })
+  @IsString()
+  @IsOptional()
+  modelCode?: string;
 }
 
 /**
