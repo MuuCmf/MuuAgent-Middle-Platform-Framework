@@ -17,6 +17,7 @@
       <RagAnswer
         v-if="message.role === 'assistant' && message.type === 'rag'"
         :content="message.content"
+        :thinking-content="message.thinkingContent"
         :sources="message.sources"
       />
       

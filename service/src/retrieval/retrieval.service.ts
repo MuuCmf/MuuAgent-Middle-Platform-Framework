@@ -674,6 +674,8 @@ export class RetrievalService {
 
     return defer(() => {
       return new Observable((observer) => {
+        console.log('[RAG Stream] Observable被订阅，先发送conversationId');
+        observer.next(JSON.stringify({ conversationId: conversation.id }));
         console.log('[RAG Stream] Observable被订阅，准备发送sources');
         observer.next(JSON.stringify({ sources: topSources }));
         console.log('[RAG Stream] 已发送sources');
@@ -692,77 +694,94 @@ export class RetrievalService {
         
         console.log('[RAG Stream] 开始订阅LLM流');
         let fullResponse = '';
+        let hasError = false;
         const llmSubscription = stream$.subscribe({
         next: (event: any) => {
+          if (hasError) return;
+          
           const rawData = event.data || event;
           console.log('[RAG Stream] LLM响应原始数据类型:', typeof rawData);
           console.log('[RAG Stream] LLM响应原始数据:', rawData);
           
-          let data;
-          try {
-            data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-          } catch (e) {
-            console.error('[RAG Stream] JSON解析失败:', rawData);
-            return;
-          }
-          
-          console.log('[RAG Stream] LLM响应数据:', JSON.stringify(data));
-          
-          if (data && typeof data === 'object') {
+          // 直接处理 LLM 原始文本内容，不强制解析为 JSON
+          if (rawData && typeof rawData === 'string') {
+            const dataLine = rawData.trim();
+            
+            // 过滤 [CONVERSATION_ID] 标记（来自 ai.service）
+            if (dataLine.startsWith('[CONVERSATION_ID]')) {
+              console.log('[RAG Stream] 收到会话ID标记，跳过');
+              return;
+            }
+            
+            // 过滤 [DONE] 标记
+            if (dataLine === '[DONE]' || dataLine.startsWith('[DONE]')) {
+              console.log('[RAG Stream] 收到LLM流结束标记');
+              return;
+            }
+            
             let content: string | null = null;
             
-            if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
-              const choice = data.choices[0];
-              if (choice.delta && typeof choice.delta.content === 'string') {
-                content = choice.delta.content;
-              } 
-              else if (choice.message && typeof choice.message.content === 'string') {
-                content = choice.message.content;
+            // 先尝试解析为 JSON
+            if (dataLine.startsWith('{') && dataLine.endsWith('}')) {
+              try {
+                const parsed = JSON.parse(dataLine);
+                console.log('[RAG Stream] LLM响应数据:', JSON.stringify(parsed).substring(0, 200));
+                
+                if (parsed.choices && Array.isArray(parsed.choices) && parsed.choices.length > 0) {
+                  const choice = parsed.choices[0];
+                  if (choice.delta && typeof choice.delta.content === 'string' && choice.delta.content) {
+                    content = choice.delta.content;
+                  }
+                  else if (choice.delta && typeof choice.delta.reasoning_content === 'string' && choice.delta.reasoning_content) {
+                    content = choice.delta.reasoning_content;
+                  }
+                  else if (choice.message && typeof choice.message.content === 'string' && choice.message.content) {
+                    content = choice.message.content;
+                  }
+                  else if (choice.text && typeof choice.text === 'string') {
+                    content = choice.text;
+                  }
+                }
+                else if (typeof parsed.content === 'string' && parsed.content) {
+                  content = parsed.content;
+                }
+                else if (typeof parsed.response === 'string' && parsed.response) {
+                  content = parsed.response;
+                }
+                else if (typeof parsed.text === 'string' && parsed.text) {
+                  content = parsed.text;
+                }
+              } catch {
+                console.log('[RAG Stream] 不是有效JSON，直接使用原始文本');
               }
-            } 
-            else if (typeof data.content === 'string') {
-              content = data.content;
             }
-            else if (typeof data.response === 'string') {
-              content = data.response;
-            } else if (typeof data.text === 'string') {
-              content = data.text;
+            
+            // 如果没有从 JSON 中提取到 content，直接使用原始字符串
+            if (!content && dataLine && dataLine.trim()) {
+              content = dataLine.trim();
             }
             
             if (content) {
               fullResponse += content;
-              console.log('[RAG Stream] 发送内容:', content.substring(0, 100) + (content.length > 100 ? '...' : ''));
-              observer.next(JSON.stringify({ 
-                choices: [{ 
-                  delta: { content } 
-                }] 
+              console.log('[RAG Stream] 发送内容片段, 长度:', content.length);
+              // 直接发送原始内容，由前端处理 [THINKING] 和 [ANSWER] 标记
+              observer.next(JSON.stringify({
+                choices: [{
+                  delta: { content }
+                }]
               }));
-              console.log('[RAG Stream] 已发送给Observer');
-            } else {
-              console.warn('[RAG Stream] 无法解析LLM响应数据，未找到content字段或content为空');
-              console.log('[RAG Stream] 完整数据:', JSON.stringify(data));
             }
           }
         },
         error: (error) => {
           console.error('[RAG Stream] LLM流式调用失败:', error);
+          hasError = true;
           observer.error(error);
         },
         complete: async () => {
-          const costTime = Date.now() - startTime;
+          if (hasError) return;
           
-          if (fullResponse) {
-            await this.conversationService.addMessage(
-              conversation.id,
-              'assistant',
-              fullResponse,
-              { metadata: { sources: topSources, retrievalCount: topSources.length } },
-            );
-
-            if (conversation.messageCount === 0) {
-              await this.conversationService.generateTitle(conversation.id);
-            }
-          }
+          const costTime = Date.now() - startTime;
           
           await this.prisma.kbRetrievalLog.create({
             data: {
@@ -779,14 +798,28 @@ export class RetrievalService {
             },
           });
           
-          observer.next(JSON.stringify({ conversationId: conversation.id }));
+          if (fullResponse) {
+            await this.conversationService.addMessage(
+              conversation.id,
+              'assistant',
+              fullResponse,
+              { metadata: { sources: topSources, retrievalCount: topSources.length } },
+            );
+
+            if (conversation.messageCount === 0) {
+              await this.conversationService.generateTitle(conversation.id);
+            }
+          }
+          
           observer.complete();
         },
       });
       
       return () => {
         console.log('[RAG Stream] 取消订阅');
-        llmSubscription.unsubscribe();
+        if (llmSubscription && !llmSubscription.closed) {
+          llmSubscription.unsubscribe();
+        }
       };
     });
   });
@@ -861,7 +894,17 @@ ${context}
 
 用户问题：${query}
 
-请基于参考信息给出准确、详细的回答。如果参考信息中没有相关内容，请明确告知用户。`;
+请按照以下格式回答：
+1. 首先在 [THINKING] 标签内写出你的思考过程和分析
+2. 然后在 [ANSWER] 标签内给出正式回答
+
+例如：
+[THINKING]
+根据参考信息，用户问题关于XX，参考信息提到...
+[ANSWER]
+正式回答内容...
+
+如果参考信息中没有相关内容，请明确告知用户。`;
     }
   }
 

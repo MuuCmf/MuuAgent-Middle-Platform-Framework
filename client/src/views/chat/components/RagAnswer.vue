@@ -1,6 +1,15 @@
 <template>
   <div class="rag-answer">
+    <!-- 思考内容 -->
+    <div v-if="thinkingContent && thinkingContent.trim()" class="thinking-section">
+      <div class="thinking-icon">💭</div>
+      <div class="thinking-content">{{ thinkingContent }}</div>
+    </div>
+    
+    <!-- 回答内容 -->
     <div class="rag-content">{{ content }}</div>
+    
+    <!-- 参考来源 -->
     <div v-if="sources && sources.length > 0" class="rag-sources">
       <div class="sources-title">📚 参考来源：</div>
       <div v-for="(source, sIdx) in sources" :key="sIdx" class="source-item">
@@ -17,6 +26,7 @@ import type { RetrievalItem } from '../../../api/retrieval'
 
 defineProps<{
   content: string
+  thinkingContent?: string
   sources?: RetrievalItem[]
 }>()
 </script>
@@ -26,11 +36,39 @@ defineProps<{
   width: 100%;
 }
 
+/* 思考内容样式 */
+.thinking-section {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border-left: 4px solid #ff9800;
+  
+  .thinking-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  
+  .thinking-content {
+    flex: 1;
+    white-space: pre-wrap;
+    line-height: 1.8;
+    color: #e65100;
+    font-style: italic;
+    font-size: 14px;
+  }
+}
+
+/* 回答内容样式 */
 .rag-content {
   white-space: pre-wrap;
   line-height: 1.8;
+  color: #333;
 }
 
+/* 参考来源样式 */
 .rag-sources {
   margin-top: 16px;
   padding-top: 16px;

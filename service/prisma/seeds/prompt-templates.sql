@@ -12,6 +12,13 @@ INSERT INTO prompt_templates (id, code, name, category, content, variables, isDe
 ## 用户问题
 {{query}}
 
+## 回答格式
+请按照以下格式回答：
+[THINKING]
+你的思考过程和分析
+[ANSWER]
+正式回答内容
+
 ## 回答要求
 1. 基于参考信息给出准确、详细的回答
 2. 如果参考信息中没有相关内容，请明确告知用户

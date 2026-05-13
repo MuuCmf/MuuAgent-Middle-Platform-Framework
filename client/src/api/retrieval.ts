@@ -153,15 +153,13 @@ export const retrievalApi = {
               }
             } else if (parsed.choices && parsed.choices[0]?.delta?.content) {
               onMessage(parsed.choices[0].delta.content)
-            } else if (parsed.choices && parsed.choices[0]?.message?.content) {
-              onMessage(parsed.choices[0].message.content)
             } else if (parsed.message) {
               onMessage(parsed.message)
-            } else if (parsed.content) {
-              onMessage(parsed.content)
             }
           } catch {
-            onMessage(dataLine)
+            if (dataLine && dataLine.trim()) {
+              onMessage(dataLine)
+            }
           }
         },
 

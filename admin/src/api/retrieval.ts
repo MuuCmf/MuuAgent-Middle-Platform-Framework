@@ -86,6 +86,16 @@ export const retrievalApi = {
   },
 
   /**
+   * RAG问答流式回调接口
+   */
+  interface RagStreamCallbacks {
+    onMessage: (content: string) => void
+    onError?: (error: Error) => void
+    onComplete?: (sources?: any[]) => void
+    onConversationId?: (conversationId: string) => void
+  }
+
+  /**
    * RAG问答流式调用（使用 @microsoft/fetch-event-source）
    * 自动处理 SSE 连接、重试和错误
    */
@@ -96,10 +106,9 @@ export const retrievalApi = {
       topN?: number
       similarityThresh?: number
     },
-    onMessage: (data: string) => void,
-    onError?: (error: any) => void,
-    onComplete?: (sources?: any[]) => void
+    callbacks: RagStreamCallbacks
   ): Promise<void> {
+    const { onMessage, onError, onComplete, onConversationId } = callbacks
     console.log('[RAG Stream] 发送请求:', `${appConfig.apiBaseUrl}/kb/chat/rag/stream`, data)
 
     const abortController = new AbortController()
@@ -159,7 +168,12 @@ export const retrievalApi = {
             const parsed = JSON.parse(dataLine)
             console.log('[RAG Stream] 解析结果:', parsed)
 
-            if (parsed.sources) {
+            if (parsed.conversationId) {
+              if (onConversationId) {
+                onConversationId(parsed.conversationId)
+                console.log('[RAG Stream] 收到conversationId:', parsed.conversationId)
+              }
+            } else if (parsed.sources) {
               sources = parsed.sources
               console.log('[RAG Stream] 更新sources:', sources.length)
             } else if (parsed.choices && parsed.choices[0]?.delta?.content) {

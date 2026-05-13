@@ -10,6 +10,7 @@ import type { RetrievalItem } from './retrieval'
 export interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
+  thinkingContent?: string
   reasoningSteps?: ReasoningStep[]
   type?: 'rag' | 'retrieval'
   sources?: RetrievalItem[]

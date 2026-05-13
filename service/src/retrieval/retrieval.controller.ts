@@ -78,19 +78,34 @@ export class RetrievalController {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    let subscription: any = null;
+    
+    const cleanup = () => {
+      if (subscription && !subscription.closed) {
+        subscription.unsubscribe();
+      }
+    };
+    
+    req.on('close', cleanup);
+    req.on('error', cleanup);
 
     try {
       const stream$ = await this.retrievalService.ragChatStream(dto, context);
       console.log('[Controller] 获取到 Observable');
       
-      stream$.subscribe({
-        next: (data) => {
-          console.log('[Controller] 收到数据:', data.substring(0, 100));
-          res.write(`data: ${data}\n\n`);
-          (res as any).flush?.();
+      subscription = stream$.subscribe({
+        next: (data: any) => {
+          console.log('[Controller] 收到数据:', String(data).substring(0, 100));
+          const written = res.write(`data: ${data}\n\n`);
+          if (written !== false) {
+            (res as any).flush?.();
+          }
         },
-        error: (err) => {
-          res.write(`data: [ERROR] ${err.message}\n\n`);
+        error: (err: any) => {
+          console.error('[Controller] 流式RAG错误:', err);
+          res.write(`data: [ERROR] ${err.message || 'Unknown error'}\n\n`);
           res.end();
         },
         complete: () => {
@@ -99,6 +114,7 @@ export class RetrievalController {
         },
       });
     } catch (error: any) {
+      console.error('[Controller] 获取流失败:', error);
       res.write(`data: [ERROR] ${error.message}\n\n`);
       res.end();
     }

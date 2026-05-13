@@ -321,7 +321,42 @@ const handleRagChat = async (query: string) => {
       },
       {
         onMessage: (content: string) => {
-          chatStore.messages[assistantIndex].content += content
+          // 前端处理 [THINKING] 和 [ANSWER] 标记
+          const msg = chatStore.messages[assistantIndex]
+          
+          // 检测标记位置
+          const thinkingIndex = msg.content.indexOf('[THINKING]')
+          const answerIndex = msg.content.indexOf('[ANSWER]')
+          
+          // 如果还没有检测到标记，先追加内容
+          msg.content += content
+          
+          // 检查是否需要分割思考内容和回答内容
+          const newThinkingIndex = msg.content.indexOf('[THINKING]')
+          const newAnswerIndex = msg.content.indexOf('[ANSWER]')
+          
+          // 如果检测到了 [THINKING] 和 [ANSWER]，进行分割
+          if (newThinkingIndex !== -1 && newAnswerIndex !== -1 && newAnswerIndex > newThinkingIndex) {
+            // 提取思考内容：[THINKING] 和 [ANSWER] 之间的内容
+            const thinkingContent = msg.content
+              .substring(newThinkingIndex + 10, newAnswerIndex)
+              .trim()
+            
+            // 提取回答内容：[ANSWER] 之后的内容
+            const answerContent = msg.content
+              .substring(newAnswerIndex + 8)
+              .trim()
+            
+            // 提取 [THINKING] 之前的内容（如果有）
+            const beforeThinking = msg.content
+              .substring(0, newThinkingIndex)
+              .trim()
+            
+            // 更新消息
+            msg.thinkingContent = thinkingContent
+            msg.content = beforeThinking + (beforeThinking && answerContent ? '\n\n' : '') + answerContent
+          }
+          
           scrollToBottom()
         },
         onError: (error: Error) => {

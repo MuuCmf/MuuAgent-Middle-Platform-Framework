@@ -331,33 +331,52 @@ export class AiService {
 
                   try {
                     const parsed = JSON.parse(data);
-                    
+
                     if (parsed.usage) {
                       tokenInfo = this.extractTokenInfo(parsed);
                     }
 
                     fullResponse.push(parsed);
-                    
+
                     let contentToSend = '';
                     if (parsed.choices && parsed.choices[0]?.delta) {
                       const delta = parsed.choices[0].delta;
-                      if (delta.content) {
-                        contentToSend = delta.content;
-                        accumulatedContent += delta.content;
-                      } else if (delta.reasoning_content) {
-                        contentToSend = delta.reasoning_content;
-                        accumulatedContent += delta.reasoning_content;
+                      if (delta && typeof delta === 'object') {
+                        if (delta.content !== undefined && delta.content !== null) {
+                          contentToSend = String(delta.content);
+                          accumulatedContent += contentToSend;
+                        } else if (delta.reasoning_content !== undefined && delta.reasoning_content !== null) {
+                          contentToSend = String(delta.reasoning_content);
+                          accumulatedContent += contentToSend;
+                        }
                       }
                     } else if (parsed.choices && parsed.choices[0]?.message?.content) {
-                      contentToSend = parsed.choices[0].message.content;
+                      contentToSend = String(parsed.choices[0].message.content);
+                      accumulatedContent += contentToSend;
+                    } else if (parsed.choices && parsed.choices[0]?.text) {
+                      contentToSend = String(parsed.choices[0].text);
+                      accumulatedContent += contentToSend;
+                    } else if (parsed.text) {
+                      contentToSend = String(parsed.text);
+                      accumulatedContent += contentToSend;
+                    } else if (parsed.content) {
+                      contentToSend = String(parsed.content);
+                      accumulatedContent += contentToSend;
+                    } else if (parsed.response) {
+                      contentToSend = String(parsed.response);
                       accumulatedContent += contentToSend;
                     }
-                    
+
                     if (contentToSend) {
+                      console.log('[Stream] 发送流式内容, 长度:', contentToSend.length);
                       observer.next(new MessageEvent('message', { data: contentToSend }));
                     }
                   } catch (e) {
-                    console.warn('流式数据JSON解析失败:', data.substring(0, 100));
+                    console.warn('[Stream] 流式数据JSON解析失败, 原始数据:', data.substring(0, 200));
+                    if (data && data.trim()) {
+                      console.log('[Stream] 发送原始数据作为兜底');
+                      observer.next(new MessageEvent('message', { data: data.trim() }));
+                    }
                   }
                 }
               }
