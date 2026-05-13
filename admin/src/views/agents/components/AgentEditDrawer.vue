@@ -89,8 +89,8 @@
           <div class="prompt-wrapper">
             <div class="prompt-mode-switch">
               <el-radio-group v-model="promptMode" size="small">
-                <el-radio-button label="template">使用模板</el-radio-button>
-                <el-radio-button label="custom">自定义输入</el-radio-button>
+                <el-radio-button value="template">使用模板</el-radio-button>
+                <el-radio-button value="custom">自定义输入</el-radio-button>
               </el-radio-group>
             </div>
 
