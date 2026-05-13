@@ -68,7 +68,7 @@ export const retrievalApi = {
     topN?: number
     similarityThresh?: number
   }): Promise<AxiosResponse<{ data: RetrievalResponse }>> {
-    return request.post('/kb/retrieval', data)
+    return request.post('api/kb/retrieval', data)
   },
 
   /**
@@ -82,7 +82,7 @@ export const retrievalApi = {
     topN?: number
     similarityThresh?: number
   }): Promise<AxiosResponse<{ data: RagChatResponse }>> {
-    return request.post('/kb/chat/rag', data)
+    return request.post('api/kb/chat/rag', data)
   },
 
   /**

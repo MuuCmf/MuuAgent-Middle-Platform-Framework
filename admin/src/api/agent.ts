@@ -84,23 +84,23 @@ export interface AgentStreamResponse {
 
 export const agentApi = {
   getList(): Promise<AxiosResponse<{ data: AgentListResponse }>> {
-    return adminRequest.get('/admin/agent')
+    return adminRequest.get('api/admin/agent')
   },
 
   create(data: AgentForm): Promise<AxiosResponse> {
-    return adminRequest.post('/admin/agent', data)
+    return adminRequest.post('api/admin/agent', data)
   },
 
   update(id: number, data: AgentForm): Promise<AxiosResponse> {
-    return adminRequest.put(`/admin/agent/${id}`, data)
+    return adminRequest.put(`api/admin/agent/${id}`, data)
   },
 
   delete(id: number): Promise<AxiosResponse> {
-    return adminRequest.delete(`/admin/agent/${id}`)
+    return adminRequest.delete(`api/admin/agent/${id}`)
   },
 
   chat(agentId: string, message: string): Promise<AxiosResponse<{ data: { response: string } }>> {
-    return request.post('/agent/chat', { agentId, message })
+    return request.post('/api/agent/chat', { agentId, message })
   },
 
   /**

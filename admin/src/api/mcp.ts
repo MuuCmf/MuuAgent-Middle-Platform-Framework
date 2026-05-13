@@ -55,42 +55,42 @@ export interface McpStatus {
 
 export const mcpApi = {
   getStrategies(): Promise<AxiosResponse<ApiResponse<McpStrategy[]>>> {
-    return adminRequest.get('/admin/mcp/strategies')
+    return adminRequest.get('api/admin/mcp/strategies')
   },
   
   getStrategy(modelType: string): Promise<AxiosResponse<ApiResponse<McpStrategy>>> {
-    return adminRequest.get(`/admin/mcp/strategy/${modelType}`)
+    return adminRequest.get(`api/admin/mcp/strategy/${modelType}`)
   },
   
   createStrategy(data: McpStrategyForm): Promise<AxiosResponse<ApiResponse<McpStrategy>>> {
-    return adminRequest.post('/admin/mcp/strategy', data)
+    return adminRequest.post('api/admin/mcp/strategy', data)
   },
   
   updateStrategy(modelType: string, data: Partial<McpStrategyForm>): Promise<AxiosResponse<ApiResponse<McpStrategy>>> {
-    return adminRequest.put(`/admin/mcp/strategy/${modelType}`, data)
+    return adminRequest.put(`api/admin/mcp/strategy/${modelType}`, data)
   },
   
   getRules(): Promise<AxiosResponse<ApiResponse<McpRule[]>>> {
-    return adminRequest.get('/admin/mcp/rules')
+    return adminRequest.get('api/admin/mcp/rules')
   },
   
   createRule(data: any): Promise<AxiosResponse<ApiResponse<McpRule>>> {
-    return adminRequest.post('/admin/mcp/rule', data)
+    return adminRequest.post('api/admin/mcp/rule', data)
   },
   
   updateRule(modelId: string, data: any): Promise<AxiosResponse<ApiResponse<McpRule>>> {
-    return adminRequest.put(`/admin/mcp/rule/${modelId}`, data)
+    return adminRequest.put(`api/admin/mcp/rule/${modelId}`, data)
   },
   
   getRule(modelId: string): Promise<AxiosResponse<ApiResponse<McpRule>>> {
-    return adminRequest.get(`/admin/mcp/rule/${modelId}`)
+    return adminRequest.get(`api/admin/mcp/rule/${modelId}`)
   },
   
   resetCircuit(modelId: string): Promise<AxiosResponse<ApiResponse<void>>> {
-    return adminRequest.post(`/admin/mcp/circuit/reset/${modelId}`)
+    return adminRequest.post(`api/admin/mcp/circuit/reset/${modelId}`)
   },
   
   getStatus(): Promise<AxiosResponse<ApiResponse<McpStatus[]>>> {
-    return adminRequest.get('/admin/mcp/status')
+    return adminRequest.get('api/admin/mcp/status')
   }
 }

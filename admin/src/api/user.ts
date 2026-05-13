@@ -27,7 +27,7 @@ export const userApi = {
    * @returns {Promise<AxiosResponse>} 用户信息响应
    */
   getProfile(): Promise<AxiosResponse<{ data: AdminUser }>> {
-    return adminRequest.get('/admin/profile')
+    return adminRequest.get('api/admin/profile')
   },
 
   /**
@@ -36,7 +36,7 @@ export const userApi = {
    * @returns {Promise<AxiosResponse>} 修改结果
    */
   changePassword(data: ChangePasswordDto): Promise<AxiosResponse<{ message: string }>> {
-    return adminRequest.patch('/admin/password', data)
+    return adminRequest.patch('api/admin/password', data)
   },
 
   /**

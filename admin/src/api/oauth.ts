@@ -94,7 +94,7 @@ export const oauthApi = {
     const params: any = { page, pageSize }
     if (search) params.search = search
     if (appCode) params.appCode = appCode
-    return adminRequest.get<ClientListResponse>('/admin/oauth/clients', { params })
+    return adminRequest.get<ClientListResponse>('api/admin/oauth/clients', { params })
   },
 
   /**
@@ -103,7 +103,7 @@ export const oauthApi = {
    * @returns {Promise<AxiosResponse>} 客户端详情响应
    */
   getClient(id: string): Promise<AxiosResponse<ApiResponse<OAuthClient>>> {
-    return adminRequest.get<OAuthClient>(`/admin/oauth/clients/${id}`)
+    return adminRequest.get<OAuthClient>(`api/admin/oauth/clients/${id}`)
   },
 
   /**
@@ -112,7 +112,7 @@ export const oauthApi = {
    * @returns {Promise<AxiosResponse>} 创建结果
    */
   createClient(data: CreateClientDto): Promise<AxiosResponse<ApiResponse<OAuthClient>>> {
-    return adminRequest.post<OAuthClient>('/admin/oauth/clients', data)
+    return adminRequest.post<OAuthClient>('api/admin/oauth/clients', data)
   },
 
   /**
@@ -122,7 +122,7 @@ export const oauthApi = {
    * @returns {Promise<AxiosResponse>} 更新结果
    */
   updateClient(id: string, data: UpdateClientDto): Promise<AxiosResponse<ApiResponse<OAuthClient>>> {
-    return adminRequest.put<OAuthClient>(`/admin/oauth/clients/${id}`, data)
+    return adminRequest.put<OAuthClient>(`api/admin/oauth/clients/${id}`, data)
   },
 
   /**
@@ -131,7 +131,7 @@ export const oauthApi = {
    * @returns {Promise<AxiosResponse>} 删除结果
    */
   deleteClient(id: string): Promise<AxiosResponse<ApiResponse<{ message: string }>>> {
-    return adminRequest.delete<{ message: string }>(`/admin/oauth/clients/${id}`)
+    return adminRequest.delete<{ message: string }>(`api/admin/oauth/clients/${id}`)
   },
 
   /**
@@ -142,7 +142,7 @@ export const oauthApi = {
   resetClientSecret(
     id: string
   ): Promise<AxiosResponse<ApiResponse<{ clientId: string; clientSecret: string }>>> {
-    return adminRequest.post<{ clientId: string; clientSecret: string }>(`/admin/oauth/clients/${id}/reset-secret`)
+    return adminRequest.post<{ clientId: string; clientSecret: string }>(`api/admin/oauth/clients/${id}/reset-secret`)
   },
 
   /**
@@ -159,7 +159,7 @@ export const oauthApi = {
   ): Promise<AxiosResponse<ApiResponse<TokenListResponse>>> {
     const params: any = { page, pageSize }
     if (clientId) params.clientId = clientId
-    return adminRequest.get<TokenListResponse>('/admin/oauth/tokens', { params })
+    return adminRequest.get<TokenListResponse>('api/admin/oauth/tokens', { params })
   },
 
   /**
@@ -168,6 +168,6 @@ export const oauthApi = {
    * @returns {Promise<AxiosResponse>} 撤销结果
    */
   revokeToken(id: string): Promise<AxiosResponse<ApiResponse<{ message: string }>>> {
-    return adminRequest.post<{ message: string }>(`/admin/oauth/tokens/${id}/revoke`)
+    return adminRequest.post<{ message: string }>(`api/admin/oauth/tokens/${id}/revoke`)
   },
 }

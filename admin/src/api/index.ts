@@ -8,7 +8,6 @@ export * from './mcp'
 export * from './kb'
 export * from './retrieval'
 export * from './document'
-export * from './permission'
 export * from './conversation'
 export {
   RateLimitLevel,

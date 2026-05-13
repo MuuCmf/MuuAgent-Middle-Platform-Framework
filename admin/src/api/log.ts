@@ -131,7 +131,7 @@ export const logApi = {
     page?: number
     pageSize?: number
   }): Promise<AxiosResponse<{ data: { list: Log[]; total: number; page: number; pageSize: number } }>> {
-    return adminRequest.get('/admin/log/ai', { params })
+    return adminRequest.get('api/admin/log/ai', { params })
   },
 
   /**
@@ -140,7 +140,7 @@ export const logApi = {
    * @returns {Promise<AxiosResponse>} 日志详情响应
    */
   getAiLogById(id: string): Promise<AxiosResponse<{ data: Log }>> {
-    return adminRequest.get(`/admin/log/ai/${id}`)
+    return adminRequest.get(`api/admin/log/ai/${id}`)
   },
 
   /**
@@ -157,7 +157,7 @@ export const logApi = {
     page?: number
     pageSize?: number
   }): Promise<AxiosResponse<{ data: { list: SkillLog[]; total: number; page: number; pageSize: number } }>> {
-    return adminRequest.get('/admin/log/skill', { params })
+    return adminRequest.get('api/admin/log/skill', { params })
   },
 
   /**
@@ -174,7 +174,7 @@ export const logApi = {
     page?: number
     pageSize?: number
   }): Promise<AxiosResponse<{ data: { list: AgentLog[]; total: number; page: number; pageSize: number } }>> {
-    return adminRequest.get('/admin/log/agent', { params })
+    return adminRequest.get('api/admin/log/agent', { params })
   },
 
   /**
@@ -183,7 +183,7 @@ export const logApi = {
    * @returns {Promise<AxiosResponse>} 日志详情响应
    */
   getAgentLogById(id: string): Promise<AxiosResponse<{ data: AgentLog }>> {
-    return adminRequest.get(`/admin/log/agent/${id}`)
+    return adminRequest.get(`api/admin/log/agent/${id}`)
   },
 
   /**
@@ -192,7 +192,7 @@ export const logApi = {
    * @returns {Promise<AxiosResponse>} 推理步骤响应
    */
   getAgentLogReasoningSteps(id: string): Promise<AxiosResponse<{ data: { agentLogId: string; reasoningMode: string; steps: ReasoningStep[] } }>> {
-    return adminRequest.get(`/admin/log/agent/${id}/reasoning`)
+    return adminRequest.get(`api/admin/log/agent/${id}/reasoning`)
   },
 
   /**
@@ -201,7 +201,7 @@ export const logApi = {
    * @returns {Promise<AxiosResponse>} 日志详情响应
    */
   getSkillLogById(id: string): Promise<AxiosResponse<{ data: SkillLog }>> {
-    return adminRequest.get(`/admin/log/skill/${id}`)
+    return adminRequest.get(`api/admin/log/skill/${id}`)
   },
 
   /**
@@ -216,7 +216,7 @@ export const logApi = {
     page?: number
     pageSize?: number
   }): Promise<AxiosResponse<{ data: { list: RetrievalLog[]; total: number; page: number; pageSize: number } }>> {
-    return adminRequest.get('/admin/log/retrieval', { params })
+    return adminRequest.get('api/admin/log/retrieval', { params })
   },
 
   /**
@@ -225,7 +225,7 @@ export const logApi = {
    * @returns {Promise<AxiosResponse>} 日志详情响应
    */
   getRetrievalLogById(id: string): Promise<AxiosResponse<{ data: RetrievalLog }>> {
-    return adminRequest.get(`/admin/log/retrieval/${id}`)
+    return adminRequest.get(`api/admin/log/retrieval/${id}`)
   },
 
   /**
@@ -235,7 +235,7 @@ export const logApi = {
    * @returns {Promise<AxiosResponse>} 统计数据响应
    */
   getStatistics(startTime?: string, endTime?: string): Promise<AxiosResponse<{ data: Statistics }>> {
-    return adminRequest.get('/admin/log/statistics', {
+    return adminRequest.get('api/admin/log/statistics', {
       params: { startTime, endTime },
     })
   },

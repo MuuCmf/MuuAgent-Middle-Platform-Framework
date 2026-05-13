@@ -47,7 +47,7 @@ export const kbApi = {
     keyword?: string
     status?: boolean
   }): Promise<AxiosResponse<ApiResponse<KbListResponse>>> {
-    return adminRequest.get('/admin/kb', { params })
+    return adminRequest.get('api/admin/kb', { params })
   },
 
   /**
@@ -56,7 +56,7 @@ export const kbApi = {
    * @returns {Promise<AxiosResponse>} 知识库详情
    */
   getDetail(kbId: string): Promise<AxiosResponse<ApiResponse<KbInfo>>> {
-    return adminRequest.get(`/admin/kb/${kbId}`)
+    return adminRequest.get(`api/admin/kb/${kbId}`)
   },
 
   /**
@@ -76,7 +76,7 @@ export const kbApi = {
     retrievalMethod?: string
     description?: string
   }): Promise<AxiosResponse<ApiResponse<{ kbId: string }>>> {
-    return adminRequest.post('/admin/kb', data)
+    return adminRequest.post('api/admin/kb', data)
   },
 
   /**
@@ -97,7 +97,7 @@ export const kbApi = {
     description?: string
     status?: boolean
   }): Promise<AxiosResponse<ApiResponse<boolean>>> {
-    return adminRequest.put('/admin/kb', data)
+    return adminRequest.put('api/admin/kb', data)
   },
 
   /**
@@ -107,6 +107,6 @@ export const kbApi = {
    * @returns {Promise<AxiosResponse>} 删除结果
    */
   delete(uid: string, kbId: string): Promise<AxiosResponse<ApiResponse<void>>> {
-    return adminRequest.delete(`/admin/kb/${kbId}`, { data: { uid } })
+    return adminRequest.delete(`api/admin/kb/${kbId}`, { data: { uid } })
   }
 }

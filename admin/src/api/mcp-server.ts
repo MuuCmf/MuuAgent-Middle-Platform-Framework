@@ -73,7 +73,7 @@ export const mcpServerApi = {
    * @returns {Promise<AxiosResponse>} 工具列表
    */
   discoverTools(data: DiscoverToolsRequest): Promise<AxiosResponse<{ data: { tools: ToolDescription[] } }>> {
-    return adminRequest.post('/admin/mcp-server/discover', data)
+    return adminRequest.post('api/admin/mcp-server/discover', data)
   },
 
   /**
@@ -82,7 +82,7 @@ export const mcpServerApi = {
    * @returns {Promise<AxiosResponse>} 测试结果
    */
   testConnection(data: TestConnectionRequest): Promise<AxiosResponse<{ data: TestConnectionResponse }>> {
-    return adminRequest.post('/admin/mcp-server/test', data)
+    return adminRequest.post('api/admin/mcp-server/test', data)
   },
 
   /**
@@ -95,6 +95,6 @@ export const mcpServerApi = {
     agentId: number,
     data: UpdateAgentMcpServersRequest
   ): Promise<AxiosResponse<{ data: { message: string; mcpServers: string } }>> {
-    return adminRequest.put(`/admin/mcp-server/agent/${agentId}/mcp-servers`, data)
+    return adminRequest.put(`api/admin/mcp-server/agent/${agentId}/mcp-servers`, data)
   }
 }

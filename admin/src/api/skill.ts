@@ -124,19 +124,19 @@ export interface FunctionResult {
 
 export const skillApi = {
   getList(): Promise<AxiosResponse<ApiResponse<SkillListResponse>>> {
-    return adminRequest.get('/admin/skill')
+    return adminRequest.get('api/admin/skill')
   },
   
   create(data: SkillForm): Promise<AxiosResponse<ApiResponse<Skill>>> {
-    return adminRequest.post('/admin/skill', data)
+    return adminRequest.post('api/admin/skill', data)
   },
   
   update(id: number, data: SkillForm): Promise<AxiosResponse<ApiResponse<Skill>>> {
-    return adminRequest.put(`/admin/skill/${id}`, data)
+    return adminRequest.put(`api/admin/skill/${id}`, data)
   },
   
   delete(id: number): Promise<AxiosResponse<ApiResponse<void>>> {
-    return adminRequest.delete(`/admin/skill/${id}`)
+    return adminRequest.delete(`api/admin/skill/${id}`)
   },
   
   /**
@@ -145,7 +145,7 @@ export const skillApi = {
    * @param params 执行参数
    */
   execute(skillCode: string, params: Record<string, unknown> = {}): Promise<AxiosResponse<ApiResponse<Record<string, unknown>>>> {
-    return adminRequest.post('/admin/skill/execute', { skillCode, params })
+    return adminRequest.post('api/admin/skill/execute', { skillCode, params })
   },
 
   /**
@@ -154,7 +154,7 @@ export const skillApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<RenderPromptResponse>>>} 渲染结果
    */
   renderPrompt(data: RenderPromptRequest): Promise<AxiosResponse<ApiResponse<RenderPromptResponse>>> {
-    return adminRequest.post('/admin/skill/render-prompt', data)
+    return adminRequest.post('api/admin/skill/render-prompt', data)
   },
 
   /**
@@ -163,7 +163,7 @@ export const skillApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<SelectSkillResponse>>>} 选择结果
    */
   selectSkill(data: SelectSkillRequest): Promise<AxiosResponse<ApiResponse<SelectSkillResponse>>> {
-    return adminRequest.post('/admin/skill/select', data)
+    return adminRequest.post('api/admin/skill/select', data)
   },
 
   /**
@@ -171,7 +171,7 @@ export const skillApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<BuiltinFunction[]>>>} 内置函数列表
    */
   getBuiltinFunctions(): Promise<AxiosResponse<ApiResponse<BuiltinFunction[]>>> {
-    return adminRequest.get('/admin/skill/builtin-functions/list')
+    return adminRequest.get('api/admin/skill/builtin-functions/list')
   },
 
   /**
@@ -179,7 +179,7 @@ export const skillApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<Plugin[]>>>} 插件列表
    */
   getPlugins(): Promise<AxiosResponse<ApiResponse<Plugin[]>>> {
-    return adminRequest.get('/admin/skill/plugins/list')
+    return adminRequest.get('api/admin/skill/plugins/list')
   },
 
   /**
@@ -188,7 +188,7 @@ export const skillApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<CodeAnalysisResult>>>} 分析结果
    */
   analyzeCode(code: string): Promise<AxiosResponse<ApiResponse<CodeAnalysisResult>>> {
-    return adminRequest.post('/admin/skill/analyze-code', { code })
+    return adminRequest.post('api/admin/skill/analyze-code', { code })
   },
 
   /**
@@ -197,6 +197,6 @@ export const skillApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<FunctionResult>>>} 测试结果
    */
   testFunction(data: TestFunctionParams): Promise<AxiosResponse<ApiResponse<FunctionResult>>> {
-    return adminRequest.post('/admin/skill/test-function', data)
+    return adminRequest.post('api/admin/skill/test-function', data)
   }
 }

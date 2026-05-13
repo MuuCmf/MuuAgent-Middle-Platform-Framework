@@ -87,7 +87,7 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       try {
-        const response = await adminRequest.post('/admin/login', loginForm)
+        const response = await adminRequest.post('api/admin/login', loginForm)
         const { token, admin } = response.data.data
         
         localStorage.setItem('admin_token', token)

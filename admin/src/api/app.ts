@@ -105,7 +105,7 @@ export const appApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<AppListResponse>>>} 应用列表
    */
   getList(query?: AppQuery): Promise<AxiosResponse<ApiResponse<AppListResponse>>> {
-    return adminRequest.get('/admin/apps', { params: query })
+    return adminRequest.get('api/admin/apps', { params: query })
   },
 
   /**
@@ -114,7 +114,7 @@ export const appApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<App>>>} 应用详情
    */
   getOne(id: string): Promise<AxiosResponse<ApiResponse<App>>> {
-    return adminRequest.get(`/admin/apps/${id}`)
+    return adminRequest.get(`api/admin/apps/${id}`)
   },
 
   /**
@@ -123,7 +123,7 @@ export const appApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<App>>>} 创建结果
    */
   create(data: AppForm): Promise<AxiosResponse<ApiResponse<App>>> {
-    return adminRequest.post('/admin/apps', data)
+    return adminRequest.post('api/admin/apps', data)
   },
 
   /**
@@ -133,7 +133,7 @@ export const appApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<App>>>} 更新结果
    */
   update(id: string, data: Partial<AppForm>): Promise<AxiosResponse<ApiResponse<App>>> {
-    return adminRequest.put(`/admin/apps/${id}`, data)
+    return adminRequest.put(`api/admin/apps/${id}`, data)
   },
 
   /**
@@ -142,7 +142,7 @@ export const appApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<void>>>} 删除结果
    */
   delete(id: string): Promise<AxiosResponse<ApiResponse<void>>> {
-    return adminRequest.delete(`/admin/apps/${id}`)
+    return adminRequest.delete(`api/admin/apps/${id}`)
   },
 
   /**
@@ -152,7 +152,7 @@ export const appApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<ResetSecretResponse>>>} 新密钥
    */
   resetSecret(id: string, resetApiKey?: boolean): Promise<AxiosResponse<ApiResponse<ResetSecretResponse>>> {
-    return adminRequest.post(`/admin/apps/${id}/reset-secret`, { resetApiKey })
+    return adminRequest.post(`api/admin/apps/${id}/reset-secret`, { resetApiKey })
   },
 
   /**
@@ -161,6 +161,6 @@ export const appApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<AppUsage>>>} 使用统计
    */
   getUsage(id: string): Promise<AxiosResponse<ApiResponse<AppUsage>>> {
-    return adminRequest.get(`/admin/apps/${id}/usage`)
+    return adminRequest.get(`api/admin/apps/${id}/usage`)
   },
 }

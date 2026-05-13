@@ -122,7 +122,7 @@ export const promptTemplateApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<PromptTemplate>>>} 创建的模板
    */
   create(data: PromptTemplateForm): Promise<AxiosResponse<ApiResponse<PromptTemplate>>> {
-    return adminRequest.post('/admin/prompt-template', data)
+    return adminRequest.post('api/admin/prompt-template', data)
   },
 
   /**
@@ -132,7 +132,7 @@ export const promptTemplateApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<PromptTemplate>>>} 更新后的模板
    */
   update(code: string, data: Partial<PromptTemplateForm>): Promise<AxiosResponse<ApiResponse<PromptTemplate>>> {
-    return adminRequest.put(`/admin/prompt-template/${code}`, data)
+    return adminRequest.put(`api/admin/prompt-template/${code}`, data)
   },
 
   /**
@@ -141,7 +141,7 @@ export const promptTemplateApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<void>>>}
    */
   delete(id: string): Promise<AxiosResponse<ApiResponse<void>>> {
-    return adminRequest.delete(`/admin/prompt-template/${id}`)
+    return adminRequest.delete(`api/admin/prompt-template/${id}`)
   },
 
   /**
@@ -150,7 +150,7 @@ export const promptTemplateApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<PromptTemplate>>>} 模板详情
    */
   findOne(id: string): Promise<AxiosResponse<ApiResponse<PromptTemplate>>> {
-    return adminRequest.get(`/admin/prompt-template/${id}`)
+    return adminRequest.get(`api/admin/prompt-template/${id}`)
   },
 
   /**
@@ -159,7 +159,7 @@ export const promptTemplateApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<PromptTemplate>>>} 模板详情
    */
   findByCode(code: string): Promise<AxiosResponse<ApiResponse<PromptTemplate>>> {
-    return adminRequest.get(`/admin/prompt-template/code/${code}`)
+    return adminRequest.get(`api/admin/prompt-template/code/${code}`)
   },
 
   /**
@@ -168,7 +168,7 @@ export const promptTemplateApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<PromptTemplateListResponse>>>} 模板列表
    */
   findAll(params?: QueryPromptTemplateParams): Promise<AxiosResponse<ApiResponse<PromptTemplateListResponse>>> {
-    return adminRequest.get('/admin/prompt-template', { params })
+    return adminRequest.get('api/admin/prompt-template', { params })
   },
 
   /**
@@ -177,7 +177,7 @@ export const promptTemplateApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<RenderPromptTemplateResponse>>>} 渲染结果
    */
   render(data: RenderPromptTemplateRequest): Promise<AxiosResponse<ApiResponse<RenderPromptTemplateResponse>>> {
-    return adminRequest.post('/admin/prompt-template/render', data)
+    return adminRequest.post('api/admin/prompt-template/render', data)
   },
 
   /**
@@ -187,7 +187,7 @@ export const promptTemplateApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<PromptVersion[]>>>} 版本历史列表
    */
   getVersionHistory(id: string, limit?: number): Promise<AxiosResponse<ApiResponse<PromptVersion[]>>> {
-    return adminRequest.get(`/admin/prompt-template/${id}/versions`, {
+    return adminRequest.get(`api/admin/prompt-template/${id}/versions`, {
       params: { limit }
     })
   },
@@ -200,7 +200,7 @@ export const promptTemplateApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<PromptTemplate>>>} 回滚后的模板
    */
   rollback(id: string, version: number, data?: RollbackPromptTemplateRequest): Promise<AxiosResponse<ApiResponse<PromptTemplate>>> {
-    return adminRequest.post(`/admin/prompt-template/${id}/rollback/${version}`, data)
+    return adminRequest.post(`api/admin/prompt-template/${id}/rollback/${version}`, data)
   },
 
   /**
@@ -209,7 +209,7 @@ export const promptTemplateApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<PromptTemplate>>>} 更新后的模板
    */
   setDefault(id: string): Promise<AxiosResponse<ApiResponse<PromptTemplate>>> {
-    return adminRequest.post(`/admin/prompt-template/${id}/set-default`)
+    return adminRequest.post(`api/admin/prompt-template/${id}/set-default`)
   },
 
   /**
@@ -218,6 +218,6 @@ export const promptTemplateApi = {
    * @returns {Promise<AxiosResponse<ApiResponse<PromptTemplate>>>} 默认模板
    */
   getDefaultTemplate(category: string): Promise<AxiosResponse<ApiResponse<PromptTemplate>>> {
-    return adminRequest.get(`/admin/prompt-template/default/${category}`)
+    return adminRequest.get(`api/admin/prompt-template/default/${category}`)
   }
 }

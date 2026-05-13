@@ -42,38 +42,38 @@ export interface ModelTemplateListResponse {
 
 export const modelTemplateApi = {
   getList(params?: any): Promise<AxiosResponse<ApiResponse<ModelTemplateListResponse>>> {
-    return adminRequest.get('/admin/model-template', { params })
+    return adminRequest.get('api/admin/model-template', { params })
   },
   
   getDetail(id: string): Promise<AxiosResponse<ApiResponse<ModelTemplate>>> {
-    return adminRequest.get(`/admin/model-template/${id}`)
+    return adminRequest.get(`api/admin/model-template/${id}`)
   },
   
   getByCode(code: string): Promise<AxiosResponse<ApiResponse<ModelTemplate>>> {
-    return adminRequest.get(`/admin/model-template/code/${code}`)
+    return adminRequest.get(`api/admin/model-template/code/${code}`)
   },
   
   getDefaultTemplate(modelType: string): Promise<AxiosResponse<ApiResponse<ModelTemplate>>> {
-    return adminRequest.get(`/admin/model-template/default/${modelType}`)
+    return adminRequest.get(`api/admin/model-template/default/${modelType}`)
   },
   
   create(data: ModelTemplateForm): Promise<AxiosResponse<ApiResponse<ModelTemplate>>> {
-    return adminRequest.post('/admin/model-template', data)
+    return adminRequest.post('api/admin/model-template', data)
   },
   
   update(id: string, data: Partial<ModelTemplateForm>): Promise<AxiosResponse<ApiResponse<ModelTemplate>>> {
-    return adminRequest.put(`/admin/model-template/${id}`, data)
+    return adminRequest.put(`api/admin/model-template/${id}`, data)
   },
   
   delete(id: string): Promise<AxiosResponse<ApiResponse<void>>> {
-    return adminRequest.delete(`/admin/model-template/${id}`)
+    return adminRequest.delete(`api/admin/model-template/${id}`)
   },
   
   copy(id: string): Promise<AxiosResponse<ApiResponse<ModelTemplate>>> {
-    return adminRequest.post(`/admin/model-template/copy/${id}`)
+    return adminRequest.post(`api/admin/model-template/copy/${id}`)
   },
   
   setDefault(id: string): Promise<AxiosResponse<ApiResponse<ModelTemplate>>> {
-    return adminRequest.put(`/admin/model-template/set-default/${id}`)
+    return adminRequest.put(`api/admin/model-template/set-default/${id}`)
   }
 }

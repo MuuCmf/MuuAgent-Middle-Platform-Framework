@@ -109,7 +109,7 @@ export const conversationApi = {
    * @returns 会话列表
    */
   async getList(params?: QueryConversationParams): Promise<ConversationListResponse> {
-    const response = await adminRequest.get('/admin/conversation', { params })
+    const response = await adminRequest.get('api/admin/conversation', { params })
     return response.data.data
   },
 
@@ -121,7 +121,7 @@ export const conversationApi = {
    */
   async getDetail(id: string, messageLimit?: number): Promise<ConversationDetailResponse> {
     const params = messageLimit ? { messageLimit } : {}
-    const response = await adminRequest.get(`/admin/conversation/${id}`, { params })
+    const response = await adminRequest.get(`api/admin/conversation/${id}`, { params })
     return response.data.data
   },
 
@@ -131,7 +131,7 @@ export const conversationApi = {
    * @returns 创建的会话
    */
   async create(data: CreateConversationParams): Promise<Conversation> {
-    const response = await adminRequest.post('/admin/conversation', data)
+    const response = await adminRequest.post('api/admin/conversation', data)
     return response.data.data
   },
 
@@ -142,7 +142,7 @@ export const conversationApi = {
    * @returns 更新后的会话
    */
   async update(id: string, data: UpdateConversationParams): Promise<Conversation> {
-    const response = await adminRequest.put(`/admin/conversation/${id}`, data)
+    const response = await adminRequest.put(`api/admin/conversation/${id}`, data)
     return response.data.data
   },
 
@@ -151,7 +151,7 @@ export const conversationApi = {
    * @param id 会话ID
    */
   async delete(id: string): Promise<void> {
-    await adminRequest.delete(`/admin/conversation/${id}`)
+    await adminRequest.delete(`api/admin/conversation/${id}`)
   },
 
   /**
@@ -162,7 +162,7 @@ export const conversationApi = {
    */
   async getMessages(id: string, limit?: number): Promise<Message[]> {
     const params = limit ? { limit } : {}
-    const response = await adminRequest.get(`/admin/conversation/${id}/messages`, { params })
+    const response = await adminRequest.get(`api/admin/conversation/${id}/messages`, { params })
     return response.data.data
   },
 
@@ -172,7 +172,7 @@ export const conversationApi = {
    * @returns 生成的标题
    */
   async generateTitle(id: string): Promise<{ title: string }> {
-    const response = await adminRequest.post(`/admin/conversation/${id}/generate-title`)
+    const response = await adminRequest.post(`api/admin/conversation/${id}/generate-title`)
     return response.data.data
   },
 }
