@@ -92,15 +92,15 @@ export const ProviderErrorCodeMapping = {
     'model not found': UnifiedErrorCode.MODEL_NOT_FOUND,
     'connection refused': UnifiedErrorCode.MODEL_UNAVAILABLE,
   },
-  zhipu: {
-    'invalid_api_key': UnifiedErrorCode.INVALID_API_KEY,
-    'rate_limit': UnifiedErrorCode.RATE_LIMIT_EXCEEDED,
-    'model_not_found': UnifiedErrorCode.MODEL_NOT_FOUND,
-  },
   deepseek: {
     'invalid_api_key': UnifiedErrorCode.INVALID_API_KEY,
     'rate_limit': UnifiedErrorCode.RATE_LIMIT_EXCEEDED,
     'insufficient_quota': UnifiedErrorCode.QUOTA_EXCEEDED,
+  },
+  zhipu: {
+    'invalid_api_key': UnifiedErrorCode.INVALID_API_KEY,
+    'rate_limit': UnifiedErrorCode.RATE_LIMIT_EXCEEDED,
+    'model_not_found': UnifiedErrorCode.MODEL_NOT_FOUND,
   },
   aliyun: {
     'InvalidApiKey': UnifiedErrorCode.INVALID_API_KEY,
@@ -111,7 +111,7 @@ export const ProviderErrorCodeMapping = {
     'InvalidApiKey': UnifiedErrorCode.INVALID_API_KEY,
     'RequestLimitExceeded': UnifiedErrorCode.RATE_LIMIT_EXCEEDED,
   },
-  baidu: {
+  volcengine: {
     'InvalidApiKey': UnifiedErrorCode.INVALID_API_KEY,
     'RateLimitExceeded': UnifiedErrorCode.RATE_LIMIT_EXCEEDED,
   },

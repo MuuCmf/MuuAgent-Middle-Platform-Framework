@@ -27,14 +27,14 @@ export enum ModelType {
  * 模型提供商枚举
  */
 export enum ModelProvider {
-  OPENAI = 'openai',
   OLLAMA = 'ollama',
+  OPENAI = 'openai',
   AZURE = 'azure',
+  DEEPSEEK = 'deepseek',
+  ZHIPU = 'zhipu',
   ALIYUN = 'aliyun',
   TENCENT = 'tencent',
-  BAIDU = 'baidu',
-  ZHIPU = 'zhipu',
-  DEEPSEEK = 'deepseek',
+  VOLCENGINE = 'volcengine',
   CUSTOM = 'custom',
 }
 
