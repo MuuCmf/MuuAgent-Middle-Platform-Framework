@@ -165,6 +165,7 @@ export function useChat() {
     const assistantMsgIndex = chatMessages.value.length - 1
 
     console.log('[Chat] Starting agent stream chat')
+    console.log('[Chat] Current conversationId:', currentConversationId.value)
     await agentApi.streamChat(
       selectedAgent.value!,
       query,
@@ -200,7 +201,12 @@ export function useChat() {
           chatMessages.value[assistantMsgIndex].content = response
         }
         chatLoading.value = false
-      }
+      },
+      (conversationId: string) => {
+        currentConversationId.value = conversationId
+        console.log('[Chat] Agent chat received conversationId:', conversationId)
+      },
+      currentConversationId.value
     )
   }
 

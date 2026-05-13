@@ -39,6 +39,7 @@ function handleSSEData(data: string, callbacks: StreamCallbacks): void {
 
   if (data.startsWith('[CONVERSATION_ID]')) {
     const conversationId = data.replace('[CONVERSATION_ID]', '').trim()
+    console.log('[SSE] Received [CONVERSATION_ID] format:', conversationId)
     if (callbacks.onConversationId && conversationId) {
       callbacks.onConversationId(conversationId)
     }
@@ -66,6 +67,7 @@ function handleSSEData(data: string, callbacks: StreamCallbacks): void {
     } else if (parsed.message) {
       callbacks.onMessage(parsed.message)
     } else if (parsed.type === 'conversation_id' && parsed.conversationId) {
+      console.log('[SSE] Received JSON conversation_id:', parsed.conversationId)
       if (callbacks.onConversationId) {
         callbacks.onConversationId(parsed.conversationId)
       }

@@ -80,6 +80,11 @@ export const useChatStore = defineStore('chat', () => {
         })
       } else {
         await new Promise<void>((resolve, reject) => {
+          console.log('[Chat] Agent stream params:', {
+            agentId: selectedModel.value,
+            conversationId: currentConversationId.value,
+            selectedType: selectedType.value,
+          })
           agentApi.streamChat(
             {
               agentId: selectedModel.value,
@@ -100,6 +105,7 @@ export const useChatStore = defineStore('chat', () => {
               resolve()
             },
             (conversationId: string) => {
+              console.log('[Chat] Agent received conversationId:', conversationId)
               currentConversationId.value = conversationId
             },
             (step: ReasoningStep) => {
@@ -119,6 +125,7 @@ export const useChatStore = defineStore('chat', () => {
    * 清空消息
    */
   const clearMessages = () => {
+    console.log('[Chat] Clearing messages, prev conversationId:', currentConversationId.value)
     messages.value = []
     currentConversationId.value = null
   }

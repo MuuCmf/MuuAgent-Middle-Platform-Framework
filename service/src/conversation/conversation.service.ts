@@ -39,7 +39,7 @@ export class ConversationService {
     const conversation = await this.prisma.conversation.create({ data });
 
     this.logger.log(
-      `创建会话: ${conversation.id}, type: ${conversationType}, targetId: ${dto.targetId}`,
+      `创建会话: ${conversation.id}, type: ${conversationType}, targetId: ${dto.targetId}, appCode: ${conversation.appCode}`,
     );
     return conversation;
   }
@@ -61,6 +61,8 @@ export class ConversationService {
     uid?: string,
     context?: IsolationContext,
   ) {
+    this.logger.log(`getOrCreate: conversationType=${conversationType}, targetId=${targetId}, conversationId=${conversationId}, uid=${uid}`);
+
     if (conversationId) {
       const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, 'appCode', 'isPublic', false);
       const existing = await this.prisma.conversation.findFirst({
@@ -68,6 +70,7 @@ export class ConversationService {
       });
 
       if (existing) {
+        this.logger.log(`getOrCreate: found existing conversation id=${existing.id}, targetId=${existing.targetId}, type=${existing.conversationType}`);
         if (
           existing.conversationType !== conversationType ||
           existing.targetId !== targetId
@@ -80,6 +83,7 @@ export class ConversationService {
         }
         return existing;
       }
+      this.logger.log(`getOrCreate: conversationId=${conversationId} not found, creating new`);
     }
 
     return this.create({

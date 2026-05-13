@@ -147,7 +147,10 @@ export class AgentController {
       onConversationId: (conversationId: string) => {
         subject.next(
           new MessageEvent("message", {
-            data: `[CONVERSATION_ID]${conversationId}`,
+            data: JSON.stringify({
+              type: "conversation_id",
+              conversationId,
+            }),
           }),
         );
       },

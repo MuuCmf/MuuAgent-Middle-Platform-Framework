@@ -219,14 +219,17 @@ export class AgentService {
     this.logger.log(`[AgentStream] 获取智能体: ${agentId}`);
     const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     
+    // 将隔离条件与 id/code 条件合并为 AND 关系，避免两个 OR 同级时后者覆盖前者
+    const where = {
+      AND: [
+        { OR: [{ id: agentId }, { code: agentId }] },
+        isolationWhere,
+      ],
+    };
+
     let agent;
     try {
-      agent = await this.prisma.agent.findFirst({
-        where: { 
-          OR: [{ id: agentId }, { code: agentId }],
-          ...isolationWhere,
-        },
-      });
+      agent = await this.prisma.agent.findFirst({ where });
       this.logger.log(`[AgentStream] 查询结果: ${JSON.stringify(agent)}`);
     } catch (e) {
       this.logger.error(`[AgentStream] 查询智能体失败: ${e}`);
@@ -258,7 +261,7 @@ export class AgentService {
   private async buildExecutionContext(agent: any, dto: AgentChatDto, uid?: string, isolationContext?: IsolationContext) {
     let model;
     
-    this.logger.debug(`buildExecutionContext: agent.modelId=${agent.modelId}`);
+    this.logger.debug(`buildExecutionContext: dto.agentId=${dto.agentId}, agent.id=${agent.id}, agent.code=${agent.code}, dto.conversationId=${dto.conversationId}`);
     
     if (agent.modelId) {
       try {
@@ -286,6 +289,8 @@ export class AgentService {
       uid,
       isolationContext,
     );
+
+    this.logger.debug(`buildExecutionContext: conversation.id=${conversation.id}, conversation.targetId=${conversation.targetId}, conversation.conversationType=${conversation.conversationType}`);
 
     let conversationHistory: ModelMessage[] = [];
     if (conversation.messageCount > 0) {

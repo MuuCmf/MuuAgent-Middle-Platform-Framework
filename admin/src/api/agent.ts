@@ -70,7 +70,7 @@ export interface ReasoningStep {
 }
 
 export interface AgentStreamResponse {
-  type: 'chunk' | 'tool' | 'error' | 'done' | 'reasoning_step'
+  type: 'chunk' | 'tool' | 'error' | 'done' | 'reasoning_step' | 'conversation_id'
   content?: string
   skill?: string
   name?: string
@@ -80,6 +80,7 @@ export interface AgentStreamResponse {
   step?: ReasoningStep
   reasoningMode?: string
   response?: string
+  conversationId?: string
 }
 
 export const agentApi = {
@@ -114,7 +115,9 @@ export const agentApi = {
     onTool: (skill: string, result: any) => void,
     onReasoningStep: (step: ReasoningStep) => void,
     onError: (error: any) => void,
-    onComplete: (steps?: any[], response?: string) => void
+    onComplete: (steps?: any[], response?: string) => void,
+    onConversationId?: (conversationId: string) => void,
+    conversationId?: string | null
   ): Promise<void> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
@@ -135,7 +138,7 @@ export const agentApi = {
       await fetchEventSource('/api/agent/chat/stream', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ agentId, message, stream: true }),
+        body: JSON.stringify({ agentId, message, stream: true, conversationId: conversationId || undefined }),
         credentials: 'include',
         signal: abortController.signal,
 
@@ -174,6 +177,12 @@ export const agentApi = {
                   onChunk('\x00')
                 } else {
                   onChunk(data.content || '')
+                }
+                break
+              case 'conversation_id':
+                if (onConversationId && data.conversationId) {
+                  console.log('[Agent API] Received conversationId:', data.conversationId)
+                  onConversationId(data.conversationId)
                 }
                 break
               case 'tool':

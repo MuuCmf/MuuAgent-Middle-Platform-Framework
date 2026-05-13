@@ -231,8 +231,8 @@ export class AiService {
         console.log('[Stream] 开始处理流式请求');
         console.log('[Stream] conversationId:', dto.conversationId);
         console.log('[Stream] modelCode:', dto.modelCode);
-
         const targetId = dto.modelCode || `mcp-${modelType}`;
+        console.log('[Stream] targetId:', targetId);
 
         const isolationContext: IsolationContext = { appCode: appCode || null, isSuperAdmin: false };
         const conversation = await this.conversationService.getOrCreate(
