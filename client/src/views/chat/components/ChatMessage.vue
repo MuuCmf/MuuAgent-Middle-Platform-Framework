@@ -45,6 +45,12 @@
       
       <!-- AI消息：使用vue-stream-markdown渲染（流式返回） -->
       <template v-else-if="message.role === 'assistant' && !message.type">
+        <!-- 思考内容显示 -->
+        <div v-if="message.thinkingContent && message.thinkingContent.trim()" class="thinking-section">
+          <div class="thinking-icon">💭</div>
+          <div class="thinking-content">{{ message.thinkingContent }}</div>
+        </div>
+        
         <Markdown
           :content="processedContent"
           :mode="isStreaming ? 'streaming' : 'static'"
@@ -345,6 +351,31 @@ onBeforeUnmount(() => {
       white-space: pre-wrap;
       word-break: break-all;
     }
+  }
+}
+
+/* 思考内容样式 */
+.thinking-section {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border-left: 4px solid #ff9800;
+  
+  .thinking-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  
+  .thinking-content {
+    flex: 1;
+    white-space: pre-wrap;
+    line-height: 1.8;
+    color: #e65100;
+    font-style: italic;
+    font-size: 14px;
   }
 }
 </style>

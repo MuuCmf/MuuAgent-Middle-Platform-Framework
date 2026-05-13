@@ -4,6 +4,49 @@ import { aiApi, agentApi, conversationApi, type Message, type Conversation } fro
 import type { ReasoningStep } from '../api/reasoning'
 
 /**
+ * 处理思考内容和回答内容的分割
+ * @param msg 消息对象
+ * @param chunk 新接收的内容片段
+ */
+const processThinkingContent = (msg: Message, chunk: string) => {
+  // 追加内容
+  msg.content += chunk
+  
+  // 检测 [THINKING] 和 [ANSWER] 标记
+  const thinkingIndex = msg.content.indexOf('[THINKING]')
+  const thinkingIndexZh = msg.content.indexOf('[思考]')
+  const answerIndex = msg.content.indexOf('[ANSWER]')
+  const answerIndexZh = msg.content.indexOf('[回答]')
+  
+  const thinkingPos = thinkingIndex !== -1 ? thinkingIndex : thinkingIndexZh
+  const answerPos = answerIndex !== -1 ? answerIndex : answerIndexZh
+  const thinkingTagLen = thinkingIndex !== -1 ? 10 : 8  // [THINKING] 或 [思考]
+  const answerTagLen = answerIndex !== -1 ? 8 : 6  // [ANSWER] 或 [回答]
+  
+  // 如果检测到了标记，进行分割
+  if (thinkingPos !== -1 && answerPos !== -1 && answerPos > thinkingPos) {
+    // 提取思考内容：[THINKING] 和 [ANSWER] 之间的内容
+    const thinkingContent = msg.content
+      .substring(thinkingPos + thinkingTagLen, answerPos)
+      .trim()
+    
+    // 提取回答内容：[ANSWER] 之后的内容
+    const answerContent = msg.content
+      .substring(answerPos + answerTagLen)
+      .trim()
+    
+    // 提取 [THINKING] 之前的内容（如果有）
+    const beforeThinking = msg.content
+      .substring(0, thinkingPos)
+      .trim()
+    
+    // 更新消息
+    msg.thinkingContent = thinkingContent
+    msg.content = beforeThinking + (beforeThinking && answerContent ? '\n\n' : '') + answerContent
+  }
+}
+
+/**
  * 聊天状态管理
  */
 export const useChatStore = defineStore('chat', () => {
@@ -18,6 +61,21 @@ export const useChatStore = defineStore('chat', () => {
   const models = ref<any[]>([])
   const agents = ref<any[]>([])
   const debugMode = ref(false)
+  const enableThinkingMode = ref(false) // 是否启用思考模式（要求模型输出 [THINKING] 和 [ANSWER] 标记）
+
+  /**
+   * 思考模式系统提示词
+   */
+  const THINKING_SYSTEM_PROMPT = `请按照以下格式回答问题：
+[THINKING]
+你的思考过程和分析
+[ANSWER]
+正式回答内容
+
+注意：
+1. [THINKING] 部分写出你的思考过程
+2. [ANSWER] 部分给出正式回答
+3. 必须严格按照这个格式输出`
 
   /**
    * 当前会话标题
@@ -40,6 +98,21 @@ export const useChatStore = defineStore('chat', () => {
    */
   const toggleDebugMode = () => {
     debugMode.value = !debugMode.value
+  }
+
+  /**
+   * 切换思考模式
+   */
+  const toggleThinkingMode = () => {
+    enableThinkingMode.value = !enableThinkingMode.value
+  }
+
+  /**
+   * 设置思考模式
+   * @param enabled 是否启用
+   */
+  const setThinkingMode = (enabled: boolean) => {
+    enableThinkingMode.value = enabled
   }
 
   /**
@@ -77,15 +150,30 @@ export const useChatStore = defineStore('chat', () => {
 
     try {
       if (selectedType.value === 'model') {
+        // 构建消息数组
+        const messagesToSend: Message[] = []
+        
+        // 如果启用思考模式，添加系统消息
+        if (enableThinkingMode.value) {
+          messagesToSend.push({
+            role: 'system',
+            content: THINKING_SYSTEM_PROMPT
+          })
+        }
+        
+        // 添加用户消息
+        messagesToSend.push(userMessage)
+        
         await new Promise<void>((resolve, reject) => {
           aiApi.streamChat(
             {
               modelCode: currentModelCode.value,
-              messages: [userMessage],
+              messages: messagesToSend,
               conversationId: currentConversationId.value,
             },
             (chunk: string) => {
-              messages.value[assistantIndex].content += chunk
+              // 使用通用处理函数处理思考内容
+              processThinkingContent(messages.value[assistantIndex], chunk)
             },
             (error: Error) => {
               messages.value[assistantIndex].content = `错误: ${error.message}`
@@ -118,7 +206,8 @@ export const useChatStore = defineStore('chat', () => {
               showReasoning: debugMode.value,
             },
             (chunk: string) => {
-              messages.value[assistantIndex].content += chunk
+              // 使用通用处理函数处理思考内容
+              processThinkingContent(messages.value[assistantIndex], chunk)
             },
             (error: Error) => {
               messages.value[assistantIndex].content = `错误: ${error.message}`
@@ -267,6 +356,7 @@ export const useChatStore = defineStore('chat', () => {
     models,
     agents,
     debugMode,
+    enableThinkingMode,
     sendMessage,
     clearMessages,
     newConversation,
@@ -276,6 +366,8 @@ export const useChatStore = defineStore('chat', () => {
     loadModels,
     loadAgents,
     toggleDebugMode,
+    toggleThinkingMode,
+    setThinkingMode,
     setLlmModel,
     setAgent,
   }

@@ -117,6 +117,15 @@
               inactive-color="#ff4949"
             />
           </div>
+          <div v-if="chatMode === 'chat'" class="thinking-mode-switch">
+            <span class="thinking-label">思考模式</span>
+            <el-switch
+              v-model="chatStore.enableThinkingMode"
+              @change="handleThinkingModeChange"
+              active-color="#ff9800"
+              inactive-color="#dcdfe6"
+            />
+          </div>
           <el-button
             v-if="chatStore.currentConversationId"
             type="primary"
@@ -478,6 +487,10 @@ const handleDebugModeChange = (value: boolean) => {
   ElMessage.success(value ? '已开启调试模式，将显示推理过程' : '已关闭调试模式')
 }
 
+const handleThinkingModeChange = (value: boolean) => {
+  ElMessage.success(value ? '已开启思考模式，模型将输出思考过程' : '已关闭思考模式')
+}
+
 const getModelName = (modelCode: string): string => {
   const model = chatStore.models.find(m => m.code === modelCode)
   return model?.name || modelCode
@@ -712,6 +725,26 @@ onMounted(async () => {
   font-size: 14px;
   font-weight: 500;
   color: #606266;
+}
+
+.thinking-mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #fff3e0;
+  border-radius: 20px;
+  transition: all 0.3s;
+}
+
+.thinking-mode-switch:hover {
+  background: #ffe0b2;
+}
+
+.thinking-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e65100;
 }
 
 .messages-container {
