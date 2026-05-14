@@ -5,7 +5,6 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { VectorService } from '../../vector/vector.service';
 import { AiService } from '../../ai/ai.service';
 import { FileService } from '../../file/file.service';
-import { v4 as uuidv4 } from 'uuid';
 import * as iconv from 'iconv-lite';
 
 /**
