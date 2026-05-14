@@ -124,7 +124,7 @@ export class KbSearchTool {
       for (const kb of kbInfos) {
         try {
           const retrievalResult = await this.retrievalService.retrieval({
-            kbId: kb.id,
+            kbId: kb.id as any,
             query: params.query,
             topN: topK,
             similarityThresh,

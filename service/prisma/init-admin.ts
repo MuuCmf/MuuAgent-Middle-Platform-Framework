@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../src/common/prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
 /**
@@ -6,12 +6,15 @@ import * as bcrypt from 'bcrypt';
  * 
  * npx ts-node prisma/init-admin.ts
  */
-const prisma = new PrismaClient();
+const prisma = new PrismaService();
 
 /**
  * 主函数
  */
 async function main() {
+  // 手动调用初始化方法以注册中间件
+  await prisma.onModuleInit();
+  
   console.log('开始初始化管理员账号...');
 
   const existingAdmin = await prisma.adminUser.findUnique({
@@ -39,6 +42,7 @@ async function main() {
   console.log('管理员账号创建成功！');
   console.log('账号: admin');
   console.log('密码: admin123');
+  console.log('ID:', admin.id);
   console.log('请登录后立即修改密码！');
 }
 

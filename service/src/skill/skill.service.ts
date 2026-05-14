@@ -93,7 +93,7 @@ export class SkillService {
     }
 
     return this.prisma.skill.update({
-      where: { id },
+      where: { id: id as any },
       data: dto,
     });
   }
@@ -111,7 +111,7 @@ export class SkillService {
       throw new NotFoundException('技能不存在或无权限操作');
     }
 
-    await this.prisma.skill.delete({ where: { id } });
+    await this.prisma.skill.delete({ where: { id: id as any } });
   }
 
   /**

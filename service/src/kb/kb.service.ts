@@ -255,7 +255,7 @@ export class KbService {
     if (dto.retrievalMethod) updateData.retrievalMethod = dto.retrievalMethod;
 
     await this.prisma.kbInfo.update({
-      where: { id: dto.kbId },
+      where: { id: dto.kbId as any },
       data: updateData,
     });
 
@@ -279,7 +279,7 @@ export class KbService {
     }
 
     await this.prisma.kbInfo.update({
-      where: { id: dto.kbId },
+      where: { id: dto.kbId as any },
       data: {
         isDeleted: true,
         updatedBy: dto.uid,

@@ -1,8 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../../src/common/prisma/prisma.service';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaService();
 
 async function main() {
+  // 手动调用初始化方法以注册中间件
+  await prisma.onModuleInit();
+  
   console.log('开始插入 Prompt Template 初始数据...');
 
   // 1. RAG 问答模板

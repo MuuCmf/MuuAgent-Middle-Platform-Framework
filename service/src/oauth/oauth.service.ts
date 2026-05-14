@@ -79,7 +79,7 @@ export class OAuthService {
       data: {
         code,
         clientId,
-        userId,
+        userId: userId as any,
         redirectUri,
         scope,
         state,
@@ -124,7 +124,7 @@ export class OAuthService {
 
     await this.prisma.oAuthCode.delete({ where: { code } });
 
-    return this.generateTokens(clientId, authCode.userId, authCode.scope);
+    return this.generateTokens(clientId, authCode.userId as any, authCode.scope);
   }
 
   /**
@@ -146,7 +146,7 @@ export class OAuthService {
         accessToken,
         refreshToken,
         clientId,
-        userId,
+        userId: userId as any,
         scope,
         expiresAt: accessTokenExpires,
         refreshExpiresAt: refreshTokenExpires,
@@ -186,7 +186,7 @@ export class OAuthService {
 
     await this.prisma.oAuthToken.delete({ where: { refreshToken } });
 
-    return this.generateTokens(clientId, token.userId, token.scope);
+    return this.generateTokens(clientId, token.userId as any, token.scope);
   }
 
   /**
@@ -290,7 +290,7 @@ export class OAuthService {
    */
   async getClientById(id: string) {
     const client = await this.prisma.oAuthClient.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!client) {
@@ -363,7 +363,7 @@ export class OAuthService {
     },
   ) {
     const client = await this.prisma.oAuthClient.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!client) {
@@ -378,7 +378,7 @@ export class OAuthService {
     if (data.status !== undefined) updateData.status = data.status;
 
     const updated = await this.prisma.oAuthClient.update({
-      where: { id },
+      where: { id: id as any },
       data: updateData,
     });
 
@@ -397,7 +397,7 @@ export class OAuthService {
    */
   async deleteClient(id: string) {
     const client = await this.prisma.oAuthClient.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!client) {
@@ -405,7 +405,7 @@ export class OAuthService {
     }
 
     await this.prisma.oAuthClient.delete({
-      where: { id },
+      where: { id: id as any },
     });
   }
 
@@ -416,7 +416,7 @@ export class OAuthService {
    */
   async resetClientSecret(id: string) {
     const client = await this.prisma.oAuthClient.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!client) {
@@ -426,7 +426,7 @@ export class OAuthService {
     const newSecret = crypto.randomBytes(32).toString('hex');
 
     await this.prisma.oAuthClient.update({
-      where: { id },
+      where: { id: id as any },
       data: { clientSecret: newSecret },
     });
 
@@ -491,7 +491,7 @@ export class OAuthService {
    */
   async revokeTokenById(id: string) {
     const token = await this.prisma.oAuthToken.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!token) {
@@ -499,7 +499,7 @@ export class OAuthService {
     }
 
     await this.prisma.oAuthToken.delete({
-      where: { id },
+      where: { id: id as any },
     });
   }
 }

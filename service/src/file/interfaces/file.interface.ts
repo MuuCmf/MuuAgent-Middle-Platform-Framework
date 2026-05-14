@@ -87,7 +87,7 @@ export interface ProcessConfig {
  * 上传结果接口
  */
 export interface FileUploadResult {
-  fileId: string;
+  fileId: any;
   fileUrl: string;
   isDuplicate: boolean;
 }

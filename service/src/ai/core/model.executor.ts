@@ -102,14 +102,14 @@ export class ModelExecutor implements IModelExecutor {
   async executeWithConcurrency(params: ExecutionParams): Promise<ExecutionResult> {
     const { model } = params;
 
-    await this.mcpService.checkCircuit(model.id);
-    await this.mcpService.checkConcurrency(model.id);
+    await this.mcpService.checkCircuit(model.id as any);
+    await this.mcpService.checkConcurrency(model.id as any);
 
     try {
       const result = await this.execute(params);
       return result;
     } finally {
-      await this.mcpService.releaseConcurrency(model.id);
+      await this.mcpService.releaseConcurrency(model.id as any);
     }
   }
 
@@ -121,15 +121,15 @@ export class ModelExecutor implements IModelExecutor {
   async *streamWithConcurrency(params: ExecutionParams): AsyncIterable<StreamChunk> {
     const { model } = params;
 
-    await this.mcpService.checkCircuit(model.id);
-    await this.mcpService.checkConcurrency(model.id);
+    await this.mcpService.checkCircuit(model.id as any);
+    await this.mcpService.checkConcurrency(model.id as any);
 
     try {
       for await (const chunk of this.stream(params)) {
         yield chunk;
       }
     } finally {
-      await this.mcpService.releaseConcurrency(model.id);
+      await this.mcpService.releaseConcurrency(model.id as any);
     }
   }
 }

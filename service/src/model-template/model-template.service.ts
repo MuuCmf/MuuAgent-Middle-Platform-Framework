@@ -63,7 +63,7 @@ export class ModelTemplateService {
    */
   async update(id: string, dto: UpdateModelTemplateDto) {
     const template = await this.prisma.modelTemplate.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!template) {
@@ -91,7 +91,7 @@ export class ModelTemplateService {
     }
 
     return this.prisma.modelTemplate.update({
-      where: { id },
+      where: { id: id as any },
       data: {
         name: dto.name,
         code: dto.code,
@@ -116,7 +116,7 @@ export class ModelTemplateService {
    */
   async delete(id: string) {
     const template = await this.prisma.modelTemplate.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!template) {
@@ -124,7 +124,7 @@ export class ModelTemplateService {
     }
 
     return this.prisma.modelTemplate.delete({
-      where: { id },
+      where: { id: id as any },
     });
   }
 
@@ -135,7 +135,7 @@ export class ModelTemplateService {
    */
   async findOne(id: string) {
     const template = await this.prisma.modelTemplate.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!template) {
@@ -228,7 +228,7 @@ export class ModelTemplateService {
    */
   async copy(id: string) {
     const template = await this.prisma.modelTemplate.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!template) {
@@ -263,7 +263,7 @@ export class ModelTemplateService {
    */
   async setDefault(id: string) {
     const template = await this.prisma.modelTemplate.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!template) {
@@ -279,7 +279,7 @@ export class ModelTemplateService {
     });
 
     return this.prisma.modelTemplate.update({
-      where: { id },
+      where: { id: id as any },
       data: { isDefault: true },
     });
   }

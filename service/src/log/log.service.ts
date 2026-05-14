@@ -52,9 +52,9 @@ export class LogService {
     const skip = (page - 1) * pageSize;
     const where: Prisma.KbRetrievalLogWhereInput = {};
 
-    if (kbId) where.kbId = kbId;
-    if (uid) where.uid = uid;
-    if (query) where.query = { contains: query };
+    if (kbId) where.kbId = kbId as any;
+    if (uid) where.uid = uid as any;
+    if (query) where.query = { contains: query as any };
 
     if (startTime || endTime) {
       where.createdAt = {};
@@ -95,7 +95,7 @@ export class LogService {
    */
   async getRetrievalLogById(id: string) {
     const log = await this.prisma.kbRetrievalLog.findUnique({
-      where: { id },
+      where: { id: id as any },
       include: {
         kbInfo: {
           select: {
@@ -130,7 +130,7 @@ export class LogService {
     if (endTime) dateFilter.lte = new Date(endTime);
 
     const where: Prisma.KbRetrievalLogWhereInput = {};
-    if (kbId) where.kbId = kbId;
+    if (kbId) where.kbId = kbId as any;
     if (Object.keys(dateFilter).length > 0) where.createdAt = dateFilter;
 
     // 总检索次数
@@ -160,8 +160,8 @@ export class LogService {
       total,
       avgCostMs: avgCost._avg.costTime ? Math.round(avgCost._avg.costTime) : 0,
       avgRetrievalCount: avgRetrievalCount._avg.retrievalCount ? Math.round(avgRetrievalCount._avg.retrievalCount) : 0,
-      kbStats: kbStats.map((s: { kbId: string; _count: { id: number }; _avg: { costTime: number | null; retrievalCount: number | null } }) => ({
-        kbId: s.kbId,
+      kbStats: kbStats.map((s: { kbId: any; _count: { id: number }; _avg: { costTime: number | null; retrievalCount: number | null } }) => ({
+        kbId: s.kbId as any,
         count: s._count.id,
         avgCostMs: s._avg.costTime ? Math.round(s._avg.costTime) : 0,
         avgRetrievalCount: s._avg.retrievalCount ? Math.round(s._avg.retrievalCount) : 0,
@@ -201,7 +201,7 @@ export class LogService {
     const skip = (page - 1) * pageSize;
     const where: Prisma.AiInvokeLogWhereInput = {};
 
-    if (modelId) where.modelId = modelId;
+    if (modelId) where.modelId = modelId as any;
     if (modelCode) where.modelCode = { contains: modelCode };
     if (modelType) where.modelType = modelType;
     if (success !== undefined) where.success = success;
@@ -243,7 +243,7 @@ export class LogService {
    */
   async getAiLogById(id: string) {
     const log = await this.prisma.aiInvokeLog.findUnique({
-      where: { id },
+      where: { id: id as any },
       include: {
         model: {
           select: {
@@ -363,17 +363,17 @@ export class LogService {
     const where: Prisma.AgentInvokeLogWhereInput = {};
 
     if (agentId) {
-      where.agentId = agentId;
+      where.agentId = agentId as any;
     } else if (agentCode) {
       const agent = await this.prisma.agent.findFirst({
         where: { code: agentCode },
         select: { id: true },
       });
       if (agent) {
-        where.agentId = agent.id;
+        where.agentId = agent.id as any;
       }
     }
-    if (conversationId) where.conversationId = conversationId;
+    if (conversationId) where.conversationId = conversationId as any;
     if (success !== undefined) where.success = success;
     if (uid) where.uid = uid;
 
@@ -421,7 +421,7 @@ export class LogService {
    */
   async getAgentLogById(id: string) {
     const log = await this.prisma.agentInvokeLog.findUnique({
-      where: { id },
+      where: { id: id as any },
       include: {
         agent: {
           select: {
@@ -457,7 +457,7 @@ export class LogService {
    */
   async getAgentLogReasoningSteps(id: string) {
     const log = await this.prisma.agentInvokeLog.findUnique({
-      where: { id },
+      where: { id: id as any },
       select: {
         id: true,
         reasoningMode: true,
@@ -485,7 +485,7 @@ export class LogService {
    */
   async getSkillLogById(id: string) {
     const log = await this.prisma.skillInvokeLog.findUnique({
-      where: { id },
+      where: { id: id as any },
       include: {
         skill: {
           select: {

@@ -65,7 +65,7 @@ export class AgentKbService {
     const startTime = Date.now();
 
     const agent = await this.prisma.agent.findUnique({
-      where: { id: agentId },
+      where: { id: agentId as any },
       select: { knowledgeBases: true },
     });
 
@@ -107,7 +107,7 @@ export class AgentKbService {
     for (const kb of kbs) {
       try {
         const retrievalResult = await this.retrievalService.retrieval({
-          kbId: kb.id,
+          kbId: kb.id as any,
           query,
           topN: topK || kb.topN,
           similarityThresh: similarityThreshold || kb.similarityThresh,

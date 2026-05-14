@@ -101,13 +101,13 @@ export class RetrievalService {
     
     // 检查文档状态
     const docCount = await this.prisma.kbDocument.count({
-      where: { kbId: dto.kbId, isDeleted: false, status: 3 },
+      where: { kbId: dto.kbId as any, isDeleted: false, status: 3 },
     });
     console.log(`[Retrieval] 已完成的文档数: ${docCount}`);
     
     // 检查切片数量
     const chunkCount = await this.prisma.kbChunk.count({
-      where: { kbId: dto.kbId, status: 1 },
+      where: { kbId: dto.kbId as any, status: 1 },
     });
     console.log(`[Retrieval] 已向量化的切片数: ${chunkCount}`);
 
@@ -123,7 +123,7 @@ export class RetrievalService {
       const costTime = Date.now() - startTime;
       await this.prisma.kbRetrievalLog.create({
         data: {
-          kbId: dto.kbId,
+          kbId: dto.kbId as any,
           uid: dto.uid,
           query: dto.query,
           topN,
@@ -151,7 +151,7 @@ export class RetrievalService {
 
       await this.prisma.kbRetrievalLog.create({
         data: {
-          kbId: dto.kbId,
+          kbId: dto.kbId as any,
           uid: dto.uid,
           query: dto.query,
           topN,
@@ -204,7 +204,7 @@ export class RetrievalService {
 
       await this.prisma.kbRetrievalLog.create({
         data: {
-          kbId: dto.kbId,
+          kbId: dto.kbId as any,
           uid: dto.uid,
           query: dto.query,
           topN,
@@ -256,7 +256,7 @@ export class RetrievalService {
 
       await this.prisma.kbRetrievalLog.create({
         data: {
-          kbId: dto.kbId,
+          kbId: dto.kbId as any,
           uid: dto.uid,
           query: dto.query,
           topN,
@@ -315,7 +315,7 @@ export class RetrievalService {
 
     await this.prisma.kbRetrievalLog.create({
       data: {
-        kbId: dto.kbId,
+        kbId: dto.kbId as any,
         uid: dto.uid,
         query: dto.query,
         topN,
@@ -357,7 +357,7 @@ export class RetrievalService {
 
     let conversationHistory: Array<{ role: string; content: string }> = [];
     if (conversation.messageCount > 0) {
-      const historyMessages = await this.conversationService.buildContext(conversation.id, 20);
+      const historyMessages = await this.conversationService.buildContext(conversation.id as any, 20);
       conversationHistory = historyMessages.map(m => ({
         role: m.role as 'user' | 'assistant' | 'system',
         content: m.content,
@@ -365,7 +365,7 @@ export class RetrievalService {
     }
 
     await this.conversationService.addMessage(
-      conversation.id,
+      conversation.id as any,
       'user',
       dto.query,
     );
@@ -434,7 +434,7 @@ export class RetrievalService {
     if (filteredResults.length === 0) {
       await this.prisma.kbRetrievalLog.create({
         data: {
-          kbId: dto.kbId,
+          kbId: dto.kbId as any,
           uid: dto.uid,
           query: dto.query,
           topN,
@@ -449,13 +449,13 @@ export class RetrievalService {
 
       const noResultAnswer = '抱歉，我在知识库中没有找到相关信息。';
       await this.conversationService.addMessage(
-        conversation.id,
+        conversation.id as any,
         'assistant',
         noResultAnswer,
       );
 
       if (conversation.messageCount === 0) {
-        await this.conversationService.generateTitle(conversation.id);
+        await this.conversationService.generateTitle(conversation.id as any);
       }
 
       return {
@@ -499,7 +499,7 @@ export class RetrievalService {
 
     await this.prisma.kbRetrievalLog.create({
       data: {
-        kbId: dto.kbId,
+        kbId: dto.kbId as any,
         uid: dto.uid,
         query: dto.query,
         topN,
@@ -513,14 +513,14 @@ export class RetrievalService {
     });
 
     await this.conversationService.addMessage(
-      conversation.id,
+      conversation.id as any,
       'assistant',
       answer,
       { metadata: { sources: topSources, retrievalCount: topSources.length } },
     );
 
     if (conversation.messageCount === 0) {
-      await this.conversationService.generateTitle(conversation.id);
+      await this.conversationService.generateTitle(conversation.id as any);
     }
 
     return {
@@ -553,7 +553,7 @@ export class RetrievalService {
 
     let conversationHistory: Array<{ role: string; content: string }> = [];
     if (conversation.messageCount > 0) {
-      const historyMessages = await this.conversationService.buildContext(conversation.id, 20);
+      const historyMessages = await this.conversationService.buildContext(conversation.id as any, 20);
       conversationHistory = historyMessages.map(m => ({
         role: m.role as 'user' | 'assistant' | 'system',
         content: m.content,
@@ -561,7 +561,7 @@ export class RetrievalService {
     }
 
     await this.conversationService.addMessage(
-      conversation.id,
+      conversation.id as any,
       'user',
       dto.query,
     );
@@ -629,18 +629,22 @@ export class RetrievalService {
     if (filteredResults.length === 0) {
       const noResultAnswer = '抱歉，我在知识库中没有找到相关信息。';
       await this.conversationService.addMessage(
-        conversation.id,
+        conversation.id as any,
         'assistant',
         noResultAnswer,
       );
 
       if (conversation.messageCount === 0) {
-        await this.conversationService.generateTitle(conversation.id);
+        await this.conversationService.generateTitle(conversation.id as any);
       }
 
       return new Observable((observer) => {
-        observer.next(JSON.stringify({ content: noResultAnswer }));
         observer.next(JSON.stringify({ conversationId: conversation.id }));
+        observer.next(JSON.stringify({
+          choices: [{
+            delta: { content: noResultAnswer }
+          }]
+        }));
         observer.complete();
       });
     }
@@ -785,7 +789,7 @@ export class RetrievalService {
           
           await this.prisma.kbRetrievalLog.create({
             data: {
-              kbId: dto.kbId,
+              kbId: dto.kbId as any,
               uid: dto.uid,
               query: dto.query,
               topN,
@@ -800,14 +804,14 @@ export class RetrievalService {
           
           if (fullResponse) {
             await this.conversationService.addMessage(
-              conversation.id,
+              conversation.id as any,
               'assistant',
               fullResponse,
               { metadata: { sources: topSources, retrievalCount: topSources.length } },
             );
 
             if (conversation.messageCount === 0) {
-              await this.conversationService.generateTitle(conversation.id);
+              await this.conversationService.generateTitle(conversation.id as any);
             }
           }
           
@@ -999,7 +1003,7 @@ ${context}
     scoreThresh: number,
   ): Promise<any[]> {
     const chunks = await this.prisma.kbChunk.findMany({
-      where: { kbId, status: 1 },
+      where: { kbId: kbId as any, status: 1 },
       select: {
         id: true,
         content: true,
@@ -1051,7 +1055,7 @@ ${context}
     const results: any[] = await Promise.all(
       filteredResults.slice(0, topN).map(async (result) => {
         const doc = await this.prisma.kbDocument.findUnique({
-          where: { id: result.docId },
+          where: { id: result.docId as any },
           include: { file: { select: { fileName: true } } },
         });
         

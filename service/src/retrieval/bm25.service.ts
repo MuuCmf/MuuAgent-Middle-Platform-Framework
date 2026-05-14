@@ -66,22 +66,22 @@ export class BM25Service {
    * @param chunkIndex 切片索引
    */
   addDocument(
-    id: string,
+    id: string | bigint,
     content: string,
-    docId?: string,
+    docId?: string | bigint,
     docName?: string,
     chunkIndex?: number,
   ): void {
     const doc: BM25Document = {
-      id,
+      id: String(id),
       content,
-      docId,
+      docId: docId != null ? String(docId) : undefined,
       docName,
       chunkIndex,
     };
     
-    this.documents.set(id, doc);
-    this.buildIndex(id, content);
+    this.documents.set(String(id), doc);
+    this.buildIndex(String(id), content);
     this.updateStatistics();
   }
   
@@ -90,9 +90,9 @@ export class BM25Service {
    * @param docs 文档数组
    */
   addDocuments(docs: Array<{
-    id: string;
+    id: string | bigint;
     content: string;
-    docId?: string;
+    docId?: string | bigint;
     docName?: string;
     chunkIndex?: number;
   }>): void {
@@ -106,9 +106,9 @@ export class BM25Service {
    * @param chunks 数据库切片数组
    */
   buildIndexFromChunks(chunks: Array<{
-    id: string;
+    id: string | bigint;
     content: string;
-    docId: string;
+    docId: string | bigint;
     docName?: string;
     chunkIndex: number;
   }>): void {
@@ -309,7 +309,7 @@ export class BM25Service {
    */
   private calculateIDF(df: number): number {
     if (df === 0) return 0;
-    return Math.log((this.documentCount - df + 0.5) / (df + 0.5));
+    return Math.max(0, Math.log((this.documentCount - df + 0.5) / (df + 0.5)));
   }
   
   /**

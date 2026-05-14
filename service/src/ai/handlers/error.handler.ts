@@ -66,7 +66,7 @@ export class ErrorHandler {
 
     await Promise.all([
       this.logService.logFailure(params, normalized),
-      this.mcpService.reportError(model.id),
+      this.mcpService.reportError(model.id as any),
     ]);
   }
 

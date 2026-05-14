@@ -31,7 +31,7 @@ export class FileProcessService {
   ): Promise<string> {
     const task = await this.prisma.fileProcessTask.create({
       data: {
-        fileId,
+        fileId: fileId as any,
         taskType: config.type,
         taskConfig: JSON.stringify(config.options || {}),
         status: 'pending',
@@ -39,8 +39,10 @@ export class FileProcessService {
     });
 
     this.logger.log(`创建处理任务: ${task.id}, 类型: ${config.type}`);
-    return task.id;
+    return task.id as any;
   }
+
+
 
   /**
    * 执行处理任务
@@ -48,17 +50,17 @@ export class FileProcessService {
    */
   async executeTask(taskId: string): Promise<void> {
     const task = await this.prisma.fileProcessTask.findUnique({
-      where: { id: taskId },
+      where: { id: taskId as any },
       include: { file: true },
     });
 
-    if (!task || !task.file) {
+    if (!task || !(task.file as any).id) {
       this.logger.error(`任务不存在: ${taskId}`);
       return;
     }
 
     await this.prisma.fileProcessTask.update({
-      where: { id: taskId },
+      where: { id: taskId as any },
       data: {
         status: 'processing',
         startedAt: new Date(),
@@ -68,7 +70,7 @@ export class FileProcessService {
     const startTime = Date.now();
 
     try {
-      const file = task.file;
+      const file = task.file as any;
       const processor = this.processors.get(file.fileType);
 
       if (!processor) {
@@ -79,7 +81,7 @@ export class FileProcessService {
       const result = await processor.process(file, task.taskType, config);
 
       await this.prisma.fileProcessTask.update({
-        where: { id: taskId },
+        where: { id: taskId as any },
         data: {
           status: 'completed',
           progress: 100,
@@ -102,7 +104,7 @@ export class FileProcessService {
       const errorMessage = error instanceof Error ? error.message : '处理失败';
 
       await this.prisma.fileProcessTask.update({
-        where: { id: taskId },
+        where: { id: taskId as any },
         data: {
           status: 'failed',
           errorMessage,
@@ -139,7 +141,7 @@ export class FileProcessService {
    */
   async retryTask(taskId: string): Promise<void> {
     const task = await this.prisma.fileProcessTask.findUnique({
-      where: { id: taskId },
+      where: { id: taskId as any },
     });
 
     if (!task) {
@@ -151,7 +153,7 @@ export class FileProcessService {
     }
 
     await this.prisma.fileProcessTask.update({
-      where: { id: taskId },
+      where: { id: taskId as any },
       data: {
         status: 'pending',
         retryCount: { increment: 1 },
@@ -169,7 +171,7 @@ export class FileProcessService {
    */
   async getTaskStatus(taskId: string) {
     return this.prisma.fileProcessTask.findUnique({
-      where: { id: taskId },
+      where: { id: taskId as any },
     });
   }
 }

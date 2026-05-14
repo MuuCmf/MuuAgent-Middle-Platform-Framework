@@ -156,7 +156,7 @@ export class AiService {
       const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();
       if (lastUserMessage) {
         await this.conversationService.addMessage(
-          conversation.id,
+          conversation.id as any,
           'user',
           lastUserMessage.content,
         );
@@ -165,8 +165,8 @@ export class AiService {
       const model = await this.selectModel(dto.modelCode, modelType);
       const provider = model.provider?.toLowerCase() || 'openai';
 
-      await this.mcpService.checkCircuit(model.id);
-      await this.mcpService.checkConcurrency(model.id);
+      await this.mcpService.checkCircuit(model.id as any);
+      await this.mcpService.checkConcurrency(model.id as any);
 
       const executionParams: ExecutionParams = {
         model,
@@ -180,23 +180,23 @@ export class AiService {
 
       const result = await this.modelExecutor.execute(executionParams);
 
-      await this.mcpService.reportSuccess(model.id);
+      await this.mcpService.reportSuccess(model.id as any);
 
       const assistantMessage = result.content;
       if (assistantMessage) {
         await this.conversationService.addMessage(
-          conversation.id,
+          conversation.id as any,
           'assistant',
           assistantMessage,
         );
 
         if (conversation.messageCount === 0) {
-          await this.conversationService.generateTitle(conversation.id);
+          await this.conversationService.generateTitle(conversation.id as any);
         }
       }
 
       await this.logService.saveLog({
-        modelId: model.id,
+        modelId: model.id as any,
         modelCode: model.code,
         modelType,
         request: JSON.stringify(dto),
@@ -211,11 +211,11 @@ export class AiService {
         appCode,
       });
 
-      await this.mcpService.reportSuccess(model.id);
+      await this.mcpService.reportSuccess(model.id as any);
 
       return {
         ...(result.raw || result),
-        conversationId: conversation.id,
+        conversationId: conversation.id as any,
       };
     } catch (error) {
       return this.handleInvokeError(error, context, dto, modelType, clientIp, userAgent, uid, appCode);
@@ -278,7 +278,7 @@ export class AiService {
           const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();
           if (lastUserMessage) {
             await this.conversationService.addMessage(
-              conversation.id,
+              conversation.id as any,
               'user',
               lastUserMessage.content,
             );
@@ -294,10 +294,10 @@ export class AiService {
           );
 
           const model = await this.selectModel(dto.modelCode, modelType);
-          modelId = model.id;
+          modelId = model.id as any;
 
-          await this.mcpService.checkCircuit(model.id);
-          await this.mcpService.checkConcurrency(model.id);
+          await this.mcpService.checkCircuit(model.id as any);
+          await this.mcpService.checkConcurrency(model.id as any);
           concurrencyAcquired = true;
 
           let accumulatedContent = '';
@@ -342,17 +342,17 @@ export class AiService {
             return;
           }
 
-          await this.mcpService.reportSuccess(model.id);
+          await this.mcpService.reportSuccess(model.id as any);
 
           if (accumulatedContent) {
             await this.conversationService.addMessage(
-              conversation.id,
+              conversation.id as any,
               'assistant',
               accumulatedContent,
             );
 
             if (conversation.messageCount === 0) {
-              await this.conversationService.generateTitle(conversation.id);
+              await this.conversationService.generateTitle(conversation.id as any);
             }
           }
 
@@ -360,7 +360,7 @@ export class AiService {
           const usage = finishChunk?.finish?.usage;
 
           await this.logService.saveLog({
-            modelId: model.id,
+            modelId: model.id as any,
             modelCode: model.code,
             modelType,
             request: JSON.stringify(dto),
@@ -493,7 +493,7 @@ export class AiService {
     try {
       const model = await this.selectModel(dto.modelCode, modelType);
 
-      await this.mcpService.checkCircuit(model.id);
+      await this.mcpService.checkCircuit(model.id as any);
 
       const strategy = this.strategyFactory.getStrategy(model.provider);
       const result = await strategy.execute({
@@ -502,10 +502,10 @@ export class AiService {
         context,
       });
 
-      await this.mcpService.reportSuccess(model.id);
+      await this.mcpService.reportSuccess(model.id as any);
 
       await this.logService.saveLog({
-        modelId: model.id,
+        modelId: model.id as any,
         modelCode: model.code,
         modelType,
         request: JSON.stringify(dto),
@@ -518,18 +518,18 @@ export class AiService {
         appCode,
       });
 
-      await this.mcpService.reportSuccess(model.id);
+      await this.mcpService.reportSuccess(model.id as any);
 
       return (result.raw || result) as Record<string, unknown>;
     } catch (error) {
       const model = await this.selectModel(dto.modelCode, modelType).catch(() => null);
       if (model) {
-        await this.mcpService.reportError(model.id);
+        await this.mcpService.reportError(model.id as any);
       }
 
       const normalized = this.errorHandler.normalize(error);
       await this.logService.saveLog({
-        modelId: model?.id || 'unknown',
+        modelId: model?.id as any || 'unknown',
         modelCode: model?.code || 'unknown',
         modelType,
         request: JSON.stringify(dto),
@@ -580,7 +580,7 @@ export class AiService {
     try {
       const model = await this.selectModel(dto.modelCode, modelType);
 
-      await this.mcpService.checkCircuit(model.id);
+      await this.mcpService.checkCircuit(model.id as any);
 
       const strategy = this.strategyFactory.getStrategy(model.provider);
       const result = await strategy.execute({
@@ -592,10 +592,10 @@ export class AiService {
         context,
       });
 
-      await this.mcpService.reportSuccess(model.id);
+      await this.mcpService.reportSuccess(model.id as any);
 
       await this.logService.saveLog({
-        modelId: model.id,
+        modelId: model.id as any,
         modelCode: model.code,
         modelType,
         request: JSON.stringify(dto),
@@ -608,13 +608,13 @@ export class AiService {
         appCode,
       });
 
-      await this.mcpService.reportSuccess(model.id);
+      await this.mcpService.reportSuccess(model.id as any);
 
       return (result.raw || result) as Record<string, unknown>;
     } catch (error) {
       const model = await this.selectModel(dto.modelCode, modelType).catch(() => null);
       if (model) {
-        await this.mcpService.reportError(model.id);
+        await this.mcpService.reportError(model.id as any);
       }
 
       const normalized = this.errorHandler.normalize(error);
@@ -693,10 +693,10 @@ export class AiService {
 
     try {
       const model = await this.selectModel(dto.modelCode, modelType);
-      modelId = model.id;
+      modelId = model.id as any;
       modelCode = model.code;
-      await this.mcpService.reportError(model.id);
-      await this.mcpService.releaseConcurrency(model.id);
+      await this.mcpService.reportError(model.id as any);
+      await this.mcpService.releaseConcurrency(model.id as any);
     } catch {
       // 忽略模型选择失败
     }
@@ -792,8 +792,8 @@ export class AiService {
     let concurrencyAcquired = false;
 
     try {
-      await this.mcpService.checkCircuit(params.model.id);
-      await this.mcpService.checkConcurrency(params.model.id);
+      await this.mcpService.checkCircuit(params.model.id as any);
+      await this.mcpService.checkConcurrency(params.model.id as any);
       concurrencyAcquired = true;
 
       for await (const chunk of this.modelExecutor.stream(executionParams)) {
@@ -867,15 +867,15 @@ export class AiService {
         });
       }
 
-      await this.mcpService.reportSuccess(params.model.id);
+      await this.mcpService.reportSuccess(params.model.id as any);
     } catch (error) {
-      await this.mcpService.reportError(params.model.id);
+      await this.mcpService.reportError(params.model.id as any);
       if (params.onError) {
         params.onError(error);
       }
     } finally {
       if (concurrencyAcquired) {
-        await this.mcpService.releaseConcurrency(params.model.id);
+        await this.mcpService.releaseConcurrency(params.model.id as any);
       }
     }
   }

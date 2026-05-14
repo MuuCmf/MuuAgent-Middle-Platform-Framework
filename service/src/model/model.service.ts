@@ -52,7 +52,7 @@ export class ModelService {
    * @returns {Promise<Object>} 更新后的模型
    */
   async update(id: string, dto: UpdateModelDto) {
-    const model = await this.prisma.model.findUnique({ where: { id } });
+    const model = await this.prisma.model.findUnique({ where: { id: id as any } });
     if (!model) {
       throw new NotFoundException('模型不存在');
     }
@@ -66,7 +66,7 @@ export class ModelService {
     }
 
     return this.prisma.model.update({
-      where: { id },
+      where: { id: id as any },
       data: dto,
     });
   }
@@ -77,7 +77,7 @@ export class ModelService {
    * @returns {Promise<Object>} 删除的模型
    */
   async remove(id: string) {
-    const model = await this.prisma.model.findUnique({ where: { id } });
+    const model = await this.prisma.model.findUnique({ where: { id: id as any } });
     if (!model) {
       throw new NotFoundException('模型不存在');
     }
@@ -95,7 +95,7 @@ export class ModelService {
       );
     }
 
-    return this.prisma.model.delete({ where: { id } });
+    return this.prisma.model.delete({ where: { id: id as any } });
   }
 
   /**
@@ -104,7 +104,7 @@ export class ModelService {
    * @returns {Promise<Object>} 模型详情
    */
   async findOne(id: string) {
-    const model = await this.prisma.model.findUnique({ where: { id } });
+    const model = await this.prisma.model.findUnique({ where: { id: id as any } });
     if (!model) {
       throw new NotFoundException('模型不存在');
     }
@@ -189,7 +189,7 @@ export class ModelService {
    * @returns {Promise<Object>} 健康检查结果
    */
   async healthCheck(id: string) {
-    const model = await this.prisma.model.findUnique({ where: { id } });
+    const model = await this.prisma.model.findUnique({ where: { id: id as any } });
     if (!model) {
       throw new NotFoundException('模型不存在');
     }
@@ -251,7 +251,7 @@ export class ModelService {
     const results = [];
     for (const model of models) {
       try {
-        const result = await this.healthCheck(model.id);
+        const result = await this.healthCheck(model.id as any);
         results.push(result);
       } catch (error) {
         results.push({
@@ -273,13 +273,13 @@ export class ModelService {
    * @returns {Promise<Object>} 更新后的模型
    */
   async toggleStatus(id: string, status: boolean) {
-    const model = await this.prisma.model.findUnique({ where: { id } });
+    const model = await this.prisma.model.findUnique({ where: { id: id as any } });
     if (!model) {
       throw new NotFoundException('模型不存在');
     }
 
     return this.prisma.model.update({
-      where: { id },
+      where: { id: id as any },
       data: { status },
     });
   }

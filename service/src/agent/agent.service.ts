@@ -83,7 +83,7 @@ export class AgentService {
     }
 
     return this.prisma.agent.update({
-      where: { id },
+      where: { id: id as any },
       data: dto,
     });
   }
@@ -95,7 +95,7 @@ export class AgentService {
       throw new NotFoundException('智能体不存在或无权限操作');
     }
 
-    await this.prisma.agent.delete({ where: { id } });
+    await this.prisma.agent.delete({ where: { id: id as any } });
   }
 
   async findOne(id: string, context?: IsolationContext) {
@@ -186,7 +186,7 @@ export class AgentService {
     this.logger.log(`[AgentStream] 构建执行上下文完成`);
     
     if (callbacks.onConversationId && context.conversationId) {
-      callbacks.onConversationId(context.conversationId);
+      callbacks.onConversationId(context.conversationId as any);
     }
     
     const reasoningMode = (agent.reasoningMode as ReasoningMode) || ReasoningMode.NONE;
@@ -284,11 +284,11 @@ export class AgentService {
       isolationContext,
     );
 
-    this.logger.debug(`buildExecutionContext: conversation.id=${conversation.id}, conversation.targetId=${conversation.targetId}, conversation.conversationType=${conversation.conversationType}`);
+    this.logger.debug(`buildExecutionContext: conversation.id=${conversation.id as any}, conversation.targetId=${conversation.targetId}, conversation.conversationType=${conversation.conversationType}`);
 
     let conversationHistory: ModelMessage[] = [];
     if (conversation.messageCount > 0) {
-      const historyMessages = await this.conversationService.buildContext(conversation.id, 20);
+      const historyMessages = await this.conversationService.buildContext(conversation.id as any, 20);
       conversationHistory = historyMessages.map(m => ({
         role: m.role as 'user' | 'assistant' | 'system',
         content: m.content,

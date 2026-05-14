@@ -70,7 +70,7 @@ export class AppService {
    */
   async update(id: string, dto: UpdateAppDto) {
     const existing = await this.prisma.appTenant.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!existing) {
@@ -87,7 +87,7 @@ export class AppService {
     }
 
     const app = await this.prisma.appTenant.update({
-      where: { id },
+      where: { id: id as any },
       data: {
         name: dto.name,
         code: dto.code,
@@ -110,7 +110,7 @@ export class AppService {
    */
   async delete(id: string) {
     const existing = await this.prisma.appTenant.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!existing) {
@@ -118,7 +118,7 @@ export class AppService {
     }
 
     await this.prisma.appTenant.delete({
-      where: { id },
+      where: { id: id as any },
     });
   }
 
@@ -168,7 +168,7 @@ export class AppService {
    */
   async findOne(id: string) {
     const app = await this.prisma.appTenant.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!app) {
@@ -203,7 +203,7 @@ export class AppService {
    */
   async resetSecret(id: string, dto: ResetSecretDto) {
     const existing = await this.prisma.appTenant.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!existing) {
@@ -218,7 +218,7 @@ export class AppService {
     }
 
     const app = await this.prisma.appTenant.update({
-      where: { id },
+      where: { id: id as any },
       data: {
         apiKey,
         secretKey,
@@ -239,7 +239,7 @@ export class AppService {
    */
   async getUsage(id: string) {
     const app = await this.prisma.appTenant.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!app) {

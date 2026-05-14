@@ -46,7 +46,7 @@ export class LogService {
     const { model, context } = params;
 
     await this.saveLog({
-      modelId: model.id,
+      modelId: model.id as any,
       modelCode: model.code || '',
       modelType: 'llm',
       request: this.serializeRequest(params),
@@ -71,7 +71,7 @@ export class LogService {
     const { model, context } = params;
 
     await this.saveLog({
-      modelId: model.id,
+      modelId: model.id as any,
       modelCode: model.code || '',
       modelType: 'llm',
       request: this.serializeRequest(params),
@@ -100,7 +100,7 @@ export class LogService {
     const { model, context } = params;
 
     await this.saveLog({
-      modelId: model.id,
+      modelId: model.id as any,
       modelCode: model.code || '',
       modelType: 'llm',
       request: this.serializeRequest(params),
@@ -153,7 +153,7 @@ export class LogService {
    */
   async saveLog(data: LogData): Promise<void> {
     try {
-      await this.prisma.aiInvokeLog.create({ data });
+      await this.prisma.aiInvokeLog.create({ data: data as any });
     } catch (error) {
       this.logger.error('保存日志失败:', error);
     }

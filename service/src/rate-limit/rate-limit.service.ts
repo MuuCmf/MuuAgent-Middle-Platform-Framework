@@ -76,12 +76,12 @@ export class RateLimitService {
       return {
         allowed: false,
         reason: 'IP已被封禁',
-        ruleId: rule.id,
+        ruleId: rule.id as any,
       };
     }
 
     // 获取计数器
-    const counter = await this.getCounter(rule.id);
+    const counter = await this.getCounter(rule.id as any);
 
     // 检查每日限额
     if (rule.dailyLimit > 0 && counter.todayCount >= rule.dailyLimit) {
@@ -89,35 +89,35 @@ export class RateLimitService {
         allowed: false,
         reason: '已超过每日调用限额',
         remainingQuota: 0,
-        ruleId: rule.id,
+        ruleId: rule.id as any,
       };
     }
 
     // 检查并发限制
     if (rule.concurrentLimit > 0) {
-      const concurrentResult = await this.checkConcurrent(rule.id, rule.concurrentLimit);
+      const concurrentResult = await this.checkConcurrent(rule.id as any, rule.concurrentLimit);
       if (!concurrentResult.allowed) {
-        return { ...concurrentResult, ruleId: rule.id };
+        return { ...concurrentResult, ruleId: rule.id as any };
       }
     }
 
     // 检查QPS限制（令牌桶算法）
     if (rule.qpsLimit > 0) {
-      const qpsResult = await this.checkQps(rule.id, rule.qpsLimit, rule.burstSize);
+      const qpsResult = await this.checkQps(rule.id as any, rule.qpsLimit, rule.burstSize);
       if (!qpsResult.allowed) {
-        return { ...qpsResult, ruleId: rule.id };
+        return { ...qpsResult, ruleId: rule.id as any };
       }
     }
 
     // 通过所有检查，增加计数
-    await this.incrementCounter(rule.id);
+    await this.incrementCounter(rule.id as any);
 
     return {
       allowed: true,
       currentQps: counter.currentQps,
       currentConcurrent: counter.currentConcurrent,
       remainingQuota: rule.dailyLimit > 0 ? rule.dailyLimit - counter.todayCount - 1 : undefined,
-      ruleId: rule.id,
+      ruleId: rule.id as any,
     };
   }
 
@@ -148,12 +148,12 @@ export class RateLimitService {
    */
   private async getCounter(ruleId: string) {
     let counter = await this.prisma.rateLimitCounter.findFirst({
-      where: { ruleId },
+      where: { ruleId: ruleId as any },
     });
 
     if (!counter) {
       counter = await this.prisma.rateLimitCounter.create({
-        data: { ruleId },
+        data: { ruleId: ruleId as any },
       });
     }
 

@@ -44,7 +44,7 @@ export class AdminService {
 
     await this.prisma.adminRefreshToken.create({
       data: {
-        adminId,
+        adminId: adminId as any,
         token,
         expiresAt,
       },
@@ -83,7 +83,7 @@ export class AdminService {
   private async cleanExpiredRefreshTokens(adminId: string): Promise<void> {
     await this.prisma.adminRefreshToken.deleteMany({
       where: {
-        adminId,
+        adminId: adminId as any,
         expiresAt: {
           lt: new Date(),
         },
@@ -128,17 +128,17 @@ export class AdminService {
       },
     });
 
-    await this.cleanExpiredRefreshTokens(admin.id);
+    await this.cleanExpiredRefreshTokens(admin.id as any);
 
     const payload = {
-      sub: admin.id,
+      sub: admin.id as any,
       username: admin.username,
       role: admin.role,
       isSuperAdmin: admin.isSuperAdmin,
     };
 
     const accessToken = this.jwtService.sign(payload);
-    const refreshToken = await this.generateRefreshToken(admin.id);
+    const refreshToken = await this.generateRefreshToken(admin.id as any);
 
     const { password: _, ...adminWithoutPassword } = admin;
 
@@ -191,7 +191,7 @@ export class AdminService {
     };
 
     const accessToken = this.jwtService.sign(payload);
-    const newRefreshToken = await this.generateRefreshToken(storedToken.admin.id);
+    const newRefreshToken = await this.generateRefreshToken(storedToken.admin.id as any);
 
     return {
       accessToken,
@@ -237,7 +237,7 @@ export class AdminService {
    */
   async findById(id: string): Promise<AdminUser> {
     const admin = await this.prisma.adminUser.findUnique({
-      where: { id },
+      where: { id: id as any },
     });
 
     if (!admin) {
@@ -267,7 +267,7 @@ export class AdminService {
    */
   async updateStatus(id: string, status: number): Promise<Partial<AdminUser>> {
     const admin = await this.prisma.adminUser.update({
-      where: { id },
+      where: { id: id as any },
       data: { status },
     });
 
@@ -283,7 +283,7 @@ export class AdminService {
    */
   async delete(id: string): Promise<void> {
     await this.prisma.adminUser.delete({
-      where: { id },
+      where: { id: id as any },
     });
   }
 
@@ -310,7 +310,7 @@ export class AdminService {
     const hashedPassword = await bcrypt.hash(changePasswordDto.newPassword, 10);
 
     await this.prisma.adminUser.update({
-      where: { id },
+      where: { id: id as any },
       data: { password: hashedPassword },
     });
   }

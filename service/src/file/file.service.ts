@@ -98,7 +98,7 @@ export class FileService {
         fileHash,
         storageType: options.storageType || 'local',
         businessType: options.businessType || 'temp',
-        businessId: options.businessId,
+        businessId: options.businessId as any,
         isPublic: options.isPublic || false,
         appCode: options.appCode,
         createdBy: options.uid,
@@ -141,7 +141,7 @@ export class FileService {
    */
   async download(fileId: string): Promise<FileDownloadResult> {
     const file = await this.prisma.file.findFirst({
-      where: { id: fileId, deletedAt: null },
+      where: { id: fileId as any, deletedAt: null },
     });
 
     if (!file) {
@@ -149,7 +149,7 @@ export class FileService {
     }
 
     await this.prisma.file.update({
-      where: { id: fileId },
+      where: { id: fileId as any },
       data: { accessCount: { increment: 1 } },
     });
 
@@ -173,7 +173,7 @@ export class FileService {
    */
   async delete(fileId: string, permanent: boolean = false): Promise<void> {
     const file = await this.prisma.file.findUnique({
-      where: { id: fileId },
+      where: { id: fileId as any },
     });
 
     if (!file) {
@@ -182,11 +182,11 @@ export class FileService {
 
     if (permanent) {
       await this.storageService.delete(file.filePath, file.storageType);
-      await this.prisma.file.delete({ where: { id: fileId } });
+      await this.prisma.file.delete({ where: { id: fileId as any } });
       this.logger.log(`文件已永久删除: ${fileId}`);
     } else {
       await this.prisma.file.update({
-        where: { id: fileId },
+        where: { id: fileId as any },
         data: { deletedAt: new Date() },
       });
       this.logger.log(`文件已软删除: ${fileId}`);
@@ -251,7 +251,7 @@ export class FileService {
    */
   async findOne(fileId: string) {
     const file = await this.prisma.file.findFirst({
-      where: { id: fileId, deletedAt: null },
+      where: { id: fileId as any, deletedAt: null },
       include: {
         processTasks: {
           orderBy: { createdAt: 'desc' },

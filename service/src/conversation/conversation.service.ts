@@ -30,13 +30,13 @@ export class ConversationService {
 
     const data = buildCreateData({
       conversationType,
-      targetId: dto.targetId,
+      targetId: dto.targetId as any,
       title: dto.title,
       uid: dto.uid,
       status: 'active',
     }, context || { appCode: null, isSuperAdmin: false });
 
-    const conversation = await this.prisma.conversation.create({ data });
+    const conversation = await this.prisma.conversation.create({ data: data as any });
 
     this.logger.log(
       `创建会话: ${conversation.id}, type: ${conversationType}, targetId: ${dto.targetId}, appCode: ${conversation.appCode}`,
@@ -73,7 +73,7 @@ export class ConversationService {
         this.logger.log(`getOrCreate: found existing conversation id=${existing.id}, targetId=${existing.targetId}, type=${existing.conversationType}`);
         if (
           existing.conversationType !== conversationType ||
-          existing.targetId !== targetId
+          existing.targetId !== targetId as any
         ) {
           throw new BadRequestException('会话类型或目标不匹配');
         }
@@ -111,7 +111,7 @@ export class ConversationService {
     }
 
     return this.prisma.conversation.update({
-      where: { id },
+      where: { id: id as any },
       data: dto,
     });
   }
@@ -132,7 +132,7 @@ export class ConversationService {
     }
 
     await this.prisma.conversation.update({
-      where: { id },
+      where: { id: id as any },
       data: { status: 'deleted' },
     });
   }
@@ -157,13 +157,13 @@ export class ConversationService {
     let targetInfo: any = null;
     if (conversation.conversationType === ConversationType.AGENT) {
       const agent = await this.prisma.agent.findUnique({
-        where: { id: conversation.targetId },
+        where: { id: conversation.targetId as any },
         select: { id: true, name: true, code: true },
       });
       targetInfo = { type: 'agent', ...agent };
     } else if (conversation.conversationType === ConversationType.KB_RAG) {
       const kb = await this.prisma.kbInfo.findUnique({
-        where: { id: conversation.targetId },
+        where: { id: conversation.targetId as any },
         select: { id: true, kbName: true, kbCode: true },
       });
       targetInfo = { type: 'kb', ...kb };
@@ -229,13 +229,13 @@ export class ConversationService {
 
         if (c.conversationType === ConversationType.AGENT) {
           const agent = await this.prisma.agent.findUnique({
-            where: { id: c.targetId },
+            where: { id: c.targetId as any },
             select: { id: true, name: true, code: true },
           });
           targetInfo = agent;
         } else if (c.conversationType === ConversationType.KB_RAG) {
           const kb = await this.prisma.kbInfo.findUnique({
-            where: { id: c.targetId },
+            where: { id: c.targetId as any },
             select: { id: true, kbName: true, kbCode: true },
           });
           targetInfo = kb;
@@ -267,7 +267,7 @@ export class ConversationService {
    */
   async getMessages(conversationId: string, limit: number = 50) {
     const messages = await this.prisma.message.findMany({
-      where: { conversationId },
+      where: { conversationId: conversationId as any },
       orderBy: { createdAt: 'asc' },
       take: limit,
     });
@@ -302,7 +302,7 @@ export class ConversationService {
   ) {
     const message = await this.prisma.message.create({
       data: {
-        conversationId,
+        conversationId: conversationId as any,
         role,
         content,
         toolCalls: options?.toolCalls ? JSON.stringify(options.toolCalls) : null,
@@ -314,7 +314,7 @@ export class ConversationService {
     });
 
     await this.prisma.conversation.update({
-      where: { id: conversationId },
+      where: { id: conversationId as any },
       data: {
         lastMessageAt: new Date(),
         messageCount: { increment: 1 },
@@ -349,11 +349,11 @@ export class ConversationService {
    */
   async clearMessages(conversationId: string) {
     await this.prisma.message.deleteMany({
-      where: { conversationId },
+      where: { conversationId: conversationId as any },
     });
 
     await this.prisma.conversation.update({
-      where: { id: conversationId },
+      where: { id: conversationId as any },
       data: {
         messageCount: 0,
         lastMessageAt: new Date(),
@@ -369,7 +369,7 @@ export class ConversationService {
   async generateTitle(conversationId: string) {
     const firstMessage = await this.prisma.message.findFirst({
       where: {
-        conversationId,
+        conversationId: conversationId as any,
         role: 'user',
       },
       orderBy: { createdAt: 'asc' },
@@ -378,7 +378,7 @@ export class ConversationService {
     if (firstMessage) {
       const title = firstMessage.content.substring(0, 50);
       await this.prisma.conversation.update({
-        where: { id: conversationId },
+        where: { id: conversationId as any },
         data: { title },
       });
     }

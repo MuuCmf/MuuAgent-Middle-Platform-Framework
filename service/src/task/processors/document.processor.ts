@@ -45,7 +45,7 @@ export class DocumentProcessor {
 
     try {
       await this.prisma.kbDocument.update({
-        where: { id: docId },
+        where: { id: docId as any },
         data: { status: 1 },
       });
 
@@ -53,12 +53,12 @@ export class DocumentProcessor {
       const chunks = this.splitText(content, kb.chunkSize, kb.chunkOverlap);
 
       await this.prisma.kbDocument.update({
-        where: { id: docId },
+        where: { id: docId as any },
         data: { totalChunks: chunks.length },
       });
 
       const kbInfo = await this.prisma.kbInfo.findFirst({
-        where: { id: kbId, isDeleted: false },
+        where: { id: kbId as any, isDeleted: false },
         select: { retrievalMethod: true },
       });
       const retrievalMethod = kbInfo?.retrievalMethod || 'vector';
@@ -68,13 +68,11 @@ export class DocumentProcessor {
         const vectors: number[][] = [];
 
         for (let i = 0; i < chunks.length; i++) {
-          const chunkId = uuidv4();
-
-          await this.prisma.kbChunk.create({
+          // 让中间件自动生成雪花 ID
+          const chunk = await this.prisma.kbChunk.create({
             data: {
-              id: chunkId,
-              kbId,
-              docId,
+              kbId: kbId as any,
+              docId: docId as any,
               content: chunks[i],
               chunkIndex: i,
               status: 0,
@@ -85,12 +83,12 @@ export class DocumentProcessor {
           vectors.push(embeddingResult);
 
           vectorPayloads.push({
-            kb_id: kbId,
-            doc_id: docId,
-            chunk_id: chunkId,
+            kb_id: kbId as any,
+            doc_id: docId as any,
+            chunk_id: chunk.id as any,
             chunk_index: i,
             content: chunks[i],
-            doc_name: kbId,
+            doc_name: kbId as any,
             kb_name: kb.kbName || '',
           });
         }
@@ -101,13 +99,11 @@ export class DocumentProcessor {
         }
       } else {
         for (let i = 0; i < chunks.length; i++) {
-          const chunkId = uuidv4();
-
+          // 让中间件自动生成雪花 ID
           await this.prisma.kbChunk.create({
             data: {
-              id: chunkId,
-              kbId,
-              docId,
+              kbId: kbId as any,
+              docId: docId as any,
               content: chunks[i],
               chunkIndex: i,
               status: 1,
@@ -118,12 +114,12 @@ export class DocumentProcessor {
       }
 
       await this.prisma.kbChunk.updateMany({
-        where: { docId },
+        where: { docId: docId as any },
         data: { status: 1 },
       });
 
       await this.prisma.kbDocument.update({
-        where: { id: docId },
+        where: { id: docId as any },
         data: { status: 1 },
       });
 
@@ -131,7 +127,7 @@ export class DocumentProcessor {
     } catch (error) {
       this.logger.error(`文档处理失败 ${docId}:`, error);
       await this.prisma.kbDocument.update({
-        where: { id: docId },
+        where: { id: docId as any },
         data: { status: 2 },
       });
       throw error;

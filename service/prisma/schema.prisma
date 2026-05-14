@@ -9,7 +9,7 @@ datasource db {
 
 /// AI模型表 - 存储所有AI模型配置
 model Model {
-  id          String   @id @default(uuid())
+  id          BigInt  @id @default(0)
   name        String   /// 模型名称
   code        String   @unique /// 模型唯一标识码
   type        String   /// 模型类型: llm / embedding / tts / asr / image / multimodal
@@ -42,7 +42,7 @@ model Model {
 
 /// 模型参数模板表 - 预设模型调用参数
 model ModelTemplate {
-  id             String   @id @default(uuid())
+  id             BigInt  @id @default(0)
   name           String   /// 模板名称
   code           String   @unique /// 模板唯一标识
   modelType      String   /// 适配模型类型: llm / embedding / multimodal
@@ -66,7 +66,7 @@ model ModelTemplate {
 
 /// MCP调度策略表 - 模型控制平面配置
 model McpStrategy {
-  id            String  @id @default(uuid())
+  id            BigInt  @id @default(0)
   modelType     String  @unique /// 模型类型
   strategy      String  @default("weight") /// 调度策略: weight / random / round_robin / failover
   retryCount    Int     @default(3) /// 重试次数
@@ -83,8 +83,8 @@ model McpStrategy {
 
 /// MCP限流熔断规则表 - 单模型级别的限流配置
 model McpRule {
-  id              String  @id @default(uuid())
-  modelId         String  /// 关联模型ID
+  id              BigInt  @id @default(0)
+  modelId BigInt  /// 关联模型ID
   qpsLimit        Int     @default(10) /// QPS限制
   maxConcurrent   Int     @default(5) /// 最大并发数
   currentConcurrent Int   @default(0) /// 当前并发数
@@ -103,7 +103,7 @@ model McpRule {
 
 /// 技能表 - 可被Agent调用的工具
 model Skill {
-  id          String   @id @default(uuid())
+  id          BigInt  @id @default(0)
   name        String   /// 技能名称
   code        String   /// 技能唯一标识
   description String   @db.Text /// 功能描述(给LLM看)
@@ -140,7 +140,7 @@ model Skill {
 
 /// 智能体表 - AI Agent配置
 model Agent {
-  id              String   @id @default(uuid())
+  id              BigInt  @id @default(0)
   name            String   /// 智能体名称
   code            String   /// 智能体唯一标识
   description     String?  /// 智能体描述
@@ -181,8 +181,8 @@ model Agent {
 
 /// AI调用日志表 - 记录所有AI模型调用
 model AiInvokeLog {
-  id          String   @id @default(uuid())
-  modelId     String?  @map("model_id") /// 调用的模型ID
+  id          BigInt  @id @default(0)
+  modelId     BigInt?  @map("model_id") /// 调用的模型ID
   modelCode   String   @map("model_code") /// 模型标识码
   modelType   String   @map("model_type") /// 模型类型
   request     String   @db.Text /// 请求数据(JSON)
@@ -214,8 +214,8 @@ model AiInvokeLog {
 
 /// 技能调用日志表 - 记录技能调用情况
 model SkillInvokeLog {
-  id           String   @id @default(uuid())
-  skillId      String   @map("skill_id") /// 技能ID
+  id           BigInt  @id @default(0)
+  skillId BigInt   @map("skill_id") /// 技能ID
   skillCode    String   @map("skill_code") /// 技能标识
   agentLogId   String?  @map("agent_invoke_log_id") /// 关联Agent调用日志ID
   params       String?  @db.Text /// 调用参数(JSON)
@@ -243,8 +243,8 @@ model SkillInvokeLog {
 
 /// 智能体调用日志表 - 记录Agent对话
 model AgentInvokeLog {
-  id           String   @id @default(uuid())
-  agentId      String   @map("agent_id") /// 智能体ID
+  id           BigInt  @id @default(0)
+  agentId BigInt   @map("agent_id") /// 智能体ID
   conversationId String? @map("conversation_id") /// 会话ID
   userMessage  String   @map("user_message") @db.Text /// 用户消息
   agentResponse String? @map("agent_response") @db.Text /// 智能体回复
@@ -278,8 +278,8 @@ model AgentInvokeLog {
 
 /// 模型健康检查记录表
 model ModelHealth {
-  id           String   @id @default(uuid())
-  modelId      String   /// 模型ID
+  id           BigInt  @id @default(0)
+  modelId BigInt   /// 模型ID
   status       String   /// 健康状态: healthy / unhealthy / unknown
   responseTime Int?     /// 响应时间(毫秒)
   errorMessage String?  /// 错误信息
@@ -293,7 +293,7 @@ model ModelHealth {
 
 /// 应用/租户表 - 多租户支持
 model AppTenant {
-  id          String   @id @default(uuid())
+  id          BigInt  @id @default(0)
   name        String   /// 应用名称
   code        String   @unique /// 应用标识
   apiKey      String   @unique /// API密钥
@@ -334,7 +334,7 @@ model AppTenant {
 
 /// 应用每日使用量统计表
 model AppUsage {
-  id          String   @id @default(uuid())
+  id          BigInt  @id @default(0)
   appCode     String   @map("app_code") /// 应用标识
   date        DateTime /// 日期
   callCount   Int      @default(0) @map("call_count") /// 调用次数
@@ -352,7 +352,7 @@ model AppUsage {
 
 /// 限流规则表 - 支持多级别限流配置
 model RateLimitRule {
-  id              String   @id @default(uuid())
+  id              BigInt  @id @default(0)
   level           String   /// 限流级别: global / app / interface / model
   target          String   /// 限流目标: global标识全局、appCode、interface路径、modelId
   qpsLimit        Int      @default(100) /// QPS限制(每秒请求数)
@@ -376,8 +376,8 @@ model RateLimitRule {
 
 /// 限流计数器表 - 实时统计限流数据
 model RateLimitCounter {
-  id                String   @id @default(uuid())
-  ruleId            String   /// 关联限流规则ID
+  id                BigInt  @id @default(0)
+  ruleId BigInt   /// 关联限流规则ID
   currentQps        Int      @default(0) /// 当前QPS
   currentConcurrent Int      @default(0) /// 当前并发数
   todayCount        Int      @default(0) /// 今日调用次数
@@ -397,7 +397,7 @@ model RateLimitCounter {
 
 /// 限流黑名单表 - 记录被限流的请求
 model RateLimitBlacklist {
-  id          String   @id @default(uuid())
+  id          BigInt  @id @default(0)
   clientIp    String   /// 客户端IP
   appId       String?  /// 应用ID
   reason      String   /// 限流原因
@@ -411,7 +411,7 @@ model RateLimitBlacklist {
 
 /// 管理员表 - 中台管理后台用户
 model AdminUser {
-  id           String   @id @default(uuid())
+  id           BigInt  @id @default(0)
   username     String   @unique /// 登录账号
   password     String   /// 加密密码(BCrypt)
   nickname     String?  /// 昵称
@@ -435,8 +435,8 @@ model AdminUser {
 
 /// 管理员刷新令牌表 - 用于Token刷新机制
 model AdminRefreshToken {
-  id           String   @id @default(uuid())
-  adminId      String   /// 关联管理员ID
+  id           BigInt  @id @default(0)
+  adminId BigInt   /// 关联管理员ID
   token        String   @unique /// 刷新令牌
   expiresAt    DateTime /// 过期时间
   createdAt    DateTime @default(now())
@@ -452,7 +452,7 @@ model AdminRefreshToken {
 
 /// 知识库表 - 应用级隔离
 model KbInfo {
-  id              String   @id @default(uuid())
+  id              BigInt  @id @default(0)
   kbName          String   /// 知识库名称
   kbCode          String   /// 知识库唯一标识
 
@@ -496,12 +496,12 @@ model KbInfo {
 
 /// 文档表 - 知识库下的文档
 model KbDocument {
-  id              String   @id @default(uuid())
-  kbId            String   @map("kb_id") /// 所属知识库ID
+  id              BigInt  @id @default(0)
+  kbId BigInt   @map("kb_id") /// 所属知识库ID
   docCode         String?  @map("doc_code") /// 文档唯一标识
 
   // ===== 关联通用文件表 =====
-  fileId          String?  @map("file_id") /// 关联File表ID
+  fileId          BigInt?  @map("file_id") /// 关联File表ID
 
   // ===== 状态管理 =====
   status          Int      @default(0) /// 状态: 0=解析中,1=正常,2=失败,3=禁用
@@ -527,9 +527,9 @@ model KbDocument {
 
 /// 切片表 - 文档切片元数据
 model KbChunk {
-  id              String   @id @default(uuid())
-  kbId            String   @map("kb_id") /// 所属知识库ID
-  docId           String   @map("doc_id") /// 所属文档ID
+  id              BigInt  @id @default(0)
+  kbId BigInt   @map("kb_id") /// 所属知识库ID
+  docId BigInt   @map("doc_id") /// 所属文档ID
   content         String   @db.Text /// 切片文本内容
   chunkIndex      Int      @map("chunk_index") /// 切片序号
   vectorId        String?  @map("vector_id") /// 向量库ID
@@ -550,8 +550,8 @@ model KbChunk {
 
 /// 检索日志表 - 记录检索历史
 model KbRetrievalLog {
-  id              String   @id @default(uuid())
-  kbId            String   @map("kb_id") /// 知识库ID
+  id              BigInt  @id @default(0)
+  kbId BigInt   @map("kb_id") /// 知识库ID
   uid             String?  /// 调用者uid（仅用于日志记录）
   query           String   @db.Text /// 查询问题
   topN            Int      /// 召回条数
@@ -559,7 +559,7 @@ model KbRetrievalLog {
   retrievalCount  Int      @default(0) @map("retrieval_count") /// 召回切片数量
   results         String?  @db.Text /// 检索结果(JSON数组): [{"chunkId":"xxx","score":0.85,"docName":"文档名","content":"切片内容摘要"}]
   costTime        Int      @map("cost_time") /// 检索耗时
-  requestId       String   @map("request_id") /// 链路ID
+  requestId String   @map("request_id") /// 链路ID
   clientIp        String?  @map("client_ip") /// 客户端IP
 
   // ===== 应用隔离 =====
@@ -579,8 +579,8 @@ model KbRetrievalLog {
 
 /// OAuth客户端
 model OAuthClient {
-  id                String   @id @default(uuid())
-  clientId          String   @unique @default(uuid()) @map("client_id") /// 客户端ID
+  id                BigInt  @id @default(0)
+  clientId String  @unique @default(uuid()) @map("client_id") /// 客户端ID
   clientSecret      String   @map("client_secret") /// 客户端密钥
   name              String   /// 客户端名称
   redirectUris      String   @map("redirect_uris") @db.Text /// 回调地址列表(JSON数组)
@@ -606,10 +606,10 @@ model OAuthClient {
 
 /// 授权码
 model OAuthCode {
-  id                String   @id @default(uuid())
+  id                BigInt  @id @default(0)
   code              String   @unique /// 授权码
-  clientId          String   @map("client_id") /// 客户端ID
-  userId            String   @map("user_id") /// 用户ID
+  clientId String   @map("client_id") /// 客户端ID
+  userId BigInt   @map("user_id") /// 用户ID
   redirectUri       String   @map("redirect_uri") /// 回调地址
   scope             String   @db.Text /// 权限范围
   state             String?  /// 状态参数
@@ -625,11 +625,11 @@ model OAuthCode {
 
 /// 访问令牌
 model OAuthToken {
-  id                String    @id @default(uuid())
+  id                BigInt  @id @default(0)
   accessToken       String    @unique @map("access_token") /// 访问令牌
   refreshToken      String?   @unique @map("refresh_token") /// 刷新令牌
-  clientId          String    @map("client_id") /// 客户端ID
-  userId            String    @map("user_id") /// 用户ID
+  clientId String    @map("client_id") /// 客户端ID
+  userId BigInt    @map("user_id") /// 用户ID
   scope             String    @db.Text /// 权限范围
   expiresAt         DateTime  @map("expires_at") /// 访问令牌过期时间
   refreshExpiresAt  DateTime? @map("refresh_expires_at") /// 刷新令牌过期时间
@@ -645,8 +645,8 @@ model OAuthToken {
 
 /// 推理步骤记录表 - 记录ReAct推理过程
 model ReasoningStep {
-  id          String   @id @default(uuid())
-  agentLogId  String   @map("agent_invoke_log_id") /// 关联调用日志ID
+  id          BigInt  @id @default(0)
+  agentLogId BigInt   @map("agent_invoke_log_id") /// 关联调用日志ID
   stepNumber  Int      @map("step_number") /// 步骤序号
   thought     String?  @db.Text /// 思考内容
   action      String?  /// 执行的动作
@@ -664,9 +664,9 @@ model ReasoningStep {
 
 /// 会话表 - 管理对话会话（支持多种对话类型）
 model Conversation {
-  id               String   @id @default(uuid())
+  id               BigInt  @id @default(0)
   conversationType String   @default("agent") @map("conversation_type") /// 会话类型: agent/model/kb-rag
-  targetId         String   @map("target_id") /// 目标ID（智能体ID/模型标识/知识库ID）
+  targetId String   @map("target_id") /// 目标ID（智能体ID/模型标识/知识库ID）
   title            String?  /// 会话标题（自动生成或用户设置）
   uid              String?  /// 用户唯一标识（用于用户隔离）
   status           String   @default("active") /// 状态: active/archived/deleted
@@ -692,8 +692,8 @@ model Conversation {
 
 /// 消息表 - 存储对话消息
 model Message {
-  id             String   @id @default(uuid())
-  conversationId String   @map("conversation_id") /// 会话ID
+  id             BigInt  @id @default(0)
+  conversationId BigInt   @map("conversation_id") /// 会话ID
   role           String   /// 角色: user/assistant/system/tool
   content        String   @db.Text /// 消息内容
   toolCalls      String?  @map("tool_calls") @db.Text /// 工具调用信息(JSON)
@@ -712,7 +712,7 @@ model Message {
 
 /// Prompt模板表 - 存储提示词模板
 model PromptTemplate {
-  id          String   @id @default(uuid())
+  id          BigInt  @id @default(0)
   code        String   /// 模板唯一标识
   name        String   /// 模板名称
   category    String   /// 分类: agent/rag/react/skill/custom
@@ -749,8 +749,8 @@ model PromptTemplate {
 
 /// Prompt版本历史表 - 记录模板版本变更
 model PromptVersion {
-  id          String   @id @default(uuid())
-  templateId  String   @map("template_id") /// 关联模板ID
+  id          BigInt  @id @default(0)
+  templateId BigInt   @map("template_id") /// 关联模板ID
   version     Int      /// 版本号
   content     String   @db.Text /// Prompt内容
   variables   String?  @db.Text /// 变量定义
@@ -769,13 +769,13 @@ model PromptVersion {
 
 /// Prompt调用日志表 - 记录模板调用情况
 model PromptInvokeLog {
-  id            String   @id @default(uuid())
-  templateId    String?  @map("template_id") /// 关联模板ID
+  id            BigInt  @id @default(0)
+  templateId    BigInt?  @map("template_id") /// 关联模板ID
   templateCode  String   @map("template_code") /// 模板标识
   templateVersion Int    @map("template_version") /// 模板版本
   variables     String?  @db.Text /// 渲染变量（JSON格式）
   renderedPrompt String  @map("rendered_prompt") @db.Text /// 渲染后的Prompt
-  modelId       String?  @map("model_id") /// 调用的模型ID
+  modelId       BigInt?  @map("model_id") /// 调用的模型ID
   modelCode     String?  @map("model_code") /// 模型标识
   success       Boolean  /// 是否成功
   errorMessage  String?  @map("error_message") @db.Text /// 错误信息
@@ -794,7 +794,7 @@ model PromptInvokeLog {
 
 /// 插件表 - 存储自定义函数插件
 model Plugin {
-  id          String   @id @default(uuid())
+  id          BigInt  @id @default(0)
   name        String   @unique /// 插件名称
   version     String   /// 插件版本
   description String   @db.Text /// 插件描述
@@ -812,7 +812,7 @@ model Plugin {
 
 /// 文件表 - 通用文件管理
 model File {
-  id              String   @id @default(uuid())
+  id              BigInt  @id @default(0)
   
   fileName        String   @map("file_name") /// 原始文件名
   storageName     String   @map("storage_name") /// 存储文件名
@@ -856,8 +856,8 @@ model File {
 
 /// 文件处理任务表 - 异步文件处理
 model FileProcessTask {
-  id              String   @id @default(uuid())
-  fileId          String   @map("file_id") /// 文件ID
+  id              BigInt  @id @default(0)
+  fileId BigInt   @map("file_id") /// 文件ID
   
   taskType        String   @map("task_type") /// 任务类型: compress/convert/crop/watermark/thumbnail
   taskConfig      String   @map("task_config") @db.Text /// 任务配置(JSON)

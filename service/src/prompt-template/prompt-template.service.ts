@@ -163,7 +163,7 @@ export class PromptTemplateService {
     }
 
     await this.prisma.promptTemplate.delete({
-      where: { id },
+      where: { id: id as any },
     });
 
     this.logger.log(`删除模板成功: ${template.code}`);
@@ -372,7 +372,7 @@ export class PromptTemplateService {
    */
   async getVersionHistory(templateId: string, limit: number = 10) {
     return this.prisma.promptVersion.findMany({
-      where: { templateId },
+      where: { templateId: templateId as any },
       orderBy: { version: 'desc' },
       take: limit,
     });
@@ -397,7 +397,7 @@ export class PromptTemplateService {
     }
 
     const targetVersion = await this.prisma.promptVersion.findFirst({
-      where: { templateId: id, version },
+      where: { templateId: id as any, version },
     });
 
     if (!targetVersion) {
@@ -417,7 +417,7 @@ export class PromptTemplateService {
         },
       }),
       this.prisma.promptTemplate.update({
-        where: { id },
+        where: { id: id as any },
         data: {
           content: targetVersion.content,
           variables: targetVersion.variables,
@@ -427,7 +427,7 @@ export class PromptTemplateService {
     ]);
 
     this.logger.log(`版本回滚成功: ${template.code}, 回滚到版本 ${version}`);
-    return this.prisma.promptTemplate.findUnique({ where: { id } });
+    return this.prisma.promptTemplate.findUnique({ where: { id: id as any } });
   }
 
   /**
@@ -477,12 +477,12 @@ export class PromptTemplateService {
         data: { isDefault: false },
       }),
       this.prisma.promptTemplate.update({
-        where: { id },
+        where: { id: id as any },
         data: { isDefault: true },
       }),
     ]);
 
     this.logger.log(`设置默认模板成功: ${template.code}`);
-    return this.prisma.promptTemplate.findUnique({ where: { id } });
+    return this.prisma.promptTemplate.findUnique({ where: { id: id as any } });
   }
 }

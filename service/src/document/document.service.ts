@@ -42,7 +42,7 @@ export class DocumentService {
    */
   async upload(dto: UploadDocumentDto, file: Express.Multer.File): Promise<any> {
     const kb = await this.prisma.kbInfo.findFirst({
-      where: { id: dto.kbId, isDeleted: false },
+      where: { id: dto.kbId as any, isDeleted: false },
     });
 
     if (!kb) {
@@ -67,11 +67,11 @@ export class DocumentService {
 
     const doc = await this.prisma.kbDocument.create({
       data: {
-        kbId: dto.kbId,
+        kbId: dto.kbId as any,
         docCode: `doc_${Date.now()}`,
-        fileId: uploadResult.fileId,
+        fileId: uploadResult.fileId as any,
         status: 0,
-        createdBy: dto.uid,
+        createdBy: dto.uid as any,
       },
       include: {
         file: {
@@ -86,16 +86,16 @@ export class DocumentService {
     });
 
     await this.taskService.addDocumentProcessTask(
-      doc.id,
-      dto.kbId,
-      uploadResult.fileId,
+      doc.id as any,
+      dto.kbId as any,
+      uploadResult.fileId as any,
       kb,
     );
 
     return {
-      docId: doc.id,
+      docId: doc.id as any,
       docCode: doc.docCode,
-      fileId: uploadResult.fileId,
+      fileId: uploadResult.fileId as any,
       fileName: doc.file!.fileName,
       fileUrl: doc.file!.fileUrl,
       fileSize: doc.file!.fileSize,
@@ -112,7 +112,7 @@ export class DocumentService {
    */
   async batchUpload(dto: UploadDocumentDto, files: Express.Multer.File[]): Promise<any> {
     const kb = await this.prisma.kbInfo.findFirst({
-      where: { id: dto.kbId, isDeleted: false },
+      where: { id: dto.kbId as any, isDeleted: false },
     });
 
     if (!kb) {
@@ -148,11 +148,11 @@ export class DocumentService {
 
         const doc = await this.prisma.kbDocument.create({
           data: {
-            kbId: dto.kbId,
+            kbId: dto.kbId as any,
             docCode: `doc_${Date.now()}`,
-            fileId: uploadResult.fileId,
+            fileId: uploadResult.fileId as any,
             status: 0,
-            createdBy: dto.uid,
+            createdBy: dto.uid as any,
           },
           include: {
             file: {
@@ -167,16 +167,16 @@ export class DocumentService {
         });
 
         tasks.push({
-          docId: doc.id,
-          kbId: dto.kbId,
-          fileId: uploadResult.fileId,
+          docId: doc.id as any,
+          kbId: dto.kbId as any,
+          fileId: uploadResult.fileId as any,
           kb,
         });
 
         results.push({
-          docId: doc.id,
+          docId: doc.id as any,
           docCode: doc.docCode,
-          fileId: uploadResult.fileId,
+          fileId: uploadResult.fileId as any,
           fileName: doc.file!.fileName,
           fileUrl: doc.file!.fileUrl,
           fileSize: doc.file!.fileSize,
@@ -263,7 +263,7 @@ export class DocumentService {
    */
   async delete(dto: DeleteDocumentDto): Promise<any> {
     const doc = await this.prisma.kbDocument.findFirst({
-      where: { id: dto.docId, kbId: dto.kbId, isDeleted: false },
+      where: { id: dto.docId as any, kbId: dto.kbId as any, isDeleted: false },
       include: { file: true },
     });
 
@@ -274,20 +274,20 @@ export class DocumentService {
     await this.vectorService.deleteByDocId(dto.docId);
 
     await this.prisma.kbDocument.update({
-      where: { id: dto.docId },
+      where: { id: dto.docId as any },
       data: {
         isDeleted: true,
-        updatedBy: dto.uid,
+        updatedBy: dto.uid as any,
       },
     });
 
     await this.prisma.kbChunk.updateMany({
-      where: { docId: dto.docId },
+      where: { docId: dto.docId as any },
       data: { isDeleted: true },
     });
 
     if (doc.fileId) {
-      await this.fileService.delete(doc.fileId);
+      await this.fileService.delete(doc.fileId as any);
     }
 
     return true;

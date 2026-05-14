@@ -7,7 +7,6 @@ import {
   Body,
   Param,
   Query,
-  ParseUUIDPipe,
   UseGuards,
   UseInterceptors,
   Req,
@@ -82,7 +81,7 @@ export class ConversationController {
   @ApiOperation({ summary: '查询会话详情' })
   @ApiResponse({ status: 200, description: '查询成功' })
   async findOne(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: any,
     @Query('messageLimit') messageLimit?: number,
     @Req() req?: Request,
   ) {
@@ -101,7 +100,7 @@ export class ConversationController {
   @ApiOperation({ summary: '更新会话' })
   @ApiResponse({ status: 200, description: '更新成功' })
   async update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: any,
     @Body() dto: UpdateConversationDto,
     @Req() req: Request,
   ) {
@@ -118,7 +117,7 @@ export class ConversationController {
   @Delete(':id')
   @ApiOperation({ summary: '删除会话' })
   @ApiResponse({ status: 200, description: '删除成功' })
-  async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+  async remove(@Param('id') id: any, @Req() req: Request) {
     const context = extractIsolationContext(req);
     await this.conversationService.remove(id, context);
     return success(null, '删除会话成功');
@@ -134,7 +133,7 @@ export class ConversationController {
   @ApiOperation({ summary: '获取会话消息列表' })
   @ApiResponse({ status: 200, description: '查询成功' })
   async getMessages(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: any,
     @Query('limit') limit?: number,
   ) {
     const result = await this.conversationService.getMessages(id, limit || 50);
@@ -151,7 +150,7 @@ export class ConversationController {
   @ApiOperation({ summary: '添加消息到会话' })
   @ApiResponse({ status: 201, description: '添加成功' })
   async addMessage(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: any,
     @Body() dto: AddMessageDto,
   ) {
     const result = await this.conversationService.addMessage(
@@ -177,7 +176,7 @@ export class ConversationController {
   @Delete(':id/messages')
   @ApiOperation({ summary: '清空会话消息' })
   @ApiResponse({ status: 200, description: '清空成功' })
-  async clearMessages(@Param('id', ParseUUIDPipe) id: string) {
+  async clearMessages(@Param('id') id: any) {
     await this.conversationService.clearMessages(id);
     return success(null, '清空消息成功');
   }
@@ -235,7 +234,7 @@ export class ConversationAdminController {
   @ApiOperation({ summary: '查询会话详情' })
   @RequireScope(AdminScope.CONVERSATION_READ)
   async findOne(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: any,
     @Query('messageLimit') messageLimit?: number,
     @Req() req?: Request,
   ) {
@@ -254,7 +253,7 @@ export class ConversationAdminController {
   @ApiOperation({ summary: '更新会话' })
   @RequireScope(AdminScope.CONVERSATION_WRITE)
   async update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: any,
     @Body() dto: UpdateConversationDto,
     @Req() req: Request,
   ) {
@@ -271,7 +270,7 @@ export class ConversationAdminController {
   @Delete(':id')
   @ApiOperation({ summary: '删除会话' })
   @RequireScope(AdminScope.CONVERSATION_WRITE)
-  async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+  async remove(@Param('id') id: any, @Req() req: Request) {
     const context = extractIsolationContext(req);
     await this.conversationService.remove(id, context);
     return success(null, '删除会话成功');
@@ -287,7 +286,7 @@ export class ConversationAdminController {
   @ApiOperation({ summary: '获取会话消息列表' })
   @RequireScope(AdminScope.CONVERSATION_READ)
   async getMessages(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: any,
     @Query('limit') limit?: number,
   ) {
     const result = await this.conversationService.getMessages(id, limit || 50);
@@ -302,7 +301,7 @@ export class ConversationAdminController {
   @Post(':id/generate-title')
   @ApiOperation({ summary: '生成会话标题' })
   @RequireScope(AdminScope.CONVERSATION_WRITE)
-  async generateTitle(@Param('id', ParseUUIDPipe) id: string) {
+  async generateTitle(@Param('id') id: any) {
     await this.conversationService.generateTitle(id);
     const conversation = await this.conversationService.findOne(id);
     return success({ title: conversation.conversation.title }, '生成标题成功');

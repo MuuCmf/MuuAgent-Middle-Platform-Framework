@@ -108,7 +108,7 @@ export class McpService {
   async createRule(dto: CreateMcpRuleDto) {
     return this.prisma.mcpRule.create({
       data: {
-        modelId: dto.modelId,
+        modelId: dto.modelId as any,
         qpsLimit: dto.qpsLimit ?? 10,
         maxConcurrent: dto.maxConcurrent ?? 5,
       },
@@ -123,7 +123,7 @@ export class McpService {
    */
   async upsertRule(modelId: string, dto: CreateMcpRuleDto | UpdateMcpRuleDto) {
     const existingRule = await this.prisma.mcpRule.findFirst({
-      where: { modelId },
+      where: { modelId: modelId as any },
     });
 
     if (existingRule) {
@@ -138,7 +138,7 @@ export class McpService {
 
     return this.prisma.mcpRule.create({
       data: {
-        modelId,
+        modelId: modelId as any,
         qpsLimit: dto.qpsLimit ?? 10,
         maxConcurrent: dto.maxConcurrent ?? 5,
       },
@@ -153,10 +153,10 @@ export class McpService {
    */
   async updateRule(modelId: string, dto: UpdateMcpRuleDto) {
     const rule = await this.prisma.mcpRule.findFirst({
-      where: { modelId },
+      where: { modelId: modelId as any },
     });
     if (!rule) {
-      return this.createRule({ modelId, ...dto });
+      return this.createRule({ modelId : modelId as any, ...dto });
     }
 
     return this.prisma.mcpRule.update({
@@ -172,11 +172,11 @@ export class McpService {
    */
   async getRule(modelId: string) {
     let rule = await this.prisma.mcpRule.findFirst({
-      where: { modelId },
+      where: { modelId: modelId as any },
     });
 
     if (!rule) {
-      rule = await this.createRule({ modelId });
+      rule = await this.createRule({ modelId : modelId as any });
     }
 
     return rule;
@@ -198,7 +198,7 @@ export class McpService {
     // 过滤掉熔断的模型
     const availableModels: Model[] = [];
     for (const model of models) {
-      const rule = await this.getRule(model.id);
+      const rule = await this.getRule(model.id as any);
       if (rule.circuitStatus !== CircuitStatus.OPEN) {
         availableModels.push(model);
       }
@@ -447,7 +447,7 @@ export class McpService {
    */
   async deleteRule(modelId: string) {
     const rule = await this.prisma.mcpRule.findFirst({
-      where: { modelId },
+      where: { modelId: modelId as any },
     });
 
     if (!rule) {
@@ -475,7 +475,7 @@ export class McpService {
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
 
     for (const model of models) {
-      const rule = await this.getRule(model.id);
+      const rule = await this.getRule(model.id as any);
       
       // 查询最近60秒内的成功调用次数
       const successCount = await this.prisma.aiInvokeLog.count({
@@ -491,7 +491,7 @@ export class McpService {
       // 查询最近60秒内的失败调用次数
       const failureCount = await this.prisma.aiInvokeLog.count({
         where: {
-          modelId: model.id,
+          modelId: model.id as any,
           success: false,
           createdAt: {
             gte: oneMinuteAgo,
