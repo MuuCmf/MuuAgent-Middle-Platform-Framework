@@ -498,11 +498,10 @@ model KbInfo {
 model KbDocument {
   id              String   @id @default(uuid())
   kbId            String   @map("kb_id") /// 所属知识库ID
-  docName         String   @map("doc_name") /// 文档名称
   docCode         String?  @map("doc_code") /// 文档唯一标识
-  fileType        String   @map("file_type") /// 文档类型: pdf/word/txt/md
-  fileUrl         String   @map("file_url") /// 文档存储路径
-  fileSizeKb      Int      @map("file_size_kb") /// 文档大小
+
+  // ===== 关联通用文件表 =====
+  fileId          String?  @map("file_id") /// 关联File表ID
 
   // ===== 状态管理 =====
   status          Int      @default(0) /// 状态: 0=解析中,1=正常,2=失败,3=禁用
@@ -517,9 +516,11 @@ model KbDocument {
   isDeleted       Boolean  @default(false) @map("is_deleted")
 
   kbInfo          KbInfo   @relation(fields: [kbId], references: [id], onDelete: Cascade)
+  file            File?    @relation(fields: [fileId], references: [id], onDelete: SetNull)
   chunks          KbChunk[]
 
   @@index([kbId, status])
+  @@index([fileId])
   @@index([createdBy])
   @@map("kb_documents")
 }
@@ -807,4 +808,78 @@ model Plugin {
   @@index([name])
   @@index([status])
   @@map("plugins")
+}
+
+/// 文件表 - 通用文件管理
+model File {
+  id              String   @id @default(uuid())
+  
+  fileName        String   @map("file_name") /// 原始文件名
+  storageName     String   @map("storage_name") /// 存储文件名
+  filePath        String   @map("file_path") /// 文件路径
+  fileUrl         String   @map("file_url") /// 访问URL
+  fileType        String   @map("file_type") /// 文件类型: image/video/audio/pdf/doc/other
+  mimeType        String   @map("mime_type") /// MIME类型
+  fileSize        Int      @map("file_size") /// 文件大小(字节)
+  fileHash        String?  @map("file_hash") /// 文件哈希(MD5)
+  
+  storageType     String   @default("local") @map("storage_type") /// 存储类型: local/oss/s3
+  storageConfig   String?  @map("storage_config") @db.Text /// 存储配置(JSON)
+  
+  businessType    String   @map("business_type") /// 业务类型: kb/avatar/agent/workflow/temp
+  businessId      String?  @map("business_id") /// 业务ID
+  
+  isProcessed     Boolean  @default(false) @map("is_processed") /// 是否已处理
+  processConfig   String?  @map("process_config") @db.Text /// 处理配置(JSON)
+  processResult   String?  @map("process_result") @db.Text /// 处理结果(JSON)
+  
+  isPublic        Boolean  @default(false) @map("is_public") /// 是否公开
+  accessCount     Int      @default(0) @map("access_count") /// 访问次数
+  
+  appCode         String?  @map("app_code") /// 应用标识
+  createdBy       String?  @map("created_by") /// 创建人
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime? @map("deleted_at") /// 删除时间(软删除)
+  
+  processTasks    FileProcessTask[]
+  kbDocuments     KbDocument[]
+
+  @@index([businessType, businessId])
+  @@index([fileHash])
+  @@index([createdBy, createdAt])
+  @@index([appCode, createdAt])
+  @@index([storageType])
+  @@map("files")
+}
+
+/// 文件处理任务表 - 异步文件处理
+model FileProcessTask {
+  id              String   @id @default(uuid())
+  fileId          String   @map("file_id") /// 文件ID
+  
+  taskType        String   @map("task_type") /// 任务类型: compress/convert/crop/watermark/thumbnail
+  taskConfig      String   @map("task_config") @db.Text /// 任务配置(JSON)
+  priority        Int      @default(5) /// 优先级(1-10, 越小越优先)
+  
+  status          String   @default("pending") /// 状态: pending/processing/completed/failed
+  progress        Int      @default(0) /// 进度(0-100)
+  result          String?  @db.Text /// 执行结果(JSON)
+  errorMessage    String?  @map("error_message") @db.Text /// 错误信息
+  
+  startedAt       DateTime? @map("started_at") /// 开始时间
+  completedAt     DateTime? @map("completed_at") /// 完成时间
+  costMs          Int      @default(0) @map("cost_ms") /// 耗时(毫秒)
+  
+  retryCount      Int      @default(0) @map("retry_count") /// 重试次数
+  maxRetries      Int      @default(3) @map("max_retries") /// 最大重试次数
+  
+  createdAt       DateTime @default(now())
+  
+  file            File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([status, priority])
+  @@index([fileId])
+  @@map("file_process_tasks")
 }

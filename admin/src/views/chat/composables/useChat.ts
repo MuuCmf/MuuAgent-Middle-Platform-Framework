@@ -140,19 +140,21 @@ export function useChat() {
         topN: retrievalTopN.value,
         similarityThresh: retrievalThreshold.value
       },
-      (data: string) => {
-        chatMessages.value[assistantMsgIndex].content += data
-        scrollToBottom()
-      },
-      (error: any) => {
-        console.error('RAG流式调用错误:', error)
-        chatMessages.value[assistantMsgIndex].content = '调用失败: ' + (error.message || '未知错误')
-      },
-      (sources?: RetrievalItem[]) => {
-        if (sources && sources.length > 0) {
-          chatMessages.value[assistantMsgIndex].sources = sources
+      {
+        onMessage: (data: string) => {
+          chatMessages.value[assistantMsgIndex].content += data
+          scrollToBottom()
+        },
+        onError: (error: any) => {
+          console.error('RAG流式调用错误:', error)
+          chatMessages.value[assistantMsgIndex].content = '调用失败: ' + (error.message || '未知错误')
+        },
+        onComplete: (sources?: RetrievalItem[]) => {
+          if (sources && sources.length > 0) {
+            chatMessages.value[assistantMsgIndex].sources = sources
+          }
+          chatLoading.value = false
         }
-        chatLoading.value = false
       }
     )
   }

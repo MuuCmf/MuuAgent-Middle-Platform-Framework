@@ -24,6 +24,7 @@ import { CacheModule } from './cache/cache.module';
 import { TaskModule } from './task/task.module';
 import { OAuthModule } from './oauth/oauth.module';
 import { ConversationModule } from './conversation/conversation.module';
+import { FileModule } from './file/file.module';
 
 /**
  * 应用根模块
@@ -71,6 +72,8 @@ import { ConversationModule } from './conversation/conversation.module';
     DocumentModule,
     RetrievalModule,
     VectorModule,
+
+    FileModule,
 
     AdminModule,
 

@@ -283,7 +283,7 @@ export class RetrievalService {
       filteredResults.map(async (result) => {
         const doc = await this.prisma.kbDocument.findUnique({
           where: { id: result.payload.doc_id },
-          select: { docName: true },
+          include: { file: { select: { fileName: true } } },
         });
 
         return {
@@ -291,7 +291,7 @@ export class RetrievalService {
           content: result.payload.content,
           score: result.score,
           docId: result.payload.doc_id,
-          docName: doc?.docName || result.payload.doc_name || '未知文档',
+          docName: doc?.file?.fileName || result.payload.doc_name || '未知文档',
           chunkIndex: result.payload.chunk_index,
         };
       }),
@@ -474,7 +474,7 @@ export class RetrievalService {
 
         const doc = await this.prisma.kbDocument.findUnique({
           where: { id: docId },
-          select: { docName: true },
+          include: { file: { select: { fileName: true } } },
         });
 
         return {
@@ -482,7 +482,7 @@ export class RetrievalService {
           content: result.payload?.content || result.content,
           score: result.score,
           docId: docId,
-          docName: doc?.docName || docName || '未知文档',
+          docName: doc?.file?.fileName || docName || '未知文档',
           chunkIndex: result.payload?.chunk_index ?? result.chunkIndex,
         };
       }),
@@ -652,7 +652,7 @@ export class RetrievalService {
 
         const doc = await this.prisma.kbDocument.findUnique({
           where: { id: docId },
-          select: { docName: true },
+          include: { file: { select: { fileName: true } } },
         });
 
         return {
@@ -660,7 +660,7 @@ export class RetrievalService {
           content: result.payload?.content || result.content,
           score: result.score,
           docId: docId,
-          docName: doc?.docName || docName || '未知文档',
+          docName: doc?.file?.fileName || docName || '未知文档',
           chunkIndex: result.payload?.chunk_index ?? result.chunkIndex,
         };
       }),
@@ -1052,7 +1052,7 @@ ${context}
       filteredResults.slice(0, topN).map(async (result) => {
         const doc = await this.prisma.kbDocument.findUnique({
           where: { id: result.docId },
-          select: { docName: true },
+          include: { file: { select: { fileName: true } } },
         });
         
         if (!doc) {
@@ -1064,7 +1064,7 @@ ${context}
           content: result.content,
           score: result.score,
           docId: result.docId,
-          docName: doc?.docName || result.docName || '未知文档',
+          docName: doc?.file?.fileName || result.docName || '未知文档',
           chunkIndex: result.chunkIndex,
         };
       }),

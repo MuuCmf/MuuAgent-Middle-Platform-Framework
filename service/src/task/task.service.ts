@@ -18,20 +18,20 @@ export class TaskService {
    * 添加文档处理任务到队列
    * @param docId 文档ID
    * @param kbId 知识库ID
-   * @param filePath 文件路径
+   * @param fileId 文件ID
    * @param kb 知识库信息
    * @returns {Promise<void>}
    */
   async addDocumentProcessTask(
     docId: string,
     kbId: string,
-    filePath: string,
+    fileId: string,
     kb: any,
   ): Promise<void> {
     await this.documentQueue.add('process-document', {
       docId,
       kbId,
-      filePath,
+      fileId,
       kb,
     });
   }
@@ -44,7 +44,7 @@ export class TaskService {
   async addBatchDocumentProcessTask(documents: Array<{
     docId: string;
     kbId: string;
-    filePath: string;
+    fileId: string;
     kb: any;
   }>): Promise<void> {
     for (const doc of documents) {

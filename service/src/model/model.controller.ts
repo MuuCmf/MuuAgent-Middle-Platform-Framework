@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ModelService } from './model.service';
@@ -21,6 +22,9 @@ import {
   QueryModelDto,
 } from './dto/model.dto';
 import { success, page } from '../common/response/api.response';
+import { TenantGuard } from '../common/guards/tenant.guard';
+import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
+import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
 
 /**
  * 模型管理控制器（管理端）
@@ -148,6 +152,9 @@ export class ModelAdminController {
  * 提供公开的模型查询接口，无需认证
  */
 @ApiTags('模型（业务端）')
+@ApiBearerAuth()
+@UseGuards(TenantGuard, RateLimitGuard)
+@UseInterceptors(RateLimitInterceptor)
 @Controller('model')
 export class ModelController {
   /**

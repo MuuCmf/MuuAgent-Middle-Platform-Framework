@@ -89,11 +89,11 @@
           </template>
 
           <el-table :data="documentList" style="width: 100%">
-            <el-table-column prop="docName" label="文档名称" />
+            <el-table-column prop="fileName" label="文档名称" />
             <el-table-column prop="fileType" label="类型" width="80" />
-            <el-table-column prop="fileSizeKb" label="大小" width="100">
+            <el-table-column prop="fileSize" label="大小" width="100">
               <template #default="{ row }">
-                {{ (row.fileSizeKb / 1024).toFixed(2) }} MB
+                {{ formatFileSize(row.fileSize) }}
               </template>
             </el-table-column>
             <el-table-column prop="status" label="状态" width="100">
@@ -229,6 +229,14 @@ watch(currentPage, (newVal, oldVal) => {
 const formatDate = (date?: string) => {
   if (!date) return '-'
   return new Date(date).toLocaleString('zh-CN')
+}
+
+const formatFileSize = (bytes?: number) => {
+  if (!bytes) return '-'
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB'
+  if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB'
+  return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB'
 }
 
 const getStatusType = (status: number) => {

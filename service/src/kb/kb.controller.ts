@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   Req,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { KbService } from './kb.service';
@@ -25,6 +26,7 @@ import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { extractIsolationContext } from '../common/utils/isolation.util';
 import { success, page } from '../common/response/api.response';
 import { Request } from 'express';
+import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
 
 /**
  * 知识库管理控制器（管理端）
@@ -119,6 +121,7 @@ export class KbController {
 @ApiTags('知识库（业务端）')
 @ApiBearerAuth()
 @UseGuards(TenantGuard, RateLimitGuard)
+@UseInterceptors(RateLimitInterceptor)
 @Controller('kb')
 export class ClientKbController {
   /**
