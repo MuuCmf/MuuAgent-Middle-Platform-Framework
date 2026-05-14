@@ -1,5 +1,4 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
+import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { McpService } from '../mcp/mcp.service';
 import { ModelService } from '../model/model.service';
 import { ConversationService } from '../conversation/conversation.service';
@@ -11,30 +10,100 @@ import {
   TtsDto,
   AsrDto,
 } from './dto/ai.dto';
-import axios from 'axios';
 import { Observable } from 'rxjs';
 import { Model } from '@prisma/client';
-import { resolveEndpoint } from './providers/provider-registry';
 import { IsolationContext } from '../common/utils/isolation.util';
+import { StrategyFactory } from './strategies/strategy.factory';
+import { ModelExecutor } from './core/model.executor';
+import { ContextManager } from './core/context.manager';
+import { ErrorHandler, NormalizedError } from './handlers/error.handler';
+import { LogService, LogData } from './infrastructure/log.service';
+import { StreamProcessor } from './core/stream.processor';
+import { ToolCallParser } from './parsers/tool-call.parser';
+import {
+  ExecutionContext,
+  ExecutionResult,
+  StreamChunk,
+  ExecutionParams,
+  ToolCall,
+} from './interfaces/executor.interface';
+import type { ModelMessage, Tool } from 'ai';
+
+/**
+ * generateText 参数接口
+ */
+export interface GenerateTextParams {
+  model: Model;
+  system?: string;
+  messages: ModelMessage[];
+  tools?: Record<string, Tool>;
+  toolChoice?: any;
+  temperature?: number;
+  maxTokens?: number;
+  onStepFinish?: (step: any) => void;
+  clientIp: string;
+  userAgent?: string;
+  uid?: string;
+  appCode?: string;
+}
+
+/**
+ * streamText 参数接口
+ */
+export interface StreamTextParams extends GenerateTextParams {
+  onChunk?: (chunk: string) => void;
+  onToolCall?: (toolCall: { name: string; args: any }) => void;
+  onFinish?: (result: any) => void;
+  onError?: (error: any) => void;
+}
+
+/**
+ * generateText 结果接口
+ */
+export interface GenerateTextResult {
+  text: string;
+  finishReason: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  steps?: any[];
+  toolCalls?: ToolCall[];
+}
 
 /**
  * AI统一调用服务
- * 提供模型调用的统一入口
+ * 使用分层架构实现，提供清晰的分层和更好的可维护性
  */
 @Injectable()
 export class AiService {
+  private readonly logger = new Logger(AiService.name);
+
   /**
    * 构造函数
-   * @param prisma Prisma服务
    * @param mcpService MCP调度服务
    * @param modelService 模型服务
    * @param conversationService 会话服务
+   * @param strategyFactory 策略工厂
+   * @param modelExecutor 模型执行器
+   * @param contextManager 上下文管理器
+   * @param errorHandler 错误处理器
+   * @param logService 日志服务
+   * @param streamProcessor 流式处理器
+   * @param toolCallParser 工具调用解析器
    */
   constructor(
-    private prisma: PrismaService,
     private mcpService: McpService,
     private modelService: ModelService,
     private conversationService: ConversationService,
+    private strategyFactory: StrategyFactory,
+    private modelExecutor: ModelExecutor,
+    private contextManager: ContextManager,
+    private errorHandler: ErrorHandler,
+    private logService: LogService,
+    private streamProcessor: StreamProcessor,
+    private toolCallParser: ToolCallParser,
   ) {}
 
   /**
@@ -43,6 +112,7 @@ export class AiService {
    * @param clientIp 客户端IP
    * @param userAgent 用户代理
    * @param uid 用户唯一标识(透传)
+   * @param appCode 应用编码
    * @returns {Promise<Record<string, unknown>>} 调用结果
    */
   async invoke(
@@ -52,84 +122,67 @@ export class AiService {
     uid?: string,
     appCode?: string,
   ): Promise<Record<string, unknown>> {
-    const startTime = Date.now();
-    const modelType = dto.modelType || 'llm';
-
-    console.log('=== AI调用开始 ===');
-    console.log('modelType:', modelType);
-    console.log('modelCode:', dto.modelCode);
-
-    const targetId = dto.modelCode || `mcp-${modelType}`;
-
-    const isolationContext: IsolationContext = { appCode: appCode || null, isSuperAdmin: false };
-    const conversation = await this.conversationService.getOrCreate(
-      ConversationType.MODEL,
-      targetId,
-      dto.conversationId,
+    const context = this.contextManager.createFromParams(
+      clientIp,
+      userAgent,
       uid,
-      isolationContext,
+      appCode,
     );
 
-    let conversationHistory: Array<{ role: string; content: string }> = [];
-    if (conversation.messageCount > 0) {
-      const historyMessages = await this.conversationService.buildContext(conversation.id, 20);
-      conversationHistory = historyMessages.map(m => ({
-        role: m.role as 'user' | 'assistant' | 'system',
-        content: m.content,
-      }));
-    }
+    const modelType = dto.modelType || 'llm';
+    const targetId = dto.modelCode || `mcp-${modelType}`;
 
-    const messagesWithHistory = [
-      ...conversationHistory,
-      ...dto.messages,
-    ];
+    this.logger.debug(`AI调用开始: requestId=${context.requestId}, modelType=${modelType}, modelCode=${dto.modelCode}`);
 
-    const lastUserMessage = dto.messages.filter(m => m.role === 'user').pop();
-    if (lastUserMessage) {
-      await this.conversationService.addMessage(
-        conversation.id,
-        'user',
-        lastUserMessage.content,
+    try {
+      const isolationContext: IsolationContext = {
+        appCode: appCode || null,
+        isSuperAdmin: false,
+      };
+
+      const conversation = await this.conversationService.getOrCreate(
+        ConversationType.MODEL,
+        targetId,
+        dto.conversationId,
+        uid,
+        isolationContext,
       );
-    }
 
-    let model: Model;
-    try {
-      if (dto.modelCode) {
-        console.log('使用指定模型:', dto.modelCode);
-        model = await this.modelService.findByCode(dto.modelCode);
-      } else {
-        console.log('使用MCP调度选择模型');
-        model = await this.mcpService.selectModel(modelType);
+      const messagesWithHistory = await this.buildMessagesWithHistory(
+        conversation,
+        dto.messages,
+      );
+
+      const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();
+      if (lastUserMessage) {
+        await this.conversationService.addMessage(
+          conversation.id,
+          'user',
+          lastUserMessage.content,
+        );
       }
-      console.log('选中的模型:', model);
-    } catch (error) {
-      console.error('模型选择失败:', error);
-      throw error;
-    }
 
-    await this.mcpService.checkCircuit(model.id);
-    await this.mcpService.checkConcurrency(model.id);
+      const model = await this.selectModel(dto.modelCode, modelType);
+      const provider = model.provider?.toLowerCase() || 'openai';
 
-    try {
-      const requestData = this.buildRequestData(model, { ...dto, messages: messagesWithHistory });
+      await this.mcpService.checkCircuit(model.id);
+      await this.mcpService.checkConcurrency(model.id);
 
-      console.log('=== AI调用请求 ===');
-      console.log('提供商:', model.provider);
-      console.log('模型标识:', model.code);
-      console.log('API地址:', model.endpoint);
-      console.log('请求数据:', JSON.stringify(requestData, null, 2));
+      const executionParams: ExecutionParams = {
+        model,
+        messages: messagesWithHistory as any,
+        options: {
+          temperature: dto.temperature,
+          maxTokens: dto.maxTokens,
+        },
+        context,
+      };
 
-      const response = await axios.post(resolveEndpoint(model), requestData, {
-        headers: this.buildHeaders(model),
-        timeout: 30000,
-      });
+      const result = await this.modelExecutor.execute(executionParams);
 
       await this.mcpService.reportSuccess(model.id);
 
-      const tokenInfo = this.extractTokenInfo(response.data);
-
-      const assistantMessage = this.extractAssistantMessage(response.data);
+      const assistantMessage = result.content;
       if (assistantMessage) {
         await this.conversationService.addMessage(
           conversation.id,
@@ -142,75 +195,30 @@ export class AiService {
         }
       }
 
-      await this.saveLog({
+      await this.logService.saveLog({
         modelId: model.id,
         modelCode: model.code,
         modelType,
         request: JSON.stringify(dto),
-        response: JSON.stringify(response.data),
-        costMs: Date.now() - startTime,
+        response: JSON.stringify(result.raw || result),
+        costMs: this.contextManager.calculateDuration(context),
         success: true,
         clientIp,
         userAgent,
-        inputTokens: tokenInfo.inputTokens,
-        outputTokens: tokenInfo.outputTokens,
+        inputTokens: result.usage?.promptTokens,
+        outputTokens: result.usage?.completionTokens,
         uid,
         appCode,
       });
 
+      await this.mcpService.reportSuccess(model.id);
+
       return {
-        ...response.data,
+        ...(result.raw || result),
         conversationId: conversation.id,
       };
     } catch (error) {
-      console.error('=== AI调用失败 ===');
-      if (axios.isAxiosError(error)) {
-        console.error('状态码:', error.response?.status);
-        console.error('响应数据:', JSON.stringify(error.response?.data, null, 2));
-        console.error('请求配置:', JSON.stringify({
-          url: error.config?.url,
-          method: error.config?.method,
-          data: error.config?.data,
-        }, null, 2));
-      }
-
-      await this.mcpService.reportError(model.id);
-
-      let errorMsg = '未知错误';
-      if (axios.isAxiosError(error)) {
-        const respData = error.response?.data;
-        if (respData?.error?.message) {
-          errorMsg = respData.error.message;
-        } else if (respData?.message) {
-          errorMsg = respData.message;
-        } else if (error.message) {
-          errorMsg = error.message;
-        }
-      } else if (error instanceof Error) {
-        errorMsg = error.message;
-      }
-
-      await this.saveLog({
-        modelId: model.id,
-        modelCode: model.code,
-        modelType,
-        request: JSON.stringify(dto),
-        response: axios.isAxiosError(error) ? JSON.stringify(error.response?.data) : errorMsg,
-        costMs: Date.now() - startTime,
-        success: false,
-        clientIp,
-        userAgent,
-        errorMessage: errorMsg,
-        uid,
-        appCode,
-      });
-
-      throw new HttpException(
-        `模型调用失败: ${errorMsg}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    } finally {
-      await this.mcpService.releaseConcurrency(model.id);
+      return this.handleInvokeError(error, context, dto, modelType, clientIp, userAgent, uid, appCode);
     }
   }
 
@@ -220,243 +228,239 @@ export class AiService {
    * @param clientIp 客户端IP
    * @param userAgent 用户代理
    * @param uid 用户唯一标识(透传)
+   * @param appCode 应用编码
    * @returns {Observable<MessageEvent>} 流式响应
    */
-  streamInvoke(dto: AiInvokeDto, clientIp: string, userAgent: string, uid?: string, appCode?: string): Observable<MessageEvent> {
+  streamInvoke(
+    dto: AiInvokeDto,
+    clientIp: string,
+    userAgent: string,
+    uid?: string,
+    appCode?: string,
+  ): Observable<MessageEvent> {
     return new Observable((observer) => {
-      (async () => {
-        const startTime = Date.now();
-        const modelType = dto.modelType || 'llm';
+      let cancelled = false;
+      let modelId: string | null = null;
+      let concurrencyAcquired = false;
 
-        console.log('[Stream] 开始处理流式请求');
-        console.log('[Stream] conversationId:', dto.conversationId);
-        console.log('[Stream] modelCode:', dto.modelCode);
-        const targetId = dto.modelCode || `mcp-${modelType}`;
-        console.log('[Stream] targetId:', targetId);
-
-        const isolationContext: IsolationContext = { appCode: appCode || null, isSuperAdmin: false };
-        const conversation = await this.conversationService.getOrCreate(
-          ConversationType.MODEL,
-          targetId,
-          dto.conversationId,
+      const execute = async () => {
+        const context = this.contextManager.createFromParams(
+          clientIp,
+          userAgent,
           uid,
-          isolationContext,
+          appCode,
         );
 
-        console.log('[Stream] 会话信息:', {
-          id: conversation.id,
-          messageCount: conversation.messageCount,
-        });
+        const modelType = dto.modelType || 'llm';
+        const targetId = dto.modelCode || `mcp-${modelType}`;
 
-        let conversationHistory: Array<{ role: string; content: string }> = [];
-        if (conversation.messageCount > 0) {
-          const historyMessages = await this.conversationService.buildContext(conversation.id, 20);
-          conversationHistory = historyMessages.map(m => ({
-            role: m.role as 'user' | 'assistant' | 'system',
-            content: m.content,
-          }));
-          console.log('[Stream] 加载历史消息数量:', conversationHistory.length);
-          console.log('[Stream] 历史消息:', conversationHistory);
-        }
+        this.logger.debug(`[Stream] 开始处理流式请求: requestId=${context.requestId}`);
 
-        const messagesWithHistory = [
-          ...conversationHistory,
-          ...dto.messages,
-        ];
-
-        console.log('[Stream] 合并后的消息数量:', messagesWithHistory.length);
-
-        const lastUserMessage = dto.messages.filter(m => m.role === 'user').pop();
-        if (lastUserMessage) {
-          await this.conversationService.addMessage(
-            conversation.id,
-            'user',
-            lastUserMessage.content,
-          );
-          console.log('[Stream] 保存用户消息:', lastUserMessage.content);
-        }
-
-        console.log('[Stream] 发送会话ID:', conversation.id);
-        observer.next(new MessageEvent('message', { data: `[CONVERSATION_ID]${conversation.id}` }));
-
-        let model: Model;
         try {
-          if (dto.modelCode) {
-            model = await this.modelService.findByCode(dto.modelCode);
-          } else {
-            model = await this.mcpService.selectModel(modelType);
+          const isolationContext: IsolationContext = {
+            appCode: appCode || null,
+            isSuperAdmin: false,
+          };
+
+          const conversation = await this.conversationService.getOrCreate(
+            ConversationType.MODEL,
+            targetId,
+            dto.conversationId,
+            uid,
+            isolationContext,
+          );
+
+          const messagesWithHistory = await this.buildMessagesWithHistory(
+            conversation,
+            dto.messages,
+          );
+
+          const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();
+          if (lastUserMessage) {
+            await this.conversationService.addMessage(
+              conversation.id,
+              'user',
+              lastUserMessage.content,
+            );
           }
+
+          if (cancelled) {
+            this.logger.debug(`[Stream] 请求已取消: requestId=${context.requestId}`);
+            return;
+          }
+
+          observer.next(
+            new MessageEvent('message', { data: `[CONVERSATION_ID]${conversation.id}` }),
+          );
+
+          const model = await this.selectModel(dto.modelCode, modelType);
+          modelId = model.id;
 
           await this.mcpService.checkCircuit(model.id);
           await this.mcpService.checkConcurrency(model.id);
+          concurrencyAcquired = true;
 
-          const requestData = this.buildRequestData(model, { ...dto, messages: messagesWithHistory }, true);
-
-          const response = await axios.post(resolveEndpoint(model), requestData, {
-            headers: this.buildHeaders(model),
-            responseType: 'stream',
-            timeout: 0,
-          });
-
-          const fullResponse: any[] = [];
-          let buffer = '';
-          let tokenInfo: { inputTokens?: number; outputTokens?: number } = {};
-          let finalResponse: Record<string, unknown> | null = null;
           let accumulatedContent = '';
+          const chunks: StreamChunk[] = [];
 
-          response.data.on('data', (chunk: Buffer) => {
-            const text = chunk.toString();
-            buffer += text;
+          const executionParams: ExecutionParams = {
+            model,
+            messages: messagesWithHistory as any,
+            options: {
+              temperature: dto.temperature,
+              maxTokens: dto.maxTokens,
+            },
+            context,
+          };
 
-            const events = buffer.split('\n\n');
-            
-            buffer = events.pop() || '';
-
-            for (const event of events) {
-              if (!event.trim()) continue;
-
-              const lines = event.split('\n');
-              for (const line of lines) {
-                const trimmedLine = line.trim();
-                
-                if (!trimmedLine || trimmedLine.startsWith(':')) continue;
-                
-                if (trimmedLine.startsWith('data:')) {
-                  const data = trimmedLine.substring(5).trim();
-                  
-                  if (data === '[DONE]') {
-                    observer.next(new MessageEvent('message', { data: '[DONE]\n' }));
-                    continue;
-                  }
-
-                  try {
-                    const parsed = JSON.parse(data);
-
-                    if (parsed.usage) {
-                      tokenInfo = this.extractTokenInfo(parsed);
-                    }
-
-                    fullResponse.push(parsed);
-
-                    let contentToSend = '';
-                    if (parsed.choices && parsed.choices[0]?.delta) {
-                      const delta = parsed.choices[0].delta;
-                      if (delta && typeof delta === 'object') {
-                        if (delta.content !== undefined && delta.content !== null) {
-                          contentToSend = String(delta.content);
-                          accumulatedContent += contentToSend;
-                        } else if (delta.reasoning_content !== undefined && delta.reasoning_content !== null) {
-                          contentToSend = String(delta.reasoning_content);
-                          accumulatedContent += contentToSend;
-                        }
-                      }
-                    } else if (parsed.choices && parsed.choices[0]?.message?.content) {
-                      contentToSend = String(parsed.choices[0].message.content);
-                      accumulatedContent += contentToSend;
-                    } else if (parsed.choices && parsed.choices[0]?.text) {
-                      contentToSend = String(parsed.choices[0].text);
-                      accumulatedContent += contentToSend;
-                    } else if (parsed.text) {
-                      contentToSend = String(parsed.text);
-                      accumulatedContent += contentToSend;
-                    } else if (parsed.content) {
-                      contentToSend = String(parsed.content);
-                      accumulatedContent += contentToSend;
-                    } else if (parsed.response) {
-                      contentToSend = String(parsed.response);
-                      accumulatedContent += contentToSend;
-                    }
-
-                    if (contentToSend) {
-                      console.log('[Stream] 发送流式内容, 长度:', contentToSend.length);
-                      observer.next(new MessageEvent('message', { data: contentToSend }));
-                    }
-                  } catch (e) {
-                    console.warn('[Stream] 流式数据JSON解析失败, 原始数据:', data.substring(0, 200));
-                    if (data && data.trim()) {
-                      console.log('[Stream] 发送原始数据作为兜底');
-                      observer.next(new MessageEvent('message', { data: data.trim() }));
-                    }
-                  }
-                }
-              }
-            }
-          });
-
-          response.data.on('end', async () => {
-            await this.mcpService.reportSuccess(model.id);
-
-            if (fullResponse.length > 0) {
-              finalResponse = this.mergeStreamResponses(fullResponse);
+          for await (const chunk of this.modelExecutor.stream(executionParams)) {
+            if (cancelled) {
+              this.logger.debug(`[Stream] 流式传输被取消: requestId=${context.requestId}`);
+              break;
             }
 
-            const assistantMessage = accumulatedContent || (finalResponse ? this.extractAssistantMessage(finalResponse) : null);
-            if (assistantMessage) {
-              console.log('[Stream] 保存助手消息:', assistantMessage);
-              await this.conversationService.addMessage(
-                conversation.id,
-                'assistant',
-                assistantMessage,
+            chunks.push(chunk);
+
+            if (chunk.type === 'text-delta' && chunk.delta) {
+              accumulatedContent += chunk.delta;
+              observer.next(new MessageEvent('message', { data: chunk.delta }));
+            } else if (chunk.type === 'tool-call' && chunk.toolCall) {
+              observer.next(
+                new MessageEvent('message', {
+                  data: JSON.stringify({
+                    type: 'tool-call',
+                    toolCall: chunk.toolCall,
+                  }),
+                }),
               );
-
-              if (conversation.messageCount === 0) {
-                console.log('[Stream] 生成会话标题');
-                await this.conversationService.generateTitle(conversation.id);
-              }
-            } else {
-              console.warn('[Stream] 未提取到助手消息');
+            } else if (chunk.type === 'error' && chunk.error) {
+              throw new Error(chunk.error.message);
             }
+          }
 
-            const logResponse = finalResponse || {};
-            if (accumulatedContent && (!logResponse.choices || !Array.isArray(logResponse.choices) || logResponse.choices.length === 0)) {
-              logResponse.choices = [{
-                index: 0,
-                message: { role: 'assistant', content: accumulatedContent },
-                finish_reason: 'stop',
-              }];
-            }
+          if (cancelled) {
+            return;
+          }
 
-            await this.saveLog({
-              modelId: model.id,
-              modelCode: model.code,
-              modelType,
-              request: JSON.stringify(dto),
-              response: JSON.stringify(logResponse),
-              costMs: Date.now() - startTime,
-              success: true,
-              clientIp,
-              userAgent,
-              inputTokens: tokenInfo.inputTokens,
-              outputTokens: tokenInfo.outputTokens,
-              uid,
-              appCode,
-            });
+          await this.mcpService.reportSuccess(model.id);
 
-            await this.mcpService.releaseConcurrency(model.id);
-
-            observer.next(new MessageEvent('message', { data: '[DONE]' }));
-            observer.complete();
-          });
-
-          response.data.on('error', async (err: Error) => {
-            await this.mcpService.reportError(model.id);
-            await this.mcpService.releaseConcurrency(model.id);
-
-            observer.next(
-              new MessageEvent('message', { data: `[ERROR] ${err.message}` }),
+          if (accumulatedContent) {
+            await this.conversationService.addMessage(
+              conversation.id,
+              'assistant',
+              accumulatedContent,
             );
-            observer.complete();
+
+            if (conversation.messageCount === 0) {
+              await this.conversationService.generateTitle(conversation.id);
+            }
+          }
+
+          const finishChunk = chunks.find((c) => c.type === 'finish');
+          const usage = finishChunk?.finish?.usage;
+
+          await this.logService.saveLog({
+            modelId: model.id,
+            modelCode: model.code,
+            modelType,
+            request: JSON.stringify(dto),
+            response: JSON.stringify({ content: accumulatedContent }),
+            costMs: this.contextManager.calculateDuration(context),
+            success: true,
+            clientIp,
+            userAgent,
+            inputTokens: usage?.promptTokens,
+            outputTokens: usage?.completionTokens,
+            uid,
+            appCode,
           });
-        } catch (error) {
-          observer.next(
-            new MessageEvent('message', {
-              data: `[ERROR] ${error instanceof Error ? error.message : '未知错误'}`,
-            }),
-          );
+
+          observer.next(new MessageEvent('message', { data: '[DONE]' }));
           observer.complete();
+        } catch (error) {
+          await this.handleStreamError(
+            error,
+            context,
+            dto,
+            modelType,
+            clientIp,
+            userAgent,
+            uid,
+            appCode,
+            modelId,
+            observer,
+          );
+        } finally {
+          if (concurrencyAcquired && modelId) {
+            await this.mcpService.releaseConcurrency(modelId);
+          }
         }
-      })();
+      };
+
+      execute();
+
+      return () => {
+        cancelled = true;
+        this.logger.debug('[Stream] 客户端取消订阅，正在清理资源...');
+      };
     });
+  }
+
+  /**
+   * 处理流式调用错误
+   * @param error 错误对象
+   * @param context 执行上下文
+   * @param dto 调用参数
+   * @param modelType 模型类型
+   * @param clientIp 客户端IP
+   * @param userAgent 用户代理
+   * @param uid 用户ID
+   * @param appCode 应用编码
+   * @param modelId 模型ID
+   * @param observer 观察者
+   */
+  private async handleStreamError(
+    error: unknown,
+    context: ExecutionContext,
+    dto: AiInvokeDto,
+    modelType: string,
+    clientIp: string,
+    userAgent: string,
+    uid: string | undefined,
+    appCode: string | undefined,
+    modelId: string | null,
+    observer: any,
+  ): Promise<void> {
+    const normalized = this.errorHandler.normalize(error);
+
+    this.logger.error(
+      `[Stream] 流式调用错误: requestId=${context.requestId}, error=${normalized.message}`,
+      normalized.raw,
+    );
+
+    if (modelId) {
+      await this.mcpService.reportError(modelId);
+    }
+
+    await this.logService.saveLog({
+      modelId: modelId || 'unknown',
+      modelCode: 'unknown',
+      modelType,
+      request: JSON.stringify(dto),
+      response: normalized.message,
+      costMs: this.contextManager.calculateDuration(context),
+      success: false,
+      clientIp,
+      userAgent,
+      errorMessage: normalized.message,
+      uid,
+      appCode,
+    });
+
+    observer.next(
+      new MessageEvent('message', { data: `[ERROR] ${normalized.message}` }),
+    );
+    observer.complete();
   }
 
   /**
@@ -465,6 +469,7 @@ export class AiService {
    * @param clientIp 客户端IP
    * @param userAgent 用户代理
    * @param uid 用户唯一标识(透传)
+   * @param appCode 应用编码
    * @returns {Promise<Record<string, unknown>>} 向量结果
    */
   async embedding(
@@ -474,97 +479,75 @@ export class AiService {
     uid?: string,
     appCode?: string,
   ): Promise<Record<string, unknown>> {
-    const startTime = Date.now();
+    const context = this.contextManager.createFromParams(
+      clientIp,
+      userAgent,
+      uid,
+      appCode,
+    );
+
     const modelType = dto.modelType || 'embedding';
 
-    let model: Model;
-    if (dto.modelCode) {
-      model = await this.modelService.findByCode(dto.modelCode);
-    } else {
-      model = await this.mcpService.selectModel(modelType);
-    }
-
-    await this.mcpService.checkCircuit(model.id);
+    this.logger.debug(`Embedding调用开始: requestId=${context.requestId}, modelCode=${dto.modelCode}`);
 
     try {
-      // 构建请求数据（不同提供商格式可能不同）
-      const requestData = this.buildEmbeddingRequestData(model, dto);
+      const model = await this.selectModel(dto.modelCode, modelType);
 
-      console.log('[Embedding] 请求数据:', JSON.stringify(requestData, null, 2));
-      console.log('[Embedding] 模型信息:', { provider: model.provider, endpoint: model.endpoint });
+      await this.mcpService.checkCircuit(model.id);
 
-      const response = await axios.post(
-        resolveEndpoint(model, 'embedding'),
-        requestData,
-        {
-          headers: this.buildHeaders(model),
-          timeout: 30000,
-        },
-      );
+      const strategy = this.strategyFactory.getStrategy(model.provider);
+      const result = await strategy.execute({
+        model,
+        messages: [{ role: 'user', content: Array.isArray(dto.input) ? dto.input.join('\n') : dto.input }] as any,
+        context,
+      });
 
       await this.mcpService.reportSuccess(model.id);
 
-      console.log('[Embedding] 响应数据:', JSON.stringify(response.data, null, 2));
-
-      // 提取token信息
-      const tokenInfo = this.extractTokenInfo(response.data);
-
-      await this.saveLog({
+      await this.logService.saveLog({
         modelId: model.id,
         modelCode: model.code,
         modelType,
         request: JSON.stringify(dto),
-        response: JSON.stringify(response.data),
-        costMs: Date.now() - startTime,
+        response: JSON.stringify(result.raw || result),
+        costMs: this.contextManager.calculateDuration(context),
         success: true,
         clientIp,
         userAgent,
-        inputTokens: tokenInfo.inputTokens,
-        outputTokens: tokenInfo.outputTokens,
         uid,
         appCode,
       });
 
-      return response.data;
-    } catch (error) {
-      await this.mcpService.reportError(model.id);
+      await this.mcpService.reportSuccess(model.id);
 
-      // 打印详细错误信息
-      console.error('[Embedding] 调用失败:');
-      if (axios.isAxiosError(error)) {
-        console.error('状态码:', error.response?.status);
-        console.error('响应数据:', JSON.stringify(error.response?.data, null, 2));
+      return (result.raw || result) as Record<string, unknown>;
+    } catch (error) {
+      const model = await this.selectModel(dto.modelCode, modelType).catch(() => null);
+      if (model) {
+        await this.mcpService.reportError(model.id);
       }
 
+      const normalized = this.errorHandler.normalize(error);
+      await this.logService.saveLog({
+        modelId: model?.id || 'unknown',
+        modelCode: model?.code || 'unknown',
+        modelType,
+        request: JSON.stringify(dto),
+        response: normalized.message,
+        costMs: this.contextManager.calculateDuration(context),
+        success: false,
+        clientIp,
+        userAgent,
+        errorMessage: normalized.message,
+        uid,
+        appCode,
+      });
+
       throw new HttpException(
-        `Embedding生成失败: ${error instanceof Error ? error.message : '未知错误'}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        `Embedding生成失败: ${normalized.message}`,
+        normalized.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
-  }
-
-  /**
-   * 构建Embedding请求数据
-   * @param model 模型信息
-   * @param dto 调用参数
-   * @returns {Record<string, unknown>} 请求数据
-   */
-  private buildEmbeddingRequestData(model: Model, dto: EmbeddingDto): Record<string, unknown> {
-    const provider = model.provider?.toLowerCase();
-
-    // 智谱AI格式
-    if (provider === 'zhipu') {
-      return {
-        model: model.code,
-        input: dto.input,
-      };
-    }
-
-    // OpenAI兼容格式（默认）
-    return {
-      model: model.code,
-      input: dto.input,
-    };
   }
 
   /**
@@ -573,6 +556,7 @@ export class AiService {
    * @param clientIp 客户端IP
    * @param userAgent 用户代理
    * @param uid 用户唯一标识(透传)
+   * @param appCode 应用编码
    * @returns {Promise<Record<string, unknown>>} 图片结果
    */
   async imageGenerate(
@@ -582,313 +566,341 @@ export class AiService {
     uid?: string,
     appCode?: string,
   ): Promise<Record<string, unknown>> {
-    const startTime = Date.now();
+    const context = this.contextManager.createFromParams(
+      clientIp,
+      userAgent,
+      uid,
+      appCode,
+    );
+
     const modelType = dto.modelType || 'image';
 
-    let model: Model;
-    if (dto.modelCode) {
-      model = await this.modelService.findByCode(dto.modelCode);
-    } else {
-      model = await this.mcpService.selectModel(modelType);
-    }
-
-    await this.mcpService.checkCircuit(model.id);
+    this.logger.debug(`图片生成开始: requestId=${context.requestId}, modelCode=${dto.modelCode}`);
 
     try {
-      const response = await axios.post(
-        resolveEndpoint(model, 'image'),
-        {
-          prompt: dto.prompt,
-          width: dto.width,
-          height: dto.height,
-          n: dto.n || 1,
+      const model = await this.selectModel(dto.modelCode, modelType);
+
+      await this.mcpService.checkCircuit(model.id);
+
+      const strategy = this.strategyFactory.getStrategy(model.provider);
+      const result = await strategy.execute({
+        model,
+        messages: [{ role: 'user', content: dto.prompt }] as any,
+        options: {
+          temperature: 1,
         },
-        {
-          headers: this.buildHeaders(model),
-          timeout: 60000,
-        },
-      );
+        context,
+      });
 
       await this.mcpService.reportSuccess(model.id);
 
-      // 提取token信息
-      const tokenInfo = this.extractTokenInfo(response.data);
-
-      await this.saveLog({
+      await this.logService.saveLog({
         modelId: model.id,
         modelCode: model.code,
         modelType,
         request: JSON.stringify(dto),
-        response: JSON.stringify(response.data),
-        costMs: Date.now() - startTime,
+        response: JSON.stringify(result.raw || result),
+        costMs: this.contextManager.calculateDuration(context),
         success: true,
         clientIp,
         userAgent,
-        inputTokens: tokenInfo.inputTokens,
-        outputTokens: tokenInfo.outputTokens,
         uid,
         appCode,
       });
 
-      return response.data;
-    } catch (error) {
-      await this.mcpService.reportError(model.id);
+      await this.mcpService.reportSuccess(model.id);
 
+      return (result.raw || result) as Record<string, unknown>;
+    } catch (error) {
+      const model = await this.selectModel(dto.modelCode, modelType).catch(() => null);
+      if (model) {
+        await this.mcpService.reportError(model.id);
+      }
+
+      const normalized = this.errorHandler.normalize(error);
       throw new HttpException(
-        `图片生成失败: ${error instanceof Error ? error.message : '未知错误'}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        `图片生成失败: ${normalized.message}`,
+        normalized.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
 
   /**
-   * 构建请求数据
-   * @param model 模型信息
+   * 构建包含历史的消息列表
+   * @param conversation 会话信息
+   * @param messages 当前消息
+   * @returns {Promise<Array>} 合并后的消息列表
+   */
+  private async buildMessagesWithHistory(
+    conversation: any,
+    messages: Array<{ role: string; content: string }>,
+  ): Promise<Array<{ role: string; content: string }>> {
+    let conversationHistory: Array<{ role: string; content: string }> = [];
+
+    if (conversation.messageCount > 0) {
+      const historyMessages = await this.conversationService.buildContext(
+        conversation.id,
+        20,
+      );
+      conversationHistory = historyMessages.map((m) => ({
+        role: m.role as 'user' | 'assistant' | 'system',
+        content: m.content,
+      }));
+    }
+
+    return [...conversationHistory, ...messages];
+  }
+
+  /**
+   * 选择模型
+   * @param modelCode 模型编码
+   * @param modelType 模型类型
+   * @returns {Promise<Model>} 模型信息
+   */
+  private async selectModel(modelCode?: string, modelType?: string): Promise<Model> {
+    if (modelCode) {
+      return this.modelService.findByCode(modelCode);
+    }
+    return this.mcpService.selectModel(modelType || 'llm');
+  }
+
+  /**
+   * 处理调用错误
+   * @param error 错误对象
+   * @param context 执行上下文
    * @param dto 调用参数
-   * @param stream 是否流式
-   * @returns {Record<string, unknown>} 请求数据
+   * @param modelType 模型类型
+   * @param clientIp 客户端IP
+   * @param userAgent 用户代理
+   * @param uid 用户ID
+   * @param appCode 应用编码
+   * @returns {never}
    */
-  private buildRequestData(
-    model: Model,
+  private async handleInvokeError(
+    error: unknown,
+    context: ExecutionContext,
     dto: AiInvokeDto,
-    stream = false,
-  ): Record<string, unknown> {
-    const provider = model.provider.toLowerCase();
-    const temperature = dto.temperature ?? model.temperature ?? 0.7;
-    const maxTokens = dto.maxTokens ?? model.maxTokens ?? 4096;
+    modelType: string,
+    clientIp: string,
+    userAgent: string,
+    uid?: string,
+    appCode?: string,
+  ): Promise<never> {
+    const normalized = this.errorHandler.normalize(error);
 
-    // Ollama 格式
-    if (provider === 'ollama') {
-      const data: Record<string, unknown> = {
-        model: model.code,
-        messages: dto.messages,
-        stream,
-      };
-      if (!stream) {
-        data['options'] = {
-          temperature,
-          num_predict: maxTokens,
-        };
-      }
-      if (dto.extra) {
-        Object.assign(data, dto.extra);
-      }
-      return data;
-    }
+    let modelId = 'unknown';
+    let modelCode = 'unknown';
 
-    // 智谱AI 格式 (glm-4, glm-4-flash等)
-    if (provider === 'zhipu') {
-      const data: Record<string, unknown> = {
-        model: model.code,
-        messages: dto.messages,
-        temperature,
-        max_tokens: maxTokens,
-        stream,
-      };
-      if (dto.extra) {
-        Object.assign(data, dto.extra);
-      }
-      return data;
-    }
-
-    // DeepSeek 格式
-    if (provider === 'deepseek') {
-      const data: Record<string, unknown> = {
-        model: model.code,
-        messages: dto.messages,
-        temperature,
-        max_tokens: maxTokens,
-        stream,
-      };
-      if (dto.extra) {
-        Object.assign(data, dto.extra);
-      }
-      return data;
-    }
-
-    // OpenAI 兼容格式 (OpenAI, Azure, 阿里云, 腾讯, 百度等)
-    const data: Record<string, unknown> = {
-      model: model.code,
-      messages: dto.messages,
-      temperature,
-      max_tokens: maxTokens,
-      stream,
-    };
-
-    // 流式请求时添加 stream_options 以获取 token 使用信息
-    if (stream) {
-      data['stream_options'] = { include_usage: true };
-    }
-
-    if (dto.extra) {
-      Object.assign(data, dto.extra);
-    }
-
-    return data;
-  }
-
-  /**
-   * 构建请求头
-   * @param model 模型信息
-   * @returns {Record<string, string>} 请求头
-   */
-  private buildHeaders(model: Model): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (model.apiKey) {
-      headers['Authorization'] = `Bearer ${model.apiKey}`;
-    }
-
-    return headers;
-  }
-
-  /**
-   * 从响应中提取token使用信息
-   * @param responseData 响应数据
-   * @returns {inputTokens, outputTokens} token信息
-   */
-  private extractTokenInfo(responseData: any): { inputTokens?: number; outputTokens?: number } {
-    if (!responseData) return {};
-
-    if (responseData.usage?.prompt_tokens !== undefined) {
-      return {
-        inputTokens: responseData.usage.prompt_tokens,
-        outputTokens: responseData.usage.completion_tokens,
-      };
-    }
-
-    if (responseData.usage?.input_tokens !== undefined) {
-      return {
-        inputTokens: responseData.usage.input_tokens,
-        outputTokens: responseData.usage.output_tokens,
-      };
-    }
-
-    return {};
-  }
-
-  /**
-   * 合并流式响应片段为完整响应
-   * @param responses 响应片段数组
-   * @returns {Record<string, unknown>} 合并后的完整响应
-   */
-  private mergeStreamResponses(responses: any[]): Record<string, unknown> {
-    if (!responses || responses.length === 0) {
-      return {};
-    }
-
-    // 获取最后一个响应作为基础
-    const lastResponse = responses[responses.length - 1];
-    const merged: Record<string, unknown> = { ...lastResponse };
-
-    // 合并所有choices的delta内容
-    if (lastResponse.choices && Array.isArray(lastResponse.choices)) {
-      const mergedChoices = lastResponse.choices.map((choice: any, index: number) => {
-        const mergedChoice = { ...choice };
-        
-        // 合并所有delta内容
-        if (choice.delta && choice.delta.content !== undefined) {
-          let fullContent = '';
-          responses.forEach((resp) => {
-            if (resp.choices && resp.choices[index] && resp.choices[index].delta) {
-              fullContent += resp.choices[index].delta.content || '';
-            }
-          });
-          mergedChoice.delta = { ...choice.delta, content: fullContent };
-          mergedChoice.message = { ...choice.message, content: fullContent };
-        }
-
-        return mergedChoice;
-      });
-      merged.choices = mergedChoices;
-    }
-
-    // 如果最后一个响应没有usage，但前面的响应有，合并进来
-    if (!merged.usage) {
-      for (const resp of responses) {
-        if (resp.usage) {
-          merged.usage = resp.usage;
-          break;
-        }
-      }
-    }
-
-    return merged;
-  }
-
-  /**
-   * 从响应中提取助手消息
-   * @param response 响应数据
-   * @returns {string | null} 助手消息
-   */
-  private extractAssistantMessage(response: any): string | null {
-    if (!response) return null;
-
-    if (response.choices && Array.isArray(response.choices) && response.choices.length > 0) {
-      const choice = response.choices[0];
-      if (choice.message && choice.message.content) {
-        return choice.message.content;
-      }
-      if (choice.text) {
-        return choice.text;
-      }
-    }
-
-    if (response.response) {
-      return response.response;
-    }
-
-    if (typeof response === 'string') {
-      return response;
-    }
-
-    return null;
-  }
-
-  /**
-   * 保存调用日志
-   * @param data 日志数据
-   * @returns {Promise<void>}
-   */
-  private async saveLog(data: {
-    modelId: string;
-    modelCode: string;
-    modelType: string;
-    request: string;
-    response: string;
-    costMs: number;
-    success: boolean;
-    clientIp: string;
-    userAgent?: string;
-    errorMessage?: string;
-    inputTokens?: number;
-    outputTokens?: number;
-    uid?: string;
-    appCode?: string;
-  }): Promise<void> {
     try {
-      await this.prisma.aiInvokeLog.create({
-        data: {
-          modelId: data.modelId,
-          modelCode: data.modelCode,
-          modelType: data.modelType,
-          request: data.request,
-          response: data.response,
-          costMs: data.costMs,
-          success: data.success,
-          clientIp: data.clientIp,
-          userAgent: data.userAgent,
-          errorMessage: data.errorMessage,
-          inputTokens: data.inputTokens,
-          outputTokens: data.outputTokens,
-          uid: data.uid,
-          appCode: data.appCode,
-        },
-      });
+      const model = await this.selectModel(dto.modelCode, modelType);
+      modelId = model.id;
+      modelCode = model.code;
+      await this.mcpService.reportError(model.id);
+      await this.mcpService.releaseConcurrency(model.id);
+    } catch {
+      // 忽略模型选择失败
+    }
+
+    await this.logService.saveLog({
+      modelId,
+      modelCode,
+      modelType,
+      request: JSON.stringify(dto),
+      response: normalized.message,
+      costMs: this.contextManager.calculateDuration(context),
+      success: false,
+      clientIp,
+      userAgent,
+      errorMessage: normalized.message,
+      uid,
+      appCode,
+    });
+
+    await this.mcpService.reportError(modelId);
+
+    throw new HttpException(
+      `模型调用失败: ${normalized.message}`,
+      normalized.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+
+  /**
+   * 执行 generateText（同步调用，供 Agent/Skill 使用）
+   * @param params 调用参数
+   * @returns 调用结果
+   */
+  async generateText(params: GenerateTextParams): Promise<GenerateTextResult> {
+    const context = this.contextManager.create({
+      clientIp: params.clientIp,
+      userAgent: params.userAgent,
+      uid: params.uid,
+      appCode: params.appCode,
+    });
+
+    const result = await this.modelExecutor.executeWithConcurrency({
+      model: params.model,
+      system: params.system,
+      messages: params.messages,
+      tools: params.tools,
+      options: {
+        temperature: params.temperature,
+        maxTokens: params.maxTokens,
+        toolChoice: params.toolChoice,
+      },
+      context,
+    });
+
+    if (params.onStepFinish && result.steps) {
+      for (const step of result.steps) {
+        params.onStepFinish(step);
+      }
+    }
+
+    return this.toGenerateTextResult(result);
+  }
+
+  /**
+   * 执行 streamText（流式调用，回调式，供 Agent 使用）
+   * @param params 调用参数
+   */
+  async streamText(params: StreamTextParams): Promise<void> {
+    const context = this.contextManager.create({
+      clientIp: params.clientIp,
+      userAgent: params.userAgent,
+      uid: params.uid,
+      appCode: params.appCode,
+    });
+
+    const executionParams: ExecutionParams = {
+      model: params.model,
+      system: params.system,
+      messages: params.messages,
+      tools: params.tools,
+      options: {
+        temperature: params.temperature,
+        maxTokens: params.maxTokens,
+        toolChoice: params.toolChoice,
+        stream: true,
+      },
+      context,
+    };
+
+    let fullText = '';
+    const toolCalls: ToolCall[] = [];
+    let finishInfo: { reason: string; usage?: any } | undefined;
+    let chunkBuffer = '';
+    let concurrencyAcquired = false;
+
+    try {
+      await this.mcpService.checkCircuit(params.model.id);
+      await this.mcpService.checkConcurrency(params.model.id);
+      concurrencyAcquired = true;
+
+      for await (const chunk of this.modelExecutor.stream(executionParams)) {
+        switch (chunk.type) {
+          case 'text-delta':
+            if (chunk.delta && params.onChunk) {
+              fullText += chunk.delta;
+
+              const { safeText, newBuffer } = this.streamProcessor.processTextDelta(
+                chunk.delta,
+                chunkBuffer
+              );
+              chunkBuffer = newBuffer;
+
+              if (safeText) {
+                params.onChunk(safeText);
+              }
+            }
+            break;
+
+          case 'tool-call':
+            if (chunk.toolCall) {
+              toolCalls.push(chunk.toolCall);
+              this.logger.debug(`检测到工具调用: ${chunk.toolCall.toolName}`);
+            }
+            break;
+
+          case 'finish':
+            finishInfo = chunk.finish;
+            break;
+
+          case 'error':
+            if (params.onError) {
+              params.onError(new Error(chunk.error?.message || '未知错误'));
+            }
+            return;
+        }
+      }
+
+      if (chunkBuffer && params.onChunk) {
+        const remaining = this.streamProcessor.processRemainingBuffer(chunkBuffer);
+        if (remaining) {
+          params.onChunk(remaining);
+        }
+      }
+
+      await this.logService.logStreamResult(
+        executionParams,
+        fullText,
+        finishInfo?.usage
+      );
+
+      if (finishInfo?.reason === 'tool-calls' && toolCalls.length > 0 && params.onToolCall) {
+        for (const tc of toolCalls) {
+          await params.onToolCall({ name: tc.toolName, args: tc.args });
+        }
+      } else if (finishInfo?.reason === 'stop' && params.onToolCall) {
+        const textToolCall = this.toolCallParser.parseFromText(fullText);
+        if (textToolCall) {
+          this.logger.debug(`检测到文本格式工具调用: ${textToolCall.toolName}`);
+          await params.onToolCall({ name: textToolCall.toolName, args: textToolCall.args });
+        }
+      }
+
+      if (params.onFinish) {
+        params.onFinish({
+          text: fullText,
+          finishReason: finishInfo?.reason,
+          usage: finishInfo?.usage,
+          toolCalls,
+        });
+      }
+
+      await this.mcpService.reportSuccess(params.model.id);
     } catch (error) {
-      console.error('保存日志失败:', error);
+      await this.mcpService.reportError(params.model.id);
+      if (params.onError) {
+        params.onError(error);
+      }
+    } finally {
+      if (concurrencyAcquired) {
+        await this.mcpService.releaseConcurrency(params.model.id);
+      }
     }
   }
+
+  /**
+   * 转换为 generateText 结果格式
+   * @param result 执行结果
+   * @returns generateText 结果
+   */
+  private toGenerateTextResult(result: ExecutionResult): GenerateTextResult {
+    return {
+      text: result.content,
+      finishReason: result.finishReason,
+      usage: result.usage,
+      steps: result.steps,
+      toolCalls: result.toolCalls,
+    };
+  }
+
+  /**
+   * 获取工具调用解析器（供外部使用）
+   * @returns 工具调用解析器
+   */
+  getToolCallParser(): ToolCallParser {
+    return this.toolCallParser;
+  }
+
 }

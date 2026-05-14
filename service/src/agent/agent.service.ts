@@ -19,7 +19,7 @@ import {
   AgentChatDto,
   QueryAgentDto,
 } from './dto/agent.dto';
-import { AiSdkProvider } from '../ai/providers/ai-sdk.provider';
+import { AiService } from '../ai/ai.service';
 import { AiSdkToolAdapter } from '../ai/providers/ai-sdk-tool.adapter';
 import type { ModelMessage } from 'ai';
 
@@ -47,7 +47,7 @@ export class AgentService {
     private agentKbService: AgentKbService,
     private kbSearchTool: KbSearchTool,
     private toolExecutor: ToolExecutor,
-    private aiSdkProvider: AiSdkProvider,
+    private aiService: AiService,
     private promptTemplateService: PromptTemplateService,
     private conversationService: ConversationService,
     private mcpService: McpService,
@@ -444,7 +444,7 @@ export class AgentService {
     }
 
     try {
-      const result = await this.aiSdkProvider.generateText({
+      const result = await this.aiService.generateText({
         model: context.model,
         system: context.systemPrompt,
         messages,
@@ -545,7 +545,7 @@ export class AgentService {
     try {
       let toolCallToExecute: { name: string; args: any } | null = null;
 
-      await this.aiSdkProvider.streamText({
+      await this.aiService.streamText({
         model: context.model,
         system: context.systemPrompt,
         messages: currentMessages,
@@ -566,11 +566,12 @@ export class AgentService {
         onFinish: async (result) => {
           this.logger.log(`[executeDefaultStream] 收到 finish，text length: ${result.text?.length || 0}, toolCallToExecute: ${toolCallToExecute?.name || 'none'}`);
 
-          const isFunctionCallText = this.aiSdkProvider.containsFunctionCallMarkers(result.text || '');
+          const isFunctionCallText = this.aiService.getToolCallParser().containsFunctionCallMarkers(result.text || '');
           const hasToolCall = toolCallToExecute || isFunctionCallText;
 
           if (hasToolCall && toolCallCount < maxToolCalls) {
-            const toolCall = toolCallToExecute || this.aiSdkProvider.parseTextAction(result.text || '');
+            const parsedToolCall = this.aiService.getToolCallParser().parseFromText(result.text || '');
+            const toolCall = toolCallToExecute || (parsedToolCall ? { name: parsedToolCall.toolName, args: parsedToolCall.args } : null);
 
             if (toolCall) {
               try {
@@ -630,7 +631,7 @@ export class AgentService {
           }
 
           if (result.text && result.text.length > 0) {
-            const cleanText = this.aiSdkProvider.stripFunctionCallMarkers(result.text);
+            const cleanText = this.aiService.getToolCallParser().stripFunctionCallMarkers(result.text);
 
             if (cleanText) {
               await this.conversationService.addMessage(
@@ -777,7 +778,7 @@ export class AgentService {
         let hasToolCall = false;
 
         // 调用模型（使用 Function Calling）
-        await this.aiSdkProvider.streamText({
+        await this.aiService.streamText({
           model: context.model,
           system: context.systemPrompt,
           messages,
@@ -951,7 +952,7 @@ export class AgentService {
         this.logger.debug(`[ReAct+FC Sync] Step ${i + 1}/${context.maxSteps}`);
 
         // 调用模型（使用 Function Calling）
-        const result = await this.aiSdkProvider.generateText({
+        const result = await this.aiService.generateText({
           model: context.model,
           system: context.systemPrompt,
           messages,

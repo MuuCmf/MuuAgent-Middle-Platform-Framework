@@ -11,7 +11,7 @@ import { Skill } from '@prisma/client';
 import axios from 'axios';
 import { McpClientService } from './mcp-client.service';
 import { PromptTemplateService } from '../prompt-template/prompt-template.service';
-import { AiSdkProvider } from '../ai/providers/ai-sdk.provider';
+import { AiService } from '../ai/ai.service';
 import { ModelService } from '../model/model.service';
 import { BuiltinExecutor } from './executors/builtin.executor';
 import { PluginExecutor } from './executors/plugin.executor';
@@ -32,7 +32,7 @@ export class SkillService {
    * @param prisma Prisma服务
    * @param mcpClient MCP客户端服务
    * @param promptTemplateService 提示词模板服务
-   * @param aiSdkProvider AI SDK提供者
+   * @param aiService AI服务
    * @param modelService 模型服务
    * @param builtinExecutor 内置函数执行器
    * @param pluginExecutor 插件函数执行器
@@ -43,7 +43,7 @@ export class SkillService {
     private prisma: PrismaService,
     private mcpClient: McpClientService,
     private promptTemplateService: PromptTemplateService,
-    private aiSdkProvider: AiSdkProvider,
+    private aiService: AiService,
     private modelService: ModelService,
     private builtinExecutor: BuiltinExecutor,
     private pluginExecutor: PluginExecutor,
@@ -563,7 +563,7 @@ export class SkillService {
 
       const defaultModel = availableModels[0];
 
-      const result = await this.aiSdkProvider.generateText({
+      const result = await this.aiService.generateText({
         model: defaultModel,
         system: systemPrompt,
         messages: [
@@ -573,6 +573,7 @@ export class SkillService {
           },
         ],
         temperature: 0.3,
+        clientIp: 'skill-service',
       });
 
       const aiResponse = result.text.trim();
