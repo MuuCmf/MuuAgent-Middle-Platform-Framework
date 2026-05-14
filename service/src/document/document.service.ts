@@ -143,7 +143,7 @@ export class DocumentService {
           storageType: 'local',
           enableDedup: true,
           appCode: dto.appCode,
-          uid: dto.uid,
+          uid: dto.uid as any,
         });
 
         const doc = await this.prisma.kbDocument.create({
