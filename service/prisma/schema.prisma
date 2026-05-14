@@ -425,10 +425,29 @@ model AdminUser {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  refreshTokens AdminRefreshToken[]
+
   @@index([username])
   @@index([status])
   @@index([isSuperAdmin])
   @@map("admin_users")
+}
+
+/// 管理员刷新令牌表 - 用于Token刷新机制
+model AdminRefreshToken {
+  id           String   @id @default(uuid())
+  adminId      String   /// 关联管理员ID
+  token        String   @unique /// 刷新令牌
+  expiresAt    DateTime /// 过期时间
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("admin_refresh_tokens")
 }
 
 /// 知识库表 - 应用级隔离

@@ -1,8 +1,78 @@
 import axios from 'axios'
-import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
+import type { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import { appConfig } from '@/config'
 import router from '@/router'
+
+/**
+ * 是否正在刷新令牌
+ */
+let isRefreshing = false
+
+/**
+ * 等待刷新的请求队列
+ */
+let refreshSubscribers: Array<(token: string) => void> = []
+
+/**
+ * 订阅刷新完成事件
+ * @param callback 回调函数
+ */
+function subscribeTokenRefresh(callback: (token: string) => void) {
+  refreshSubscribers.push(callback)
+}
+
+/**
+ * 通知所有订阅者刷新完成
+ * @param token 新令牌
+ */
+function onRefreshed(token: string) {
+  refreshSubscribers.forEach(callback => callback(token))
+  refreshSubscribers = []
+}
+
+/**
+ * 刷新令牌失败，清除所有订阅
+ */
+function onRefreshFailed() {
+  refreshSubscribers = []
+}
+
+/**
+ * 刷新访问令牌
+ * @returns {Promise<string | null>} 新的访问令牌
+ */
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = localStorage.getItem('admin_refresh_token')
+  
+  if (!refreshToken) {
+    return null
+  }
+  
+  try {
+    const response = await axios.post(
+      `${appConfig.apiBaseUrl}api/admin/refresh`,
+      { refreshToken },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+    
+    const { accessToken, refreshToken: newRefreshToken } = response.data.data
+    
+    localStorage.setItem('admin_token', accessToken)
+    localStorage.setItem('admin_refresh_token', newRefreshToken)
+    
+    return accessToken
+  } catch (error) {
+    localStorage.removeItem('admin_token')
+    localStorage.removeItem('admin_refresh_token')
+    localStorage.removeItem('admin_user')
+    return null
+  }
+}
 
 /**
  * 业务端请求实例（/api 前缀）
@@ -77,9 +147,39 @@ apiService.interceptors.response.use(
   (response: AxiosResponse) => {
     return response
   },
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((token: string) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`
+            resolve(apiService(originalRequest))
+          })
+        })
+      }
+      
+      originalRequest._retry = true
+      isRefreshing = true
+      
+      const newToken = await refreshAccessToken()
+      
+      if (newToken) {
+        onRefreshed(newToken)
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        return apiService(originalRequest)
+      } else {
+        onRefreshFailed()
+        ElMessage.error('登录已过期，请重新登录')
+        router.push('/login')
+        return Promise.reject(error)
+      }
+    }
+    
     if (error.response?.status === 401) {
       localStorage.removeItem('admin_token')
+      localStorage.removeItem('admin_refresh_token')
       localStorage.removeItem('admin_user')
       ElMessage.error('登录已过期，请重新登录')
       router.push('/login')
@@ -99,9 +199,39 @@ adminService.interceptors.response.use(
   (response: AxiosResponse) => {
     return response
   },
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((token: string) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`
+            resolve(adminService(originalRequest))
+          })
+        })
+      }
+      
+      originalRequest._retry = true
+      isRefreshing = true
+      
+      const newToken = await refreshAccessToken()
+      
+      if (newToken) {
+        onRefreshed(newToken)
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        return adminService(originalRequest)
+      } else {
+        onRefreshFailed()
+        ElMessage.error('登录已过期，请重新登录')
+        router.push('/login')
+        return Promise.reject(error)
+      }
+    }
+    
     if (error.response?.status === 401) {
       localStorage.removeItem('admin_token')
+      localStorage.removeItem('admin_refresh_token')
       localStorage.removeItem('admin_user')
       ElMessage.error('登录已过期，请重新登录')
       router.push('/login')

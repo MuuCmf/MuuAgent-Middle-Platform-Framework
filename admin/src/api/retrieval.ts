@@ -54,6 +54,16 @@ export interface RagChatResponse {
 }
 
 /**
+ * RAG问答流式回调接口
+ */
+export interface RagStreamCallbacks {
+  onMessage: (content: string) => void
+  onError?: (error: Error) => void
+  onComplete?: (sources?: any[]) => void
+  onConversationId?: (conversationId: string) => void
+}
+
+/**
  * 检索API
  */
 export const retrievalApi = {
@@ -84,16 +94,6 @@ export const retrievalApi = {
   }): Promise<AxiosResponse<{ data: RagChatResponse }>> {
     return request.post('api/kb/chat/rag', data)
   },
-
-  /**
-   * RAG问答流式回调接口
-   */
-  interface RagStreamCallbacks {
-    onMessage: (content: string) => void
-    onError?: (error: Error) => void
-    onComplete?: (sources?: any[]) => void
-    onConversationId?: (conversationId: string) => void
-  }
 
   /**
    * RAG问答流式调用（使用 @microsoft/fetch-event-source）
@@ -219,7 +219,7 @@ export const retrievalApi = {
         return
       }
       console.error('RAG流式调用错误:', error)
-      if (onError) onError(error)
+      if (onError) onError(error as Error)
     }
   }
 }

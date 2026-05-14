@@ -88,9 +88,10 @@ const handleLogin = async () => {
       loading.value = true
       try {
         const response = await adminRequest.post('api/admin/login', loginForm)
-        const { token, admin } = response.data.data
+        const { accessToken, refreshToken, admin } = response.data.data
         
-        localStorage.setItem('admin_token', token)
+        localStorage.setItem('admin_token', accessToken)
+        localStorage.setItem('admin_refresh_token', refreshToken)
         localStorage.setItem('admin_user', JSON.stringify(admin))
         
         ElMessage.success('登录成功')

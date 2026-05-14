@@ -16,6 +16,7 @@ import { AdminService } from './admin.service';
 import { LoginDto } from './dto/login.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { RequireScope } from '../common/decorators/scope.decorator';
@@ -53,6 +54,20 @@ export class AdminController {
     const clientIp = req.ip || req.connection.remoteAddress || '';
     const result = await this.adminService.login(loginDto, clientIp);
     return success(result, '登录成功');
+  }
+
+  /**
+   * 刷新访问令牌
+   * @param refreshTokenDto 刷新令牌DTO
+   * @returns {Promise<Object>} 新的令牌对
+   */
+  @Post('refresh')
+  @ApiOperation({ summary: '刷新访问令牌' })
+  @SwaggerApiResponse({ status: 200, description: '刷新成功' })
+  @SwaggerApiResponse({ status: 401, description: '刷新令牌无效或已过期' })
+  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
+    const result = await this.adminService.refreshToken(refreshTokenDto.refreshToken);
+    return success(result, '刷新成功');
   }
 
   /**

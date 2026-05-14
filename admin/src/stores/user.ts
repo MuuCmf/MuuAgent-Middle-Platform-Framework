@@ -23,6 +23,11 @@ export const useUserStore = defineStore('user', () => {
   const token = ref<string>(localStorage.getItem('admin_token') || '')
 
   /**
+   * 刷新令牌
+   */
+  const refreshToken = ref<string>(localStorage.getItem('admin_refresh_token') || '')
+
+  /**
    * 用户信息
    */
   const userInfo = ref<UserInfo | null>(null)
@@ -54,6 +59,15 @@ export const useUserStore = defineStore('user', () => {
   function setToken(newToken: string) {
     token.value = newToken
     localStorage.setItem('admin_token', newToken)
+  }
+
+  /**
+   * 设置刷新令牌
+   * @param newRefreshToken 新刷新令牌
+   */
+  function setRefreshToken(newRefreshToken: string) {
+    refreshToken.value = newRefreshToken
+    localStorage.setItem('admin_refresh_token', newRefreshToken)
   }
 
   /**
@@ -108,9 +122,11 @@ export const useUserStore = defineStore('user', () => {
    */
   function clearUserState() {
     token.value = ''
+    refreshToken.value = ''
     userInfo.value = null
     currentApp.value = null
     localStorage.removeItem('admin_token')
+    localStorage.removeItem('admin_refresh_token')
     localStorage.removeItem('admin_user')
     localStorage.removeItem('current_app_code')
     localStorage.removeItem('current_app')
@@ -123,12 +139,14 @@ export const useUserStore = defineStore('user', () => {
 
   return {
     token,
+    refreshToken,
     userInfo,
     currentApp,
     isLoggedIn,
     isSuperAdmin,
     currentAppCode,
     setToken,
+    setRefreshToken,
     setUserInfo,
     setCurrentApp,
     restoreFromStorage,
