@@ -6,6 +6,7 @@ import { StorageService } from './storage/storage.service';
 import { LocalStorage } from './storage/local.storage';
 import { OssStorage } from './storage/oss.storage';
 import { ImageProcessor } from './processor/image.processor';
+import { FileExecutor } from './file.executor';
 
 @Global()
 @Module({
@@ -17,7 +18,8 @@ import { ImageProcessor } from './processor/image.processor';
     LocalStorage,
     OssStorage,
     ImageProcessor,
+    FileExecutor,
   ],
-  exports: [FileService, FileProcessService, StorageService],
+  exports: [FileService, FileProcessService, StorageService, FileExecutor],
 })
 export class FileModule {}

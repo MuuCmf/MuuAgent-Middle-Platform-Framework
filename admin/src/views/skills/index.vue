@@ -25,6 +25,7 @@
           <li><strong>函数类型</strong>：内置函数，如获取时间、随机数等</li>
           <li><strong>数据库类型</strong>：执行数据库查询（需配置连接）</li>
           <li><strong>MCP类型</strong>：调用第三方MCP Server提供的工具，支持Model Context Protocol协议</li>
+          <li><strong>文件类型</strong>：文件操作技能，支持上传、下载、处理等操作</li>
           <li><strong>功能描述</strong>：给AI看的描述，AI根据描述决定是否调用此技能</li>
           <li><strong>参数描述</strong>：描述技能需要的参数格式，帮助AI正确传参</li>
         </ul>

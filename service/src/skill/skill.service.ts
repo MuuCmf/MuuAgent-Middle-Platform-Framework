@@ -18,6 +18,7 @@ import { PluginExecutor } from './executors/plugin.executor';
 import { SandboxExecutor } from './executors/sandbox.executor';
 import { PluginLoader } from './plugin-loader';
 import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
+import { FileExecutor } from '../file/file.executor';
 
 /**
  * 技能服务
@@ -38,6 +39,7 @@ export class SkillService {
    * @param pluginExecutor 插件函数执行器
    * @param sandboxExecutor 沙箱函数执行器
    * @param pluginLoader 插件加载器
+   * @param fileExecutor 文件执行器
    */
   constructor(
     private prisma: PrismaService,
@@ -49,6 +51,7 @@ export class SkillService {
     private pluginExecutor: PluginExecutor,
     private sandboxExecutor: SandboxExecutor,
     private pluginLoader: PluginLoader,
+    private fileExecutor: FileExecutor,
   ) {}
 
   /**
@@ -215,6 +218,9 @@ export class SkillService {
           break;
         case SkillType.MCP:
           result = await this.executeMcpSkill(skill, params);
+          break;
+        case SkillType.FILE:
+          result = await this.fileExecutor.execute(skill, params);
           break;
         default:
           throw new HttpException('不支持的技能类型', HttpStatus.BAD_REQUEST);

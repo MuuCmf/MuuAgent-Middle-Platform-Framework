@@ -19,6 +19,7 @@ export enum SkillType {
   DATABASE = 'database',
   RPC = 'rpc',
   MCP = 'mcp',
+  FILE = 'file',
 }
 
 /**

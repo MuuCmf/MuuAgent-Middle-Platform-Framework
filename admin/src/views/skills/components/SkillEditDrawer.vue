@@ -32,6 +32,7 @@
             <el-option label="函数技能 - 内置/插件/自定义" value="function" />
             <el-option label="数据库查询 - 执行SQL" value="database" />
             <el-option label="MCP工具 - 调用第三方MCP Server" value="mcp" />
+            <el-option label="文件操作 - 上传/下载/处理" value="file" />
           </el-select>
         </el-form-item>
 
@@ -90,7 +91,13 @@
 
       <div class="form-section">
         <div class="section-title">执行配置</div>
-        <el-form-item label="配置内容">
+        
+        <file-config-editor 
+          v-if="form.type === 'file'" 
+          v-model:config="form.config" 
+        />
+        
+        <el-form-item label="配置内容" v-if="form.type !== 'file'">
           <div class="config-wrapper">
             <el-input v-model="form.config" type="textarea" :rows="6" placeholder="根据类型填写不同配置" />
             <div class="config-help">
@@ -166,6 +173,7 @@ import { ElMessage } from 'element-plus'
 import type { Skill, SkillForm } from '@/api/skill'
 import { useUserStore } from '@/stores/user'
 import FunctionEditor from './FunctionEditor.vue'
+import FileConfigEditor from './FileConfigEditor.vue'
 import AppSelector from '@/components/AppSelector.vue'
 
 interface Props {
