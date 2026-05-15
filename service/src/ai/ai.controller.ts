@@ -12,6 +12,7 @@ import {
 import { success } from '../common/response/api.response';
 import { Observable } from 'rxjs';
 import { Request } from 'express';
+import { StreamEmitter, SseResponseBuilder } from '../stream';
 
 /**
  * AI统一调用控制器
@@ -75,7 +76,10 @@ export class AiController {
     const userAgent = req.headers['user-agent'] || '';
     const uid = this.extractUid(req, dto);
     const appCode = (req as any).appCode;
-    return this.aiService.streamInvoke(dto, clientIp, userAgent, uid, appCode);
+    const emitter = new StreamEmitter();
+    // 不 await，流式在后台执行
+    this.aiService.streamInvoke(dto, clientIp, userAgent, uid, appCode, emitter);
+    return SseResponseBuilder.create(emitter);
   }
 
   /**

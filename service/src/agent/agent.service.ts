@@ -6,8 +6,8 @@ import { McpService } from '../mcp/mcp.service';
 import { AgentKbService } from './agent-kb.service';
 import { KbSearchTool } from './tools/kb-search.tool';
 import { ToolExecutor, ToolCall, ToolExecutionResult } from './tools/tool-executor';
-import { ToolDefinitionBuilder, FunctionToolDefinition, BUILTIN_TOOL_DEFINITIONS } from './tools/tool-definitions';
-import { ReasoningMode, ExecutionResult, ToolDefinition } from './react/react.types';
+import { BUILTIN_TOOL_DEFINITIONS } from './tools/tool-definitions';
+import { ReasoningMode, ToolDefinition } from './react/react.types';
 import { ReActPromptBuilder } from './react/react.prompt';
 import { PromptTemplateService } from '../prompt-template/prompt-template.service';
 import { ConversationService } from '../conversation/conversation.service';
@@ -22,19 +22,7 @@ import {
 import { AiService } from '../ai/ai.service';
 import { AiSdkToolAdapter } from '../ai/providers/ai-sdk-tool.adapter';
 import type { ModelMessage } from 'ai';
-
-/**
- * 流式回调接口
- * 包含流式回调函数，用于处理智能体对话中的不同事件
- */
-export interface StreamCallbacks {
-  onConversationId?: (conversationId: string) => void;
-  onStep?: (step: any) => void;
-  onChunk?: (chunk: string) => void;
-  onToolCall?: (toolCall: { name: string; args: any; result: unknown }) => void;
-  onDone?: (result: ExecutionResult) => void;
-  onError?: (error: string) => void;
-}
+import { StreamEmitter, StreamEvents } from '../stream';
 
 @Injectable()
 export class AgentService {
@@ -163,18 +151,18 @@ export class AgentService {
   }
 
   /**
-   * 流式对话
+   * 流式对话（基于 StreamEmitter，推荐使用）
    * @param dto 对话参数
    * @param clientIp 客户端IP
    * @param uid 用户ID
-   * @param callbacks 流式回调函数
+   * @param emitter 流式发射器
    * @param appCode 应用标识
    */
-  async streamChat(
+  async streamChatWithEmitter(
     dto: AgentChatDto,
     clientIp: string,
     uid: string | undefined,
-    callbacks: StreamCallbacks,
+    emitter: StreamEmitter,
     appCode?: string,
   ): Promise<void> {
     this.logger.log(`[AgentStream] streamChat 开始, agentId: ${dto.agentId}`);
@@ -185,8 +173,8 @@ export class AgentService {
     const context = await this.buildExecutionContext(agent, dto, uid, isolationContext);
     this.logger.log(`[AgentStream] 构建执行上下文完成`);
     
-    if (callbacks.onConversationId && context.conversationId) {
-      callbacks.onConversationId(context.conversationId as any);
+    if (context.conversationId) {
+      emitter.emit(StreamEvents.conversationId(context.conversationId as any));
     }
     
     const reasoningMode = (agent.reasoningMode as ReasoningMode) || ReasoningMode.NONE;
@@ -194,17 +182,17 @@ export class AgentService {
 
     if (reasoningMode === ReasoningMode.NONE) {
       this.logger.log(`[AgentStream] 执行默认流式模式`);
-      await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks, undefined, 0, appCode);
+      await this.executeDefaultStreamWithEmitter(agent, context, startTime, clientIp, uid, emitter, undefined, 0, appCode);
     } else {
       this.logger.log(`[AgentStream] 执行 Function Calling + ReAct 协同架构`);
-      await this.executeReActWithFunctionCalling(
+      await this.executeReActWithFunctionCallingEmitter(
         agent, 
         context, 
         reasoningMode, 
         startTime, 
         clientIp, 
         uid, 
-        callbacks,
+        emitter,
       );
     }
   }
@@ -503,23 +491,15 @@ export class AgentService {
   }
 
   /**
-   * 执行默认流式模式
-   * @param agent 智能体
-   * @param context 执行上下文
-   * @param startTime 开始时间
-   * @param clientIp 客户端IP
-   * @param uid 用户ID
-   * @param callbacks 流式回调
-   * @param messages 已发送消息
-   * @param toolCallCount 已调用工具次数
+   * 执行默认流式模式（基于 StreamEmitter）
    */
-  private async executeDefaultStream(
+  private async executeDefaultStreamWithEmitter(
     agent: any,
     context: any,
     startTime: number,
     clientIp: string,
     uid: string | undefined,
-    callbacks: StreamCallbacks,
+    emitter: StreamEmitter,
     messages?: ModelMessage[],
     toolCallCount: number = 0,
     appCode?: string,
@@ -557,7 +537,7 @@ export class AgentService {
         appCode,
         onChunk: (chunk) => {
           this.logger.debug(`[executeDefaultStream] 收到 chunk: ${chunk.substring(0, 50)}...`);
-          callbacks.onChunk?.(chunk);
+          emitter.emitTextDelta(chunk);
         },
         onToolCall: (toolCall) => {
           this.logger.log(`[executeDefaultStream] 收到工具调用: ${toolCall.name}`);
@@ -586,11 +566,7 @@ export class AgentService {
                   { agent: context.agent, conversationId: context.conversationId, uid },
                 );
 
-                callbacks.onToolCall?.({
-                  name: toolCall.name,
-                  args: toolCall.args,
-                  result: toolResult.result,
-                });
+                emitter.emit(StreamEvents.toolCall(toolCall.name, toolCall.args, toolResult.result));
 
                 const resultText = typeof toolResult.result === 'object' ? JSON.stringify(toolResult.result, null, 2) : String(toolResult.result);
 
@@ -606,24 +582,17 @@ export class AgentService {
                   },
                 ];
 
-                await this.executeDefaultStream(agent, context, startTime, clientIp, uid, callbacks, newMessages, toolCallCount + 1, appCode);
+                await this.executeDefaultStreamWithEmitter(agent, context, startTime, clientIp, uid, emitter, newMessages, toolCallCount + 1, appCode);
               } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : 'Tool execution failed';
                 this.logger.error(`[executeDefaultStream] 工具执行失败: ${errorMsg}`);
 
-                callbacks.onToolCall?.({
-                  name: toolCall.name,
-                  args: toolCall.args,
-                  result: `工具执行失败: ${errorMsg}`,
-                });
-
+                emitter.emit(StreamEvents.toolCall(toolCall.name, toolCall.args, `工具执行失败: ${errorMsg}`));
                 await this.saveLog(agent, context, { text: `抱歉，工具执行失败: ${errorMsg}` }, clientIp, uid, ReasoningMode.NONE, startTime, appCode);
-                callbacks.onDone?.({
-                  success: false,
-                  response: `抱歉，工具执行失败: ${errorMsg}`,
-                  steps: [],
-                  totalCostMs: Date.now() - startTime,
+                emitter.emitDone({
                   conversationId: context.conversationId,
+                  response: `抱歉，工具执行失败: ${errorMsg}`,
+                  totalCostMs: Date.now() - startTime,
                 });
               }
               return;
@@ -646,12 +615,10 @@ export class AgentService {
             }
 
             await this.saveLog(agent, context, { text: cleanText || result.text }, clientIp, uid, ReasoningMode.NONE, startTime, appCode);
-            callbacks.onDone?.({
-              success: true,
-              response: cleanText || '',
-              steps: [],
-              totalCostMs: Date.now() - startTime,
+            emitter.emitDone({
               conversationId: context.conversationId,
+              response: cleanText || '',
+              totalCostMs: Date.now() - startTime,
             });
           } else {
             const finalResponse = result.text || '抱歉，我无法回答您的问题。';
@@ -667,23 +634,21 @@ export class AgentService {
             }
 
             await this.saveLog(agent, context, { text: finalResponse }, clientIp, uid, ReasoningMode.NONE, startTime, appCode);
-            callbacks.onDone?.({
-              success: true,
-              response: finalResponse,
-              steps: [],
-              totalCostMs: Date.now() - startTime,
+            emitter.emitDone({
               conversationId: context.conversationId,
+              response: finalResponse,
+              totalCostMs: Date.now() - startTime,
             });
           }
         },
         onError: (error) => {
           this.logger.error(`[executeDefaultStream] 收到错误: ${error}`);
-          callbacks.onError?.(error);
+          emitter.emitError(error instanceof Error ? error.message : String(error));
         },
       });
     } catch (error) {
       this.logger.error(`[executeDefaultStream] 异常: ${error instanceof Error ? error.message : error}`);
-      callbacks.onError?.(error instanceof Error ? error.message : 'Unknown error');
+      emitter.emitError(error instanceof Error ? error.message : 'Unknown error');
     }
   }
 
@@ -729,25 +694,16 @@ export class AgentService {
   }
 
   /**
-   * 使用 Function Calling + ReAct 协同架构执行智能体对话
-   * 这是新的推荐方法，替代旧的文本解析方式
-   * @param agent 智能体配置
-   * @param context 执行上下文
-   * @param reasoningMode 推理模式
-   * @param startTime 开始时间
-   * @param clientIp 客户端IP
-   * @param uid 用户ID
-   * @param callbacks 流式回调函数
+   * 使用 Function Calling + ReAct 协同架构执行智能体对话（基于 StreamEmitter）
    */
-  private async executeReActWithFunctionCalling(
+  private async executeReActWithFunctionCallingEmitter(
     agent: any,
     context: any,
     reasoningMode: ReasoningMode,
     startTime: number,
     clientIp: string,
     uid: string | undefined,
-    callbacks: StreamCallbacks,
-    appCode?: string,
+    emitter: StreamEmitter,
   ): Promise<void> {
     this.logger.log(`[ReAct+FC] 开始执行协同架构, reasoningMode: ${reasoningMode}`);
 
@@ -759,8 +715,6 @@ export class AgentService {
     const steps: any[] = [];
     let finalResponse = '';
 
-    // 将工具转换为 Function Calling 格式
-    const functionTools = ToolDefinitionBuilder.convertToFunctionCallingFormat(context.tools);
     const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
 
     try {
@@ -777,7 +731,6 @@ export class AgentService {
         let stepText = '';
         let hasToolCall = false;
 
-        // 调用模型（使用 Function Calling）
         await this.aiService.streamText({
           model: context.model,
           system: context.systemPrompt,
@@ -787,10 +740,9 @@ export class AgentService {
           clientIp,
           userAgent: 'agent-service',
           uid,
-          appCode,
           onChunk: (chunk) => {
             stepText += chunk;
-            callbacks.onChunk?.(chunk);
+            emitter.emitTextDelta(chunk);
           },
           onToolCall: async (toolCall: { name: string; args: any }) => {
             this.logger.log(`[ReAct+FC] 检测到工具调用: ${toolCall.name}`);
@@ -803,7 +755,7 @@ export class AgentService {
               content: stepText || `需要调用工具 ${toolCall.name}`,
             };
             steps.push(thoughtStep);
-            callbacks.onStep?.(thoughtStep);
+            emitter.emit(StreamEvents.reasoningStep(thoughtStep));
 
             // 记录行动步骤
             const actionStep = {
@@ -814,7 +766,7 @@ export class AgentService {
               actionInput: toolCall.args,
             };
             steps.push(actionStep);
-            callbacks.onStep?.(actionStep);
+            emitter.emit(StreamEvents.reasoningStep(actionStep));
 
             // 执行工具
             const toolResult = await this.toolExecutor.executeToolCall(
@@ -828,12 +780,8 @@ export class AgentService {
               { agent: context.agent, conversationId: context.conversationId, uid },
             );
 
-            // 发送工具调用信息给前端
-            callbacks.onToolCall?.({
-              name: toolCall.name,
-              args: toolCall.args,
-              result: toolResult.result,
-            });
+            // 发送工具调用事件
+            emitter.emit(StreamEvents.toolCall(toolCall.name, toolCall.args, toolResult.result));
 
             // 记录观察步骤
             const resultText = typeof toolResult.result === 'object'
@@ -848,7 +796,7 @@ export class AgentService {
               toolOutput: toolResult.result,
             };
             steps.push(observationStep);
-            callbacks.onStep?.(observationStep);
+            emitter.emit(StreamEvents.reasoningStep(observationStep));
 
             // 添加工具结果到消息历史
             messages.push({
@@ -872,7 +820,7 @@ export class AgentService {
             content: finalResponse,
           };
           steps.push(finalStep);
-          callbacks.onStep?.(finalStep);
+          emitter.emit(StreamEvents.reasoningStep(finalStep));
           break;
         }
       }
@@ -890,22 +838,20 @@ export class AgentService {
       }
 
       // 保存日志
-      await this.saveLog(agent, context, { response: finalResponse, steps }, clientIp, uid, reasoningMode, startTime, appCode);
+      await this.saveLog(agent, context, { response: finalResponse, steps }, clientIp, uid, reasoningMode, startTime);
 
-      // 返回最终结果
-      callbacks.onDone?.({
-        success: true,
-        response: finalResponse,
-        steps,
-        totalCostMs: Date.now() - startTime,
+      // 发送完成事件
+      emitter.emitDone({
         conversationId: context.conversationId,
+        response: finalResponse,
+        totalCostMs: Date.now() - startTime,
       });
 
       this.logger.log(`[ReAct+FC] 执行完成, 耗时: ${Date.now() - startTime}ms`);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`[ReAct+FC] 执行失败:`, errorMsg);
-      callbacks.onError?.(errorMsg);
+      emitter.emitError(errorMsg);
     }
   }
 

@@ -30,34 +30,9 @@ import {
 } from "./dto/agent.dto";
 import { success, page } from "../common/response/api.response";
 import { Request, Response } from "express";
-import { Observable, Subject } from 'rxjs';
+import { Observable } from 'rxjs';
 import { Sse } from '@nestjs/common';
-
-/**
- * 安全处理文本，确保不发送不完整的 Unicode 字符
- * @param text 原始文本
- * @returns 安全的文本
- */
-function safeTextEncode(text: string): string {
-  if (!text) return text;
-  
-  const lastCharCode = text.charCodeAt(text.length - 1);
-  if (lastCharCode >= 0xD800 && lastCharCode <= 0xDBFF) {
-    return text.slice(0, -1);
-  }
-  
-  if (text.length >= 2) {
-    const secondLastCharCode = text.charCodeAt(text.length - 2);
-    const last = text.charCodeAt(text.length - 1);
-    if (!(secondLastCharCode >= 0xD800 && secondLastCharCode <= 0xDBFF &&
-          last >= 0xDC00 && last <= 0xDFFF) &&
-        last >= 0xDC00 && last <= 0xDFFF) {
-      return text.slice(0, -1);
-    }
-  }
-  
-  return text;
-}
+import { StreamEmitter, SseResponseBuilder } from '../stream';
 
 @ApiTags("智能体 (管理端)")
 @ApiBearerAuth()
@@ -167,56 +142,12 @@ export class AgentController {
   ): Promise<Observable<MessageEvent>> {
     const uid = this.extractUid(req, dto);
     const appCode = (req as any).appCode;
-    const subject = new Subject<MessageEvent>();
+    const emitter = new StreamEmitter();
 
-    this.agentService.streamChat(dto, req.ip || "unknown", uid, {
-      onConversationId: (conversationId: string) => {
-        subject.next(
-          new MessageEvent("message", {
-            data: JSON.stringify({
-              type: "conversation_id",
-              conversationId,
-            }),
-          }),
-        );
-      },
-      onStep: (step: any) => {
-        subject.next(
-          new MessageEvent("message", {
-            data: JSON.stringify({
-              type: "reasoning_step",
-              step: step,
-            }),
-          }),
-        );
-      },
-      onChunk: (chunk: string) => {
-        const safeChunk = safeTextEncode(chunk);
-        if (safeChunk) {
-          subject.next(new MessageEvent("message", { data: safeChunk }));
-        }
-      },
-      onToolCall: (toolCall: any) => {
-        subject.next(
-          new MessageEvent("message", {
-            data: JSON.stringify({
-              type: "tool",
-              ...toolCall,
-            }),
-          }),
-        );
-      },
-      onDone: (result: any) => {
-        subject.next(new MessageEvent("message", { data: "[DONE]" }));
-        subject.complete();
-      },
-      onError: (error: string) => {
-        subject.next(new MessageEvent("message", { data: `[ERROR] ${error}` }));
-        subject.complete();
-      },
-    }, appCode);
+    // 不 await，流式在后台执行
+    this.agentService.streamChatWithEmitter(dto, req.ip || "unknown", uid, emitter, appCode);
 
-    return subject.asObservable();
+    return SseResponseBuilder.create(emitter);
   }
 
   /**

@@ -91,6 +91,8 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
       if (callbacks.onConversationId) {
         callbacks.onConversationId(parsed.conversationId)
       }
+    } else     if (parsed.type === 'text_delta' && parsed.delta) {
+      callbacks.onMessage(parsed.delta)
     } else if (parsed.type === 'chunk' && parsed.content) {
       callbacks.onMessage(parsed.content)
     } else if (parsed.type === 'reasoning_step' && parsed.step) {

@@ -177,6 +177,8 @@ export const retrievalApi = {
               if (onConversationId) {
                 onConversationId(parsed.conversationId)
               }
+            } else if (parsed.type === 'text_delta' && parsed.delta) {
+              onMessage(parsed.delta)
             } else if (parsed.choices && parsed.choices[0]?.delta?.content) {
               onMessage(safeTextDecode(parsed.choices[0].delta.content))
             } else if (parsed.message) {

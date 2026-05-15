@@ -139,6 +139,8 @@ export const aiApi = {
             
             if (parsed.choices && parsed.choices[0]?.delta?.content) {
               onMessage(parsed.choices[0].delta.content)
+            } else if (parsed.type === 'text_delta' && parsed.delta) {
+              onMessage(parsed.delta)
             } else if (parsed.choices && parsed.choices[0]?.message?.content) {
               onMessage(parsed.choices[0].message.content)
             } else if (parsed.message) {

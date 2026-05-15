@@ -176,6 +176,8 @@ export const retrievalApi = {
             } else if (parsed.sources) {
               sources = parsed.sources
               console.log('[RAG Stream] 更新sources:', sources.length)
+            } else if (parsed.type === 'text_delta' && parsed.delta) {
+              onMessage(parsed.delta)
             } else if (parsed.choices && parsed.choices[0]?.delta?.content) {
               onMessage(parsed.choices[0].delta.content)
               console.log('[RAG Stream] 发送消息:', parsed.choices[0].delta.content.substring(0, 50))

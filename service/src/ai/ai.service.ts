@@ -10,7 +10,6 @@ import {
   TtsDto,
   AsrDto,
 } from './dto/ai.dto';
-import { Observable } from 'rxjs';
 import { Model } from '@prisma/client';
 import { IsolationContext } from '../common/utils/isolation.util';
 import { StrategyFactory } from './strategies/strategy.factory';
@@ -28,36 +27,7 @@ import {
   ToolCall,
 } from './interfaces/executor.interface';
 import type { ModelMessage, Tool } from 'ai';
-
-/**
- * 安全处理文本，确保不发送不完整的 Unicode 字符
- * @param text 原始文本
- * @returns 安全的文本
- */
-function safeTextEncode(text: string): string {
-  if (!text) return text;
-  
-  // 检查最后是否是一个不完整的 UTF-16 代理对
-  const lastCharCode = text.charCodeAt(text.length - 1);
-  if (lastCharCode >= 0xD800 && lastCharCode <= 0xDBFF) {
-    // 这是一个不完整的高代理项，不发送
-    return text.slice(0, -1);
-  }
-  
-  // 检查是否有单独的低代理项
-  if (text.length >= 2) {
-    const secondLastCharCode = text.charCodeAt(text.length - 2);
-    const last = text.charCodeAt(text.length - 1);
-    if (!(secondLastCharCode >= 0xD800 && secondLastCharCode <= 0xDBFF &&
-          last >= 0xDC00 && last <= 0xDFFF) &&
-        last >= 0xDC00 && last <= 0xDFFF) {
-      // 单独的低代理项，移除
-      return text.slice(0, -1);
-    }
-  }
-  
-  return text;
-}
+import { StreamEmitter, StreamEventType, StreamEvents } from '../stream';
 
 /**
  * generateText 参数接口
@@ -253,204 +223,173 @@ export class AiService {
   }
 
   /**
-   * SSE流式调用
+   * SSE流式调用（基于 StreamEmitter）
    * @param dto 调用参数
    * @param clientIp 客户端IP
    * @param userAgent 用户代理
    * @param uid 用户唯一标识(透传)
    * @param appCode 应用编码
-   * @returns {Observable<MessageEvent>} 流式响应
+   * @param emitter 流式发射器
    */
-  streamInvoke(
+  async streamInvoke(
     dto: AiInvokeDto,
     clientIp: string,
     userAgent: string,
-    uid?: string,
-    appCode?: string,
-  ): Observable<MessageEvent> {
-    return new Observable((observer) => {
-      let cancelled = false;
-      let modelId: string | null = null;
-      let concurrencyAcquired = false;
+    uid: string | undefined,
+    appCode: string | undefined,
+    emitter: StreamEmitter,
+  ): Promise<void> {
+    let modelId: string | null = null;
+    let concurrencyAcquired = false;
 
-      const execute = async () => {
-        const context = this.contextManager.createFromParams(
-          clientIp,
-          userAgent,
-          uid,
-          appCode,
+    const context = this.contextManager.createFromParams(
+      clientIp,
+      userAgent,
+      uid,
+      appCode,
+    );
+
+    const modelType = dto.modelType || 'llm';
+    const targetId = dto.modelCode || `mcp-${modelType}`;
+
+    this.logger.debug(`[Stream] 开始处理流式请求: requestId=${context.requestId}`);
+
+    try {
+      const isolationContext: IsolationContext = {
+        appCode: appCode || null,
+        isSuperAdmin: false,
+      };
+
+      const conversation = await this.conversationService.getOrCreate(
+        ConversationType.MODEL,
+        targetId,
+        dto.conversationId,
+        uid,
+        isolationContext,
+      );
+
+      const messagesWithHistory = await this.buildMessagesWithHistory(
+        conversation,
+        dto.messages,
+      );
+
+      const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();
+      if (lastUserMessage) {
+        await this.conversationService.addMessage(
+          conversation.id as any,
+          'user',
+          lastUserMessage.content,
+        );
+      }
+
+      if (emitter.completed) {
+        this.logger.debug(`[Stream] 请求已取消: requestId=${context.requestId}`);
+        return;
+      }
+
+      emitter.emit(StreamEvents.conversationId(conversation.id as any));
+
+      const model = await this.selectModel(dto.modelCode, modelType);
+      modelId = model.id as any;
+
+      await this.mcpService.checkCircuit(model.id as any);
+      await this.mcpService.checkConcurrency(model.id as any);
+      concurrencyAcquired = true;
+
+      let accumulatedContent = '';
+      const chunks: StreamChunk[] = [];
+
+      const executionParams: ExecutionParams = {
+        model,
+        messages: messagesWithHistory as any,
+        options: {
+          temperature: dto.temperature,
+          maxTokens: dto.maxTokens,
+        },
+        context,
+      };
+
+      for await (const chunk of this.modelExecutor.stream(executionParams)) {
+        if (emitter.completed) {
+          this.logger.debug(`[Stream] 流式传输被取消: requestId=${context.requestId}`);
+          break;
+        }
+
+        chunks.push(chunk);
+
+        if (chunk.type === 'text-delta' && chunk.delta) {
+          accumulatedContent += chunk.delta;
+          emitter.emitTextDelta(chunk.delta);
+        } else if (chunk.type === 'tool-call' && chunk.toolCall) {
+          emitter.emit(StreamEvents.toolCall(
+            chunk.toolCall.toolName,
+            chunk.toolCall.args as Record<string, unknown>,
+          ));
+        } else if (chunk.type === 'error' && chunk.error) {
+          throw new Error(chunk.error.message);
+        }
+      }
+
+      if (emitter.completed) {
+        return;
+      }
+
+      await this.mcpService.reportSuccess(model.id as any);
+
+      if (accumulatedContent) {
+        await this.conversationService.addMessage(
+          conversation.id as any,
+          'assistant',
+          accumulatedContent,
         );
 
-        const modelType = dto.modelType || 'llm';
-        const targetId = dto.modelCode || `mcp-${modelType}`;
-
-        this.logger.debug(`[Stream] 开始处理流式请求: requestId=${context.requestId}`);
-
-        try {
-          const isolationContext: IsolationContext = {
-            appCode: appCode || null,
-            isSuperAdmin: false,
-          };
-
-          const conversation = await this.conversationService.getOrCreate(
-            ConversationType.MODEL,
-            targetId,
-            dto.conversationId,
-            uid,
-            isolationContext,
-          );
-
-          const messagesWithHistory = await this.buildMessagesWithHistory(
-            conversation,
-            dto.messages,
-          );
-
-          const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();
-          if (lastUserMessage) {
-            await this.conversationService.addMessage(
-              conversation.id as any,
-              'user',
-              lastUserMessage.content,
-            );
-          }
-
-          if (cancelled) {
-            this.logger.debug(`[Stream] 请求已取消: requestId=${context.requestId}`);
-            return;
-          }
-
-          observer.next(
-            new MessageEvent('message', { data: `[CONVERSATION_ID]${conversation.id}` }),
-          );
-
-          const model = await this.selectModel(dto.modelCode, modelType);
-          modelId = model.id as any;
-
-          await this.mcpService.checkCircuit(model.id as any);
-          await this.mcpService.checkConcurrency(model.id as any);
-          concurrencyAcquired = true;
-
-          let accumulatedContent = '';
-          const chunks: StreamChunk[] = [];
-
-          const executionParams: ExecutionParams = {
-            model,
-            messages: messagesWithHistory as any,
-            options: {
-              temperature: dto.temperature,
-              maxTokens: dto.maxTokens,
-            },
-            context,
-          };
-
-          for await (const chunk of this.modelExecutor.stream(executionParams)) {
-            if (cancelled) {
-              this.logger.debug(`[Stream] 流式传输被取消: requestId=${context.requestId}`);
-              break;
-            }
-
-            chunks.push(chunk);
-
-            if (chunk.type === 'text-delta' && chunk.delta) {
-              accumulatedContent += chunk.delta;
-              const safeDelta = safeTextEncode(chunk.delta);
-              if (safeDelta) {
-                observer.next(new MessageEvent('message', { data: safeDelta }));
-              }
-            } else if (chunk.type === 'tool-call' && chunk.toolCall) {
-              observer.next(
-                new MessageEvent('message', {
-                  data: JSON.stringify({
-                    type: 'tool-call',
-                    toolCall: chunk.toolCall,
-                  }),
-                }),
-              );
-            } else if (chunk.type === 'error' && chunk.error) {
-              throw new Error(chunk.error.message);
-            }
-          }
-
-          if (cancelled) {
-            return;
-          }
-
-          await this.mcpService.reportSuccess(model.id as any);
-
-          if (accumulatedContent) {
-            await this.conversationService.addMessage(
-              conversation.id as any,
-              'assistant',
-              accumulatedContent,
-            );
-
-            if (conversation.messageCount === 0) {
-              await this.conversationService.generateTitle(conversation.id as any);
-            }
-          }
-
-          const finishChunk = chunks.find((c) => c.type === 'finish');
-          const usage = finishChunk?.finish?.usage;
-
-          await this.logService.saveLog({
-            modelId: model.id as any,
-            modelCode: model.code,
-            modelType,
-            request: JSON.stringify(dto),
-            response: JSON.stringify({ content: accumulatedContent }),
-            costMs: this.contextManager.calculateDuration(context),
-            success: true,
-            clientIp,
-            userAgent,
-            inputTokens: usage?.promptTokens,
-            outputTokens: usage?.completionTokens,
-            uid,
-            appCode,
-          });
-
-          observer.next(new MessageEvent('message', { data: '[DONE]' }));
-          observer.complete();
-        } catch (error) {
-          await this.handleStreamError(
-            error,
-            context,
-            dto,
-            modelType,
-            clientIp,
-            userAgent,
-            uid,
-            appCode,
-            modelId,
-            observer,
-          );
-        } finally {
-          if (concurrencyAcquired && modelId) {
-            await this.mcpService.releaseConcurrency(modelId);
-          }
+        if (conversation.messageCount === 0) {
+          await this.conversationService.generateTitle(conversation.id as any);
         }
-      };
+      }
 
-      execute();
+      const finishChunk = chunks.find((c) => c.type === 'finish');
+      const usage = finishChunk?.finish?.usage;
 
-      return () => {
-        cancelled = true;
-        this.logger.debug('[Stream] 客户端取消订阅，正在清理资源...');
-      };
-    });
+      await this.logService.saveLog({
+        modelId: model.id as any,
+        modelCode: model.code,
+        modelType,
+        request: JSON.stringify(dto),
+        response: JSON.stringify({ content: accumulatedContent }),
+        costMs: this.contextManager.calculateDuration(context),
+        success: true,
+        clientIp,
+        userAgent,
+        inputTokens: usage?.promptTokens,
+        outputTokens: usage?.completionTokens,
+        uid,
+        appCode,
+      });
+
+      emitter.emitDone();
+    } catch (error) {
+      await this.handleStreamError(
+        error,
+        context,
+        dto,
+        modelType,
+        clientIp,
+        userAgent,
+        uid,
+        appCode,
+        modelId,
+        emitter,
+      );
+    } finally {
+      if (concurrencyAcquired && modelId) {
+        await this.mcpService.releaseConcurrency(modelId);
+      }
+    }
   }
 
   /**
    * 处理流式调用错误
-   * @param error 错误对象
-   * @param context 执行上下文
-   * @param dto 调用参数
-   * @param modelType 模型类型
-   * @param clientIp 客户端IP
-   * @param userAgent 用户代理
-   * @param uid 用户ID
-   * @param appCode 应用编码
-   * @param modelId 模型ID
-   * @param observer 观察者
    */
   private async handleStreamError(
     error: unknown,
@@ -462,7 +401,7 @@ export class AiService {
     uid: string | undefined,
     appCode: string | undefined,
     modelId: string | null,
-    observer: any,
+    emitter: StreamEmitter,
   ): Promise<void> {
     const normalized = this.errorHandler.normalize(error);
 
@@ -490,10 +429,7 @@ export class AiService {
       appCode,
     });
 
-    observer.next(
-      new MessageEvent('message', { data: `[ERROR] ${normalized.message}` }),
-    );
-    observer.complete();
+    emitter.emitError(normalized.message);
   }
 
   /**

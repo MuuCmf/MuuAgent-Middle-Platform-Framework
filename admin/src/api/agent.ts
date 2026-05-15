@@ -169,6 +169,11 @@ export const agentApi = {
             console.log(`[${timestamp}] [Agent API] Received event type:`, data.type, data.type === 'chunk' ? `content: "${data.content?.substring(0, 20)}..."` : '')
 
             switch (data.type) {
+              case 'text_delta':
+                if (data.delta) {
+                  onChunk(data.delta)
+                }
+                break
               case 'chunk':
                 if (data.content === '\x00') {
                   console.log('[Agent API] Reset signal received')

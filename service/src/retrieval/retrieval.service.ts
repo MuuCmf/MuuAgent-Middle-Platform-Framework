@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { VectorService } from '../vector/vector.service';
 import { AiService } from '../ai/ai.service';
+import { AiInvokeDto } from '../ai/dto/ai.dto';
 import { CacheService } from '../cache/cache.service';
 import { BM25Service } from './bm25.service';
 import { PromptTemplateService } from '../prompt-template/prompt-template.service';
@@ -10,9 +11,10 @@ import { ConversationType } from '../conversation/dto/create-conversation.dto';
 import { RetrievalDto } from './dto/retrieval.dto';
 import { RagChatDto } from './dto/rag-chat.dto';
 import { v4 as uuidv4 } from 'uuid';
-import { AiInvokeDto } from '../ai/dto/ai.dto';
-import { Observable, defer } from 'rxjs';
 import { IsolationContext, buildIsolationWhere } from '../common/utils/isolation.util';
+import { StreamEmitter, StreamEvents } from '../stream';
+import { McpService } from '../mcp/mcp.service';
+import { ModelService } from '../model/model.service';
 
 /**
  * 检索结果项
@@ -49,6 +51,8 @@ export class RetrievalService {
     private readonly bm25Service: BM25Service,
     private readonly promptTemplateService: PromptTemplateService,
     private readonly conversationService: ConversationService,
+    private readonly mcpService: McpService,
+    private readonly modelService: ModelService,
   ) {}
 
   /**
@@ -533,12 +537,12 @@ export class RetrievalService {
   }
 
   /**
-   * 流式RAG问答
+   * 流式RAG问答（基于 StreamEmitter）
    * @param dto RAG问答参数
    * @param context 隔离上下文
-   * @returns {Observable<any>} 流式响应
+   * @param emitter 流式发射器
    */
-  async ragChatStream(dto: RagChatDto, context?: IsolationContext): Promise<Observable<any>> {
+  async ragChatStreamWithEmitter(dto: RagChatDto, context: IsolationContext | undefined, emitter: StreamEmitter): Promise<void> {
     const startTime = Date.now();
     const requestId = uuidv4();
 
@@ -578,40 +582,14 @@ export class RetrievalService {
     const topN = dto.topN || kb.topN;
     const similarityThresh = dto.similarityThresh || kb.similarityThresh;
 
-    const retrievalMethod = kb.retrievalMethod || 'vector';
-    console.log(`[RAG Stream] 知识库检索方式: ${retrievalMethod}`);
+    // 发送会话ID
+    emitter.emit(StreamEvents.conversationId(conversation.id as any));
 
-    let retrievalResults: any[] = [];
-
-    if (retrievalMethod === 'bm25') {
-      console.log(`[RAG Stream] 使用配置的BM25检索模式`);
-      retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
-    } else {
-      let queryVector: number[];
-      let isRandomVector = false;
-      
-      try {
-        queryVector = await this.generateEmbedding(dto.query);
-        isRandomVector = this.isRandomVector(queryVector);
-        
-        retrievalResults = await this.vectorService.searchSimilar(
-          queryVector,
-          topN * 2,
-          dto.kbId,
-        );
-        if (isRandomVector || retrievalResults.length === 0) {
-          console.log(`[RAG Stream] 向量检索降级到BM25`);
-          retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
-        }
-      } catch (error) {
-        console.error(`[RAG Stream] 向量检索失败: ${error.message}`);
-        retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
-      }
-    }
+    // 执行检索
+    const retrievalResults = await this.executeRetrieval(dto.kbId, dto.query, topN, similarityThresh, kb.retrievalMethod || 'vector');
 
     let filteredResults: any[];
-    
-    if (retrievalMethod === 'bm25') {
+    if ((kb.retrievalMethod || 'vector') === 'bm25') {
       const sortedResults = [...retrievalResults].sort((a, b) => b.score - a.score);
       const topResults = sortedResults.slice(0, topN);
       const avgScore = topResults.length > 0 
@@ -638,15 +616,9 @@ export class RetrievalService {
         await this.conversationService.generateTitle(conversation.id as any);
       }
 
-      return new Observable((observer) => {
-        observer.next(JSON.stringify({ conversationId: conversation.id }));
-        observer.next(JSON.stringify({
-          choices: [{
-            delta: { content: noResultAnswer }
-          }]
-        }));
-        observer.complete();
-      });
+      emitter.emitTextDelta(noResultAnswer);
+      emitter.emitDone({ conversationId: conversation.id as any });
+      return;
     }
 
     const sources: RetrievalItem[] = await Promise.all(
@@ -673,120 +645,31 @@ export class RetrievalService {
     sources.sort((a, b) => b.score - a.score);
     const topSources = sources.slice(0, topN);
 
+    // 发送来源引用事件
+    emitter.emit(StreamEvents.sources(topSources));
+
     const retrievalContext = topSources.map((s) => s.content).join('\n\n');
     const prompt = await this.buildRagPrompt(dto.query, retrievalContext, conversationHistory);
 
-    return defer(() => {
-      return new Observable((observer) => {
-        console.log('[RAG Stream] Observable被订阅，先发送conversationId');
-        observer.next(JSON.stringify({ conversationId: conversation.id }));
-        console.log('[RAG Stream] Observable被订阅，准备发送sources');
-        observer.next(JSON.stringify({ sources: topSources }));
-        console.log('[RAG Stream] 已发送sources');
-        
-        const llmDto: AiInvokeDto = {
-          messages: [{ role: 'user', content: prompt }],
-          modelType: 'llm',
-          modelCode: dto.modelCode && dto.modelCode !== 'mcp' ? dto.modelCode : undefined,
-          temperature: 0.7,
-          maxTokens: 4096,
-        };
+    // 使用 aiService.streamText 直接流式输出，无需二次订阅解析
+    try {
+      let fullResponse = '';
 
-        console.log('[RAG Stream] 准备调用LLM流式接口');
-        const stream$ = this.aiService.streamInvoke(llmDto, '127.0.0.1', 'retrieval-service', dto.uid);
-        console.log('[RAG Stream] 已获取LLM Observable');
-        
-        console.log('[RAG Stream] 开始订阅LLM流');
-        let fullResponse = '';
-        let hasError = false;
-        const llmSubscription = stream$.subscribe({
-        next: (event: any) => {
-          if (hasError) return;
-          
-          const rawData = event.data || event;
-          console.log('[RAG Stream] LLM响应原始数据类型:', typeof rawData);
-          console.log('[RAG Stream] LLM响应原始数据:', rawData);
-          
-          // 直接处理 LLM 原始文本内容，不强制解析为 JSON
-          if (rawData && typeof rawData === 'string') {
-            const dataLine = rawData.trim();
-            
-            // 过滤 [CONVERSATION_ID] 标记（来自 ai.service）
-            if (dataLine.startsWith('[CONVERSATION_ID]')) {
-              console.log('[RAG Stream] 收到会话ID标记，跳过');
-              return;
-            }
-            
-            // 过滤 [DONE] 标记
-            if (dataLine === '[DONE]' || dataLine.startsWith('[DONE]')) {
-              console.log('[RAG Stream] 收到LLM流结束标记');
-              return;
-            }
-            
-            let content: string | null = null;
-            
-            // 先尝试解析为 JSON
-            if (dataLine.startsWith('{') && dataLine.endsWith('}')) {
-              try {
-                const parsed = JSON.parse(dataLine);
-                console.log('[RAG Stream] LLM响应数据:', JSON.stringify(parsed).substring(0, 200));
-                
-                if (parsed.choices && Array.isArray(parsed.choices) && parsed.choices.length > 0) {
-                  const choice = parsed.choices[0];
-                  if (choice.delta && typeof choice.delta.content === 'string' && choice.delta.content) {
-                    content = choice.delta.content;
-                  }
-                  else if (choice.delta && typeof choice.delta.reasoning_content === 'string' && choice.delta.reasoning_content) {
-                    content = choice.delta.reasoning_content;
-                  }
-                  else if (choice.message && typeof choice.message.content === 'string' && choice.message.content) {
-                    content = choice.message.content;
-                  }
-                  else if (choice.text && typeof choice.text === 'string') {
-                    content = choice.text;
-                  }
-                }
-                else if (typeof parsed.content === 'string' && parsed.content) {
-                  content = parsed.content;
-                }
-                else if (typeof parsed.response === 'string' && parsed.response) {
-                  content = parsed.response;
-                }
-                else if (typeof parsed.text === 'string' && parsed.text) {
-                  content = parsed.text;
-                }
-              } catch {
-                console.log('[RAG Stream] 不是有效JSON，直接使用原始文本');
-              }
-            }
-            
-            // 如果没有从 JSON 中提取到 content，直接使用原始字符串
-            if (!content && dataLine && dataLine.trim()) {
-              content = dataLine.trim();
-            }
-            
-            if (content) {
-              fullResponse += content;
-              console.log('[RAG Stream] 发送内容片段, 长度:', content.length);
-              // 直接发送原始内容，由前端处理 [THINKING] 和 [ANSWER] 标记
-              observer.next(JSON.stringify({
-                choices: [{
-                  delta: { content }
-                }]
-              }));
-            }
-          }
+      await this.aiService.streamText({
+        model: await this.selectModelForStream(dto.modelCode),
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        maxTokens: 4096,
+        clientIp: '127.0.0.1',
+        userAgent: 'retrieval-service',
+        uid: dto.uid,
+        onChunk: (chunk) => {
+          fullResponse += chunk;
+          emitter.emitTextDelta(chunk);
         },
-        error: (error) => {
-          console.error('[RAG Stream] LLM流式调用失败:', error);
-          hasError = true;
-          observer.error(error);
-        },
-        complete: async () => {
-          if (hasError) return;
-          
+        onFinish: async () => {
           const costTime = Date.now() - startTime;
-          
+
           await this.prisma.kbRetrievalLog.create({
             data: {
               kbId: dto.kbId as any,
@@ -815,18 +698,60 @@ export class RetrievalService {
             }
           }
           
-          observer.complete();
+          emitter.emitDone({ conversationId: conversation.id as any });
+        },
+        onError: (error) => {
+          emitter.emitError(error instanceof Error ? error.message : String(error));
         },
       });
+    } catch (error) {
+      emitter.emitError(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  /**
+   * 执行检索（抽取公共方法）
+   */
+  private async executeRetrieval(
+    kbId: string,
+    query: string,
+    topN: number,
+    similarityThresh: number,
+    retrievalMethod: string,
+  ): Promise<any[]> {
+    if (retrievalMethod === 'bm25') {
+      return this.bm25Search(kbId, query, topN * 2, similarityThresh);
+    }
+
+    let queryVector: number[];
+    let isRandomVector = false;
+    
+    try {
+      queryVector = await this.generateEmbedding(query);
+      isRandomVector = this.isRandomVector(queryVector);
       
-      return () => {
-        console.log('[RAG Stream] 取消订阅');
-        if (llmSubscription && !llmSubscription.closed) {
-          llmSubscription.unsubscribe();
-        }
-      };
-    });
-  });
+      const results = await this.vectorService.searchSimilar(
+        queryVector,
+        topN * 2,
+        kbId,
+      );
+      if (isRandomVector || results.length === 0) {
+        return this.bm25Search(kbId, query, topN * 2, similarityThresh);
+      }
+      return results;
+    } catch (error) {
+      return this.bm25Search(kbId, query, topN * 2, similarityThresh);
+    }
+  }
+
+  /**
+   * 为流式调用选择模型
+   */
+  private async selectModelForStream(modelCode?: string): Promise<any> {
+    if (modelCode && modelCode !== 'mcp') {
+      return this.modelService.findByCode(modelCode);
+    }
+    return this.mcpService.selectModel('llm');
   }
 
   /**
