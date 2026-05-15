@@ -161,15 +161,29 @@ export abstract class BaseStrategy implements IProviderStrategy {
           delta: part.text as string,
         };
 
-      case 'tool-call':
+      case 'tool-call': {
+        const rawInput = part.input;
+        let args: Record<string, unknown>;
+        if (typeof rawInput === 'string') {
+          try {
+            args = JSON.parse(rawInput);
+          } catch {
+            args = {};
+          }
+        } else if (rawInput && typeof rawInput === 'object') {
+          args = rawInput as Record<string, unknown>;
+        } else {
+          args = {};
+        }
         return {
           type: 'tool-call',
           toolCall: {
             toolCallId: part.toolCallId as string,
             toolName: part.toolName as string,
-            args: (part.input as Record<string, unknown>) || {},
+            args,
           },
         };
+      }
 
       case 'finish': {
         const totalUsage = part.totalUsage as Record<string, number> | undefined;

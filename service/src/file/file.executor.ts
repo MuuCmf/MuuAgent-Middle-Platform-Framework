@@ -132,7 +132,10 @@ export class FileExecutor {
       throw new BadRequestException('fileName 和 fileContent 不能为空');
     }
 
-    const buffer = Buffer.from(fileContent as string, 'base64');
+    const contentStr = fileContent as string;
+    const buffer = this.isBase64Encoded(contentStr)
+      ? Buffer.from(contentStr, 'base64')
+      : Buffer.from(contentStr, 'utf-8');
 
     const file: Express.Multer.File = {
       fieldname: 'file',
@@ -324,5 +327,15 @@ export class FileExecutor {
     };
 
     return mimeTypes[ext] || 'application/octet-stream';
+  }
+
+  private isBase64Encoded(str: string): boolean {
+    if (!str || str.length % 4 !== 0) return false;
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(str)) return false;
+    try {
+      return Buffer.from(str, 'base64').toString('base64') === str;
+    } catch {
+      return false;
+    }
   }
 }
