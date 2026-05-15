@@ -1,12 +1,6 @@
 <template>
-  <el-drawer
-    :model-value="visible"
-    :title="editingAgent ? '编辑智能体' : '创建智能体'"
-    direction="rtl"
-    size="600px"
-    class="agent-edit-drawer"
-    @update:model-value="handleClose"
-  >
+  <el-drawer :model-value="visible" :title="editingAgent ? '编辑智能体' : '创建智能体'" direction="rtl" size="600px"
+    class="agent-edit-drawer" @update:model-value="handleClose">
     <el-form :model="form" :rules="rules" label-width="100px" ref="formRef" class="agent-form">
       <div class="form-section">
         <div class="section-title">基本信息</div>
@@ -26,32 +20,19 @@
         <el-row :gutter="16" v-if="isSuperAdmin">
           <el-col :span="12">
             <el-form-item label="所属应用">
-              <AppSelector
-                v-model="form.appCode"
-                placeholder="选择应用"
-                clearable
-              />
+              <AppSelector v-model="form.appCode" placeholder="选择应用" clearable />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="公开状态">
-              <el-switch
-                v-model="form.isPublic"
-                active-text="公开"
-                inactive-text="私有"
-              />
+              <el-switch v-model="form.isPublic" active-text="公开" inactive-text="私有" />
               <div class="field-tip">公开的资源可被其他应用访问</div>
             </el-form-item>
           </el-col>
         </el-row>
 
         <el-form-item label="系统提示词" prop="systemPrompt" required>
-          <el-input
-            v-model="form.systemPrompt"
-            type="textarea"
-            :rows="4"
-            placeholder="定义智能体的角色和行为方式"
-          />
+          <el-input v-model="form.systemPrompt" type="textarea" :rows="4" placeholder="定义智能体的角色和行为方式" />
         </el-form-item>
       </div>
 
@@ -77,15 +58,14 @@
             </el-option>
           </el-select>
           <div class="mode-tip" v-if="form.reasoningMode">
-            <el-icon><InfoFilled /></el-icon>
+            <el-icon>
+              <InfoFilled />
+            </el-icon>
             <span>{{ reasoningModeTip }}</span>
           </div>
         </el-form-item>
 
-        <el-form-item 
-          v-if="form.reasoningMode && form.reasoningMode !== 'NONE'" 
-          label="推理提示词"
-        >
+        <el-form-item v-if="form.reasoningMode && form.reasoningMode !== 'NONE'" label="推理提示词">
           <div class="prompt-wrapper">
             <div class="prompt-mode-switch">
               <el-radio-group v-model="promptMode" size="small">
@@ -95,18 +75,10 @@
             </div>
 
             <div v-if="promptMode === 'template'" class="template-selector">
-              <el-select
-                v-model="selectedTemplateCode"
-                placeholder="选择提示词模板"
-                @change="handleTemplateChange"
-                class="w-full"
-              >
-                <el-option
-                  v-for="template in promptTemplates"
-                  :key="template.code"
-                  :label="template.name"
-                  :value="template.code"
-                >
+              <el-select v-model="selectedTemplateCode" placeholder="选择提示词模板" @change="handleTemplateChange"
+                class="w-full">
+                <el-option v-for="template in promptTemplates" :key="template.code" :label="template.name"
+                  :value="template.code">
                   <div class="template-option">
                     <span>{{ template.name }}</span>
                     <el-tag size="small" type="info">{{ template.category }}</el-tag>
@@ -121,22 +93,12 @@
                     查看详情
                   </el-button>
                 </div>
-                <el-input
-                  :model-value="selectedTemplate.content"
-                  type="textarea"
-                  :rows="6"
-                  readonly
-                />
+                <el-input :model-value="selectedTemplate.content" type="textarea" :rows="6" readonly />
               </div>
             </div>
 
-            <el-input
-              v-else
-              v-model="form.reasoningPrompt"
-              type="textarea"
-              :rows="4"
-              placeholder="可选：自定义推理提示词，留空使用默认模板"
-            />
+            <el-input v-else v-model="form.reasoningPrompt" type="textarea" :rows="4"
+              placeholder="可选：自定义推理提示词，留空使用默认模板" />
 
             <div class="prompt-help">
               <div class="help-title">可用占位符：</div>
@@ -167,21 +129,20 @@ Final Answer: 最终答案</pre>
         <el-form-item label="技能" prop="skills">
           <div class="bind-wrapper">
             <el-button type="primary" plain @click="handleSelectSkills">
-              <el-icon><Plus /></el-icon>
+              <el-icon>
+                <Plus />
+              </el-icon>
               选择技能
             </el-button>
             <div class="bind-content">
               <div v-if="selectedSkillCodes.length === 0" class="empty-tip">
-                <el-icon><Warning /></el-icon>
+                <el-icon>
+                  <Warning />
+                </el-icon>
                 <span>暂未绑定技能</span>
               </div>
               <div v-else class="tag-list">
-                <el-tag
-                  v-for="code in selectedSkillCodes"
-                  :key="code"
-                  closable
-                  @close="removeSkill(code)"
-                >
+                <el-tag v-for="code in selectedSkillCodes" :key="code" closable @close="removeSkill(code)">
                   {{ getSkillName(code) }}
                 </el-tag>
               </div>
@@ -192,22 +153,20 @@ Final Answer: 最终答案</pre>
         <el-form-item label="知识库" prop="knowledgeBases">
           <div class="bind-wrapper">
             <el-button type="primary" plain @click="handleSelectKbs">
-              <el-icon><Plus /></el-icon>
+              <el-icon>
+                <Plus />
+              </el-icon>
               选择知识库
             </el-button>
             <div class="bind-content">
               <div v-if="selectedKbCodes.length === 0" class="empty-tip">
-                <el-icon><Warning /></el-icon>
+                <el-icon>
+                  <Warning />
+                </el-icon>
                 <span>暂未绑定知识库</span>
               </div>
               <div v-else class="tag-list">
-                <el-tag
-                  v-for="code in selectedKbCodes"
-                  :key="code"
-                  closable
-                  type="success"
-                  @close="removeKb(code)"
-                >
+                <el-tag v-for="code in selectedKbCodes" :key="code" closable type="success" @close="removeKb(code)">
                   {{ getKbName(code) }}
                 </el-tag>
               </div>
@@ -218,26 +177,66 @@ Final Answer: 最终答案</pre>
         <el-form-item label="MCP Server" prop="mcpServers">
           <div class="bind-wrapper">
             <el-button type="primary" plain @click="handleAddMcpServer">
-              <el-icon><Plus /></el-icon>
+              <el-icon>
+                <Plus />
+              </el-icon>
               添加 Server
             </el-button>
             <div class="bind-content">
               <div v-if="mcpServers.length === 0" class="empty-tip">
-                <el-icon><Warning /></el-icon>
+                <el-icon>
+                  <Warning />
+                </el-icon>
                 <span>暂未绑定 MCP Server</span>
               </div>
               <div v-else class="mcp-list">
-                <McpServerCard
-                  v-for="(config, index) in mcpServers"
-                  :key="index"
-                  :config="config"
-                  @delete="handleDeleteMcpServer(index)"
-                  @edit="handleEditMcpServer(index)"
-                />
+                <McpServerCard v-for="(config, index) in mcpServers" :key="index" :config="config"
+                  @delete="handleDeleteMcpServer(index)" @edit="handleEditMcpServer(index)" />
               </div>
             </div>
           </div>
         </el-form-item>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title">工作目录</div>
+        <div class="section-desc">允许智能体在用户选择的工作目录中进行文件操作</div>
+
+        <el-form-item label="启用工作目录">
+          <el-switch v-model="form.workspaceConfig.enabled" active-text="启用" inactive-text="禁用" />
+
+        </el-form-item>
+
+        <template v-if="form.workspaceConfig.enabled">
+          <el-form-item label="允许的操作">
+            <el-checkbox-group v-model="form.workspaceConfig.allowedOperations">
+              <el-checkbox label="read_file">读取文件</el-checkbox>
+              <el-checkbox label="read_dir">列出目录</el-checkbox>
+              <el-checkbox label="write_file">写入文件</el-checkbox>
+              <el-checkbox label="append_file">追加文件</el-checkbox>
+              <el-checkbox label="create_dir">创建目录</el-checkbox>
+              <el-checkbox label="delete_file">删除文件</el-checkbox>
+            </el-checkbox-group>
+            <div class="field-tip">留空表示允许全部操作</div>
+          </el-form-item>
+
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="文件大小限制">
+                <el-input-number v-model="form.workspaceConfig.maxFileSize" :min="1" :max="10240" :step="100"
+                  class="w-full" />
+                <div class="field-tip">默认 1024KB（1MB）</div>
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
+            <el-form-item label="禁止的文件后缀">
+              <el-input v-model="deniedExtensionsStr" placeholder=".exe,.bat,.sh"
+                @change="handleDeniedExtensionsChange" />
+              <div class="field-tip">逗号分隔，默认：.exe,.bat,.sh,.cmd,.js,.vbs</div>
+            </el-form-item>
+          </el-row>
+        </template>
       </div>
 
       <div class="form-section">
@@ -259,59 +258,6 @@ Final Answer: 最终答案</pre>
           <el-switch v-model="form.status" active-text="启用" inactive-text="禁用" />
         </el-form-item>
       </div>
-
-      <div class="form-section">
-        <div class="section-title">工作目录</div>
-        <div class="section-desc">允许智能体在用户选择的工作目录中进行文件操作</div>
-
-        <el-form-item label="启用工作目录">
-          <el-switch
-            v-model="form.workspaceConfig.enabled"
-            active-text="启用"
-            inactive-text="禁用"
-          />
-          <div class="field-tip">启用后，智能体可以在用户授权的工作目录中读写文件</div>
-        </el-form-item>
-
-        <template v-if="form.workspaceConfig.enabled">
-          <el-form-item label="允许的操作">
-            <el-checkbox-group v-model="form.workspaceConfig.allowedOperations">
-              <el-checkbox label="read_file">读取文件</el-checkbox>
-              <el-checkbox label="read_dir">列出目录</el-checkbox>
-              <el-checkbox label="write_file">写入文件</el-checkbox>
-              <el-checkbox label="append_file">追加文件</el-checkbox>
-              <el-checkbox label="create_dir">创建目录</el-checkbox>
-              <el-checkbox label="delete_file">删除文件</el-checkbox>
-            </el-checkbox-group>
-            <div class="field-tip">留空表示允许全部操作</div>
-          </el-form-item>
-
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="文件大小限制(KB)">
-                <el-input-number
-                  v-model="form.workspaceConfig.maxFileSize"
-                  :min="1"
-                  :max="10240"
-                  :step="100"
-                  class="w-full"
-                />
-                <div class="field-tip">默认 1024KB（1MB）</div>
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="禁止的文件后缀">
-                <el-input
-                  v-model="deniedExtensionsStr"
-                  placeholder=".exe,.bat,.sh"
-                  @change="handleDeniedExtensionsChange"
-                />
-                <div class="field-tip">逗号分隔，默认：.exe,.bat,.sh,.cmd,.js,.vbs</div>
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </template>
-      </div>
     </el-form>
 
     <template #footer>
@@ -321,24 +267,13 @@ Final Answer: 最终答案</pre>
       </div>
     </template>
 
-    <McpServerConfigDialog
-      v-model="mcpServerDialogVisible"
-      :config="editingMcpServerIndex !== null ? mcpServers[editingMcpServerIndex] : null"
-      @save="handleMcpServerSave"
-    />
+    <McpServerConfigDialog v-model="mcpServerDialogVisible"
+      :config="editingMcpServerIndex !== null ? mcpServers[editingMcpServerIndex] : null" @save="handleMcpServerSave" />
 
-    <SkillSelectDialog
-      v-model="skillSelectDialogVisible"
-      :skills="availableSkills"
-      :selected-codes="selectedSkillCodes"
-      @confirm="handleSkillSelect"
-    />
+    <SkillSelectDialog v-model="skillSelectDialogVisible" :skills="availableSkills" :selected-codes="selectedSkillCodes"
+      @confirm="handleSkillSelect" />
 
-    <KbSelectDialog
-      v-model="kbSelectDialogVisible"
-      :selected-codes="selectedKbCodes"
-      @confirm="handleKbSelect"
-    />
+    <KbSelectDialog v-model="kbSelectDialogVisible" :selected-codes="selectedKbCodes" @confirm="handleKbSelect" />
   </el-drawer>
 </template>
 
@@ -461,13 +396,19 @@ watch(() => props.visible, (newVal) => {
     if (editingAgent.value) {
       form.value = {
         ...editingAgent.value,
-        skills: Array.isArray(editingAgent.value.skills) 
-          ? JSON.stringify(editingAgent.value.skills) 
+        skills: Array.isArray(editingAgent.value.skills)
+          ? JSON.stringify(editingAgent.value.skills)
           : editingAgent.value.skills,
         mcpServers: editingAgent.value.mcpServers || '[]',
         knowledgeBases: editingAgent.value.knowledgeBases || '[]',
         appCode: editingAgent.value.appCode || '',
         isPublic: editingAgent.value.isPublic ?? false,
+        workspaceConfig: {
+          enabled: false,
+          allowedOperations: [],
+          maxFileSize: 1024,
+          deniedExtensions: ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs'],
+        },
       }
       mcpServers.value = parseJsonSafe(editingAgent.value.mcpServers || '[]')
       selectedSkillCodes.value = parseJsonSafe(editingAgent.value.skills || '[]')
@@ -568,8 +509,8 @@ const loadKbs = async () => {
 
 const loadPromptTemplates = async () => {
   try {
-    const response = await promptTemplateApi.findAll({ 
-      pageSize: 100, 
+    const response = await promptTemplateApi.findAll({
+      pageSize: 100,
       status: true,
       category: 'react'
     })
@@ -771,7 +712,7 @@ const handleClose = () => {
 
 .template-preview {
   margin-top: 12px;
-  
+
   .preview-header {
     display: flex;
     justify-content: space-between;
