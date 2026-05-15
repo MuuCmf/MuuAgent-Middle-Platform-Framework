@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">🛠 技能管理</h1>
+      <h1 class="page-title">技能管理</h1>
       <p class="page-description">管理智能体可调用的技能工具</p>
     </div>
 
@@ -334,6 +334,10 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .test-dialog-content {
+  max-height: 65vh;
+  overflow-y: auto;
+  padding-right: 4px;
+
   .test-skill-info {
     p {
       margin: 8px 0;
@@ -349,7 +353,10 @@ onMounted(() => {
       font-family: 'Courier New', Courier, monospace;
       font-size: 12px;
       margin-top: 8px;
-      overflow-x: auto;
+      max-height: 200px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
   }
 

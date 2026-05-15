@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">📚 知识库管理</h1>
+      <h1 class="page-title">知识库管理</h1>
       <p class="page-description">创建和管理知识库，为智能体提供知识检索能力</p>
     </div>
 

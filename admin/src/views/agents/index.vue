@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">🤖 智能体</h1>
+      <h1 class="page-title">智能体</h1>
       <p class="page-description">创建和管理具有特定能力的AI助手</p>
     </div>
 

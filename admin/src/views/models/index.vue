@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">🔧 模型配置中心</h1>
+      <h1 class="page-title">模型配置中心</h1>
       <p class="page-description">统一管理AI模型配置和参数模板，实现模型资源的标准化和规范化管理</p>
     </div>
 

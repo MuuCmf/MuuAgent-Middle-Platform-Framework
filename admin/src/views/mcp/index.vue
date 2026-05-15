@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">⚡ MCP调度管理</h1>
+      <h1 class="page-title">MCP调度管理</h1>
       <p class="page-description">监控模型状态、熔断保护、并发控制、QPS限制和策略配置</p>
     </div>
 
