@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">📝 Prompt 模板管理</h1>
+      <h1 class="page-title">Prompt 模板管理</h1>
       <p class="page-description">管理智能体和 RAG 问答的提示词模板</p>
     </div>
 

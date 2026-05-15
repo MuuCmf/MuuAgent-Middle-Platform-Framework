@@ -89,7 +89,6 @@
           <li><strong>添加模型</strong>：在「模型管理」中添加你的AI模型（如Ollama本地模型）</li>
           <li><strong>创建技能</strong>：在「技能管理」中定义智能体可以使用的工具</li>
           <li><strong>创建智能体</strong>：在「智能体」中创建具有特定能力的AI助手</li>
-          <li><strong>开始对话</strong>：在「AI对话」中测试你的智能体</li>
         </ol>
       </el-alert>
 

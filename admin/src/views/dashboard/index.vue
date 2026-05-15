@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">📊 仪表盘</h1>
+      <h1 class="page-title">仪表盘</h1>
       <p class="page-description">展示AI中台的整体运行状态，包括调用统计、成功率、模型分布等关键指标</p>
     </div>
 

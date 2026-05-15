@@ -1,7 +1,5 @@
-import { adminRequest, request } from '@/utils/request'
+import { adminRequest } from '@/utils/request'
 import type { AxiosResponse } from 'axios'
-import { appConfig } from '@/config'
-import { fetchEventSource } from '@microsoft/fetch-event-source'
 
 export interface WorkspaceAgentConfig {
   enabled: boolean
@@ -76,20 +74,6 @@ export interface ReasoningStep {
   createdAt?: string
 }
 
-export interface AgentStreamResponse {
-  type: 'chunk' | 'tool' | 'error' | 'done' | 'reasoning_step' | 'conversation_id'
-  content?: string
-  skill?: string
-  name?: string
-  result?: any
-  args?: any
-  steps?: any[]
-  step?: ReasoningStep
-  reasoningMode?: string
-  response?: string
-  conversationId?: string
-}
-
 export const agentApi = {
   getList(): Promise<AxiosResponse<{ data: AgentListResponse }>> {
     return adminRequest.get('api/admin/agent')
@@ -105,151 +89,5 @@ export const agentApi = {
 
   delete(id: number): Promise<AxiosResponse> {
     return adminRequest.delete(`api/admin/agent/${id}`)
-  },
-
-  chat(agentId: string, message: string): Promise<AxiosResponse<{ data: { response: string } }>> {
-    return request.post('/api/agent/chat', { agentId, message })
-  },
-
-  /**
-   * 流式智能体对话（使用 @microsoft/fetch-event-source）
-   * 自动处理 SSE 连接、重试和错误
-   */
-  async streamChat(
-    agentId: string,
-    message: string,
-    onChunk: (content: string) => void,
-    onTool: (skill: string, result: any) => void,
-    onReasoningStep: (step: ReasoningStep) => void,
-    onError: (error: any) => void,
-    onComplete: (steps?: any[], response?: string) => void,
-    onConversationId?: (conversationId: string) => void,
-    conversationId?: string | null
-  ): Promise<void> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
-    }
-
-    if (appConfig.apiKey) {
-      headers['x-api-key'] = appConfig.apiKey
-    }
-
-    const token = localStorage.getItem('admin_token')
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-
-    const abortController = new AbortController()
-
-    try {
-      await fetchEventSource('/api/agent/chat/stream', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ agentId, message, stream: true, conversationId: conversationId || undefined }),
-        credentials: 'include',
-        signal: abortController.signal,
-
-        /**
-         * 连接打开时的回调
-         */
-        async onopen(response) {
-          if (response.ok) {
-            console.log('[Agent API] SSE connection opened')
-            return
-          }
-          if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-            const errorText = await response.text()
-            throw new Error(`HTTP ${response.status}: ${errorText}`)
-          }
-          throw new Error(`HTTP error! status: ${response.status}`)
-        },
-
-        /**
-         * 收到消息时的回调
-         */
-        onmessage(event) {
-          if (!event.data) {
-            return
-          }
-
-          try {
-            const data: AgentStreamResponse = JSON.parse(event.data)
-            const timestamp = new Date().toISOString().split('T')[1].slice(0, 12)
-            console.log(`[${timestamp}] [Agent API] Received event type:`, data.type, data.type === 'chunk' ? `content: "${data.content?.substring(0, 20)}..."` : '')
-
-            switch (data.type) {
-              case 'text_delta':
-                if (data.delta) {
-                  onChunk(data.delta)
-                }
-                break
-              case 'chunk':
-                if (data.content === '\x00') {
-                  console.log('[Agent API] Reset signal received')
-                  onChunk('\x00')
-                } else {
-                  onChunk(data.content || '')
-                }
-                break
-              case 'conversation_id':
-                if (onConversationId && data.conversationId) {
-                  console.log('[Agent API] Received conversationId:', data.conversationId)
-                  onConversationId(data.conversationId)
-                }
-                break
-              case 'tool':
-                onTool(data.name || data.skill || '', data.result)
-                break
-              case 'reasoning_step':
-                if (onReasoningStep && data.step) {
-                  const step = data.step
-                  if (data.name && data.result) {
-                    step.toolName = data.name
-                    step.toolArgs = data.args
-                  }
-                  onReasoningStep(step)
-                }
-                break
-              case 'error':
-                onError(new Error(data.content || '未知错误'))
-                abortController.abort()
-                break
-              case 'done':
-                onComplete(data.steps, data.response)
-                abortController.abort()
-                break
-            }
-          } catch (parseError) {
-            console.error('[Agent API] Failed to parse SSE data:', parseError, 'Data:', event.data?.substring(0, 200))
-          }
-        },
-
-        /**
-         * 发生错误时的回调
-         */
-        onerror(error) {
-          console.error('[Agent API] SSE error:', error)
-          if (error instanceof Error) {
-            onError(error)
-          } else {
-            onError(new Error('SSE connection error'))
-          }
-          throw error
-        },
-
-        /**
-         * 关闭连接时的回调
-         */
-        onclose() {
-          console.log('[Agent API] SSE connection closed')
-        }
-      })
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('[Agent API] Request aborted')
-        return
-      }
-      onError(error)
-    }
   }
 }

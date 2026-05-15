@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">⚡ 熔断限流配置</h1>
+      <h1 class="page-title">熔断限流配置</h1>
       <p class="page-description">配置系统的熔断和限流规则，保障系统稳定性和高可用性</p>
     </div>
 

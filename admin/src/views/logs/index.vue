@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">📋 调用日志</h1>
+      <h1 class="page-title">调用日志</h1>
       <p class="page-description">记录所有AI模型调用、技能执行、智能体对话的历史记录</p>
     </div>
 
@@ -12,19 +12,19 @@
 
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
       <div class="card">
-        <el-tab-pane label="🤖 AI调用日志" name="ai">
+        <el-tab-pane label="模型调用日志" name="ai">
           <AiLogTab />
         </el-tab-pane>
 
-        <el-tab-pane label="🧠 Agent调用日志" name="agent">
+        <el-tab-pane label="Agent调用日志" name="agent">
           <AgentLogTab />
         </el-tab-pane>
 
-        <el-tab-pane label="⚡ Skill调用日志" name="skill">
+        <el-tab-pane label="Skill调用日志" name="skill">
           <SkillLogTab />
         </el-tab-pane>
 
-        <el-tab-pane label="📚 知识库检索日志" name="retrieval">
+        <el-tab-pane label="知识库检索日志" name="retrieval">
           <RetrievalLogTab />
         </el-tab-pane>
       </div>

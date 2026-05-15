@@ -1,21 +1,26 @@
 <template>
-  <div class="conversation-list">
-    <el-card class="list-card" shadow="never">
-      <template #header>
-        <div class="card-header">
-          <h2 class="title">会话管理</h2>
-          <el-button type="primary" @click="handleCreate">
-            <el-icon><Plus /></el-icon>
-            新建会话
-          </el-button>
-        </div>
-      </template>
+  <div class="page-container">
+    <div class="page-header">
+      <h1 class="page-title">会话管理</h1>
+      <p class="page-description">管理所有AI对话会话，包括智能体对话、模型对话和知识库对话</p>
+    </div>
 
-      <div class="filters">
+    <div class="help-tip">
+      <div class="help-tip-title">💡 会话管理说明</div>
+      <p>会话是用户与AI进行对话的上下文容器，每个会话包含多轮对话消息。支持按类型、状态筛选，以及创建、编辑、删除等操作。</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span>会话列表</span>
+      </div>
+
+      <div class="filter-section">
         <el-select
           v-model="filters.conversationType"
           placeholder="会话类型"
           clearable
+          style="width: 150px"
           @change="handleFilterChange"
         >
           <el-option
@@ -30,6 +35,7 @@
           v-model="filters.status"
           placeholder="会话状态"
           clearable
+          style="width: 120px"
           @change="handleFilterChange"
         >
           <el-option
@@ -44,24 +50,29 @@
           v-model="searchKeyword"
           placeholder="搜索会话标题"
           clearable
-          @input="handleSearch"
+          style="width: 240px"
+          @clear="handleSearch"
+          @keyup.enter="handleSearch"
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
+
+        <el-button type="primary" @click="handleSearch">查询</el-button>
+        <el-button @click="handleReset">重置</el-button>
       </div>
 
       <el-table
         :data="conversations"
-        v-loading="loading"
         stripe
+        v-loading="loading"
         @row-click="handleRowClick"
-        class="conversation-table"
+        style="cursor: pointer"
       >
         <el-table-column prop="title" label="标题" min-width="200">
           <template #default="{ row }">
-            <div class="title-cell">
+            <div style="display: flex; align-items: center; gap: 8px">
               <span>{{ row.title || '未命名会话' }}</span>
               <el-tag v-if="!row.title" type="info" size="small">未命名</el-tag>
             </div>
@@ -70,7 +81,7 @@
 
         <el-table-column prop="conversationType" label="类型" width="120">
           <template #default="{ row }">
-            <el-tag :type="getTypeTagType(row.conversationType)">
+            <el-tag :type="getTypeTagType(row.conversationType)" size="small">
               {{ getTypeLabel(row.conversationType) }}
             </el-tag>
           </template>
@@ -82,7 +93,7 @@
 
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="getStatusTagType(row.status)">
+            <el-tag :type="getStatusTagType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
@@ -105,6 +116,7 @@
             <el-button
               type="primary"
               link
+              size="small"
               @click.stop="handleViewDetail(row)"
             >
               查看详情
@@ -112,6 +124,7 @@
             <el-button
               type="primary"
               link
+              size="small"
               @click.stop="handleEdit(row)"
             >
               编辑
@@ -119,6 +132,7 @@
             <el-button
               type="danger"
               link
+              size="small"
               @click.stop="handleDelete(row)"
             >
               删除
@@ -127,7 +141,7 @@
         </el-table-column>
       </el-table>
 
-      <div class="pagination">
+      <div class="pagination-section">
         <el-pagination
           v-model:current-page="pagination.page"
           v-model:page-size="pagination.pageSize"
@@ -138,7 +152,7 @@
           @current-change="handlePageChange"
         />
       </div>
-    </el-card>
+    </div>
 
     <ConversationEditDialog
       v-model="editDialogVisible"
@@ -195,6 +209,9 @@ const conversations = computed(() => conversationStore.conversations || [])
 const total = computed(() => conversationStore.total || 0)
 const loading = computed(() => conversationStore.loading || false)
 
+/**
+ * 获取会话列表
+ */
 const fetchConversations = async () => {
   try {
     await conversationStore.fetchConversations({
@@ -206,43 +223,84 @@ const fetchConversations = async () => {
   }
 }
 
+/**
+ * 筛选条件变更
+ */
 const handleFilterChange = () => {
   pagination.value.page = 1
   fetchConversations()
 }
 
+/**
+ * 搜索
+ */
 const handleSearch = () => {
   pagination.value.page = 1
   fetchConversations()
 }
 
+/**
+ * 重置筛选条件
+ */
+const handleReset = () => {
+  filters.value = {}
+  searchKeyword.value = ''
+  pagination.value.page = 1
+  fetchConversations()
+}
+
+/**
+ * 页码变更
+ */
 const handlePageChange = () => {
   fetchConversations()
 }
 
+/**
+ * 每页条数变更
+ */
 const handlePageSizeChange = () => {
   pagination.value.page = 1
   fetchConversations()
 }
 
+/**
+ * 新建会话
+ */
 const handleCreate = () => {
   editingConversation.value = null
   editDialogVisible.value = true
 }
 
+/**
+ * 查看会话详情
+ * @param row 会话数据
+ */
 const handleViewDetail = (row: ConversationInterface) => {
   router.push(`/conversations/detail/${row.id}`)
 }
 
+/**
+ * 行点击
+ * @param row 会话数据
+ */
 const handleRowClick = (row: ConversationInterface) => {
   handleViewDetail(row)
 }
 
+/**
+ * 编辑会话
+ * @param row 会话数据
+ */
 const handleEdit = (row: ConversationInterface) => {
   editingConversation.value = row
   editDialogVisible.value = true
 }
 
+/**
+ * 删除会话
+ * @param row 会话数据
+ */
 const handleDelete = async (row: ConversationInterface) => {
   try {
     await ElMessageBox.confirm(
@@ -265,10 +323,18 @@ const handleDelete = async (row: ConversationInterface) => {
   }
 }
 
+/**
+ * 编辑成功回调
+ */
 const handleEditSuccess = () => {
   fetchConversations()
 }
 
+/**
+ * 获取会话类型标签
+ * @param type 会话类型
+ * @returns 类型标签文本
+ */
 const getTypeLabel = (type: ConversationType) => {
   const labels: Record<string, string> = {
     [ConversationType.AGENT]: '智能体',
@@ -278,6 +344,11 @@ const getTypeLabel = (type: ConversationType) => {
   return labels[type] || type
 }
 
+/**
+ * 获取会话类型标签样式
+ * @param type 会话类型
+ * @returns 标签类型
+ */
 const getTypeTagType = (type: ConversationType) => {
   const types: Record<string, string> = {
     [ConversationType.AGENT]: 'primary',
@@ -287,6 +358,11 @@ const getTypeTagType = (type: ConversationType) => {
   return types[type] || 'info'
 }
 
+/**
+ * 获取会话状态标签
+ * @param status 会话状态
+ * @returns 状态标签文本
+ */
 const getStatusLabel = (status: ConversationStatus) => {
   const labels: Record<string, string> = {
     [ConversationStatus.ACTIVE]: '活跃',
@@ -296,6 +372,11 @@ const getStatusLabel = (status: ConversationStatus) => {
   return labels[status] || status
 }
 
+/**
+ * 获取会话状态标签样式
+ * @param status 会话状态
+ * @returns 标签类型
+ */
 const getStatusTagType = (status: ConversationStatus) => {
   const types: Record<string, string> = {
     [ConversationStatus.ACTIVE]: 'success',
@@ -310,50 +391,18 @@ onMounted(() => {
 })
 </script>
 
-<style scoped lang="scss">
-.conversation-list {
-  
-  .list-card {
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+<style lang="scss" scoped>
+.filter-section {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
 
-      .title {
-        margin: 0;
-        font-size: 20px;
-        font-weight: 600;
-        color: #164e63;
-      }
-    }
-
-    .filters {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 20px;
-
-      .el-select {
-        width: 150px;
-      }
-
-      .el-input {
-        width: 300px;
-      }
-    }
-
-    .conversation-table {
-      .title-cell {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-    }
-
-    .pagination {
-      display: flex;
-      justify-content: flex-end;
-      margin-top: 20px;
-    }
-  }
+.pagination-section {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

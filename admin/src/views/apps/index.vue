@@ -5,46 +5,42 @@
       <p class="page-description">管理多租户应用，配置资源权限和配额限制</p>
     </div>
 
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="关键词">
-          <el-input
-            v-model="searchForm.keyword"
-            placeholder="搜索应用名称/标识"
-            clearable
-            style="width: 220px"
-            @keyup.enter="handleSearch"
-          />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="searchForm.status" placeholder="请选择状态" style="width: 100px">
-            <el-option label="启用" value="true" />
-            <el-option label="禁用" value="false" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon>
-            搜索
-          </el-button>
-          <el-button @click="handleReset">
-            <el-icon><Refresh /></el-icon>
-            重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+    <div class="help-tip">
+      <div class="help-tip-title">💡 应用管理说明</div>
+      <p>应用是AI中台的租户单元，每个应用拥有独立的API Key、配额限制和OAuth配置。支持创建、编辑、删除以及密钥重置等操作。</p>
+    </div>
 
-    <el-card class="table-card">
-      <template #header>
-        <div class="card-header">
-          <span>应用列表</span>
-          <el-button type="primary" @click="handleCreate">
-            <el-icon><Plus /></el-icon>
-            新建应用
-          </el-button>
-        </div>
-      </template>
+    <div class="card">
+      <div class="card-title">
+        <span>应用列表</span>
+        <el-button type="primary" @click="handleCreate">
+          <el-icon><Plus /></el-icon>
+          新建应用
+        </el-button>
+      </div>
+
+      <div class="filter-section">
+        <el-input
+          v-model="searchForm.keyword"
+          placeholder="搜索应用名称/标识"
+          clearable
+          style="width: 220px"
+          @clear="handleSearch"
+          @keyup.enter="handleSearch"
+        />
+        <el-select
+          v-model="searchForm.status"
+          placeholder="状态"
+          clearable
+          style="width: 100px"
+          @change="handleSearch"
+        >
+          <el-option label="启用" value="true" />
+          <el-option label="禁用" value="false" />
+        </el-select>
+        <el-button type="primary" @click="handleSearch">查询</el-button>
+        <el-button @click="handleReset">重置</el-button>
+      </div>
 
       <el-table
         v-loading="loading"
@@ -61,6 +57,7 @@
               <el-button
                 link
                 type="primary"
+                size="small"
                 @click="copyToClipboard(row.apiKey)"
               >
                 <el-icon><CopyDocument /></el-icon>
@@ -95,25 +92,25 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="230" fixed="right" align="right">
+        <el-table-column label="操作" width="230" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleView(row)">
+            <el-button link type="primary" size="small" @click="handleView(row)">
               详情
             </el-button>
-            <el-button link type="primary" @click="handleEdit(row)">
+            <el-button link type="primary" size="small" @click="handleEdit(row)">
               编辑
             </el-button>
-            <el-button link type="warning" @click="handleResetSecret(row)">
+            <el-button link type="warning" size="small" @click="handleResetSecret(row)">
               重置密钥
             </el-button>
-            <el-button link type="danger" @click="handleDelete(row)">
+            <el-button link type="danger" size="small" @click="handleDelete(row)">
               删除
             </el-button>
           </template>
         </el-table-column>
       </el-table>
 
-      <div class="pagination-container">
+      <div class="pagination-section">
         <el-pagination
           v-model:current-page="pagination.page"
           v-model:page-size="pagination.pageSize"
@@ -124,7 +121,7 @@
           @current-change="handlePageChange"
         />
       </div>
-    </el-card>
+    </div>
 
     <AppEditDrawer
       v-model="editDrawerVisible"
@@ -140,8 +137,6 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Search,
-  Refresh,
   Plus,
   CopyDocument,
 } from '@element-plus/icons-vue'
@@ -166,6 +161,9 @@ const pagination = reactive({
   total: 0,
 })
 
+/**
+ * 获取应用列表
+ */
 const fetchApps = async () => {
   loading.value = true
   try {
@@ -192,11 +190,17 @@ const fetchApps = async () => {
   }
 }
 
+/**
+ * 搜索
+ */
 const handleSearch = () => {
   pagination.page = 1
   fetchApps()
 }
 
+/**
+ * 重置筛选条件
+ */
 const handleReset = () => {
   searchForm.keyword = ''
   searchForm.status = ''
@@ -204,32 +208,55 @@ const handleReset = () => {
   fetchApps()
 }
 
+/**
+ * 每页条数变更
+ * @param size 每页条数
+ */
 const handleSizeChange = (size: number) => {
   pagination.pageSize = size
   fetchApps()
 }
 
+/**
+ * 页码变更
+ * @param page 页码
+ */
 const handlePageChange = (page: number) => {
   pagination.page = page
   fetchApps()
 }
 
+/**
+ * 新建应用
+ */
 const handleCreate = () => {
   currentApp.value = null
   editMode.value = 'create'
   editDrawerVisible.value = true
 }
 
+/**
+ * 编辑应用
+ * @param app 应用数据
+ */
 const handleEdit = (app: App) => {
   currentApp.value = app
   editMode.value = 'edit'
   editDrawerVisible.value = true
 }
 
+/**
+ * 查看应用详情
+ * @param app 应用数据
+ */
 const handleView = (app: App) => {
   router.push(`/apps/detail/${app.id}`)
 }
 
+/**
+ * 重置密钥
+ * @param app 应用数据
+ */
 const handleResetSecret = async (app: App) => {
   try {
     await ElMessageBox.confirm(
@@ -261,6 +288,10 @@ const handleResetSecret = async (app: App) => {
   }
 }
 
+/**
+ * 删除应用
+ * @param app 应用数据
+ */
 const handleDelete = async (app: App) => {
   try {
     await ElMessageBox.confirm(
@@ -284,15 +315,27 @@ const handleDelete = async (app: App) => {
   }
 }
 
+/**
+ * 编辑成功回调
+ */
 const handleEditSuccess = () => {
   fetchApps()
 }
 
+/**
+ * 复制到剪贴板
+ * @param text 要复制的文本
+ */
 const copyToClipboard = (text: string) => {
   navigator.clipboard.writeText(text)
   ElMessage.success('已复制到剪贴板')
 }
 
+/**
+ * 格式化日期
+ * @param dateStr 日期字符串
+ * @returns 格式化后的日期
+ */
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
@@ -303,26 +346,18 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-
-
-.search-card {
-  margin-bottom: 20px;
-}
-
-.search-form {
+.filter-section {
   display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
-  gap: 10px;
-}
-
-.table-card {
-  margin-bottom: 20px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
+}
+
+.pagination-section {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .key-cell {
@@ -341,11 +376,5 @@ onMounted(() => {
   flex-direction: column;
   font-size: 12px;
   color: #606266;
-}
-
-.pagination-container {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
 }
 </style>

@@ -117,12 +117,6 @@ const routes: RouteRecordRaw[] = [
         ]
       },
       {
-        path: 'chat',
-        name: 'Chat',
-        component: () => import('@/views/chat/index.vue'),
-        meta: { title: '对话测试', icon: 'ChatDotRound' }
-      },
-      {
         path: 'logs',
         name: 'Logs',
         component: () => import('@/views/logs/index.vue'),

@@ -1,76 +1,87 @@
 <template>
-  <div class="conversation-detail">
-    <el-card class="detail-card" shadow="never" v-loading="loading">
-      <template #header>
-        <div class="card-header">
-          <div class="header-left">
-            <el-button @click="handleBack">
-              <el-icon><ArrowLeft /></el-icon>
-              返回
-            </el-button>
-            <h2 class="title">{{ conversation?.title || '未命名会话' }}</h2>
-          </div>
-          <div class="header-right">
-            <el-button @click="handleEdit">
-              <el-icon><Edit /></el-icon>
-              编辑
-            </el-button>
-            <el-button type="danger" @click="handleDelete">
-              <el-icon><Delete /></el-icon>
-              删除
-            </el-button>
-          </div>
+  <div class="conversation-detail-page" v-loading="loading">
+    <div class="page-header">
+      <div class="header-left">
+        <el-button @click="handleBack" text class="back-btn">
+          <el-icon><ArrowLeft /></el-icon>
+          返回列表
+        </el-button>
+        <div class="title-group">
+          <h1 class="page-title">{{ conversation?.title || '未命名会话' }}</h1>
+          <el-tag
+            v-if="conversation"
+            :type="getStatusTagType(conversation.status)"
+            size="small"
+            class="status-tag"
+            effect="dark"
+            round
+          >
+            {{ getStatusLabel(conversation.status) }}
+          </el-tag>
         </div>
-      </template>
+      </div>
+      <div class="header-actions">
+        <el-button type="primary" @click="handleEdit">
+          <el-icon><Edit /></el-icon>
+          编辑
+        </el-button>
+        <el-button type="danger" @click="handleDelete">
+          <el-icon><Delete /></el-icon>
+          删除
+        </el-button>
+      </div>
+    </div>
 
-      <div class="conversation-info">
+    <template v-if="conversation">
+      <el-card class="detail-card" shadow="never">
+        <template #header>
+          <div class="card-header">
+            <span class="card-header__title">基本信息</span>
+          </div>
+        </template>
+
         <el-descriptions :column="3" border>
           <el-descriptions-item label="会话ID">
-            {{ conversation?.id }}
+            {{ conversation.id }}
           </el-descriptions-item>
           <el-descriptions-item label="会话类型">
-            <el-tag :type="getTypeTagType(conversation?.conversationType)">
-              {{ getTypeLabel(conversation?.conversationType) }}
+            <el-tag :type="getTypeTagType(conversation.conversationType)" size="small">
+              {{ getTypeLabel(conversation.conversationType) }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="目标ID">
-            {{ conversation?.targetId }}
-          </el-descriptions-item>
-          <el-descriptions-item label="会话状态">
-            <el-tag :type="getStatusTagType(conversation?.status)">
-              {{ getStatusLabel(conversation?.status) }}
-            </el-tag>
+            {{ conversation.targetId }}
           </el-descriptions-item>
           <el-descriptions-item label="消息数量">
-            {{ conversation?.messageCount || 0 }}
+            {{ conversation.messageCount || 0 }}
           </el-descriptions-item>
           <el-descriptions-item label="用户ID">
-            {{ conversation?.uid || '-' }}
+            {{ conversation.uid || '-' }}
           </el-descriptions-item>
           <el-descriptions-item label="创建时间">
-            {{ formatDate(conversation?.createdAt) }}
+            {{ formatDate(conversation.createdAt) }}
           </el-descriptions-item>
           <el-descriptions-item label="更新时间">
-            {{ formatDate(conversation?.updatedAt) }}
+            {{ formatDate(conversation.updatedAt) }}
           </el-descriptions-item>
           <el-descriptions-item label="最后消息时间">
-            {{ formatDate(conversation?.lastMessageAt) }}
+            {{ formatDate(conversation.lastMessageAt) }}
           </el-descriptions-item>
         </el-descriptions>
-      </div>
+      </el-card>
 
-      <el-divider />
+      <el-card class="detail-card" shadow="never">
+        <template #header>
+          <div class="card-header">
+            <span class="card-header__title">对话记录</span>
+            <el-button @click="handleGenerateTitle" :loading="generatingTitle" size="small">
+              <el-icon><MagicStick /></el-icon>
+              生成标题
+            </el-button>
+          </div>
+        </template>
 
-      <div class="messages-section">
-        <div class="section-header">
-          <h3>对话记录</h3>
-          <el-button @click="handleGenerateTitle" :loading="generatingTitle">
-            <el-icon><MagicStick /></el-icon>
-            生成标题
-          </el-button>
-        </div>
-
-        <div class="messages-list" v-if="messages && messages.length > 0">
+        <div v-if="messages && messages.length > 0" class="messages-list">
           <div
             v-for="message in messages"
             :key="message.id"
@@ -93,8 +104,8 @@
         </div>
 
         <el-empty v-else description="暂无对话记录" />
-      </div>
-    </el-card>
+      </el-card>
+    </template>
 
     <ConversationEditDialog
       v-model="editDialogVisible"
@@ -128,6 +139,9 @@ const conversation = computed(() => conversationStore.currentConversation)
 const messages = computed(() => conversationStore.messages)
 const loading = computed(() => conversationStore.loading)
 
+/**
+ * 获取会话详情
+ */
 const fetchConversationDetail = async () => {
   const id = route.params.id as string
   if (!id) {
@@ -144,14 +158,23 @@ const fetchConversationDetail = async () => {
   }
 }
 
+/**
+ * 返回列表页
+ */
 const handleBack = () => {
   router.push('/conversations')
 }
 
+/**
+ * 编辑会话
+ */
 const handleEdit = () => {
   editDialogVisible.value = true
 }
 
+/**
+ * 删除会话
+ */
 const handleDelete = async () => {
   if (!conversation.value) return
 
@@ -176,6 +199,9 @@ const handleDelete = async () => {
   }
 }
 
+/**
+ * 生成标题
+ */
 const handleGenerateTitle = async () => {
   if (!conversation.value) return
 
@@ -190,10 +216,18 @@ const handleGenerateTitle = async () => {
   }
 }
 
+/**
+ * 编辑成功回调
+ */
 const handleEditSuccess = () => {
   fetchConversationDetail()
 }
 
+/**
+ * 获取会话类型标签
+ * @param type 会话类型
+ * @returns 类型标签文本
+ */
 const getTypeLabel = (type?: ConversationType) => {
   if (!type) return '-'
   const labels: Record<string, string> = {
@@ -204,6 +238,11 @@ const getTypeLabel = (type?: ConversationType) => {
   return labels[type] || type
 }
 
+/**
+ * 获取会话类型标签样式
+ * @param type 会话类型
+ * @returns 标签类型
+ */
 const getTypeTagType = (type?: ConversationType) => {
   if (!type) return 'info'
   const types: Record<string, string> = {
@@ -214,6 +253,11 @@ const getTypeTagType = (type?: ConversationType) => {
   return types[type] || 'info'
 }
 
+/**
+ * 获取会话状态标签
+ * @param status 会话状态
+ * @returns 状态标签文本
+ */
 const getStatusLabel = (status?: ConversationStatus) => {
   if (!status) return '-'
   const labels: Record<string, string> = {
@@ -224,6 +268,11 @@ const getStatusLabel = (status?: ConversationStatus) => {
   return labels[status] || status
 }
 
+/**
+ * 获取会话状态标签样式
+ * @param status 会话状态
+ * @returns 标签类型
+ */
 const getStatusTagType = (status?: ConversationStatus) => {
   if (!status) return 'info'
   const types: Record<string, string> = {
@@ -234,6 +283,11 @@ const getStatusTagType = (status?: ConversationStatus) => {
   return types[status] || 'info'
 }
 
+/**
+ * 获取消息角色标签
+ * @param role 角色
+ * @returns 角色标签文本
+ */
 const getRoleLabel = (role: string) => {
   const labels: Record<string, string> = {
     user: '用户',
@@ -244,6 +298,11 @@ const getRoleLabel = (role: string) => {
   return labels[role] || role
 }
 
+/**
+ * 获取消息角色标签样式
+ * @param role 角色
+ * @returns 标签类型
+ */
 const getRoleTagType = (role: string) => {
   const types: Record<string, string> = {
     user: 'primary',
@@ -260,103 +319,144 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.conversation-detail {
+.conversation-detail-page {
+  min-height: 100vh;
+}
 
-  .detail-card {
-    .card-header {
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.back-btn {
+  font-weight: 500;
+}
+
+.title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  color: #1e1b4b;
+}
+
+.status-tag {
+  font-size: 12px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.detail-card {
+  margin-bottom: 20px;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.detail-card :deep(.el-card__header) {
+  padding: 16px 24px;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fafafa;
+  border-radius: 12px 12px 0 0;
+}
+
+.detail-card :deep(.el-card__body) {
+  padding: 24px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-header__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e1b4b;
+}
+
+.detail-card :deep(.el-descriptions__label) {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.detail-card :deep(.el-descriptions__content) {
+  color: #1e1b4b;
+}
+
+.messages-list {
+  .message-item {
+    padding: 16px;
+    margin-bottom: 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border-left: 4px solid #0891b2;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    &.message-user {
+      border-left-color: #0891b2;
+    }
+
+    &.message-assistant {
+      border-left-color: #22c55e;
+    }
+
+    &.message-system {
+      border-left-color: #64748b;
+    }
+
+    &.message-tool {
+      border-left-color: #f59e0b;
+    }
+
+    .message-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      margin-bottom: 12px;
 
-      .header-left {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-
-        .title {
-          margin: 0;
-          font-size: 20px;
-          font-weight: 600;
-          color: #164e63;
-        }
-      }
-
-      .header-right {
-        display: flex;
-        gap: 12px;
+      .message-time {
+        font-size: 12px;
+        color: #64748b;
       }
     }
 
-    .conversation-info {
-      margin-bottom: 20px;
-    }
-
-    .messages-section {
-      .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-
-        h3 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 600;
-          color: #164e63;
-        }
+    .message-content {
+      .content-text {
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.6;
+        color: #1e1b4b;
       }
 
-      .messages-list {
-        .message-item {
-          padding: 16px;
-          margin-bottom: 16px;
-          background: #f8fafc;
-          border-radius: 8px;
-          border-left: 4px solid #0891b2;
-
-          &.message-user {
-            border-left-color: #0891b2;
-          }
-
-          &.message-assistant {
-            border-left-color: #22c55e;
-          }
-
-          &.message-system {
-            border-left-color: #64748b;
-          }
-
-          &.message-tool {
-            border-left-color: #f59e0b;
-          }
-
-          .message-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-
-            .message-time {
-              font-size: 12px;
-              color: #64748b;
-            }
-          }
-
-          .message-content {
-            .content-text {
-              white-space: pre-wrap;
-              word-break: break-word;
-              line-height: 1.6;
-              color: #164e63;
-            }
-
-            .message-meta {
-              margin-top: 8px;
-              font-size: 12px;
-              color: #64748b;
-            }
-          }
-        }
+      .message-meta {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #64748b;
       }
     }
   }
