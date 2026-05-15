@@ -4,6 +4,7 @@ import { McpServerService } from '../../mcp-server/mcp-server.service';
 import { KbSearchTool } from './kb-search.tool';
 import { BuiltinExecutor } from '../../skill/executors/builtin.executor';
 import { BUILTIN_TOOL_DEFINITIONS } from './tool-definitions';
+import { WORKSPACE_TOOL_NAMES } from '../../workspace/workspace-tool.definitions';
 
 /**
  * 工具调用信息
@@ -174,6 +175,10 @@ export class ToolExecutor {
 
     if (name === 'kb_search') {
       return await this.executeKbSearch(args, context);
+    }
+
+    if (WORKSPACE_TOOL_NAMES.has(name)) {
+      throw new Error(`工作目录工具 "${name}" 需要在客户端执行，不应在服务端直接调用。请通过 SSE 流式调用。`);
     }
 
     if (BUILTIN_TOOL_DEFINITIONS[name]) {

@@ -5,10 +5,22 @@ import {
   IsOptional,
   IsNumber,
   IsBoolean,
+  IsArray,
+  IsObject,
   Min,
   Max,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+
+/**
+ * 工作目录智能体配置
+ */
+export interface WorkspaceAgentConfig {
+  enabled: boolean;
+  allowedOperations?: string[];
+  maxFileSize?: number;
+  deniedExtensions?: string[];
+}
 
 /**
  * 创建智能体DTO
@@ -96,6 +108,13 @@ export class CreateAgentDto {
   @IsBoolean()
   @IsOptional()
   isPublic?: boolean;
+
+  // ===== 工作目录配置 =====
+
+  @ApiPropertyOptional({ description: '工作目录配置(JSON对象)' })
+  @IsObject()
+  @IsOptional()
+  workspaceConfig?: WorkspaceAgentConfig;
 }
 
 /**
@@ -179,6 +198,13 @@ export class UpdateAgentDto {
   @IsBoolean()
   @IsOptional()
   isPublic?: boolean;
+
+  // ===== 工作目录配置 =====
+
+  @ApiPropertyOptional({ description: '工作目录配置(JSON对象)' })
+  @IsObject()
+  @IsOptional()
+  workspaceConfig?: WorkspaceAgentConfig;
 }
 
 /**
@@ -219,6 +245,14 @@ export class AgentChatDto {
   @IsString()
   @IsOptional()
   modelCode?: string;
+
+  @ApiPropertyOptional({ description: '工作目录上下文' })
+  @IsObject()
+  @IsOptional()
+  workspace?: {
+    dirName: string;
+    treeSummary: string;
+  };
 }
 
 /**

@@ -20,6 +20,17 @@
         </div>
       </div>
 
+      <!-- 工作目录指示器 -->
+      <div class="workspace-bar">
+        <WorkspaceIndicator
+          :is-active="workspaceIsActive"
+          :dir-name="workspaceDirName"
+          @select="handleWorkspaceSelect"
+          @change="handleWorkspaceSelect"
+          @clear="handleWorkspaceClear"
+        />
+      </div>
+
       <!-- 智能体横向滚动选择器 -->
       <div v-if="currentMode === 'chat'" class="agent-scroll-selector">
         <div class="agent-scroll-container">
@@ -74,6 +85,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { Promotion, Check, Cpu, User } from '@element-plus/icons-vue'
+import WorkspaceIndicator from '@/components/WorkspaceIndicator.vue'
 
 interface Agent {
   id: string
@@ -86,11 +98,15 @@ interface Props {
   isLoading: boolean
   mode?: 'chat' | 'rag' | 'retrieval'
   agents?: Agent[]
+  workspaceIsActive?: boolean
+  workspaceDirName?: string | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
   mode: 'chat',
   agents: () => [],
+  workspaceIsActive: false,
+  workspaceDirName: null,
 })
 
 const emit = defineEmits<{
@@ -98,7 +114,17 @@ const emit = defineEmits<{
   'update:mode': [value: 'chat' | 'rag' | 'retrieval']
   'mode-change': [value: 'chat' | 'rag' | 'retrieval']
   'agent-change': [agentId: string]
+  'workspace-select': []
+  'workspace-clear': []
 }>()
+
+const handleWorkspaceSelect = () => {
+  emit('workspace-select')
+}
+
+const handleWorkspaceClear = () => {
+  emit('workspace-clear')
+}
 
 const inputText = ref('')
 const currentMode = ref<'chat' | 'rag' | 'retrieval'>(props.mode)

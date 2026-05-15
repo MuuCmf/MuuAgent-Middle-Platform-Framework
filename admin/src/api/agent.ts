@@ -3,6 +3,13 @@ import type { AxiosResponse } from 'axios'
 import { appConfig } from '@/config'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 
+export interface WorkspaceAgentConfig {
+  enabled: boolean
+  allowedOperations?: string[]
+  maxFileSize?: number
+  deniedExtensions?: string[]
+}
+
 export interface Agent {
   id: number
   name: string
@@ -19,6 +26,7 @@ export interface Agent {
   reasoningPrompt?: string
   kbRetrievalMode?: string
   kbRetrievalMethod?: string
+  workspaceConfig?: WorkspaceAgentConfig | string
   appCode?: string
   isPublic?: boolean
   createdAt: string
@@ -40,6 +48,7 @@ export interface AgentForm {
   reasoningPrompt?: string
   kbRetrievalMode?: string
   kbRetrievalMethod?: string
+  workspaceConfig: WorkspaceAgentConfig
   appCode?: string
   isPublic?: boolean
 }

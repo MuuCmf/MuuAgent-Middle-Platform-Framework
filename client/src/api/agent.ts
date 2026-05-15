@@ -2,6 +2,7 @@ import { httpClient } from './request'
 import { API_ENDPOINTS } from './config'
 import { streamRequest } from './stream'
 import type { ReasoningStep } from './reasoning'
+import type { WorkspaceToolCallPayload } from './workspace'
 
 /**
  * 智能体接口
@@ -51,12 +52,17 @@ export const agentApi = {
       conversationId?: string | null
       modelCode?: string
       showReasoning?: boolean
+      workspace?: {
+        dirName: string
+        treeSummary: string
+      }
     },
     onMessage: (content: string) => void,
     onError: (error: Error) => void,
     onComplete: () => void,
     onConversationId?: (conversationId: string) => void,
-    onReasoningStep?: (step: ReasoningStep) => void
+    onReasoningStep?: (step: ReasoningStep) => void,
+    onWorkspaceToolCall?: (payload: WorkspaceToolCallPayload) => void,
   ): Promise<void> {
     const baseURL = import.meta.env.VITE_API_BASE_URL || ''
     const url = `${baseURL}${API_ENDPOINTS.agents}/chat/stream`
@@ -70,6 +76,7 @@ export const agentApi = {
         onComplete,
         onConversationId,
         onReasoningStep,
+        onWorkspaceToolCall,
       },
     })
   },

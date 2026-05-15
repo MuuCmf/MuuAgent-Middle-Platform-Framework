@@ -157,9 +157,13 @@
         :is-loading="chatStore.isLoading"
         :mode="chatMode"
         :agents="enabledAgents"
+        :workspace-is-active="chatStore.workspaceIsActive"
+        :workspace-dir-name="chatStore.workspaceDirName"
         @send="handleSendMessage"
         @mode-change="handleModeChangeFromInput"
         @agent-change="handleAgentChange"
+        @workspace-select="handleWorkspaceSelect"
+        @workspace-clear="handleWorkspaceClear"
       />
     </div>
   </div>
@@ -489,6 +493,21 @@ const handleDebugModeChange = (value: boolean) => {
 
 const handleThinkingModeChange = (value: boolean) => {
   ElMessage.success(value ? '已开启思考模式，模型将输出思考过程' : '已关闭思考模式')
+}
+
+const handleWorkspaceSelect = async () => {
+  try {
+    await chatStore.workspaceSelectDirectory()
+    ElMessage.success(`已选择工作目录: ${chatStore.workspaceDirName}`)
+  } catch (e: any) {
+    if (e.name === 'AbortError') return
+    ElMessage.error('选择工作目录失败: ' + (e.message || '未知错误'))
+  }
+}
+
+const handleWorkspaceClear = () => {
+  chatStore.workspaceClear()
+  ElMessage.success('已清除工作目录')
 }
 
 const getModelName = (modelCode: string): string => {

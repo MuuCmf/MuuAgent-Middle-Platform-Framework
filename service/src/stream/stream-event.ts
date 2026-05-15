@@ -17,6 +17,10 @@ export enum StreamEventType {
   DONE = 'done',
   /** 错误事件 */
   ERROR = 'error',
+  /** 工作目录工具调用事件 - 下发给客户端执行 */
+  WORKSPACE_TOOL_CALL = 'workspace_tool_call',
+  /** 工作目录工具结果事件 - 客户端回传 */
+  WORKSPACE_TOOL_RESULT = 'workspace_tool_result',
 }
 
 /**
@@ -40,7 +44,9 @@ export type StreamEventPayload =
   | ReasoningStepPayload
   | SourcesPayload
   | DonePayload
-  | ErrorPayload;
+  | ErrorPayload
+  | WorkspaceToolCallPayload
+  | WorkspaceToolResultPayload;
 
 /** 会话ID载荷 */
 export interface ConversationIdPayload {
@@ -93,6 +99,21 @@ export interface ErrorPayload {
   code?: string;
 }
 
+/** 工作目录工具调用载荷 - 服务端下发给客户端 */
+export interface WorkspaceToolCallPayload {
+  callId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+}
+
+/** 工作目录工具结果载荷 - 客户端回传给服务端 */
+export interface WorkspaceToolResultPayload {
+  callId: string;
+  success: boolean;
+  result?: unknown;
+  error?: string;
+}
+
 /**
  * StreamEvent 工厂函数 - 类型安全的创建事件
  */
@@ -130,5 +151,15 @@ export const StreamEvents = {
   error: (message: string, code?: string): StreamEvent => ({
     type: StreamEventType.ERROR,
     payload: { message, code },
+  }),
+
+  workspaceToolCall: (callId: string, toolName: string, args: Record<string, unknown>): StreamEvent => ({
+    type: StreamEventType.WORKSPACE_TOOL_CALL,
+    payload: { callId, toolName, args },
+  }),
+
+  workspaceToolResult: (callId: string, success: boolean, result?: unknown, error?: string): StreamEvent => ({
+    type: StreamEventType.WORKSPACE_TOOL_RESULT,
+    payload: { callId, success, result, error },
   }),
 };

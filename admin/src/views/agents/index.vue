@@ -78,6 +78,16 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="工作目录" width="90">
+          <template #default="{ row }">
+            <el-tag
+              :type="isWorkspaceEnabled(row) ? 'success' : 'info'"
+              size="small"
+            >
+              {{ isWorkspaceEnabled(row) ? '已启用' : '未启用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status ? 'success' : 'danger'" size="small">
@@ -150,6 +160,17 @@ const getReasoningTagType = (mode: string) => {
     REFLECT: 'danger',
   }
   return types[mode] || 'info'
+}
+
+const isWorkspaceEnabled = (agent: Agent) => {
+  try {
+    const config = typeof agent.workspaceConfig === 'string'
+      ? JSON.parse(agent.workspaceConfig)
+      : agent.workspaceConfig
+    return config?.enabled === true
+  } catch {
+    return false
+  }
 }
 
 const handleAppFilterChange = () => {

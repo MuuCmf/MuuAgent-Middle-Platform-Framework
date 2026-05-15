@@ -18,11 +18,14 @@ import {
   UpdateAgentDto,
   AgentChatDto,
   QueryAgentDto,
+  WorkspaceAgentConfig,
 } from './dto/agent.dto';
 import { AiService } from '../ai/ai.service';
 import { AiSdkToolAdapter } from '../ai/providers/ai-sdk-tool.adapter';
 import type { ModelMessage } from 'ai';
 import { StreamEmitter, StreamEvents } from '../stream';
+import { WorkspaceToolHandler } from '../workspace/workspace-tool.handler';
+import { WORKSPACE_TOOLS, WORKSPACE_TOOL_NAMES } from '../workspace/workspace-tool.definitions';
 
 @Injectable()
 export class AgentService {
@@ -39,6 +42,7 @@ export class AgentService {
     private promptTemplateService: PromptTemplateService,
     private conversationService: ConversationService,
     private mcpService: McpService,
+    private workspaceToolHandler: WorkspaceToolHandler,
   ) {}
 
   async create(dto: CreateAgentDto, context?: IsolationContext) {
@@ -56,6 +60,7 @@ export class AgentService {
       reasoningMode: dto.reasoningMode || 'NONE',
       reasoningPrompt: dto.reasoningPrompt,
       kbRetrievalMode: 'tool',
+      workspaceConfig: dto.workspaceConfig ? JSON.stringify(dto.workspaceConfig) : null,
       appCode: dto.appCode,
       isPublic: dto.isPublic ?? false,
     }, context || { appCode: null, isSuperAdmin: false });
@@ -70,9 +75,14 @@ export class AgentService {
       throw new NotFoundException('智能体不存在或无权限操作');
     }
 
+    const updateData: any = { ...dto };
+    if (dto.workspaceConfig !== undefined) {
+      updateData.workspaceConfig = dto.workspaceConfig ? JSON.stringify(dto.workspaceConfig) : null;
+    }
+
     return this.prisma.agent.update({
       where: { id: id as any },
-      data: dto,
+      data: updateData,
     });
   }
 
@@ -356,6 +366,49 @@ export class AgentService {
       }
     }
 
+    // ===== 工作目录工具注入 =====
+    let workspaceContext = '';
+    if (dto.workspace && agent.workspaceConfig) {
+      const config: WorkspaceAgentConfig = typeof agent.workspaceConfig === 'string'
+        ? JSON.parse(agent.workspaceConfig)
+        : agent.workspaceConfig;
+
+      if (config.enabled) {
+        const allowedTools = WORKSPACE_TOOLS.filter(tool =>
+          !config.allowedOperations ||
+          config.allowedOperations.length === 0 ||
+          config.allowedOperations.includes(tool.function.name)
+        );
+
+        for (const tool of allowedTools) {
+          tools.push({
+            name: tool.function.name,
+            description: tool.function.description,
+            parameters: tool.function.parameters,
+            type: 'workspace' as const,
+          });
+        }
+
+        // 构建带限制说明的 workspace 上下文
+        const limits: string[] = [];
+        if (config.maxFileSize) {
+          limits.push(`- 单文件最大大小: ${formatFileSize(config.maxFileSize)}`);
+        }
+        if (config.deniedExtensions?.length) {
+          limits.push(`- 禁止写入的文件类型: ${config.deniedExtensions.join(', ')}`);
+        }
+
+        workspaceContext = `
+当前用户的工作目录：${dto.workspace.dirName}
+目录结构：
+${dto.workspace.treeSummary}
+
+你可以使用以下工具直接操作工作目录中的文件：
+${allowedTools.map(t => `- ${t.function.name}: ${t.function.description}`).join('\n')}
+${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
+      }
+    }
+
     let templateCode = agent.promptTemplateCode;
     
     if (!templateCode) {
@@ -390,6 +443,11 @@ export class AgentService {
         agent.systemPrompt || '你是一个MuuAI开发的有帮助的AI助手。',
         tools,
       );
+    }
+
+    // 追加工作目录上下文
+    if (workspaceContext) {
+      systemPrompt = systemPrompt + '\n\n' + workspaceContext;
     }
 
     return {
@@ -555,16 +613,40 @@ export class AgentService {
 
             if (toolCall) {
               try {
-                const toolResult = await this.toolExecutor.executeToolCall(
-                  {
-                    id: `tc_${Date.now()}`,
-                    function: {
-                      name: toolCall.name,
-                      arguments: JSON.stringify(toolCall.args),
+                let toolResult: ToolExecutionResult;
+
+                // 工作目录工具：下发给客户端执行
+                if (WORKSPACE_TOOL_NAMES.has(toolCall.name)) {
+                  const workspaceResult = await this.workspaceToolHandler.dispatchToClient(
+                    emitter,
+                    toolCall.name,
+                    toolCall.args,
+                  );
+
+                  if (workspaceResult.success) {
+                    toolResult = {
+                      toolCallId: `tc_${Date.now()}`,
+                      toolName: toolCall.name,
+                      args: toolCall.args,
+                      result: workspaceResult.result,
+                      success: true,
+                      costMs: 0,
+                    };
+                  } else {
+                    throw new Error(workspaceResult.error || '客户端执行失败');
+                  }
+                } else {
+                  toolResult = await this.toolExecutor.executeToolCall(
+                    {
+                      id: `tc_${Date.now()}`,
+                      function: {
+                        name: toolCall.name,
+                        arguments: JSON.stringify(toolCall.args),
+                      },
                     },
-                  },
-                  { agent: context.agent, conversationId: context.conversationId, uid },
-                );
+                    { agent: context.agent, conversationId: context.conversationId, uid },
+                  );
+                }
 
                 emitter.emit(StreamEvents.toolCall(toolCall.name, toolCall.args, toolResult.result));
 
@@ -768,17 +850,38 @@ export class AgentService {
             steps.push(actionStep);
             emitter.emit(StreamEvents.reasoningStep(actionStep));
 
-            // 执行工具
-            const toolResult = await this.toolExecutor.executeToolCall(
-              {
-                id: `tc_${Date.now()}`,
-                function: {
-                  name: toolCall.name,
-                  arguments: JSON.stringify(toolCall.args),
+            // 执行工具（工作目录工具下发给客户端）
+            let toolResult: ToolExecutionResult;
+            if (WORKSPACE_TOOL_NAMES.has(toolCall.name)) {
+              const workspaceResult = await this.workspaceToolHandler.dispatchToClient(
+                emitter,
+                toolCall.name,
+                toolCall.args,
+              );
+              if (workspaceResult.success) {
+                toolResult = {
+                  toolCallId: `tc_${Date.now()}`,
+                  toolName: toolCall.name,
+                  args: toolCall.args,
+                  result: workspaceResult.result,
+                  success: true,
+                  costMs: 0,
+                };
+              } else {
+                throw new Error(workspaceResult.error || '客户端执行失败');
+              }
+            } else {
+              toolResult = await this.toolExecutor.executeToolCall(
+                {
+                  id: `tc_${Date.now()}`,
+                  function: {
+                    name: toolCall.name,
+                    arguments: JSON.stringify(toolCall.args),
+                  },
                 },
-              },
-              { agent: context.agent, conversationId: context.conversationId, uid },
-            );
+                { agent: context.agent, conversationId: context.conversationId, uid },
+              );
+            }
 
             // 发送工具调用事件
             emitter.emit(StreamEvents.toolCall(toolCall.name, toolCall.args, toolResult.result));
@@ -1033,4 +1136,13 @@ export class AgentService {
       };
     }
   }
+}
+
+/**
+ * 格式化文件大小显示
+ */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }

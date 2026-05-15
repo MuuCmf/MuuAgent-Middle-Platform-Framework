@@ -259,6 +259,59 @@ Final Answer: 最终答案</pre>
           <el-switch v-model="form.status" active-text="启用" inactive-text="禁用" />
         </el-form-item>
       </div>
+
+      <div class="form-section">
+        <div class="section-title">工作目录</div>
+        <div class="section-desc">允许智能体在用户选择的工作目录中进行文件操作</div>
+
+        <el-form-item label="启用工作目录">
+          <el-switch
+            v-model="form.workspaceConfig.enabled"
+            active-text="启用"
+            inactive-text="禁用"
+          />
+          <div class="field-tip">启用后，智能体可以在用户授权的工作目录中读写文件</div>
+        </el-form-item>
+
+        <template v-if="form.workspaceConfig.enabled">
+          <el-form-item label="允许的操作">
+            <el-checkbox-group v-model="form.workspaceConfig.allowedOperations">
+              <el-checkbox label="read_file">读取文件</el-checkbox>
+              <el-checkbox label="read_dir">列出目录</el-checkbox>
+              <el-checkbox label="write_file">写入文件</el-checkbox>
+              <el-checkbox label="append_file">追加文件</el-checkbox>
+              <el-checkbox label="create_dir">创建目录</el-checkbox>
+              <el-checkbox label="delete_file">删除文件</el-checkbox>
+            </el-checkbox-group>
+            <div class="field-tip">留空表示允许全部操作</div>
+          </el-form-item>
+
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="文件大小限制(KB)">
+                <el-input-number
+                  v-model="form.workspaceConfig.maxFileSize"
+                  :min="1"
+                  :max="10240"
+                  :step="100"
+                  class="w-full"
+                />
+                <div class="field-tip">默认 1024KB（1MB）</div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="禁止的文件后缀">
+                <el-input
+                  v-model="deniedExtensionsStr"
+                  placeholder=".exe,.bat,.sh"
+                  @change="handleDeniedExtensionsChange"
+                />
+                <div class="field-tip">逗号分隔，默认：.exe,.bat,.sh,.cmd,.js,.vbs</div>
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </template>
+      </div>
     </el-form>
 
     <template #footer>
@@ -294,7 +347,7 @@ import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, InfoFilled, Warning } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import type { Agent, AgentForm } from '@/api/agent'
+import type { Agent, AgentForm, WorkspaceAgentConfig } from '@/api/agent'
 import type { McpServerConfig } from '@/api/mcp-server'
 import type { Skill } from '@/api/skill'
 import type { KbInfo } from '@/api/kb'
@@ -346,6 +399,12 @@ const form = ref<AgentForm>({
   reasoningMode: 'NONE',
   reasoningPrompt: '',
   kbRetrievalMode: 'tool',
+  workspaceConfig: {
+    enabled: false,
+    allowedOperations: [],
+    maxFileSize: 1024,
+    deniedExtensions: ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs'],
+  },
   appCode: '',
   isPublic: false,
 })
@@ -364,6 +423,17 @@ const selectedKbCodes = ref<string[]>([])
 const availableKbs = ref<KbInfo[]>([])
 
 const promptMode = ref<'template' | 'custom'>('template')
+
+const deniedExtensionsStr = ref('.exe,.bat,.sh,.cmd,.js,.vbs')
+
+const handleDeniedExtensionsChange = () => {
+  if (form.value.workspaceConfig) {
+    form.value.workspaceConfig.deniedExtensions = deniedExtensionsStr.value
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.startsWith('.'))
+  }
+}
 const promptTemplates = ref<PromptTemplate[]>([])
 const selectedTemplateCode = ref<string>('')
 const selectedTemplate = ref<PromptTemplate | null>(null)
@@ -402,7 +472,31 @@ watch(() => props.visible, (newVal) => {
       mcpServers.value = parseJsonSafe(editingAgent.value.mcpServers || '[]')
       selectedSkillCodes.value = parseJsonSafe(editingAgent.value.skills || '[]')
       selectedKbCodes.value = parseJsonSafe(editingAgent.value.knowledgeBases || '[]')
-      
+
+      // 解析 workspaceConfig
+      const rawConfig = editingAgent.value.workspaceConfig
+      const defaultDenied = ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs']
+      if (rawConfig) {
+        const config: WorkspaceAgentConfig = typeof rawConfig === 'string'
+          ? JSON.parse(rawConfig)
+          : rawConfig
+        form.value.workspaceConfig = {
+          enabled: config.enabled ?? false,
+          allowedOperations: config.allowedOperations || [],
+          maxFileSize: config.maxFileSize ?? 1024,
+          deniedExtensions: config.deniedExtensions || defaultDenied,
+        }
+        deniedExtensionsStr.value = (config.deniedExtensions || defaultDenied).join(',')
+      } else {
+        form.value.workspaceConfig = {
+          enabled: false,
+          allowedOperations: [],
+          maxFileSize: 1024,
+          deniedExtensions: defaultDenied,
+        }
+        deniedExtensionsStr.value = defaultDenied.join(',')
+      }
+
       if (editingAgent.value.reasoningPrompt) {
         promptMode.value = 'template'
         selectedTemplateCode.value = editingAgent.value.reasoningPrompt
@@ -442,9 +536,16 @@ const resetForm = () => {
     reasoningMode: 'NONE',
     reasoningPrompt: '',
     kbRetrievalMode: 'tool',
+    workspaceConfig: {
+      enabled: false,
+      allowedOperations: [],
+      maxFileSize: 1024,
+      deniedExtensions: ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs'],
+    },
     appCode: '',
     isPublic: false,
   }
+  deniedExtensionsStr.value = '.exe,.bat,.sh,.cmd,.js,.vbs'
   mcpServers.value = []
   selectedSkillCodes.value = []
   selectedKbCodes.value = []
@@ -617,6 +718,13 @@ const handleClose = () => {
   margin-bottom: 16px;
   padding-left: 8px;
   border-left: 3px solid #409eff;
+}
+
+.section-desc {
+  font-size: 13px;
+  color: #909399;
+  margin-bottom: 16px;
+  padding-left: 8px;
 }
 
 .w-full {

@@ -2,6 +2,10 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { aiApi, agentApi, conversationApi, type Message, type Conversation } from '../api'
 import type { ReasoningStep } from '../api/reasoning'
+import type { WorkspaceToolCallPayload } from '../api/workspace'
+import { submitWorkspaceResult } from '../api/workspace'
+import { useWorkspace } from '../composables/useWorkspace'
+import { WorkspaceExecutor } from '../executor/workspace.executor'
 
 /**
  * 处理思考内容和回答内容的分割
@@ -61,7 +65,10 @@ export const useChatStore = defineStore('chat', () => {
   const models = ref<any[]>([])
   const agents = ref<any[]>([])
   const debugMode = ref(false)
-  const enableThinkingMode = ref(false) // 是否启用思考模式（要求模型输出 [THINKING] 和 [ANSWER] 标记）
+  const enableThinkingMode = ref(false)
+
+  // 工作目录状态
+  const workspace = useWorkspace()
 
   /**
    * 思考模式系统提示词
@@ -204,9 +211,12 @@ export const useChatStore = defineStore('chat', () => {
               conversationId: currentConversationId.value,
               modelCode: currentModelCode.value,
               showReasoning: debugMode.value,
+              workspace: workspace.isActive.value ? {
+                dirName: workspace.dirName.value!,
+                treeSummary: workspace.treeSummary.value!,
+              } : undefined,
             },
             (chunk: string) => {
-              // 使用通用处理函数处理思考内容
               processThinkingContent(messages.value[assistantIndex], chunk)
             },
             (error: Error) => {
@@ -226,6 +236,15 @@ export const useChatStore = defineStore('chat', () => {
               if (debugMode.value && messages.value[assistantIndex].reasoningSteps) {
                 messages.value[assistantIndex].reasoningSteps!.push(step)
               }
+            },
+            (payload: WorkspaceToolCallPayload) => {
+              if (!workspace.dirHandle.value) return
+              const executor = new WorkspaceExecutor(workspace.dirHandle.value)
+              executor.execute(payload).then(result => {
+                if (currentConversationId.value) {
+                  submitWorkspaceResult(currentConversationId.value, result)
+                }
+              })
             }
           )
         })
@@ -357,6 +376,15 @@ export const useChatStore = defineStore('chat', () => {
     agents,
     debugMode,
     enableThinkingMode,
+    // 工作目录
+    workspaceDirName: workspace.dirName,
+    workspaceDirHandle: workspace.dirHandle,
+    workspaceTreeSummary: workspace.treeSummary,
+    workspaceIsActive: workspace.isActive,
+    workspaceSelectDirectory: workspace.selectDirectory,
+    workspaceClear: workspace.clear,
+    workspaceRefreshTreeSummary: workspace.refreshTreeSummary,
+    // 方法
     sendMessage,
     clearMessages,
     newConversation,

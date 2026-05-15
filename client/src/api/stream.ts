@@ -1,5 +1,6 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import type { ReasoningStep } from './reasoning'
+import type { WorkspaceToolCallPayload } from './workspace'
 
 /**
  * SSE 流式响应回调接口
@@ -10,6 +11,7 @@ export interface StreamCallbacks {
   onComplete: () => void
   onConversationId?: (conversationId: string) => void
   onReasoningStep?: (step: ReasoningStep) => void
+  onWorkspaceToolCall?: (payload: WorkspaceToolCallPayload) => void
 }
 
 /**
@@ -62,6 +64,17 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
     console.log('[SSE] Received [CONVERSATION_ID] format:', conversationId)
     if (callbacks.onConversationId && conversationId) {
       callbacks.onConversationId(conversationId)
+    }
+    return
+  }
+
+  if (data.startsWith('[WORKSPACE_TOOL]')) {
+    try {
+      const payload = JSON.parse(data.substring('[WORKSPACE_TOOL]'.length).trim())
+      console.log('[SSE] Received [WORKSPACE_TOOL]:', payload.toolName, payload.callId)
+      callbacks.onWorkspaceToolCall?.(payload)
+    } catch (e) {
+      console.error('[SSE] Failed to parse WORKSPACE_TOOL payload:', e)
     }
     return
   }

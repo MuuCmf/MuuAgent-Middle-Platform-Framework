@@ -154,6 +154,11 @@ export class StreamEmitter {
         return `[ERROR] ${payload.message}`;
       }
 
+      case StreamEventType.WORKSPACE_TOOL_CALL: {
+        const payload = event.payload as { callId: string; toolName: string; args: Record<string, unknown> };
+        return `[WORKSPACE_TOOL] ${JSON.stringify({ callId: payload.callId, toolName: payload.toolName, args: payload.args })}`;
+      }
+
       default:
         // 其他事件类型统一 JSON 序列化
         return JSON.stringify({
