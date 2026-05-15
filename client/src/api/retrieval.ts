@@ -3,6 +3,32 @@ import { httpClient } from './request'
 import { API_CONFIG } from './config'
 
 /**
+ * 安全处理文本，修复 Unicode 字符截断问题
+ * @param text 原始文本
+ * @returns 修复后的文本
+ */
+function safeTextDecode(text: string): string {
+  if (!text) return text;
+  
+  const lastCharCode = text.charCodeAt(text.length - 1);
+  if (lastCharCode >= 0xD800 && lastCharCode <= 0xDBFF) {
+    return text.slice(0, -1);
+  }
+  
+  if (text.length >= 2) {
+    const secondLastCharCode = text.charCodeAt(text.length - 2);
+    const last = text.charCodeAt(text.length - 1);
+    if (!(secondLastCharCode >= 0xD800 && secondLastCharCode <= 0xDBFF &&
+          last >= 0xDC00 && last <= 0xDFFF) &&
+        last >= 0xDC00 && last <= 0xDFFF) {
+      return text.slice(0, -1);
+    }
+  }
+  
+  return text;
+}
+
+/**
  * 检索结果项
  */
 export interface RetrievalItem {
@@ -152,13 +178,13 @@ export const retrievalApi = {
                 onConversationId(parsed.conversationId)
               }
             } else if (parsed.choices && parsed.choices[0]?.delta?.content) {
-              onMessage(parsed.choices[0].delta.content)
+              onMessage(safeTextDecode(parsed.choices[0].delta.content))
             } else if (parsed.message) {
-              onMessage(parsed.message)
+              onMessage(safeTextDecode(parsed.message))
             }
           } catch {
             if (dataLine && dataLine.trim()) {
-              onMessage(dataLine)
+              onMessage(safeTextDecode(dataLine))
             }
           }
         },

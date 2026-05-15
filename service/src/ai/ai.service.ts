@@ -30,6 +30,36 @@ import {
 import type { ModelMessage, Tool } from 'ai';
 
 /**
+ * 安全处理文本，确保不发送不完整的 Unicode 字符
+ * @param text 原始文本
+ * @returns 安全的文本
+ */
+function safeTextEncode(text: string): string {
+  if (!text) return text;
+  
+  // 检查最后是否是一个不完整的 UTF-16 代理对
+  const lastCharCode = text.charCodeAt(text.length - 1);
+  if (lastCharCode >= 0xD800 && lastCharCode <= 0xDBFF) {
+    // 这是一个不完整的高代理项，不发送
+    return text.slice(0, -1);
+  }
+  
+  // 检查是否有单独的低代理项
+  if (text.length >= 2) {
+    const secondLastCharCode = text.charCodeAt(text.length - 2);
+    const last = text.charCodeAt(text.length - 1);
+    if (!(secondLastCharCode >= 0xD800 && secondLastCharCode <= 0xDBFF &&
+          last >= 0xDC00 && last <= 0xDFFF) &&
+        last >= 0xDC00 && last <= 0xDFFF) {
+      // 单独的低代理项，移除
+      return text.slice(0, -1);
+    }
+  }
+  
+  return text;
+}
+
+/**
  * generateText 参数接口
  */
 export interface GenerateTextParams {
@@ -323,7 +353,10 @@ export class AiService {
 
             if (chunk.type === 'text-delta' && chunk.delta) {
               accumulatedContent += chunk.delta;
-              observer.next(new MessageEvent('message', { data: chunk.delta }));
+              const safeDelta = safeTextEncode(chunk.delta);
+              if (safeDelta) {
+                observer.next(new MessageEvent('message', { data: safeDelta }));
+              }
             } else if (chunk.type === 'tool-call' && chunk.toolCall) {
               observer.next(
                 new MessageEvent('message', {

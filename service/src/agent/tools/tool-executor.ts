@@ -180,7 +180,7 @@ export class ToolExecutor {
       return await this.executeBuiltinTool(name, args);
     }
 
-    return await this.executeSkill(name, args);
+    return await this.executeSkill(name, args, context);
   }
 
   /**
@@ -252,16 +252,21 @@ export class ToolExecutor {
    * 执行技能工具
    * @param skillCode 技能代码
    * @param args 工具参数
+   * @param context 执行上下文
    * @returns 技能执行结果
    */
   private async executeSkill(
     skillCode: string,
     args: Record<string, unknown>,
+    context: ToolExecutionContext,
   ): Promise<unknown> {
-    return await this.skillService.execute({
-      skillCode,
-      params: args,
-    });
+    return await this.skillService.execute(
+      {
+        skillCode,
+        params: args,
+      },
+      { appCode: context.agent.appCode, isSuperAdmin: false },
+    );
   }
 
   /**

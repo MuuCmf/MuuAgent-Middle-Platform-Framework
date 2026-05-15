@@ -331,7 +331,7 @@ export class AgentService {
         const skillCodes = JSON.parse(agent.skills);
         for (const code of skillCodes) {
           try {
-            const skill = await this.skillService.findByCode(code);
+            const skill = await this.skillService.findByCode(code, isolationContext);
             if (skill) {
               tools.push({
                 name: skill.code,

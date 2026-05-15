@@ -33,6 +33,32 @@ import { Request, Response } from "express";
 import { Observable, Subject } from 'rxjs';
 import { Sse } from '@nestjs/common';
 
+/**
+ * 安全处理文本，确保不发送不完整的 Unicode 字符
+ * @param text 原始文本
+ * @returns 安全的文本
+ */
+function safeTextEncode(text: string): string {
+  if (!text) return text;
+  
+  const lastCharCode = text.charCodeAt(text.length - 1);
+  if (lastCharCode >= 0xD800 && lastCharCode <= 0xDBFF) {
+    return text.slice(0, -1);
+  }
+  
+  if (text.length >= 2) {
+    const secondLastCharCode = text.charCodeAt(text.length - 2);
+    const last = text.charCodeAt(text.length - 1);
+    if (!(secondLastCharCode >= 0xD800 && secondLastCharCode <= 0xDBFF &&
+          last >= 0xDC00 && last <= 0xDFFF) &&
+        last >= 0xDC00 && last <= 0xDFFF) {
+      return text.slice(0, -1);
+    }
+  }
+  
+  return text;
+}
+
 @ApiTags("智能体 (管理端)")
 @ApiBearerAuth()
 @UseGuards(CombinedAuthGuard, ScopeGuard)
@@ -165,7 +191,10 @@ export class AgentController {
         );
       },
       onChunk: (chunk: string) => {
-        subject.next(new MessageEvent("message", { data: chunk }));
+        const safeChunk = safeTextEncode(chunk);
+        if (safeChunk) {
+          subject.next(new MessageEvent("message", { data: safeChunk }));
+        }
       },
       onToolCall: (toolCall: any) => {
         subject.next(
