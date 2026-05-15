@@ -45,6 +45,7 @@ const KNOWN_LANGUAGES = new Set([
  * 3. 修正语言标识：```ph -> ```php
  * 4. 修正表格格式：分隔行前缺少表头时自动补充空表头
  * 5. 关闭未关闭的代码块（当内容包含表格时）
+ * 6. 修正水平线分隔符：确保 --- 前后有正确的空行
  * @param content 原始 markdown 内容
  * @returns 修正后的 markdown 内容
  */
@@ -129,6 +130,10 @@ export function preprocessMarkdown(content: string): string {
     }
   }
   result = tableLines.join('\n')
+
+  result = result.replace(/(.+)\n---\n(.+)/g, '$1\n\n---\n\n$2')
+  result = result.replace(/^---\n(.+)/g, '\n---\n\n$1')
+  result = result.replace(/(.+)\n---$/g, '$1\n\n---')
 
   return result
 }

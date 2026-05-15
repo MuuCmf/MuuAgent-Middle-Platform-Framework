@@ -2,33 +2,6 @@ import { fetchEventSource } from '@microsoft/fetch-event-source'
 import type { ReasoningStep } from './reasoning'
 
 /**
- * 安全处理文本，修复 Unicode 字符截断问题
- * @param text 原始文本
- * @returns 修复后的文本
- */
-function safeTextDecode(text: string): string {
-  // 检测并修复不完整的 UTF-16 代理对
-  const lastCharCode = text.charCodeAt(text.length - 1)
-  if (lastCharCode >= 0xD800 && lastCharCode <= 0xDBFF) {
-    // 这是一个不完整的高代理项，暂时保留
-    return text.slice(0, -1)
-  }
-  
-  // 检测并修复单独的低代理项
-  const secondLastCharCode = text.charCodeAt(text.length - 2)
-  if (secondLastCharCode >= 0xD800 && secondLastCharCode <= 0xDBFF &&
-      lastCharCode >= 0xDC00 && lastCharCode <= 0xDFFF) {
-    // 完整的代理对，正常返回
-    return text
-  } else if (lastCharCode >= 0xDC00 && lastCharCode <= 0xDFFF) {
-    // 单独的低代理项，移除
-    return text.slice(0, -1)
-  }
-  
-  return text
-}
-
-/**
  * SSE 流式响应回调接口
  */
 export interface StreamCallbacks {
@@ -97,7 +70,7 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
     const parsed = JSON.parse(data)
     
     if (typeof parsed === 'string' || typeof parsed === 'number') {
-      callbacks.onMessage(safeTextDecode(String(parsed)))
+      callbacks.onMessage(String(parsed))
       return
     }
     
@@ -105,21 +78,21 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
       const delta = parsed.choices[0].delta
       
       if (delta.content) {
-        callbacks.onMessage(safeTextDecode(delta.content))
+        callbacks.onMessage(delta.content)
       } else if (delta.reasoning_content) {
-        callbacks.onMessage(safeTextDecode(delta.reasoning_content))
+        callbacks.onMessage(delta.reasoning_content)
       }
     } else if (parsed.choices && parsed.choices[0]?.message?.content) {
-      callbacks.onMessage(safeTextDecode(parsed.choices[0].message.content))
+      callbacks.onMessage(parsed.choices[0].message.content)
     } else if (parsed.message) {
-      callbacks.onMessage(safeTextDecode(parsed.message))
+      callbacks.onMessage(parsed.message)
     } else if (parsed.type === 'conversation_id' && parsed.conversationId) {
       console.log('[SSE] Received JSON conversation_id:', parsed.conversationId)
       if (callbacks.onConversationId) {
         callbacks.onConversationId(parsed.conversationId)
       }
     } else if (parsed.type === 'chunk' && parsed.content) {
-      callbacks.onMessage(safeTextDecode(parsed.content))
+      callbacks.onMessage(parsed.content)
     } else if (parsed.type === 'reasoning_step' && parsed.step) {
       if (callbacks.onReasoningStep) {
         const step = parsed.step
@@ -135,7 +108,7 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
       safeComplete()
     }
   } catch (e) {
-    callbacks.onMessage(safeTextDecode(data))
+    callbacks.onMessage(data)
   }
 }
 
