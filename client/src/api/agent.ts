@@ -17,6 +17,7 @@ export interface Agent {
   skills?: string
   tools?: string
   reasoningMode?: string
+  workspaceConfig?: string
   status: boolean
   createdAt: string
   updatedAt: string

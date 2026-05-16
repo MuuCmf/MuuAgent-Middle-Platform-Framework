@@ -20,38 +20,38 @@
         </div>
       </div>
 
-      <!-- 工作目录指示器 -->
-      <div class="workspace-bar">
-        <WorkspaceIndicator
-          :is-active="workspaceIsActive"
-          :dir-name="workspaceDirName"
-          @select="handleWorkspaceSelect"
-          @change="handleWorkspaceSelect"
-          @clear="handleWorkspaceClear"
-        />
-      </div>
-
-      <!-- 智能体横向滚动选择器 -->
-      <div v-if="currentMode === 'chat'" class="agent-scroll-selector">
-        <div class="agent-scroll-container">
-          <div
-            :class="['agent-chip', { active: !selectedAgent }]"
-            @click="handleAgentSelect('')"
-          >
-            <el-icon :size="14"><Cpu /></el-icon>
-            <span>大模型对话</span>
-            <el-icon v-if="!selectedAgent" :size="12" class="check-icon"><Check /></el-icon>
+      <!-- 智能体选择器和工作目录指示器 -->
+      <div v-if="currentMode === 'chat'" class="workspace-agent-bar">
+        <div class="agent-scroll-section">
+          <div class="agent-scroll-container">
+            <div
+              :class="['agent-chip', { active: !selectedAgent }]"
+              @click="handleAgentSelect('')"
+            >
+              <el-icon :size="14"><Cpu /></el-icon>
+              <span>大模型对话</span>
+              <el-icon v-if="!selectedAgent" :size="12" class="check-icon"><Check /></el-icon>
+            </div>
+            <div
+              v-for="agent in agents"
+              :key="agent.id"
+              :class="['agent-chip', { active: selectedAgent === agent.id }]"
+              @click="handleAgentSelect(agent.id)"
+            >
+              <el-icon :size="14"><User /></el-icon>
+              <span>{{ agent.name }}</span>
+              <el-icon v-if="selectedAgent === agent.id" :size="12" class="check-icon"><Check /></el-icon>
+            </div>
           </div>
-          <div
-            v-for="agent in agents"
-            :key="agent.id"
-            :class="['agent-chip', { active: selectedAgent === agent.id }]"
-            @click="handleAgentSelect(agent.id)"
-          >
-            <el-icon :size="14"><User /></el-icon>
-            <span>{{ agent.name }}</span>
-            <el-icon v-if="selectedAgent === agent.id" :size="12" class="check-icon"><Check /></el-icon>
-          </div>
+        </div>
+        <div v-if="isWorkspaceEnabledForSelectedAgent" class="workspace-section">
+          <WorkspaceIndicator
+            :is-active="workspaceIsActive"
+            :dir-name="workspaceDirName"
+            @select="handleWorkspaceSelect"
+            @change="handleWorkspaceSelect"
+            @clear="handleWorkspaceClear"
+          />
         </div>
       </div>
 
@@ -83,15 +83,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { Promotion, Check, Cpu, User } from '@element-plus/icons-vue'
-import WorkspaceIndicator from '@/components/WorkspaceIndicator.vue'
+import WorkspaceIndicator from '@/views/chat/components/WorkspaceIndicator.vue'
 
 interface Agent {
   id: string
   name: string
   description?: string
   status?: boolean
+  workspaceConfig?: string
 }
 
 interface Props {
@@ -129,6 +130,21 @@ const handleWorkspaceClear = () => {
 const inputText = ref('')
 const currentMode = ref<'chat' | 'rag' | 'retrieval'>(props.mode)
 const selectedAgent = ref<string>('')
+
+/**
+ * 判断当前选中的智能体是否支持工作目录
+ */
+const isWorkspaceEnabledForSelectedAgent = computed(() => {
+  if (!selectedAgent.value) return false
+  const agent = props.agents.find(a => a.id === selectedAgent.value)
+  if (!agent?.workspaceConfig) return false
+  try {
+    const config = JSON.parse(agent.workspaceConfig)
+    return config.enabled === true
+  } catch {
+    return false
+  }
+})
 
 watch(() => props.mode, (newMode) => {
   currentMode.value = newMode
@@ -302,9 +318,21 @@ const getPlaceholder = (): string => {
   font-weight: 500;
 }
 
-.agent-scroll-selector {
+.workspace-agent-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 12px;
+}
+
+.workspace-section {
+  flex-shrink: 0;
+}
+
+.agent-scroll-section {
+  flex: 1;
   overflow: hidden;
+  min-width: 0;
 }
 
 .agent-scroll-container {
