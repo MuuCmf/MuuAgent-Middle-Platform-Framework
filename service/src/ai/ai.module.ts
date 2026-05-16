@@ -4,6 +4,7 @@ import { AiController } from './ai.controller';
 import { McpModule } from '../mcp/mcp.module';
 import { ModelModule } from '../model/model.module';
 import { ConversationModule } from '../conversation/conversation.module';
+import { IntentModule } from '../intent/intent.module';
 import { PrismaModule } from '../common/prisma/prisma.module';
 
 // 基础设施层
@@ -31,7 +32,7 @@ import { ToolCallParser } from './parsers/tool-call.parser';
  * AI调用模块
  */
 @Module({
-  imports: [McpModule, ModelModule, ConversationModule, PrismaModule],
+  imports: [McpModule, ModelModule, ConversationModule, IntentModule, PrismaModule],
   controllers: [AiController],
   providers: [
     // 基础设施层

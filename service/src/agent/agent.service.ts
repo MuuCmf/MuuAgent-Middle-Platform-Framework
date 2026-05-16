@@ -3,6 +3,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { SkillService } from '../skill/skill.service';
 import { McpServerService } from '../mcp-server/mcp-server.service';
 import { McpService } from '../mcp/mcp.service';
+import { IntentClassifierService } from '../intent/intent.service';
 import { AgentKbService } from './agent-kb.service';
 import { KbSearchTool } from './tools/kb-search.tool';
 import { ToolExecutor, ToolCall, ToolExecutionResult } from './tools/tool-executor';
@@ -42,6 +43,7 @@ export class AgentService {
     private promptTemplateService: PromptTemplateService,
     private conversationService: ConversationService,
     private mcpService: McpService,
+    private intentClassifier: IntentClassifierService,
     private workspaceToolHandler: WorkspaceToolHandler,
   ) {}
 
@@ -260,14 +262,21 @@ export class AgentService {
     
     this.logger.debug(`buildExecutionContext: dto.agentId=${dto.agentId}, agent.id=${agent.id}, agent.code=${agent.code}, dto.conversationId=${dto.conversationId}, dto.modelCode=${dto.modelCode}`);
     
+    // 意图识别：根据用户消息分类意图
+    const userMessage = dto.message || '';
+    const intentResult = await this.intentClassifier.classify(userMessage);
+    const intent = intentResult.intent;
+    const intentModelType = this.intentClassifier.getModelTypeForIntent(intent);
+    this.logger.debug(`Agent意图分类: intent=${intent}, modelType=${intentModelType}, confidence=${intentResult.confidence}`);
+
     if (dto.modelCode && dto.modelCode !== 'mcp') {
-      // 客户端指定了固定模型
-      model = await this.prisma.model.findFirst({ where: { code: dto.modelCode, type: 'llm', status: true } });
-      this.logger.debug(`使用指定模型: ${dto.modelCode}`);
+      // 客户端指定了固定模型，使用意图路由验证能力
+      model = await this.mcpService.selectModelByIntent(intentModelType, intent, dto.modelCode);
+      this.logger.debug(`使用指定模型(意图路由): ${dto.modelCode}`);
     } else {
-      // 使用MCP调度选择最优模型
-      model = await this.mcpService.selectModel('llm');
-      this.logger.debug(`MCP调度选择模型: ${model?.code || 'none'}`);
+      // 使用MCP调度选择最优模型（基于意图）
+      model = await this.mcpService.selectModelByIntent(intentModelType, intent);
+      this.logger.debug(`MCP调度选择模型(意图路由): ${model?.code || 'none'}`);
     }
     
     if (!model) {

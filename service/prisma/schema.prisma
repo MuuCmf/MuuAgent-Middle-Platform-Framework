@@ -101,6 +101,21 @@ model McpRule {
   @@map("mcp_rules")
 }
 
+/// 意图分类缓存表 - 缓存用户消息的意图分类结果
+model IntentCache {
+  id          BigInt   @id @default(0)
+  messageHash String   @unique @map("message_hash") /// 消息内容哈希（MD5）
+  intent      String   /// 分类结果: general/code/math/creative/image/tts/asr
+  confidence  Float    @default(1.0) /// 置信度 0-1
+  source      String   @default("ai") /// 分类来源: keyword/ai/default
+  hitCount    Int      @default(1) @map("hit_count") /// 命中次数
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([messageHash])
+  @@map("intent_cache")
+}
+
 /// 技能表 - 可被Agent调用的工具
 model Skill {
   id          BigInt  @id @default(0)
@@ -885,4 +900,48 @@ model FileProcessTask {
   @@index([status, priority])
   @@index([fileId])
   @@map("file_process_tasks")
+}
+
+/// 意图关键词配置表 - 管理意图识别的关键词规则
+model IntentKeyword {
+  id          BigInt  @id @default(0)
+  intent      String   /// 意图类型: general/code/math/creative/image/tts/asr
+  keyword     String   /// 关键词（支持正则表达式）
+  weight      Int      @default(1) /// 权重（数值越大优先级越高）
+  isRegex     Boolean  @default(false) @map("is_regex") /// 是否为正则表达式
+  status      Boolean  @default(true) /// 是否启用
+  description String?  /// 关键词描述
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([intent, status])
+  @@index([keyword])
+  @@map("intent_keywords")
+}
+
+/// 意图路由调度日志表 - 记录意图路由决策过程
+model IntentRoutingLog {
+  id                BigInt  @id @default(0)
+  userMessage       String   @map("user_message") @db.Text /// 用户消息内容
+  detectedIntent    String   @map("detected_intent") /// 检测到的意图
+  confidence        Float    @default(1.0) /// 置信度 0-1
+  source            String   @default("keyword") /// 分类来源: keyword/ai/default
+  selectedModelId   BigInt?  @map("selected_model_id") /// 选中的模型ID
+  selectedModelCode String?  @map("selected_model_code") /// 选中的模型标识
+  modelType         String?  @map("model_type") /// 模型类型: llm/tts/asr/image
+  isDegraded        Boolean  @default(false) @map("is_degraded") /// 是否降级
+  degradeReason     String?  @map("degrade_reason") /// 降级原因
+  costMs            Int      @default(0) @map("cost_ms") /// 路由耗时(毫秒)
+  success           Boolean  @default(true) /// 路由是否成功
+  errorMessage      String?  @map("error_message") @db.Text /// 错误信息
+  clientIp          String?  @map("client_ip") /// 客户端IP
+  uid               String?  /// 调用用户唯一标识
+  appCode           String?  @map("app_code") /// 应用标识
+  createdAt         DateTime @default(now())
+
+  @@index([detectedIntent, createdAt])
+  @@index([selectedModelCode, createdAt])
+  @@index([isDegraded, createdAt])
+  @@index([appCode, createdAt])
+  @@map("intent_routing_logs")
 }

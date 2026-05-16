@@ -1,6 +1,7 @@
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { McpService } from '../mcp/mcp.service';
 import { ModelService } from '../model/model.service';
+import { IntentClassifierService } from '../intent/intent.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationType } from '../conversation/dto/create-conversation.dto';
 import {
@@ -97,6 +98,7 @@ export class AiService {
     private mcpService: McpService,
     private modelService: ModelService,
     private conversationService: ConversationService,
+    private intentClassifier: IntentClassifierService,
     private strategyFactory: StrategyFactory,
     private modelExecutor: ModelExecutor,
     private contextManager: ContextManager,
@@ -162,7 +164,15 @@ export class AiService {
         );
       }
 
-      const model = await this.selectModel(dto.modelCode, modelType);
+      // 意图识别：根据用户消息分类意图
+      const userContent = lastUserMessage?.content || '';
+      const intentResult = await this.intentClassifier.classify(userContent);
+      const intent = intentResult.intent;
+      const intentModelType = this.intentClassifier.getModelTypeForIntent(intent);
+      const effectiveModelType = intentModelType !== modelType ? intentModelType : modelType;
+      this.logger.debug(`意图分类: intent=${intent}, modelType=${effectiveModelType}`);
+
+      const model = await this.selectModel(dto.modelCode, effectiveModelType, intent);
       const provider = model.provider?.toLowerCase() || 'openai';
 
       await this.mcpService.checkCircuit(model.id as any);
@@ -289,7 +299,15 @@ export class AiService {
 
       emitter.emit(StreamEvents.conversationId(conversation.id as any));
 
-      const model = await this.selectModel(dto.modelCode, modelType);
+      // 意图识别：根据用户消息分类意图
+      const userContent = lastUserMessage?.content || '';
+      const intentResult = await this.intentClassifier.classify(userContent);
+      const intent = intentResult.intent;
+      const intentModelType = this.intentClassifier.getModelTypeForIntent(intent);
+      const effectiveModelType = intentModelType !== modelType ? intentModelType : modelType;
+      this.logger.debug(`[Stream] 意图分类: intent=${intent}, modelType=${effectiveModelType}`);
+
+      const model = await this.selectModel(dto.modelCode, effectiveModelType, intent);
       modelId = model.id as any;
 
       await this.mcpService.checkCircuit(model.id as any);
@@ -624,11 +642,24 @@ export class AiService {
    * 选择模型
    * @param modelCode 模型编码
    * @param modelType 模型类型
+   * @param intent 对话意图（可选）
    * @returns {Promise<Model>} 模型信息
    */
-  private async selectModel(modelCode?: string, modelType?: string): Promise<Model> {
+  private async selectModel(modelCode?: string, modelType?: string, intent?: string): Promise<Model> {
     if (modelCode) {
+      // 指定了模型，如果有意图则验证能力
+      if (intent) {
+        return this.mcpService.selectModelByIntent(
+          modelType || 'llm',
+          intent,
+          modelCode,
+        );
+      }
       return this.modelService.findByCode(modelCode);
+    }
+    // MCP智能调度
+    if (intent) {
+      return this.mcpService.selectModelByIntent(modelType || 'llm', intent);
     }
     return this.mcpService.selectModel(modelType || 'llm');
   }

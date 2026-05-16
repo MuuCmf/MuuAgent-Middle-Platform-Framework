@@ -9,6 +9,10 @@ export * from './kb'
 export * from './retrieval'
 export * from './document'
 export * from './conversation'
+export * from './intent-keyword'
+export * from './intent-dashboard'
+export * from './intent-cache'
+export * from './intent-routing-log'
 export {
   RateLimitLevel,
   rateLimitApi

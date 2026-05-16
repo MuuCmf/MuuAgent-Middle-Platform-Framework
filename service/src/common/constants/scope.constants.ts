@@ -70,6 +70,20 @@ export enum AdminScope {
   // 管理员
   ADMIN_READ = 'admin:read',
   ADMIN_WRITE = 'admin:write',
+
+  // 意图关键词
+  INTENT_KEYWORD_READ = 'intent-keyword:read',
+  INTENT_KEYWORD_WRITE = 'intent-keyword:write',
+
+  // 意图监控
+  INTENT_DASHBOARD_READ = 'intent-dashboard:read',
+
+  // 意图缓存
+  INTENT_CACHE_READ = 'intent-cache:read',
+  INTENT_CACHE_WRITE = 'intent-cache:write',
+
+  // 意图路由日志
+  INTENT_ROUTING_LOG_READ = 'intent-routing-log:read',
 }
 
 /**
@@ -93,6 +107,8 @@ export const SCOPE_HIERARCHY: Record<string, string[]> = {
   [AdminScope.TASK_WRITE]: [AdminScope.TASK_READ],
   [AdminScope.LOG_WRITE]: [AdminScope.LOG_READ],
   [AdminScope.ADMIN_WRITE]: [AdminScope.ADMIN_READ],
+  [AdminScope.INTENT_KEYWORD_WRITE]: [AdminScope.INTENT_KEYWORD_READ],
+  [AdminScope.INTENT_CACHE_WRITE]: [AdminScope.INTENT_CACHE_READ],
 };
 
 /**
@@ -154,4 +170,10 @@ export const SCOPE_DESCRIPTIONS: Record<AdminScope, string> = {
   [AdminScope.LOG_WRITE]: '管理日志（预留）',
   [AdminScope.ADMIN_READ]: '查看管理员列表',
   [AdminScope.ADMIN_WRITE]: '创建、更新、删除管理员',
+  [AdminScope.INTENT_KEYWORD_READ]: '查看意图关键词',
+  [AdminScope.INTENT_KEYWORD_WRITE]: '管理意图关键词',
+  [AdminScope.INTENT_DASHBOARD_READ]: '查看意图监控看板',
+  [AdminScope.INTENT_CACHE_READ]: '查看意图缓存',
+  [AdminScope.INTENT_CACHE_WRITE]: '清除意图缓存',
+  [AdminScope.INTENT_ROUTING_LOG_READ]: '查看意图路由日志',
 };
