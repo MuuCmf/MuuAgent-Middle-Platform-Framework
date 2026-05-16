@@ -14,12 +14,25 @@ export interface WorkspaceToolResultPayload {
   error?: string
 }
 
+/**
+ * 提交工作目录工具执行结果
+ * @param conversationId 会话ID
+ * @param result 工具执行结果
+ * @returns {Promise<void>}
+ */
 export async function submitWorkspaceResult(
   conversationId: string,
   result: WorkspaceToolResultPayload,
 ): Promise<void> {
-  await httpClient.getInstance().post(`${API_ENDPOINTS.agents}/chat/workspace-result`, {
-    conversationId,
-    ...result,
-  })
+  const response = await httpClient.getInstance().post(
+    `${API_ENDPOINTS.agents}/chat/workspace-result`,
+    {
+      conversationId,
+      ...result,
+    },
+  )
+  
+  if (response.data?.code !== 200) {
+    throw new Error(response.data?.message || '提交工作目录结果失败')
+  }
 }
