@@ -63,7 +63,7 @@
           <el-tag v-else type="info">未使用</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" align="right">
+      <el-table-column label="操作" width="140" fixed="right" align="right">
         <template #default="{ row }">
           <el-button size="small" @click="handleEditModel(row)">编辑</el-button>
           <el-button size="small" type="danger" @click="handleDeleteModel(row.id)">删除</el-button>
