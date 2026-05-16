@@ -19,6 +19,8 @@ import { SandboxExecutor } from './executors/sandbox.executor';
 import { PluginLoader } from './plugin-loader';
 import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
 import { FileExecutor } from '../file/file.executor';
+import { DatabaseExecutor } from './executors/database.executor';
+import { DatabaseQueryResult } from './database/dto/database-config.dto';
 
 /**
  * 技能服务
@@ -40,6 +42,7 @@ export class SkillService {
    * @param sandboxExecutor 沙箱函数执行器
    * @param pluginLoader 插件加载器
    * @param fileExecutor 文件执行器
+   * @param databaseExecutor 数据库执行器
    */
   constructor(
     private prisma: PrismaService,
@@ -52,6 +55,7 @@ export class SkillService {
     private sandboxExecutor: SandboxExecutor,
     private pluginLoader: PluginLoader,
     private fileExecutor: FileExecutor,
+    private databaseExecutor: DatabaseExecutor,
   ) {}
 
   /**
@@ -214,7 +218,7 @@ export class SkillService {
           result = await this.executeFunctionSkill(skill, params);
           break;
         case SkillType.DATABASE:
-          result = await this.executeDatabaseSkill(skill, params);
+          result = await this.executeDatabaseSkill(skill, params) as unknown as Record<string, unknown>;
           break;
         case SkillType.MCP:
           result = await this.executeMcpSkill(skill, params);
@@ -387,27 +391,13 @@ export class SkillService {
    * 执行数据库类型技能
    * @param skill 技能信息
    * @param params 执行参数
-   * @returns {Promise<Record<string, unknown>>} 执行结果
+   * @returns 查询结果
    */
   private async executeDatabaseSkill(
-    skill: { config: string },
+    skill: Skill,
     params: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
-    const config = JSON.parse(skill.config);
-    const { query, connection } = config;
-
-    // 这里简化处理，实际应该使用数据库连接池
-    // 目前只支持简单的参数替换
-    let finalQuery = query;
-    for (const [key, value] of Object.entries(params)) {
-      finalQuery = finalQuery.replace(`:${key}`, String(value));
-    }
-
-    return {
-      query: finalQuery,
-      connection,
-      message: '数据库查询已构建，请使用实际的数据库连接执行',
-    };
+  ): Promise<DatabaseQueryResult> {
+    return await this.databaseExecutor.execute(skill, params);
   }
 
   /**
@@ -705,5 +695,51 @@ export class SkillService {
       default:
         throw new HttpException(`不支持的函数类型: ${codeType}`, HttpStatus.BAD_REQUEST);
     }
+  }
+
+  /**
+   * 测试 HTTP 请求
+   * @param configStr 技能配置 JSON 字符串
+   * @param params 测试参数
+   * @returns 测试结果，包含状态码、响应头、响应体和耗时
+   */
+  async testHttpRequest(
+    configStr: string,
+    params: Record<string, unknown>,
+  ): Promise<{
+    status: number;
+    statusText: string;
+    headers: Record<string, unknown>;
+    data: unknown;
+    costMs: number;
+  }> {
+    const config = JSON.parse(configStr);
+    const { url, method = 'get', headers = {}, body, bodyType = 'json' } = config;
+
+    if (!url) {
+      throw new HttpException('URL 不能为空', HttpStatus.BAD_REQUEST);
+    }
+
+    const startTime = Date.now();
+
+    const response = await axios({
+      url,
+      method,
+      headers,
+      params: ['get', 'head', 'options'].includes(method.toLowerCase()) ? params : undefined,
+      data: ['post', 'put', 'patch', 'delete'].includes(method.toLowerCase())
+        ? (body || params)
+        : undefined,
+      timeout: 10000,
+      validateStatus: () => true,
+    });
+
+    return {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers as Record<string, unknown>,
+      data: response.data,
+      costMs: Date.now() - startTime,
+    };
   }
 }

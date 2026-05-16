@@ -1,5 +1,5 @@
 <template>
-  <el-drawer :model-value="visible" :title="editingSkill ? '编辑技能' : '添加技能'" direction="rtl" size="600px"
+  <el-drawer :model-value="visible" :title="editingSkill ? '编辑技能' : '添加技能'" direction="rtl" size="720px"
     class="skill-edit-drawer" @update:model-value="handleClose">
     <el-form :model="form" label-width="100px" class="skill-form">
       <div class="form-section">
@@ -97,7 +97,17 @@
           v-model:config="form.config" 
         />
         
-        <el-form-item label="配置内容" v-if="form.type !== 'file'">
+        <database-config-editor
+          v-if="form.type === 'database'"
+          v-model:config="form.config"
+        />
+        
+        <http-config-editor
+          v-if="form.type === 'http'"
+          v-model:config="form.config"
+        />
+        
+        <el-form-item label="配置内容" v-if="form.type !== 'file' && form.type !== 'database' && form.type !== 'http'">
           <div class="config-wrapper">
             <el-input v-model="form.config" type="textarea" :rows="6" placeholder="根据类型填写不同配置" />
             <div class="config-help">
@@ -174,6 +184,8 @@ import type { Skill, SkillForm } from '@/api/skill'
 import { useUserStore } from '@/stores/user'
 import FunctionEditor from './FunctionEditor.vue'
 import FileConfigEditor from './FileConfigEditor.vue'
+import DatabaseConfigEditor from './DatabaseConfigEditor.vue'
+import HttpConfigEditor from './HttpConfigEditor.vue'
 import AppSelector from '@/components/AppSelector.vue'
 
 interface Props {

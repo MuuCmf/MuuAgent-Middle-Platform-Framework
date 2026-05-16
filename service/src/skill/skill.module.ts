@@ -10,6 +10,9 @@ import { BuiltinExecutor } from './executors/builtin.executor';
 import { PluginExecutor } from './executors/plugin.executor';
 import { SandboxExecutor } from './executors/sandbox.executor';
 import { PluginLoader } from './plugin-loader';
+import { DatabaseExecutor } from './executors/database.executor';
+import { ConnectionPoolManager } from './database/connection-pool.manager';
+import { SqlValidator } from './database/sql-validator';
 
 /**
  * 技能模块
@@ -24,6 +27,9 @@ import { PluginLoader } from './plugin-loader';
     PluginExecutor,
     SandboxExecutor,
     PluginLoader,
+    DatabaseExecutor,
+    ConnectionPoolManager,
+    SqlValidator,
   ],
   exports: [SkillService, McpClientService, BuiltinExecutor],
 })

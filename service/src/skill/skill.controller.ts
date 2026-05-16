@@ -25,6 +25,7 @@ import {
 } from './dto/skill.dto';
 import { success, page } from '../common/response/api.response';
 import { Request } from 'express';
+import { DatabaseExecutor } from './executors/database.executor';
 
 /**
  * 技能管理控制器
@@ -37,8 +38,12 @@ export class SkillController {
   /**
    * 构造函数
    * @param skillService 技能服务
+   * @param databaseExecutor 数据库执行器
    */
-  constructor(private readonly skillService: SkillService) {}
+  constructor(
+    private readonly skillService: SkillService,
+    private readonly databaseExecutor: DatabaseExecutor,
+  ) {}
 
   /**
    * 创建技能
@@ -233,6 +238,43 @@ export class SkillController {
     },
   ) {
     const result = await this.skillService.testFunction(body);
+    return success(result);
+  }
+
+  /**
+   * 测试数据库连接
+   * @param body 数据库配置 JSON 字符串
+   * @returns 连接测试结果
+   */
+  @Post('test-connection')
+  @ApiOperation({ summary: '测试数据库连接' })
+  @RequireScope(AdminScope.SKILL_WRITE)
+  async testConnection(
+    @Body()
+    body: {
+      config: string;
+    },
+  ) {
+    const result = await this.databaseExecutor.testConnection(body.config);
+    return success(result);
+  }
+
+  /**
+   * 测试 HTTP 请求
+   * @param body 请求参数
+   * @returns 测试结果
+   */
+  @Post('test-http')
+  @ApiOperation({ summary: '测试HTTP请求' })
+  @RequireScope(AdminScope.SKILL_WRITE)
+  async testHttp(
+    @Body()
+    body: {
+      config: string;
+      params?: Record<string, unknown>;
+    },
+  ) {
+    const result = await this.skillService.testHttpRequest(body.config, body.params || {});
     return success(result);
   }
 }

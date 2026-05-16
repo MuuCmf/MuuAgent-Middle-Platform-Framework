@@ -122,6 +122,21 @@ export interface FunctionResult {
   duration?: number
 }
 
+export interface ConnectionTestResult {
+  success: boolean
+  serverVersion?: string
+  latencyMs?: number
+  error?: string
+}
+
+export interface HttpTestResult {
+  status: number
+  statusText: string
+  headers: Record<string, unknown>
+  data: unknown
+  costMs: number
+}
+
 export const skillApi = {
   getList(): Promise<AxiosResponse<ApiResponse<SkillListResponse>>> {
     return adminRequest.get('api/admin/skill')
@@ -198,5 +213,43 @@ export const skillApi = {
    */
   testFunction(data: TestFunctionParams): Promise<AxiosResponse<ApiResponse<FunctionResult>>> {
     return adminRequest.post('api/admin/skill/test-function', data)
-  }
+  },
+
+  /**
+   * 测试数据库连接
+   * @param config 数据库配置 JSON 字符串
+   * @returns 连接测试结果
+   */
+  testConnection(config: string): Promise<AxiosResponse<ApiResponse<ConnectionTestResult>>> {
+    return adminRequest.post('api/admin/skill/test-connection', { config })
+  },
+
+  /**
+   * 测试 HTTP 请求
+   * @param config 技能配置 JSON 字符串
+   * @param params 测试参数
+   * @returns 测试结果
+   */
+  testHttpRequest(config: string, params?: Record<string, unknown>): Promise<AxiosResponse<ApiResponse<HttpTestResult>>> {
+    return adminRequest.post('api/admin/skill/test-http', { config, params })
+  },
+}
+
+/**
+ * 测试数据库连接（独立导出，供组件直接引用）
+ * @param config 数据库配置 JSON 字符串
+ * @returns 连接测试结果
+ */
+export const testDatabaseConnection = (config: string): Promise<ConnectionTestResult> => {
+  return skillApi.testConnection(config).then((res) => res.data.data)
+}
+
+/**
+ * 测试 HTTP 请求（独立导出，供组件直接引用）
+ * @param config 技能配置 JSON 字符串
+ * @param params 测试参数
+ * @returns 测试结果
+ */
+export const testHttpRequest = (config: string, params?: Record<string, unknown>): Promise<HttpTestResult> => {
+  return skillApi.testHttpRequest(config, params).then((res) => res.data.data)
 }
