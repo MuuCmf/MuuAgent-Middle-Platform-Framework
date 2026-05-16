@@ -9,8 +9,11 @@ export interface IntentCacheItem {
   intent: string
   source: string
   userMessage: string
+  messageHash: string
   result: string
   confidence: number
+  hitCount: number
+  lastHitAt: string
   createdAt: string
   updatedAt: string
 }
@@ -20,6 +23,7 @@ export interface IntentCacheItem {
  */
 export interface CacheStats {
   total: number
+  totalHits: number
   byIntent: Record<string, number>
   bySource: Record<string, number>
 }

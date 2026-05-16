@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
+import { ScopeController } from '../common/controllers/scope.controller';
 
 /**
  * 认证模块（全局模块）
@@ -23,6 +24,7 @@ import { ScopeGuard } from '../common/guards/scope.guard';
       }),
     }),
   ],
+  controllers: [ScopeController],
   providers: [AdminGuard, CombinedAuthGuard, ScopeGuard],
   exports: [JwtModule, AdminGuard, CombinedAuthGuard, ScopeGuard],
 })

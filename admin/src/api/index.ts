@@ -13,6 +13,7 @@ export * from './intent-keyword'
 export * from './intent-dashboard'
 export * from './intent-cache'
 export * from './intent-routing-log'
+export * from './scope'
 export {
   RateLimitLevel,
   rateLimitApi

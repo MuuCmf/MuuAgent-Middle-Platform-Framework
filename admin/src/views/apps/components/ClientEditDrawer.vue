@@ -45,7 +45,7 @@
       <el-form-item label="权限范围" prop="scopes">
         <div style="width: 100%;">
           <div
-            v-for="group in SCOPE_GROUPS"
+            v-for="group in scopeGroups"
             :key="group.label"
             style="margin-bottom: 12px;"
           >
@@ -95,12 +95,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { oauthApi, type OAuthClient, type CreateClientDto, type UpdateClientDto } from '@/api/oauth'
-import { SCOPE_GROUPS } from '@/constants/scope'
+import { scopeApi } from '@/api/scope'
+import type { ScopeOption } from '@/constants/scope'
 
 interface Props {
   visible: boolean
@@ -125,6 +126,7 @@ const isEdit = computed(() => !!props.client)
 
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
+const scopeGroups = ref<Array<{ label: string; scopes: ScopeOption[] }>>([])
 
 const formData = ref<CreateClientDto & { status?: number }>({
   name: '',
@@ -148,6 +150,44 @@ const rules: FormRules = {
     { required: true, message: '请选择授权类型', trigger: 'change' },
   ],
 }
+
+/**
+ * 加载 scope 数据
+ */
+const loadScopeData = async () => {
+  try {
+    // 获取 scope 分组和描述信息
+    const [groups, descriptions] = await Promise.all([
+      scopeApi.getAdminGroups(),
+      scopeApi.getDescriptions()
+    ])
+    
+    // 转换为前端需要的格式
+    scopeGroups.value = groups.map(group => ({
+      label: group.label,
+      scopes: group.scopes.map(scope => {
+        const [module, action] = scope.split(':')
+        const actionMap: Record<string, string> = {
+          read: '读取',
+          write: '写入',
+          execute: '执行',
+        }
+        return {
+          value: scope,
+          label: `${module}-${actionMap[action] || action}`,
+          description: descriptions[scope] || scope
+        }
+      })
+    }))
+  } catch (error) {
+    console.error('获取 scope 数据失败:', error)
+    ElMessage.error('获取权限数据失败，请刷新页面重试')
+  }
+}
+
+onMounted(() => {
+  loadScopeData()
+})
 
 /**
  * 添加回调地址
