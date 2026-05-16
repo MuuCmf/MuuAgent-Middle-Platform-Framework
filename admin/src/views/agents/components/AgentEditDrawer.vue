@@ -17,19 +17,14 @@
           </el-col>
         </el-row>
 
-        <el-row :gutter="16" v-if="isSuperAdmin">
-          <el-col :span="12">
-            <el-form-item label="所属应用">
-              <AppSelector v-model="form.appCode" placeholder="选择应用" clearable />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="公开状态">
-              <el-switch v-model="form.isPublic" active-text="公开" inactive-text="私有" />
-              <div class="field-tip">公开的资源可被其他应用访问</div>
-            </el-form-item>
-          </el-col>
-        </el-row>
+        <el-form-item label="所属应用">
+          <AppSelector v-model="form.appCode" placeholder="选择应用" clearable />
+        </el-form-item>
+
+        <el-form-item label="公开状态">
+          <el-switch v-model="form.isPublic" active-text="公开" inactive-text="私有" />
+          <div class="field-tip">公开的资源可被其他应用访问</div>
+        </el-form-item>
 
         <el-form-item label="系统提示词" prop="systemPrompt" required>
           <el-input v-model="form.systemPrompt" type="textarea" :rows="4" placeholder="定义智能体的角色和行为方式" />
@@ -826,6 +821,7 @@ const handleClose = () => {
 }
 
 .field-tip {
+  width: 100%;
   font-size: 12px;
   color: #909399;
   margin-top: 4px;
