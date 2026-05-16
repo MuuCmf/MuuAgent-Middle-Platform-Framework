@@ -217,9 +217,16 @@ export class McpService {
         try {
           return await this.modelService.findOne(strategy.fallbackModelId);
         } catch {
-          throw new HttpException('所有模型不可用', HttpStatus.SERVICE_UNAVAILABLE);
+          this.logger.warn(`降级模型 ${strategy.fallbackModelId} 不可用，尝试兜底模型`);
         }
       }
+
+      // 兜底逻辑：尝试使用第一个可用模型（忽略熔断状态）
+      if (models.length > 0) {
+        this.logger.warn(`所有模型熔断，使用兜底模型: ${models[0].code}`);
+        return models[0];
+      }
+
       throw new HttpException('所有模型不可用', HttpStatus.SERVICE_UNAVAILABLE);
     }
 
@@ -386,21 +393,30 @@ export class McpService {
           }).catch(() => {});
           return fallbackModel;
         } catch {
-          this.routingLogService.log({
-            userMessage: '',
-            detectedIntent: intent,
-            confidence: 1.0,
-            source: 'auto',
-            modelType,
-            isDegraded: true,
-            degradeReason: '所有模型不可用',
-            costMs: Date.now() - startTime,
-            success: false,
-            errorMessage: '所有模型不可用',
-          }).catch(() => {});
-          throw new HttpException('所有模型不可用', HttpStatus.SERVICE_UNAVAILABLE);
+          this.logger.warn(`降级模型 ${strategy.fallbackModelId} 不可用，尝试兜底模型`);
         }
       }
+
+      // 兜底逻辑：尝试使用第一个可用模型（忽略熔断状态）
+      if (models.length > 0) {
+        const fallbackModel = models[0];
+        this.logger.warn(`所有模型熔断，使用兜底模型: ${fallbackModel.code}`);
+        this.routingLogService.log({
+          userMessage: '',
+          detectedIntent: intent,
+          confidence: 1.0,
+          source: 'auto',
+          selectedModelId: Number(fallbackModel.id),
+          selectedModelCode: fallbackModel.code,
+          modelType,
+          isDegraded: true,
+          degradeReason: '所有模型熔断，使用兜底模型',
+          costMs: Date.now() - startTime,
+          success: true,
+        }).catch(() => {});
+        return fallbackModel;
+      }
+
       this.routingLogService.log({
         userMessage: '',
         detectedIntent: intent,
