@@ -163,8 +163,11 @@ model Agent {
   mcpServers      String?  @db.Text /// 绑定的MCP Server配置(JSON数组)
   knowledgeBases  String?  @db.Text /// 绑定的知识库code列表(JSON数组)
   maxSteps        Int      @default(5) /// 最大执行步数
-  temperature     Float    @default(0.7) /// 温度参数
   status          Boolean  @default(true) /// 是否启用
+
+  // ===== 模型模板配置 =====
+  modelTemplateCode  String?  @map("model_template_code") /// 绑定的模型模板标识
+  customModelParams  String?  @map("custom_model_params") @db.Text /// 自定义模型参数(JSON): { temperature, topP, maxTokens, contextWindow }
 
   // ===== 推理模式配置 =====
   reasoningMode     String  @default("NONE") @map("reasoning_mode") /// 推理模式: NONE/REACT/PLAN/REFLECT
@@ -192,6 +195,7 @@ model Agent {
   @@index([appCode])
   @@index([isPublic])
   @@index([promptTemplateCode])
+  @@index([modelTemplateCode])
   @@map("agents")
 }
 

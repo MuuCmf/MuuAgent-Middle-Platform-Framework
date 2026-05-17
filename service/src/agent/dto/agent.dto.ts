@@ -23,6 +23,16 @@ export interface WorkspaceAgentConfig {
 }
 
 /**
+ * 自定义模型参数
+ */
+export interface CustomModelParams {
+  temperature?: number;
+  topP?: number;
+  maxTokens?: number;
+  contextWindow?: number;
+}
+
+/**
  * 创建智能体DTO
  */
 export class CreateAgentDto {
@@ -68,17 +78,22 @@ export class CreateAgentDto {
   @IsOptional()
   maxSteps?: number;
 
-  @ApiPropertyOptional({ description: '温度参数', default: 0.7 })
-  @IsNumber()
-  @Min(0)
-  @Max(2)
-  @IsOptional()
-  temperature?: number;
-
   @ApiPropertyOptional({ description: '是否启用', default: true })
   @IsBoolean()
   @IsOptional()
   status?: boolean;
+
+  // ===== 模型模板配置 =====
+
+  @ApiPropertyOptional({ description: '绑定的模型模板标识' })
+  @IsString()
+  @IsOptional()
+  modelTemplateCode?: string;
+
+  @ApiPropertyOptional({ description: '自定义模型参数(JSON)', example: '{"temperature":0.5,"maxTokens":2000}' })
+  @IsString()
+  @IsOptional()
+  customModelParams?: string;
 
   // ===== 推理模式配置 =====
 
@@ -158,17 +173,22 @@ export class UpdateAgentDto {
   @IsOptional()
   maxSteps?: number;
 
-  @ApiPropertyOptional({ description: '温度参数' })
-  @IsNumber()
-  @Min(0)
-  @Max(2)
-  @IsOptional()
-  temperature?: number;
-
   @ApiPropertyOptional({ description: '是否启用' })
   @IsBoolean()
   @IsOptional()
   status?: boolean;
+
+  // ===== 模型模板配置 =====
+
+  @ApiPropertyOptional({ description: '绑定的模型模板标识' })
+  @IsString()
+  @IsOptional()
+  modelTemplateCode?: string;
+
+  @ApiPropertyOptional({ description: '自定义模型参数(JSON)', example: '{"temperature":0.5,"maxTokens":2000}' })
+  @IsString()
+  @IsOptional()
+  customModelParams?: string;
 
   // ===== 推理模式配置 =====
 

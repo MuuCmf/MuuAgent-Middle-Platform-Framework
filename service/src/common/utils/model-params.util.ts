@@ -1,6 +1,6 @@
 /**
  * 模型参数合并工具
- * 统一处理参数优先级逻辑：调用时传入参数 > 场景模板参数 > 系统默认值
+ * 统一处理参数优先级逻辑：调用时传入参数 > 自定义参数 > 场景模板参数 > 系统默认值
  */
 
 /**
@@ -17,8 +17,9 @@ export interface ModelParams {
  * 参数来源接口
  */
 export interface ModelParamsSource {
-  callParams?: ModelParams;
+  callParams?: ModelParams | null;
   templateParams?: ModelParams | null;
+  customParams?: ModelParams | null;
 }
 
 /**
@@ -33,31 +34,35 @@ export const SYSTEM_DEFAULTS: ModelParams = {
 
 /**
  * 合并模型参数
- * 优先级：调用参数 > 模板参数 > 系统默认值
+ * 优先级：调用参数 > 自定义参数 > 模板参数 > 系统默认值
  * @param sources 参数来源
  * @returns {ModelParams} 合并后的参数
  */
 export function mergeModelParams(sources: ModelParamsSource): ModelParams {
-  const { callParams, templateParams } = sources;
+  const { callParams, templateParams, customParams } = sources;
 
   return {
     temperature:
       callParams?.temperature ??
+      customParams?.temperature ??
       templateParams?.temperature ??
       SYSTEM_DEFAULTS.temperature,
 
     topP:
       callParams?.topP ??
+      customParams?.topP ??
       templateParams?.topP ??
       SYSTEM_DEFAULTS.topP,
 
     maxTokens:
       callParams?.maxTokens ??
+      customParams?.maxTokens ??
       templateParams?.maxTokens ??
       SYSTEM_DEFAULTS.maxTokens,
 
     contextWindow:
       callParams?.contextWindow ??
+      customParams?.contextWindow ??
       templateParams?.contextWindow ??
       SYSTEM_DEFAULTS.contextWindow,
   };

@@ -8,6 +8,13 @@ export interface WorkspaceAgentConfig {
   deniedExtensions?: string[]
 }
 
+export interface CustomModelParams {
+  temperature?: number
+  topP?: number
+  maxTokens?: number
+  contextWindow?: number
+}
+
 export interface Agent {
   id: number
   name: string
@@ -18,8 +25,9 @@ export interface Agent {
   mcpServers?: string
   knowledgeBases?: string
   maxSteps: number
-  temperature: number
   status: boolean
+  modelTemplateCode?: string
+  customModelParams?: string
   reasoningMode?: string
   reasoningPrompt?: string
   kbRetrievalMode?: string
@@ -40,8 +48,9 @@ export interface AgentForm {
   mcpServers?: string
   knowledgeBases?: string
   maxSteps: number
-  temperature: number
   status: boolean
+  modelTemplateCode?: string
+  customModelParams?: string
   reasoningMode?: string
   reasoningPrompt?: string
   kbRetrievalMode?: string

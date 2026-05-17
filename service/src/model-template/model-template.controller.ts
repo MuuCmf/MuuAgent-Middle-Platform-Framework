@@ -25,7 +25,7 @@ import { success, page } from '../common/response/api.response';
 /**
  * 模型参数模板控制器
  */
-@ApiTags('模型参数模板')
+@ApiTags('模型参数模板（管理端）')
 @ApiBearerAuth()
 @UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller('admin/model-template')

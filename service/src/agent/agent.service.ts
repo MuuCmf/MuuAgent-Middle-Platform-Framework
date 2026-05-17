@@ -14,12 +14,14 @@ import { ModelTemplateService } from '../model-template/model-template.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationType } from '../conversation/dto/create-conversation.dto';
 import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
+import { mergeModelParams, ModelParams, SYSTEM_DEFAULTS } from '../common/utils/model-params.util';
 import {
   CreateAgentDto,
   UpdateAgentDto,
   AgentChatDto,
   QueryAgentDto,
   WorkspaceAgentConfig,
+  CustomModelParams,
 } from './dto/agent.dto';
 import { AiService } from '../ai/ai.service';
 import { ToolNameSanitizer } from '../ai/providers/tool-name-sanitizer';
@@ -50,9 +52,6 @@ export class AgentService {
   ) {}
 
   async create(dto: CreateAgentDto, context?: IsolationContext) {
-    const template = await this.modelTemplateService.getDefaultTemplate('llm');
-    const defaultTemperature = template?.temperature ?? 0.7;
-
     const data = buildCreateData({
       name: dto.name,
       code: dto.code,
@@ -62,8 +61,9 @@ export class AgentService {
       mcpServers: dto.mcpServers || '[]',
       knowledgeBases: dto.knowledgeBases || '[]',
       maxSteps: dto.maxSteps ?? 5,
-      temperature: dto.temperature ?? defaultTemperature,
       status: dto.status ?? true,
+      modelTemplateCode: dto.modelTemplateCode,
+      customModelParams: dto.customModelParams,
       reasoningMode: dto.reasoningMode || 'NONE',
       reasoningPrompt: dto.reasoningPrompt,
       kbRetrievalMode: 'tool',
@@ -455,6 +455,12 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
       systemPrompt = systemPrompt + '\n\n' + workspaceContext;
     }
 
+    /**
+     * 获取智能体的合并模型参数
+     * 优先级：自定义参数 > 模板参数 > 系统默认值
+     */
+    const mergedParams = await this.getMergedModelParams(agent);
+
     return {
       agent,
       model,
@@ -462,11 +468,53 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
       systemPrompt,
       tools,
       maxSteps: agent.maxSteps || 5,
-      temperature: agent.temperature,
+      temperature: mergedParams.temperature,
+      topP: mergedParams.topP,
+      maxTokens: mergedParams.maxTokens,
       conversationHistory,
       conversation,
       conversationId: conversation.id,
     };
+  }
+
+  /**
+   * 获取智能体的合并模型参数
+   * @param agent 智能体对象
+   * @returns {Promise<ModelParams>} 合并后的参数
+   */
+  private async getMergedModelParams(agent: any): Promise<ModelParams> {
+    let templateParams: ModelParams | null = null;
+    let customParams: ModelParams | null = null;
+
+    if (agent.modelTemplateCode) {
+      try {
+        const template = await this.modelTemplateService.findByCode(agent.modelTemplateCode);
+        if (template) {
+          templateParams = {
+            temperature: template.temperature,
+            topP: template.topP,
+            maxTokens: template.maxTokens,
+            contextWindow: template.contextWindow,
+          };
+        }
+      } catch (e) {
+        this.logger.warn(`获取模型模板失败: ${agent.modelTemplateCode}`);
+      }
+    }
+
+    if (agent.customModelParams) {
+      try {
+        customParams = JSON.parse(agent.customModelParams);
+      } catch (e) {
+        this.logger.warn('解析自定义模型参数失败');
+      }
+    }
+
+    return mergeModelParams({
+      callParams: null,
+      templateParams,
+      customParams,
+    });
   }
 
   private async executeDefaultSyncChat(

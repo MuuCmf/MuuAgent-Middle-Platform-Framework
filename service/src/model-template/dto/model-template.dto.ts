@@ -215,12 +215,14 @@ export class QueryModelTemplateDto {
   isDefault?: boolean;
 
   @ApiPropertyOptional({ description: '页码', default: 1 })
+  @Transform(({ value }) => value ? parseInt(value, 10) : undefined)
   @IsNumber()
   @Min(1)
   @IsOptional()
   page?: number;
 
   @ApiPropertyOptional({ description: '每页数量', default: 10 })
+  @Transform(({ value }) => value ? parseInt(value, 10) : undefined)
   @IsNumber()
   @Min(1)
   @Max(100)
