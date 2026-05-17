@@ -76,7 +76,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="280">
+      <el-table-column label="操作" width="280" fixed="right" align="right">
         <template #default="{ row }">
           <el-button size="small" @click="handleEditTemplate(row)">编辑</el-button>
           <el-button size="small" type="warning" @click="handleCopyTemplate(row.id)">复制</el-button>

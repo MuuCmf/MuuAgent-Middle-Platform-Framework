@@ -6,6 +6,7 @@ import { ModelRoutingModule } from "../model-routing/model-routing.module";
 import { McpServerModule } from '../mcp-server/mcp-server.module';
 import { SkillModule } from '../skill/skill.module';
 import { ModelModule } from '../model/model.module';
+import { ModelTemplateModule } from '../model-template/model-template.module';
 import { RetrievalModule } from '../retrieval/retrieval.module';
 import { AiModule } from '../ai/ai.module';
 import { KbSearchTool } from './tools/kb-search.tool';
@@ -19,7 +20,7 @@ import { WorkspaceModule } from '../workspace/workspace.module';
  * 智能体模块
  */
 @Module({
-  imports: [ModelRoutingModule, McpServerModule, SkillModule, ModelModule, RetrievalModule, AiModule, PromptTemplateModule, ConversationModule, IntentModule, WorkspaceModule],
+  imports: [ModelRoutingModule, McpServerModule, SkillModule, ModelModule, ModelTemplateModule, RetrievalModule, AiModule, PromptTemplateModule, ConversationModule, IntentModule, WorkspaceModule],
   controllers: [AgentController, AgentAdminController],
   providers: [
     AgentService,

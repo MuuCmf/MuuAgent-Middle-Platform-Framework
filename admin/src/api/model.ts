@@ -10,8 +10,6 @@ export interface Model {
   endpoint?: string
   apiKey?: string
   weight: number
-  maxTokens: number
-  temperature: number
   status: boolean
   description?: string
   config?: string
@@ -30,8 +28,6 @@ export interface ModelForm {
   endpoint?: string
   apiKey?: string
   weight: number
-  maxTokens: number
-  temperature: number
   status: boolean
   description?: string
   config?: string

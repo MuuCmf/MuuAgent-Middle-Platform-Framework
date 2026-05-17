@@ -6,6 +6,7 @@ import { AiInvokeDto } from '../ai/dto/ai.dto';
 import { CacheService } from '../cache/cache.service';
 import { BM25Service } from './bm25.service';
 import { PromptTemplateService } from '../prompt-template/prompt-template.service';
+import { ModelTemplateService } from '../model-template/model-template.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationType } from '../conversation/dto/create-conversation.dto';
 import { RetrievalDto } from './dto/retrieval.dto';
@@ -41,6 +42,7 @@ export class RetrievalService {
    * @param cacheService 缓存服务（用于优化检索性能）
    * @param bm25Service BM25检索服务（作为向量检索的备选方案）
    * @param promptTemplateService 提示词模板服务
+   * @param modelTemplateService 模型参数模板服务
    * @param conversationService 会话服务
    */
   constructor(
@@ -50,6 +52,7 @@ export class RetrievalService {
     private readonly cacheService: CacheService,
     private readonly bm25Service: BM25Service,
     private readonly promptTemplateService: PromptTemplateService,
+    private readonly modelTemplateService: ModelTemplateService,
     private readonly conversationService: ConversationService,
     private readonly mcpService: ModelRoutingService,
     private readonly modelService: ModelService,
@@ -846,6 +849,10 @@ ${context}
    */
   private async callLLM(prompt: string, uid?: string, modelCode?: string): Promise<string> {
     try {
+      const template = await this.modelTemplateService.getDefaultTemplate('llm');
+      const temperature = template?.temperature ?? 0.7;
+      const maxTokens = template?.maxTokens ?? 4096;
+
       const dto: AiInvokeDto = {
         messages: [
           {
@@ -855,8 +862,8 @@ ${context}
         ],
         modelType: 'llm',
         modelCode: modelCode && modelCode !== 'mcp' ? modelCode : undefined,
-        temperature: 0.7,
-        maxTokens: 4096,
+        temperature,
+        maxTokens,
       };
 
       const result = await this.aiService.invoke(dto, '127.0.0.1', 'retrieval-service', uid);

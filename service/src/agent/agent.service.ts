@@ -9,8 +9,8 @@ import { KbSearchTool } from './tools/kb-search.tool';
 import { ToolExecutor, ToolCall, ToolExecutionResult } from './tools/tool-executor';
 import { BUILTIN_TOOL_DEFINITIONS } from './tools/tool-definitions';
 import { ReasoningMode, ToolDefinition } from './react/react.types';
-import { ReActPromptBuilder } from './react/react.prompt';
 import { PromptTemplateService } from '../prompt-template/prompt-template.service';
+import { ModelTemplateService } from '../model-template/model-template.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationType } from '../conversation/dto/create-conversation.dto';
 import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
@@ -22,7 +22,8 @@ import {
   WorkspaceAgentConfig,
 } from './dto/agent.dto';
 import { AiService } from '../ai/ai.service';
-import { AiSdkToolAdapter } from '../ai/providers/ai-sdk-tool.adapter';
+import { ToolNameSanitizer } from '../ai/providers/tool-name-sanitizer';
+import { parseAiError, getErrorCode } from '../ai/utils/error-parser';
 import type { ModelMessage } from 'ai';
 import { StreamEmitter, StreamEvents } from '../stream';
 import { WorkspaceToolHandler } from '../workspace/workspace-tool.handler';
@@ -41,6 +42,7 @@ export class AgentService {
     private toolExecutor: ToolExecutor,
     private aiService: AiService,
     private promptTemplateService: PromptTemplateService,
+    private modelTemplateService: ModelTemplateService,
     private conversationService: ConversationService,
     private mcpService: ModelRoutingService,
     private intentClassifier: IntentClassifierService,
@@ -48,6 +50,9 @@ export class AgentService {
   ) {}
 
   async create(dto: CreateAgentDto, context?: IsolationContext) {
+    const template = await this.modelTemplateService.getDefaultTemplate('llm');
+    const defaultTemperature = template?.temperature ?? 0.7;
+
     const data = buildCreateData({
       name: dto.name,
       code: dto.code,
@@ -57,7 +62,7 @@ export class AgentService {
       mcpServers: dto.mcpServers || '[]',
       knowledgeBases: dto.knowledgeBases || '[]',
       maxSteps: dto.maxSteps ?? 5,
-      temperature: dto.temperature ?? 0.7,
+      temperature: dto.temperature ?? defaultTemperature,
       status: dto.status ?? true,
       reasoningMode: dto.reasoningMode || 'NONE',
       reasoningPrompt: dto.reasoningPrompt,
@@ -317,7 +322,7 @@ export class AgentService {
               });
               if (Array.isArray(toolsResult)) {
                 tools.push(...toolsResult.map(t => ({
-                  name: `mcp:${server.name || server.url}:${t.name}`,
+                  name: `mcp__${server.name || server.url}__${t.name}`,
                   description: t.description || '',
                   parameters: t.inputSchema || { type: 'object', properties: {} },
                   type: 'mcp' as const,
@@ -341,7 +346,7 @@ export class AgentService {
             const skill = await this.skillService.findByCode(code, isolationContext);
             if (skill) {
               tools.push({
-                name: skill.code,
+                name: `skill__${skill.code}`,
                 description: skill.description || '',
                 parameters: skill.params ? JSON.parse(skill.params) : { type: 'object', properties: {} },
                 type: 'skill',
@@ -439,20 +444,11 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
     const hasTools = tools.length > 0;
     const toolsDescription = hasTools ? JSON.stringify(tools, null, 2) : '';
 
-    let systemPrompt: string;
-    try {
-      systemPrompt = await this.promptTemplateService.render(templateCode, {
-        basePrompt: agent.systemPrompt || '你是一个MuuAI开发的有帮助的AI助手。',
-        hasTools: hasTools,
-        tools: toolsDescription
-      });
-    } catch (error) {
-      this.logger.warn(`Failed to render prompt template: ${templateCode}, fallback to default`);
-      systemPrompt = ReActPromptBuilder.buildSystemPrompt(
-        agent.systemPrompt || '你是一个MuuAI开发的有帮助的AI助手。',
-        tools,
-      );
-    }
+    let systemPrompt = await this.promptTemplateService.render(templateCode, {
+      basePrompt: agent.systemPrompt || '你是一个MuuAI开发的AI助手。',
+      hasTools: hasTools,
+      tools: toolsDescription
+    });
 
     // 追加工作目录上下文
     if (workspaceContext) {
@@ -466,7 +462,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
       systemPrompt,
       tools,
       maxSteps: agent.maxSteps || 5,
-      temperature: agent.temperature || 0.7,
+      temperature: agent.temperature,
       conversationHistory,
       conversation,
       conversationId: conversation.id,
@@ -486,7 +482,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
       { role: 'user', content: context.userMessage },
     ];
 
-    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
+    const { tools, nameMap } = ToolNameSanitizer.adapt(context.tools, context.model?.provider);
 
     try {
       await this.conversationService.addMessage(
@@ -525,12 +521,16 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
 
       return {
         response: result.text,
+        toolCalls: (result.toolCalls || []).map((tc: any) => ({
+          ...tc,
+          toolName: nameMap[tc.toolName] || tc.toolName,
+        })),
         steps: [],
         reasoningMode: ReasoningMode.NONE,
         conversationId: context.conversationId,
       };
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : '执行失败';
+      const errorMsg = parseAiError(error);
       await this.prisma.agentInvokeLog.create({
         data: {
           agentId: agent.id,
@@ -578,7 +578,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
       { role: 'user', content: context.userMessage },
     ];
 
-    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
+    const { tools, nameMap } = ToolNameSanitizer.adapt(context.tools, context.model?.provider);
 
     if (!messages) {
       this.logger.log(`[executeDefaultStream] 开始执行默认流式模式，tools count: ${Object.keys(tools).length}`);
@@ -618,9 +618,13 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
 
           if (hasToolCall && toolCallCount < maxToolCalls) {
             const parsedToolCall = this.aiService.getToolCallParser().parseFromText(result.text || '');
-            const toolCall = toolCallToExecute || (parsedToolCall ? { name: parsedToolCall.toolName, args: parsedToolCall.args } : null);
+            const rawCall = toolCallToExecute || (parsedToolCall ? { name: parsedToolCall.toolName, args: parsedToolCall.args } : null);
 
-            if (toolCall) {
+            if (rawCall) {
+              // 反向映射：将 provider 合规名恢复为内部协议名（skill__xxx / mcp__xxx）
+              const resolvedName = nameMap[rawCall.name] || rawCall.name;
+              const toolCall = { ...rawCall, name: resolvedName };
+
               try {
                 let toolResult: ToolExecutionResult;
 
@@ -665,7 +669,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
                   ...currentMessages,
                   {
                     role: 'assistant' as const,
-                    content: `Action: ${toolCall.name}\nAction Input: ${JSON.stringify(toolCall.args)}\nObservation: ${resultText}`,
+                    content: `Action: ${rawCall.name}\nAction Input: ${JSON.stringify(toolCall.args)}\nObservation: ${resultText}`,
                   },
                   {
                     role: 'user' as const,
@@ -734,12 +738,16 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
         },
         onError: (error) => {
           this.logger.error(`[executeDefaultStream] 收到错误: ${error}`);
-          emitter.emitError(error instanceof Error ? error.message : String(error));
+          const errorMsg = parseAiError(error);
+          const errorCode = getErrorCode(error);
+          emitter.emitError(errorMsg, errorCode);
         },
       });
     } catch (error) {
       this.logger.error(`[executeDefaultStream] 异常: ${error instanceof Error ? error.message : error}`);
-      emitter.emitError(error instanceof Error ? error.message : 'Unknown error');
+      const errorMsg = parseAiError(error);
+      const errorCode = getErrorCode(error);
+      emitter.emitError(errorMsg, errorCode);
     }
   }
 
@@ -806,7 +814,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
     const steps: any[] = [];
     let finalResponse = '';
 
-    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
+    const { tools, nameMap } = ToolNameSanitizer.adapt(context.tools, context.model?.provider);
 
     try {
       await this.conversationService.addMessage(
@@ -836,14 +844,16 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
             emitter.emitTextDelta(chunk);
           },
           onToolCall: async (toolCall: { name: string; args: any }) => {
-            this.logger.log(`[ReAct+FC] 检测到工具调用: ${toolCall.name}`);
+            // 反向映射：将 provider 合规名恢复为内部协议名
+            const resolvedName = nameMap[toolCall.name] || toolCall.name;
+            this.logger.log(`[ReAct+FC] 检测到工具调用: ${resolvedName}`);
             hasToolCall = true;
 
             // 记录推理步骤
             const thoughtStep = {
               stepNumber: steps.length + 1,
               stepType: 'thought',
-              content: stepText || `需要调用工具 ${toolCall.name}`,
+              content: stepText || `需要调用工具 ${resolvedName}`,
             };
             steps.push(thoughtStep);
             emitter.emit(StreamEvents.reasoningStep(thoughtStep));
@@ -852,8 +862,8 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
             const actionStep = {
               stepNumber: steps.length + 1,
               stepType: 'action',
-              content: `调用工具: ${toolCall.name}`,
-              action: toolCall.name,
+              content: `调用工具: ${resolvedName}`,
+              action: resolvedName,
               actionInput: toolCall.args,
             };
             steps.push(actionStep);
@@ -861,16 +871,16 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
 
             // 执行工具（工作目录工具下发给客户端）
             let toolResult: ToolExecutionResult;
-            if (WORKSPACE_TOOL_NAMES.has(toolCall.name)) {
+            if (WORKSPACE_TOOL_NAMES.has(resolvedName)) {
               const workspaceResult = await this.workspaceToolHandler.dispatchToClient(
                 emitter,
-                toolCall.name,
+                resolvedName,
                 toolCall.args,
               );
               if (workspaceResult.success) {
                 toolResult = {
                   toolCallId: `tc_${Date.now()}`,
-                  toolName: toolCall.name,
+                  toolName: resolvedName,
                   args: toolCall.args,
                   result: workspaceResult.result,
                   success: true,
@@ -884,7 +894,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
                 {
                   id: `tc_${Date.now()}`,
                   function: {
-                    name: toolCall.name,
+                    name: resolvedName,
                     arguments: JSON.stringify(toolCall.args),
                   },
                 },
@@ -893,7 +903,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
             }
 
             // 发送工具调用事件
-            emitter.emit(StreamEvents.toolCall(toolCall.name, toolCall.args, toolResult.result));
+            emitter.emit(StreamEvents.toolCall(resolvedName, toolCall.args, toolResult.result));
 
             // 记录观察步骤
             const resultText = typeof toolResult.result === 'object'
@@ -961,9 +971,10 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
 
       this.logger.log(`[ReAct+FC] 执行完成, 耗时: ${Date.now() - startTime}ms`);
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errorMsg = parseAiError(error);
+      const errorCode = getErrorCode(error);
       this.logger.error(`[ReAct+FC] 执行失败:`, errorMsg);
-      emitter.emitError(errorMsg);
+      emitter.emitError(errorMsg, errorCode);
     }
   }
 
@@ -996,7 +1007,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
     const steps: any[] = [];
     let finalResponse = '';
 
-    const tools = AiSdkToolAdapter.toAisSdkTools(context.tools);
+    const { tools, nameMap } = ToolNameSanitizer.adapt(context.tools, context.model?.provider);
 
     try {
       await this.conversationService.addMessage(
@@ -1035,11 +1046,14 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
 
           // 执行工具
           for (const toolCall of result.toolCalls) {
+            // 反向映射：将 provider 合规名恢复为内部协议名
+            const resolvedName = nameMap[toolCall.toolName] || toolCall.toolName;
+
             const toolResult = await this.toolExecutor.executeToolCall(
               {
                 id: toolCall.toolCallId || `tc_${Date.now()}`,
                 function: {
-                  name: toolCall.toolName,
+                  name: resolvedName,
                   arguments: JSON.stringify(toolCall.args),
                 },
               },
@@ -1050,8 +1064,8 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
             steps.push({
               stepNumber: steps.length + 1,
               stepType: 'action',
-              content: `调用工具: ${toolCall.toolName}`,
-              action: toolCall.toolName,
+              content: `调用工具: ${resolvedName}`,
+              action: resolvedName,
               actionInput: toolCall.args,
             });
 
@@ -1134,7 +1148,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
         conversationId: context.conversationId,
       };
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errorMsg = parseAiError(error);
       this.logger.error(`[ReAct+FC Sync] 执行失败:`, errorMsg);
 
       return {

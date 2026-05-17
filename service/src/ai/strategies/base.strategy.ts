@@ -83,7 +83,7 @@ export abstract class BaseStrategy implements IProviderStrategy {
       messages,
       tools: tools && Object.keys(tools).length > 0 ? tools : undefined,
       toolChoice: options?.toolChoice,
-      temperature: options?.temperature ?? model.temperature ?? 0.7,
+      temperature: options?.temperature ?? 0.7,
       maxTokens: options?.maxTokens,
     } as any);
 
@@ -108,7 +108,7 @@ export abstract class BaseStrategy implements IProviderStrategy {
       messages,
       tools: tools && Object.keys(tools).length > 0 ? tools : undefined,
       toolChoice: options?.toolChoice,
-      temperature: options?.temperature ?? model.temperature ?? 0.7,
+      temperature: options?.temperature ?? 0.7,
       maxTokens: options?.maxTokens,
     } as any);
 

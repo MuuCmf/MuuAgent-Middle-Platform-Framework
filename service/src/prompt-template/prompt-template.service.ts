@@ -283,7 +283,8 @@ export class PromptTemplateService {
     });
 
     if (!template) {
-      throw new NotFoundException('模板不存在或未启用');
+      this.logger.warn(`模板不存在或未启用: ${code}, 使用内置默认模板`);
+      return this.getBuiltinTemplate(code, variables);
     }
 
     const variableDefs = template.variables ? JSON.parse(template.variables) : [];
@@ -484,5 +485,161 @@ export class PromptTemplateService {
 
     this.logger.log(`设置默认模板成功: ${template.code}`);
     return this.prisma.promptTemplate.findUnique({ where: { id: id as any } });
+  }
+
+  /**
+   * 获取内置默认模板内容
+   * 当数据库中不存在模板时使用
+   * @param code 模板标识
+   * @param variables 变量值
+   * @returns 渲染后的提示词
+   */
+  private getBuiltinTemplate(code: string, variables: Record<string, any>): string {
+    const builtinTemplates: Record<string, string> = {
+      'agent-system-default': `{{basePrompt}}
+
+{{#if hasTools}}
+## 可用工具
+
+{{tools}}
+
+## 工具使用规则
+
+当用户的问题需要使用工具来获取信息时，你必须调用相应的工具。
+{{/if}}
+
+## 回答要求
+
+1. 准确回答用户问题
+2. 使用友好、专业的语气
+3. 如果不确定，请明确说明`,
+
+      'rag-chat-default': `你是一个专业的问答助手。请根据以下参考信息回答用户的问题。
+
+## 参考信息
+{{context}}
+
+## 用户问题
+{{query}}
+
+## 回答格式
+请按照以下格式回答：
+[THINKING]
+你的思考过程和分析
+[ANSWER]
+正式回答内容
+
+## 回答要求
+1. 基于参考信息给出准确、详细的回答
+2. 如果参考信息中没有相关内容，请明确告知用户
+3. 使用友好、专业的语气
+4. 引用参考信息的来源`,
+
+      'react-reasoning-default': `{{basePrompt}}
+
+## 可用工具
+
+{{tools}}
+
+## 工具使用规则
+
+当用户的问题需要使用工具来获取信息时，你必须调用相应的工具。
+
+## 回答格式（严格遵守）
+
+每个标记必须独占一行，格式如下：
+
+Thought: 思考当前需要做什么，分析用户问题和已有信息
+Action: 要执行的工具名称（必须是上述工具之一）
+Action Input: 工具参数，JSON格式，例如：{}
+Observation: 工具返回结果（由系统自动提供）
+
+... (这个 Thought/Action/Action Input/Observation 可以重复多次)
+
+Thought: 我现在知道最终答案了
+Final Answer: 对用户问题的最终回答
+
+## 重要规则
+
+1. 每次只能调用一个工具
+2. **必须严格按照格式输出，每个标记独占一行**
+3. **标记后面必须有冒号和空格，例如："Thought: "而不是"Thought"**
+4. 收到 Observation 后，继续思考下一步行动
+5. 当你有足够信息回答用户问题时，输出 Final Answer
+6. Final Answer 必须用自然语言回答，不要提及工具调用细节
+7. **如果不需要调用工具，直接输出 Final Answer**`,
+
+      'skill-invoke-default': `你是一个技能选择助手。你的任务是根据用户的请求，选择最合适的技能并提取参数。
+
+## 可用技能列表
+
+{{skillDescription}}
+
+## 用户请求
+
+{{userRequest}}
+
+## 返回格式要求
+
+请严格按照以下 JSON 格式返回结果，不要添加任何其他内容：
+{
+  "skillCode": "技能标识",
+  "params": {
+    "参数名": "参数值"
+  },
+  "reason": "选择理由"
+}
+
+## 重要规则
+
+1. skillCode 必须是上述可用技能之一
+2. params 必须是一个对象，包含调用技能所需的参数
+3. 如果用户请求不需要调用技能，返回 skillCode 为空字符串
+4. 只返回 JSON，不要有任何其他文字说明`,
+
+      'intent-classify-default': `你是一个对话意图分类助手。请分析用户消息，判断其意图类别。
+
+## 意图类别定义
+
+- general: 通用对话、闲聊、问答
+- code: 编程开发、代码编写、调试、技术问题
+- math: 数学计算、公式推导、统计分析
+- creative: 创意写作、文案创作、翻译润色
+- image: 图像生成、绘图、图片处理
+- tts: 语音合成、文字转语音、朗读
+- asr: 语音识别、语音转文字
+
+## 用户消息
+
+{{userMessage}}
+
+## 返回格式要求
+
+请严格按照以下 JSON 格式返回，不要添加任何其他内容：
+{
+  "intent": "意图类别",
+  "confidence": 0.95
+}
+
+## 规则
+
+1. intent 必须是上述类别之一
+2. confidence 是 0-1 之间的置信度
+3. 如果无法确定，返回 general，confidence 设为 0.5
+4. 只返回 JSON，不要有任何其他文字`,
+    };
+
+    const template = builtinTemplates[code];
+    if (!template) {
+      throw new NotFoundException(`模板不存在且无内置默认模板: ${code}`);
+    }
+
+    let rendered = template;
+    for (const [key, value] of Object.entries(variables)) {
+      const placeholder = `{{${key}}}`;
+      rendered = rendered.replace(new RegExp(placeholder, 'g'), String(value));
+    }
+
+    return rendered;
   }
 }

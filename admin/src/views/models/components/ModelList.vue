@@ -130,19 +130,6 @@
 
       <el-row :gutter="16">
         <el-col :span="12">
-          <el-form-item label="最大Token">
-            <el-input-number v-model="modelForm.maxTokens" :min="1" style="width: 100%;" />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="温度参数">
-            <el-input-number v-model="modelForm.temperature" :min="0" :max="1" :step="0.1" style="width: 100%;" />
-          </el-form-item>
-        </el-col>
-      </el-row>
-
-      <el-row :gutter="16">
-        <el-col :span="12">
           <el-form-item label="模型分类">
             <el-select v-model="modelForm.category" placeholder="请选择分类" style="width: 100%;" clearable>
               <el-option label="通用" value="general" />
@@ -209,8 +196,6 @@ const modelForm = ref<ModelForm>({
   endpoint: '',
   apiKey: '',
   weight: 10,
-  maxTokens: 4096,
-  temperature: 0.7,
   status: true,
   tags: '',
   category: ''
@@ -228,8 +213,6 @@ const resetModelForm = () => {
     endpoint: '',
     apiKey: '',
     weight: 10,
-    maxTokens: 4096,
-    temperature: 0.7,
     status: true,
     tags: '',
     category: ''

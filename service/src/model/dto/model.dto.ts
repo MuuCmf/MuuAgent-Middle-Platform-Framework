@@ -107,19 +107,6 @@ export class CreateModelDto {
   @IsOptional()
   weight?: number;
 
-  @ApiPropertyOptional({ description: '最大Token数', default: 4096 })
-  @IsNumber()
-  @Min(1)
-  @IsOptional()
-  maxTokens?: number;
-
-  @ApiPropertyOptional({ description: '温度参数', default: 0.7 })
-  @IsNumber()
-  @Min(0)
-  @Max(2)
-  @IsOptional()
-  temperature?: number;
-
   @ApiPropertyOptional({ description: '是否启用', default: true })
   @IsBoolean()
   @IsOptional()
@@ -194,19 +181,6 @@ export class UpdateModelDto {
   @Max(100)
   @IsOptional()
   weight?: number;
-
-  @ApiPropertyOptional({ description: '最大Token数' })
-  @IsNumber()
-  @Min(1)
-  @IsOptional()
-  maxTokens?: number;
-
-  @ApiPropertyOptional({ description: '温度参数' })
-  @IsNumber()
-  @Min(0)
-  @Max(2)
-  @IsOptional()
-  temperature?: number;
 
   @ApiPropertyOptional({ description: '是否启用' })
   @IsBoolean()

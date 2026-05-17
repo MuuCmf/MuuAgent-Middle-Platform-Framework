@@ -34,8 +34,6 @@ export class ModelService {
         endpoint: dto.endpoint,
         apiKey: dto.apiKey,
         weight: dto.weight ?? 1,
-        maxTokens: dto.maxTokens ?? 4096,
-        temperature: dto.temperature ?? 0.7,
         status: dto.status ?? true,
         description: dto.description,
         config: dto.config,

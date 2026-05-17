@@ -17,8 +17,6 @@ model Model {
   endpoint    String   /// 模型API地址
   apiKey      String?  /// API密钥
   weight      Int      @default(1) /// 权重(用于负载均衡)
-  maxTokens   Int      @default(4096) /// 最大Token数
-  temperature Float    @default(0.7) /// 温度参数
   status      Boolean  @default(true) /// 是否启用
   description String?  /// 模型描述
   config      String?  /// 额外配置(JSON格式)

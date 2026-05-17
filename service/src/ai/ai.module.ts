@@ -3,6 +3,7 @@ import { AiService } from './ai.service';
 import { AiController } from './ai.controller';
 import { ModelRoutingModule } from "../model-routing/model-routing.module";
 import { ModelModule } from '../model/model.module';
+import { ModelTemplateModule } from '../model-template/model-template.module';
 import { ConversationModule } from '../conversation/conversation.module';
 import { IntentModule } from '../intent/intent.module';
 import { PrismaModule } from '../common/prisma/prisma.module';
@@ -32,7 +33,7 @@ import { ToolCallParser } from './parsers/tool-call.parser';
  * AI调用模块
  */
 @Module({
-  imports: [ModelRoutingModule, ModelModule, ConversationModule, IntentModule, PrismaModule],
+  imports: [ModelRoutingModule, ModelModule, ModelTemplateModule, ConversationModule, IntentModule, PrismaModule],
   controllers: [AiController],
   providers: [
     // 基础设施层

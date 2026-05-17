@@ -36,7 +36,8 @@ async function main() {
 4. 引用参考信息的来源`,
       variables: JSON.stringify([
         { name: 'context', type: 'string', required: true, description: '从知识库检索到的上下文内容' },
-        { name: 'query', type: 'string', required: true, description: '用户提出的问题' }
+        { name: 'query', type: 'string', required: true, description: '用户提出的问题' },
+        { name: 'conversationHistory', type: 'string', required: false, description: '历史对话记录' }
       ]),
       isDefault: true,
       status: true,
@@ -220,22 +221,35 @@ Final Answer: [最终答案]`,
       code: 'skill-invoke-default',
       name: '技能调用提示词',
       category: 'skill',
-      content: `你是一个技能调用助手。
+      content: `你是一个技能选择助手。你的任务是根据用户的请求，选择最合适的技能并提取参数。
 
-## 技能信息
-- 名称: {{skillName}}
-- 描述: {{skillDescription}}
-- 类型: {{skillType}}
+## 可用技能列表
+
+{{skillDescription}}
 
 ## 用户请求
+
 {{userRequest}}
 
-## 任务
-请根据用户请求，分析需要调用哪个技能，以及需要传递什么参数。`,
+## 返回格式要求
+
+请严格按照以下 JSON 格式返回结果，不要添加任何其他内容：
+{
+  "skillCode": "技能标识",
+  "params": {
+    "参数名": "参数值"
+  },
+  "reason": "选择理由"
+}
+
+## 重要规则
+
+1. skillCode 必须是上述可用技能之一
+2. params 必须是一个对象，包含调用技能所需的参数
+3. 如果用户请求不需要调用技能，返回 skillCode 为空字符串
+4. 只返回 JSON，不要有任何其他文字说明`,
       variables: JSON.stringify([
-        { name: 'skillName', type: 'string', required: true, description: '技能名称' },
-        { name: 'skillDescription', type: 'string', required: true, description: '技能描述' },
-        { name: 'skillType', type: 'string', required: true, description: '技能类型' },
+        { name: 'skillDescription', type: 'string', required: true, description: '可用技能列表描述' },
         { name: 'userRequest', type: 'string', required: true, description: '用户请求' }
       ]),
       isDefault: true,
@@ -244,6 +258,52 @@ Final Answer: [最终答案]`,
     },
   });
   console.log('✅ 创建技能调用模板:', skillTemplate.code);
+
+  // 7. 意图识别模板
+  const intentTemplate = await prisma.promptTemplate.create({
+    data: {
+      code: 'intent-classify-default',
+      name: '意图识别提示词',
+      category: 'intent',
+      content: `你是一个对话意图分类助手。请分析用户消息，判断其意图类别。
+
+## 意图类别定义
+
+- general: 通用对话、闲聊、问答
+- code: 编程开发、代码编写、调试、技术问题
+- math: 数学计算、公式推导、统计分析
+- creative: 创意写作、文案创作、翻译润色
+- image: 图像生成、绘图、图片处理
+- tts: 语音合成、文字转语音、朗读
+- asr: 语音识别、语音转文字
+
+## 用户消息
+
+{{userMessage}}
+
+## 返回格式要求
+
+请严格按照以下 JSON 格式返回，不要添加任何其他内容：
+{
+  "intent": "意图类别",
+  "confidence": 0.95
+}
+
+## 规则
+
+1. intent 必须是上述类别之一
+2. confidence 是 0-1 之间的置信度
+3. 如果无法确定，返回 general，confidence 设为 0.5
+4. 只返回 JSON，不要有任何其他文字`,
+      variables: JSON.stringify([
+        { name: 'userMessage', type: 'string', required: true, description: '用户消息内容' }
+      ]),
+      isDefault: true,
+      status: true,
+      description: '意图识别场景的提示词模板',
+    },
+  });
+  console.log('✅ 创建意图识别模板:', intentTemplate.code);
 
   console.log('\n🎉 所有 Prompt Template 初始数据插入完成！');
 }

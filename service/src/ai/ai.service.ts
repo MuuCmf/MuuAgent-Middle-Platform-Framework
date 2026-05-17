@@ -1,6 +1,7 @@
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { ModelRoutingService } from "../model-routing/model-routing.service";
 import { ModelService } from '../model/model.service';
+import { ModelTemplateService } from '../model-template/model-template.service';
 import { IntentClassifierService } from '../intent/intent.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationType } from '../conversation/dto/create-conversation.dto';
@@ -13,6 +14,7 @@ import {
 } from './dto/ai.dto';
 import { Model } from '@prisma/client';
 import { IsolationContext } from '../common/utils/isolation.util';
+import { mergeModelParams, ModelParams } from '../common/utils/model-params.util';
 import { StrategyFactory } from './strategies/strategy.factory';
 import { ModelExecutor } from './core/model.executor';
 import { ContextManager } from './core/context.manager';
@@ -85,6 +87,7 @@ export class AiService {
    * 构造函数
    * @param mcpService MCP调度服务
    * @param modelService 模型服务
+   * @param modelTemplateService 模型参数模板服务
    * @param conversationService 会话服务
    * @param strategyFactory 策略工厂
    * @param modelExecutor 模型执行器
@@ -97,6 +100,7 @@ export class AiService {
   constructor(
     private mcpService: ModelRoutingService,
     private modelService: ModelService,
+    private modelTemplateService: ModelTemplateService,
     private conversationService: ConversationService,
     private intentClassifier: IntentClassifierService,
     private strategyFactory: StrategyFactory,
@@ -178,12 +182,27 @@ export class AiService {
       await this.mcpService.checkCircuit(model.id as any);
       await this.mcpService.checkConcurrency(model.id as any);
 
+      const template = await this.modelTemplateService.getDefaultTemplate(effectiveModelType);
+      const mergedParams = mergeModelParams({
+        callParams: {
+          temperature: dto.temperature,
+          maxTokens: dto.maxTokens,
+        },
+        templateParams: template ? {
+          temperature: template.temperature,
+          topP: template.topP,
+          maxTokens: template.maxTokens,
+          contextWindow: template.contextWindow,
+        } : null,
+      });
+      this.logger.debug(`参数合并结果: temperature=${mergedParams.temperature}, maxTokens=${mergedParams.maxTokens}, topP=${mergedParams.topP}`);
+
       const executionParams: ExecutionParams = {
         model,
         messages: messagesWithHistory as any,
         options: {
-          temperature: dto.temperature,
-          maxTokens: dto.maxTokens,
+          temperature: mergedParams.temperature,
+          maxTokens: mergedParams.maxTokens,
         },
         context,
       };
@@ -314,6 +333,21 @@ export class AiService {
       await this.mcpService.checkConcurrency(model.id as any);
       concurrencyAcquired = true;
 
+      const template = await this.modelTemplateService.getDefaultTemplate(effectiveModelType);
+      const mergedParams = mergeModelParams({
+        callParams: {
+          temperature: dto.temperature,
+          maxTokens: dto.maxTokens,
+        },
+        templateParams: template ? {
+          temperature: template.temperature,
+          topP: template.topP,
+          maxTokens: template.maxTokens,
+          contextWindow: template.contextWindow,
+        } : null,
+      });
+      this.logger.debug(`[Stream] 参数合并结果: temperature=${mergedParams.temperature}, maxTokens=${mergedParams.maxTokens}, topP=${mergedParams.topP}`);
+
       let accumulatedContent = '';
       const chunks: StreamChunk[] = [];
 
@@ -321,8 +355,8 @@ export class AiService {
         model,
         messages: messagesWithHistory as any,
         options: {
-          temperature: dto.temperature,
-          maxTokens: dto.maxTokens,
+          temperature: mergedParams.temperature,
+          maxTokens: mergedParams.maxTokens,
         },
         context,
       };
@@ -827,7 +861,10 @@ export class AiService {
 
           case 'error':
             if (params.onError) {
-              params.onError(new Error(chunk.error?.message || '未知错误'));
+              const errData = chunk.error;
+              const error = errData instanceof Error ? errData : new Error(errData?.message || '未知错误');
+              Object.assign(error, errData);
+              params.onError(error);
             }
             return;
         }

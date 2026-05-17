@@ -169,7 +169,11 @@ export class ToolExecutor {
     args: Record<string, unknown>,
     context: ToolExecutionContext,
   ): Promise<unknown> {
-    if (name.startsWith('mcp:')) {
+    if (name.startsWith('skill__')) {
+      return await this.executeSkill(name.slice(7), args, context);
+    }
+
+    if (name.startsWith('mcp__')) {
       return await this.executeMcpTool(name, args, context);
     }
 
@@ -185,12 +189,12 @@ export class ToolExecutor {
       return await this.executeBuiltinTool(name, args);
     }
 
-    return await this.executeSkill(name, args, context);
+    throw new Error(`未知工具: ${name}，支持的类型为 mcp__ / skill__ / kb_search / 内置工具`);
   }
 
   /**
    * 执行 MCP 工具
-   * @param name 工具名称（格式：mcp:serverName:toolName）
+   * @param name 工具名称（格式：mcp__serverName__toolName）
    * @param args 工具参数
    * @param context 执行上下文
    * @returns 工具执行结果
@@ -200,9 +204,9 @@ export class ToolExecutor {
     args: Record<string, unknown>,
     context: ToolExecutionContext,
   ): Promise<unknown> {
-    const parts = name.split(':');
+    const parts = name.split('__');
     const serverName = parts[1];
-    const toolName = parts.slice(2).join(':');
+    const toolName = parts.slice(2).join('__');
 
     const mcpServers = JSON.parse(context.agent.mcpServers || '[]');
     const serverConfig = mcpServers.find((s: any) => s.name === serverName);

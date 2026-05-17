@@ -2,12 +2,49 @@ const { PrismaClient } = require('@prisma/client')
 
 const prisma = new PrismaClient()
 
+/**
+ * 简化版雪花ID生成器
+ */
+class SnowflakeIdGenerator {
+  constructor(workerId = 0) {
+    this.twepoch = BigInt(1704067200000)
+    this.workerId = BigInt(workerId)
+    this.sequence = BigInt(0)
+    this.lastTimestamp = BigInt(-1)
+    this.maxSequence = BigInt(4095)
+  }
+
+  nextId() {
+    let timestamp = BigInt(Date.now())
+    
+    if (timestamp === this.lastTimestamp) {
+      this.sequence = (this.sequence + BigInt(1)) & this.maxSequence
+      if (this.sequence === BigInt(0)) {
+        while (BigInt(Date.now()) <= this.lastTimestamp) {}
+        timestamp = BigInt(Date.now())
+      }
+    } else {
+      this.sequence = BigInt(0)
+    }
+    
+    this.lastTimestamp = timestamp
+    
+    const id = ((timestamp - this.twepoch) << BigInt(22)) |
+               (this.workerId << BigInt(12)) |
+               this.sequence
+    
+    return id.toString()
+  }
+}
+
+const idGenerator = new SnowflakeIdGenerator(0)
+
 async function main() {
   console.log('开始初始化模型参数模板...')
 
   const templates = [
     {
-      id: 'template-customer-service',
+      id: idGenerator.nextId(),
       name: '客服问答模板',
       code: 'customer-service-template',
       modelType: 'llm',
@@ -22,7 +59,7 @@ async function main() {
       status: true,
     },
     {
-      id: 'template-creative',
+      id: idGenerator.nextId(),
       name: '创意文案模板',
       code: 'creative-template',
       modelType: 'llm',
@@ -37,7 +74,7 @@ async function main() {
       status: true,
     },
     {
-      id: 'template-vector',
+      id: idGenerator.nextId(),
       name: '向量生成模板',
       code: 'vector-template',
       modelType: 'embedding',
@@ -52,7 +89,7 @@ async function main() {
       status: true,
     },
     {
-      id: 'template-multimodal',
+      id: idGenerator.nextId(),
       name: '多模态生成模板',
       code: 'multimodal-template',
       modelType: 'multimodal',
@@ -67,7 +104,7 @@ async function main() {
       status: true,
     },
     {
-      id: 'template-code',
+      id: idGenerator.nextId(),
       name: '代码生成模板',
       code: 'code-template',
       modelType: 'llm',
@@ -88,9 +125,13 @@ async function main() {
       await prisma.modelTemplate.create({
         data: template,
       })
-      console.log(`✅ 创建模板: ${template.name}`)
+      console.log(`✅ 创建模板: ${template.name} (ID: ${template.id})`)
     } catch (error) {
-      console.log(`⚠️  模板已存在: ${template.name}`)
+      if (error.code === 'P2002') {
+        console.log(`⚠️  模板已存在: ${template.name}`)
+      } else {
+        console.log(`❌ 创建失败: ${template.name}`, error.message)
+      }
     }
   }
 

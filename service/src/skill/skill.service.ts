@@ -518,32 +518,13 @@ export class SkillService {
       )
       .join('\n\n');
 
-    const prompt = await this.promptTemplateService.render(
+    const systemPrompt = await this.promptTemplateService.render(
       'skill-invoke-default',
       {
-        skillName: '技能选择助手',
         skillDescription: skillDescriptions,
-        skillType: 'selector',
         userRequest,
       },
     );
-
-    const systemPrompt = `你是一个技能选择助手。你的任务是根据用户的请求，选择最合适的技能并提取参数。
-
-请严格按照以下 JSON 格式返回结果，不要添加任何其他内容：
-{
-  "skillCode": "技能标识",
-  "params": {
-    "参数名": "参数值"
-  },
-  "reason": "选择理由"
-}
-
-重要规则：
-1. skillCode 必须是以下之一：${availableSkills.join(', ')}
-2. params 必须是一个对象，包含调用技能所需的参数
-3. 如果用户请求不需要调用技能，返回 skillCode 为空字符串
-4. 只返回 JSON，不要有任何其他文字说明`;
 
     try {
       const availableModels = await this.modelService.getAvailableModels('llm');
@@ -553,7 +534,7 @@ export class SkillService {
         return {
           skillCode: skills[0].code,
           params: {},
-          prompt,
+          prompt: systemPrompt,
         };
       }
 
@@ -587,14 +568,14 @@ export class SkillService {
           return {
             skillCode: skills[0].code,
             params: {},
-            prompt,
+            prompt: systemPrompt,
           };
         }
 
         return {
           skillCode: parsed.skillCode,
           params: parsed.params || {},
-          prompt,
+          prompt: systemPrompt,
           reason: parsed.reason,
         };
       } catch (parseError) {
@@ -602,7 +583,7 @@ export class SkillService {
         return {
           skillCode: skills[0].code,
           params: {},
-          prompt,
+          prompt: systemPrompt,
         };
       }
     } catch (error) {
@@ -610,7 +591,7 @@ export class SkillService {
       return {
         skillCode: skills[0].code,
         params: {},
-        prompt,
+        prompt: systemPrompt,
       };
     }
   }

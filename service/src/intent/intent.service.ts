@@ -3,6 +3,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { IntentResult, INTENT_TO_MODEL_TYPE } from './dto/intent.dto';
 import { DEFAULT_INTENT_KEYWORDS, KeywordRule } from './intent.keywords';
 import { ModelService } from '../model/model.service';
+import { PromptTemplateService } from '../prompt-template/prompt-template.service';
 import * as crypto from 'crypto';
 import axios from 'axios';
 
@@ -23,10 +24,12 @@ export class IntentClassifierService implements OnModuleInit {
    * 构造函数
    * @param prisma Prisma服务
    * @param modelService 模型服务
+   * @param promptTemplateService 提示词模板服务
    */
   constructor(
     private prisma: PrismaService,
     private modelService: ModelService,
+    private promptTemplateService: PromptTemplateService,
   ) {}
 
   /**
@@ -208,7 +211,14 @@ export class IntentClassifierService implements OnModuleInit {
 
       this.logger.debug(`AI意图分类调用: endpoint=${endpoint}`);
 
-      const systemPrompt = `你是一个对话意图分类助手。请分析用户消息，判断其意图类别。
+      let systemPrompt: string;
+      try {
+        systemPrompt = await this.promptTemplateService.render('intent-classify-default', {
+          userMessage: message,
+        });
+      } catch (error) {
+        this.logger.warn(`渲染意图识别模板失败，使用默认prompt: ${error}`);
+        systemPrompt = `你是一个对话意图分类助手。请分析用户消息，判断其意图类别。
 
 意图类别定义：
 - general: 通用对话、闲聊、问答
@@ -230,6 +240,7 @@ export class IntentClassifierService implements OnModuleInit {
 2. confidence是0-1之间的置信度
 3. 如果无法确定，返回general，confidence设为0.5
 4. 只返回JSON，不要有任何其他文字`;
+      }
 
       const response = await axios.post(
         endpoint,

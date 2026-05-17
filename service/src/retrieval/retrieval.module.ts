@@ -10,12 +10,13 @@ import { PromptTemplateModule } from '../prompt-template/prompt-template.module'
 import { ConversationModule } from '../conversation/conversation.module';
 import { ModelRoutingModule } from "../model-routing/model-routing.module";
 import { ModelModule } from '../model/model.module';
+import { ModelTemplateModule } from '../model-template/model-template.module';
 
 /**
  * 检索和RAG问答模块
  */
 @Module({
-  imports: [PrismaModule, VectorModule, AiModule, CacheModule, BM25Module, PromptTemplateModule, ConversationModule, ModelRoutingModule, ModelModule],
+  imports: [PrismaModule, VectorModule, AiModule, CacheModule, BM25Module, PromptTemplateModule, ConversationModule, ModelRoutingModule, ModelModule, ModelTemplateModule],
   controllers: [RetrievalController],
   providers: [RetrievalService],
   exports: [RetrievalService],
