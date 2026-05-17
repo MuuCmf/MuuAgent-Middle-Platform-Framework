@@ -8,14 +8,14 @@ import { CacheModule } from '../cache/cache.module';
 import { BM25Module } from './bm25.module';
 import { PromptTemplateModule } from '../prompt-template/prompt-template.module';
 import { ConversationModule } from '../conversation/conversation.module';
-import { McpModule } from '../mcp/mcp.module';
+import { ModelRoutingModule } from "../model-routing/model-routing.module";
 import { ModelModule } from '../model/model.module';
 
 /**
  * 检索和RAG问答模块
  */
 @Module({
-  imports: [PrismaModule, VectorModule, AiModule, CacheModule, BM25Module, PromptTemplateModule, ConversationModule, McpModule, ModelModule],
+  imports: [PrismaModule, VectorModule, AiModule, CacheModule, BM25Module, PromptTemplateModule, ConversationModule, ModelRoutingModule, ModelModule],
   controllers: [RetrievalController],
   providers: [RetrievalService],
   exports: [RetrievalService],

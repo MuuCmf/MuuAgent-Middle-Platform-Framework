@@ -7,7 +7,7 @@ import {
 } from '../interfaces/executor.interface';
 import { StrategyFactory } from '../strategies/strategy.factory';
 import { LogService } from '../infrastructure/log.service';
-import { McpService } from '../../mcp/mcp.service';
+import { ModelRoutingService } from '../../model-routing/model-routing.service';
 import { ErrorHandler } from '../handlers/error.handler';
 
 /**
@@ -28,7 +28,7 @@ export class ModelExecutor implements IModelExecutor {
   constructor(
     private readonly strategyFactory: StrategyFactory,
     private readonly logService: LogService,
-    private readonly mcpService: McpService,
+    private readonly mcpService: ModelRoutingService,
     private readonly errorHandler: ErrorHandler,
   ) {}
 

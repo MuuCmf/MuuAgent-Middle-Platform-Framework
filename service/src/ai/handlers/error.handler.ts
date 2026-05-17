@@ -3,7 +3,7 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import { ExecutionParams } from '../interfaces/executor.interface';
 import { LogService } from '../infrastructure/log.service';
-import { McpService } from '../../mcp/mcp.service';
+import { ModelRoutingService } from '../../model-routing/model-routing.service';
 
 /**
  * 标准化错误接口
@@ -47,7 +47,7 @@ export class ErrorHandler {
    */
   constructor(
     private readonly logService: LogService,
-    private readonly mcpService: McpService,
+    private readonly mcpService: ModelRoutingService,
   ) {}
 
   /**

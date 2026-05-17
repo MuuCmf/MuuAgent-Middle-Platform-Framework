@@ -9,33 +9,33 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { McpService } from './mcp.service';
+import { ModelRoutingService } from "./model-routing.service";
 import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { AdminScope } from '../common/constants/scope.constants';
 import { RequireScope } from '../common/decorators/scope.decorator';
 import {
-  CreateMcpStrategyDto,
-  UpdateMcpStrategyDto,
-  CreateMcpRuleDto,
-  UpdateMcpRuleDto,
-} from './dto/mcp.dto';
+  CreateModelRoutingStrategyDto,
+  UpdateModelRoutingStrategyDto,
+  CreateModelRoutingRuleDto,
+  UpdateModelRoutingRuleDto,
+} from "./dto/model-routing.dto";
 import { success } from '../common/response/api.response';
 
 /**
- * MCP调度控制器
+ * 模型路由调度控制器
  * 提供策略配置和状态查询接口
  */
-@ApiTags('MCP调度（管理端）')
+@ApiTags('模型路由调度（管理端）')
 @ApiBearerAuth()
 @UseGuards(CombinedAuthGuard, ScopeGuard)
-@Controller('admin/mcp')
-export class McpController {
+@Controller('admin/model-routing')
+export class ModelRoutingController {
   /**
    * 构造函数
-   * @param mcpService MCP服务
+   * @param modelRoutingService MCP服务
    */
-  constructor(private readonly mcpService: McpService) {}
+  constructor(private readonly modelRoutingService: ModelRoutingService) {}
 
   /**
    * 创建调度策略
@@ -44,9 +44,9 @@ export class McpController {
    */
   @Post('strategy')
   @ApiOperation({ summary: '创建调度策略' })
-  @RequireScope(AdminScope.MCP_WRITE)
-  async createStrategy(@Body() dto: CreateMcpStrategyDto) {
-    const strategy = await this.mcpService.createStrategy(dto);
+  @RequireScope(AdminScope.MODEL_ROUTING_WRITE)
+  async createStrategy(@Body() dto: CreateModelRoutingStrategyDto) {
+    const strategy = await this.modelRoutingService.createStrategy(dto);
     return success(strategy, '策略创建成功');
   }
 
@@ -58,12 +58,12 @@ export class McpController {
    */
   @Put('strategy/:modelType')
   @ApiOperation({ summary: '更新调度策略' })
-  @RequireScope(AdminScope.MCP_WRITE)
+  @RequireScope(AdminScope.MODEL_ROUTING_WRITE)
   async updateStrategy(
     @Param('modelType') modelType: string,
-    @Body() dto: UpdateMcpStrategyDto,
+    @Body() dto: UpdateModelRoutingStrategyDto,
   ) {
-    const strategy = await this.mcpService.updateStrategy(modelType, dto);
+    const strategy = await this.modelRoutingService.updateStrategy(modelType, dto);
     return success(strategy, '策略更新成功');
   }
 
@@ -74,9 +74,9 @@ export class McpController {
    */
   @Get('strategy/:modelType')
   @ApiOperation({ summary: '获取调度策略' })
-  @RequireScope(AdminScope.MCP_READ)
+  @RequireScope(AdminScope.MODEL_ROUTING_READ)
   async getStrategy(@Param('modelType') modelType: string) {
-    const strategy = await this.mcpService.getStrategy(modelType);
+    const strategy = await this.modelRoutingService.getStrategy(modelType);
     return success(strategy);
   }
 
@@ -86,9 +86,9 @@ export class McpController {
    */
   @Get('strategies')
   @ApiOperation({ summary: '获取所有调度策略' })
-  @RequireScope(AdminScope.MCP_READ)
+  @RequireScope(AdminScope.MODEL_ROUTING_READ)
   async getAllStrategies() {
-    const strategies = await this.mcpService.getAllStrategies();
+    const strategies = await this.modelRoutingService.getAllStrategies();
     return success(strategies);
   }
 
@@ -98,9 +98,9 @@ export class McpController {
    */
   @Get('rules')
   @ApiOperation({ summary: '获取所有熔断规则' })
-  @RequireScope(AdminScope.MCP_READ)
+  @RequireScope(AdminScope.MODEL_ROUTING_READ)
   async getAllRules() {
-    const rules = await this.mcpService.getAllRules();
+    const rules = await this.modelRoutingService.getAllRules();
     return success(rules);
   }
 
@@ -111,9 +111,9 @@ export class McpController {
    */
   @Post('rule')
   @ApiOperation({ summary: '创建或更新模型规则' })
-  @RequireScope(AdminScope.MCP_WRITE)
-  async upsertRule(@Body() dto: CreateMcpRuleDto) {
-    const rule = await this.mcpService.upsertRule(dto.modelId, dto);
+  @RequireScope(AdminScope.MODEL_ROUTING_WRITE)
+  async upsertRule(@Body() dto: CreateModelRoutingRuleDto) {
+    const rule = await this.modelRoutingService.upsertRule(dto.modelId, dto);
     return success(rule, '规则配置成功');
   }
 
@@ -125,12 +125,12 @@ export class McpController {
    */
   @Put('rule/:modelId')
   @ApiOperation({ summary: '更新模型规则' })
-  @RequireScope(AdminScope.MCP_WRITE)
+  @RequireScope(AdminScope.MODEL_ROUTING_WRITE)
   async updateRule(
     @Param('modelId') modelId: string,
-    @Body() dto: UpdateMcpRuleDto,
+    @Body() dto: UpdateModelRoutingRuleDto,
   ) {
-    const rule = await this.mcpService.updateRule(modelId, dto);
+    const rule = await this.modelRoutingService.updateRule(modelId, dto);
     return success(rule, '规则更新成功');
   }
 
@@ -141,9 +141,9 @@ export class McpController {
    */
   @Get('rule/:modelId')
   @ApiOperation({ summary: '获取模型规则' })
-  @RequireScope(AdminScope.MCP_READ)
+  @RequireScope(AdminScope.MODEL_ROUTING_READ)
   async getRule(@Param('modelId') modelId: string) {
-    const rule = await this.mcpService.getRule(modelId);
+    const rule = await this.modelRoutingService.getRule(modelId);
     return success(rule);
   }
 
@@ -154,9 +154,9 @@ export class McpController {
    */
   @Delete('rule/:modelId')
   @ApiOperation({ summary: '删除模型规则' })
-  @RequireScope(AdminScope.MCP_WRITE)
+  @RequireScope(AdminScope.MODEL_ROUTING_WRITE)
   async deleteRule(@Param('modelId') modelId: string) {
-    await this.mcpService.deleteRule(modelId);
+    await this.modelRoutingService.deleteRule(modelId);
     return success(null, '规则删除成功');
   }
 
@@ -167,9 +167,9 @@ export class McpController {
    */
   @Post('circuit/reset/:modelId')
   @ApiOperation({ summary: '重置熔断状态' })
-  @RequireScope(AdminScope.MCP_WRITE)
+  @RequireScope(AdminScope.MODEL_ROUTING_WRITE)
   async resetCircuit(@Param('modelId') modelId: string) {
-    const rule = await this.mcpService.resetCircuit(modelId);
+    const rule = await this.modelRoutingService.resetCircuit(modelId);
     return success(rule, '熔断状态已重置');
   }
 
@@ -179,9 +179,9 @@ export class McpController {
    */
   @Get('status')
   @ApiOperation({ summary: '获取所有模型状态' })
-  @RequireScope(AdminScope.MCP_READ)
+  @RequireScope(AdminScope.MODEL_ROUTING_READ)
   async getAllModelStatus() {
-    const statuses = await this.mcpService.getAllModelStatus();
+    const statuses = await this.modelRoutingService.getAllModelStatus();
     return success(statuses);
   }
 }

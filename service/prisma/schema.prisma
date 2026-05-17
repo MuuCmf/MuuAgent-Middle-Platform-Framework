@@ -27,8 +27,8 @@ model Model {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  /// 关联MCP规则
-  mcpRules    McpRule[]
+  /// 关联模型路由规则
+  routingRules    ModelRoutingRule[]
   /// 关联调用日志
   invokeLogs  AiInvokeLog[]
   /// 关联健康记录
@@ -64,8 +64,8 @@ model ModelTemplate {
   @@map("model_templates")
 }
 
-/// MCP调度策略表 - 模型控制平面配置
-model McpStrategy {
+/// 模型路由调度策略表 - 模型控制平面配置
+model ModelRoutingStrategy {
   id            BigInt  @id @default(0)
   modelType     String  @unique /// 模型类型
   strategy      String  @default("weight") /// 调度策略: weight / random / round_robin / failover
@@ -78,11 +78,11 @@ model McpStrategy {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  @@map("mcp_strategies")
+  @@map("model_routing_strategies")
 }
 
-/// MCP限流熔断规则表 - 单模型级别的限流配置
-model McpRule {
+/// 模型路由限流熔断规则表 - 单模型级别的限流配置
+model ModelRoutingRule {
   id              BigInt  @id @default(0)
   modelId BigInt  /// 关联模型ID
   qpsLimit        Int     @default(10) /// QPS限制
@@ -98,7 +98,7 @@ model McpRule {
   model Model @relation(fields: [modelId], references: [id], onDelete: Cascade)
 
   @@index([modelId])
-  @@map("mcp_rules")
+  @@map("model_routing_rules")
 }
 
 /// 意图分类缓存表 - 缓存用户消息的意图分类结果

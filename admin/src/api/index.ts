@@ -4,7 +4,7 @@ export * from './skill'
 export * from './agent'
 export * from './ai'
 export * from './log'
-export * from './mcp'
+export * from './model-routing'
 export * from './kb'
 export * from './retrieval'
 export * from './document'
@@ -16,11 +16,15 @@ export * from './intent-routing-log'
 export * from './scope'
 export {
   RateLimitLevel,
-  rateLimitApi
+  rateLimitApi,
+  circuitBreakerApi
 } from './rateLimit'
 export type {
   RateLimitRule,
   RateLimitRuleForm,
   RateLimitStatistics,
-  BlacklistItem
+  BlacklistItem,
+  ModelRoutingRule,
+  ModelRoutingRuleForm,
+  ModelRoutingStatus
 } from './rateLimit'

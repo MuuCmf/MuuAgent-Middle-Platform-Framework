@@ -105,15 +105,15 @@
         <div class="card">
           <div class="card-title">
             熔断规则
-            <el-tag type="info" size="small">{{ mcpRules.length }} 条</el-tag>
+            <el-tag type="info" size="small">{{ routingRules.length }} 条</el-tag>
           </div>
           
-          <el-button type="primary" @click="handleAddMcpRule" style="margin-bottom: 16px;">
+          <el-button type="primary" @click="handleAddModelRoutingRule" style="margin-bottom: 16px;">
             <el-icon><Plus /></el-icon>
             添加规则
           </el-button>
 
-          <el-table :data="mcpRules" stripe v-loading="mcpLoading">
+          <el-table :data="routingRules" stripe v-loading="routingLoading">
             <el-table-column prop="modelId" label="模型">
               <template #default="{ row }">
                 {{ row.model?.name || row.modelId }}
@@ -132,8 +132,8 @@
             <el-table-column prop="errorCount" label="错误次数" width="100" />
             <el-table-column label="操作" width="180" align="right">
               <template #default="{ row }">
-                <el-button size="small" @click="handleEditMcpRule(row)">编辑</el-button>
-                <el-button size="small" type="danger" @click="handleDeleteMcpRule(row)">删除</el-button>
+                <el-button size="small" @click="handleEditModelRoutingRule(row)">编辑</el-button>
+                <el-button size="small" type="danger" @click="handleDeleteModelRoutingRule(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -142,13 +142,13 @@
         <div class="card" style="margin-top: 16px;">
           <div class="card-title">
             熔断状态
-            <el-button size="small" @click="loadMcpStatus" style="margin-left: auto;">
+            <el-button size="small" @click="loadModelRoutingStatus" style="margin-left: auto;">
               <el-icon><Refresh /></el-icon>
               刷新
             </el-button>
           </div>
           
-          <el-table :data="mcpStatus" stripe v-loading="statusLoading">
+          <el-table :data="routingStatus" stripe v-loading="statusLoading">
             <el-table-column prop="modelName" label="模型" />
             <el-table-column prop="circuitStatus" label="熔断状态" width="120">
               <template #default="{ row }">
@@ -174,7 +174,7 @@
                 <el-button 
                   size="small" 
                   type="warning" 
-                  @click="handleResetMcpStatus(row.modelId)"
+                  @click="handleResetModelRoutingStatus(row.modelId)"
                   :disabled="row.circuitStatus === 'closed'"
                 >
                   重置
@@ -274,32 +274,32 @@
     </el-dialog>
 
     <el-dialog 
-      v-model="mcpDialogVisible" 
-      :title="editingMcpRule ? '编辑熔断规则' : '添加熔断规则'" 
+      v-model="routingDialogVisible" 
+      :title="editingModelRoutingRule ? '编辑熔断规则' : '添加熔断规则'" 
       width="500px"
     >
-      <el-form :model="mcpForm" label-width="120px">
+      <el-form :model="routingForm" label-width="120px">
         <el-form-item label="模型ID" required>
-          <el-input v-model="mcpForm.modelId" placeholder="请输入模型ID" />
+          <el-input v-model="routingForm.modelId" placeholder="请输入模型ID" />
         </el-form-item>
 
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="QPS限制">
-              <el-input-number v-model="mcpForm.qpsLimit" :min="1" :max="1000" style="width: 100%;" />
+              <el-input-number v-model="routingForm.qpsLimit" :min="1" :max="1000" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="最大并发">
-              <el-input-number v-model="mcpForm.maxConcurrent" :min="1" :max="100" style="width: 100%;" />
+              <el-input-number v-model="routingForm.maxConcurrent" :min="1" :max="100" style="width: 100%;" />
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
 
       <template #footer>
-        <el-button @click="mcpDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveMcpRule" :loading="saveLoading">保存</el-button>
+        <el-button @click="routingDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveModelRoutingRule" :loading="saveLoading">保存</el-button>
       </template>
     </el-dialog>
 
@@ -330,13 +330,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { 
   rateLimitApi, 
-  mcpApi, 
+  circuitBreakerApi, 
   type RateLimitRule, 
   type RateLimitRuleForm,
   type RateLimitStatistics,
-  type McpRule,
-  type McpRuleForm,
-  type McpStatus,
+  type ModelRoutingRule,
+  type ModelRoutingRuleForm,
+  type ModelRoutingStatus,
   type BlacklistItem
 } from '@/api/rateLimit'
 
@@ -344,22 +344,22 @@ const activeTab = ref('rateLimit')
 
 const rateLimitLoading = ref(false)
 const statisticsLoading = ref(false)
-const mcpLoading = ref(false)
+const routingLoading = ref(false)
 const statusLoading = ref(false)
 const saveLoading = ref(false)
 const initLoading = ref(false)
 
 const rateLimitRules = ref<RateLimitRule[]>([])
 const rateLimitStatistics = ref<RateLimitStatistics[]>([])
-const mcpRules = ref<McpRule[]>([])
-const mcpStatus = ref<McpStatus[]>([])
+const routingRules = ref<ModelRoutingRule[]>([])
+const routingStatus = ref<ModelRoutingStatus[]>([])
 
 const rateLimitDialogVisible = ref(false)
-const mcpDialogVisible = ref(false)
+const routingDialogVisible = ref(false)
 const blacklistDialogVisible = ref(false)
 
 const editingRateLimit = ref<RateLimitRule | null>(null)
-const editingMcpRule = ref<McpRule | null>(null)
+const editingModelRoutingRule = ref<ModelRoutingRule | null>(null)
 
 const rateLimitForm = ref<RateLimitRuleForm>({
   level: 'interface',
@@ -373,7 +373,7 @@ const rateLimitForm = ref<RateLimitRuleForm>({
   queueTimeout: 5000
 })
 
-const mcpForm = ref<McpRuleForm>({
+const routingForm = ref<ModelRoutingRuleForm>({
   modelId: '',
   qpsLimit: 10,
   maxConcurrent: 5
@@ -457,23 +457,23 @@ const loadRateLimitStatistics = async () => {
   }
 }
 
-const loadMcpRules = async () => {
-  mcpLoading.value = true
+const loadModelRoutingRules = async () => {
+  routingLoading.value = true
   try {
-    const { data } = await mcpApi.getRules()
-    mcpRules.value = data.data || []
+    const { data } = await circuitBreakerApi.getRules()
+    routingRules.value = data.data || []
   } catch (error) {
     ElMessage.error('加载熔断规则失败')
   } finally {
-    mcpLoading.value = false
+    routingLoading.value = false
   }
 }
 
-const loadMcpStatus = async () => {
+const loadModelRoutingStatus = async () => {
   statusLoading.value = true
   try {
-    const { data } = await mcpApi.getStatus()
-    mcpStatus.value = data.data || []
+    const { data } = await circuitBreakerApi.getStatus()
+    routingStatus.value = data.data || []
   } catch (error) {
     ElMessage.error('加载熔断状态失败')
   } finally {
@@ -550,34 +550,34 @@ const handleInitDefaultRules = async () => {
   }
 }
 
-const handleAddMcpRule = () => {
-  editingMcpRule.value = null
-  mcpForm.value = {
+const handleAddModelRoutingRule = () => {
+  editingModelRoutingRule.value = null
+  routingForm.value = {
     modelId: '',
     qpsLimit: 10,
     maxConcurrent: 5
   }
-  mcpDialogVisible.value = true
+  routingDialogVisible.value = true
 }
 
-const handleEditMcpRule = (row: McpRule) => {
-  editingMcpRule.value = row
-  mcpForm.value = {
+const handleEditModelRoutingRule = (row: ModelRoutingRule) => {
+  editingModelRoutingRule.value = row
+  routingForm.value = {
     modelId: row.modelId,
     qpsLimit: row.qpsLimit,
     maxConcurrent: row.maxConcurrent
   }
-  mcpDialogVisible.value = true
+  routingDialogVisible.value = true
 }
 
-const handleSaveMcpRule = async () => {
+const handleSaveModelRoutingRule = async () => {
   saveLoading.value = true
   try {
-    await mcpApi.upsertRule(mcpForm.value)
+    await circuitBreakerApi.upsertRule(routingForm.value)
     ElMessage.success('保存成功')
-    mcpDialogVisible.value = false
-    loadMcpRules()
-    loadMcpStatus()
+    routingDialogVisible.value = false
+    loadModelRoutingRules()
+    loadModelRoutingStatus()
   } catch (error) {
     ElMessage.error('保存失败')
   } finally {
@@ -585,7 +585,7 @@ const handleSaveMcpRule = async () => {
   }
 }
 
-const handleDeleteMcpRule = async (row: McpRule) => {
+const handleDeleteModelRoutingRule = async (row: ModelRoutingRule) => {
   try {
     await ElMessageBox.confirm(
       `确定要删除模型「${row.model?.name || row.modelId}」的熔断规则吗？`,
@@ -597,10 +597,10 @@ const handleDeleteMcpRule = async (row: McpRule) => {
       }
     )
     
-    await mcpApi.deleteRule(row.modelId)
+    await circuitBreakerApi.deleteRule(row.modelId)
     ElMessage.success('删除成功')
-    loadMcpRules()
-    loadMcpStatus()
+    loadModelRoutingRules()
+    loadModelRoutingStatus()
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('删除失败')
@@ -608,7 +608,7 @@ const handleDeleteMcpRule = async (row: McpRule) => {
   }
 }
 
-const handleResetMcpStatus = async (modelId: string) => {
+const handleResetModelRoutingStatus = async (modelId: string) => {
   try {
     await ElMessageBox.confirm('确定要重置该模型的熔断状态吗？', '提示', {
       confirmButtonText: '确定',
@@ -616,9 +616,9 @@ const handleResetMcpStatus = async (modelId: string) => {
       type: 'warning'
     })
     
-    await mcpApi.resetStatus(modelId)
+    await circuitBreakerApi.resetStatus(modelId)
     ElMessage.success('重置成功')
-    loadMcpStatus()
+    loadModelRoutingStatus()
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('重置失败')
@@ -651,8 +651,8 @@ const handleSaveBlacklist = async () => {
 onMounted(() => {
   loadRateLimitRules()
   loadRateLimitStatistics()
-  loadMcpRules()
-  loadMcpStatus()
+  loadModelRoutingRules()
+  loadModelRoutingStatus()
 })
 </script>
 

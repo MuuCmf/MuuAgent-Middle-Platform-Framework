@@ -47,10 +47,10 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '模型配置', icon: 'Setting' }
       },
       {
-        path: 'mcp',
-        name: 'MCP',
-        component: () => import('@/views/mcp/index.vue'),
-        meta: { title: 'MCP调度', icon: 'Connection' }
+        path: 'model-routing',
+        name: 'ModelRouting',
+        component: () => import('@/views/model-routing/index.vue'),
+        meta: { title: '模型路由调度', icon: 'Connection' }
       },
       {
         path: 'skills',

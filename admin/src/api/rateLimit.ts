@@ -71,7 +71,7 @@ export interface BlacklistItem {
 /**
  * 熔断规则接口
  */
-export interface McpRule {
+export interface ModelRoutingRule {
   id: string
   modelId: string
   qpsLimit: number
@@ -92,7 +92,7 @@ export interface McpRule {
 /**
  * 熔断规则表单接口
  */
-export interface McpRuleForm {
+export interface ModelRoutingRuleForm {
   modelId: string
   qpsLimit: number
   maxConcurrent: number
@@ -101,7 +101,7 @@ export interface McpRuleForm {
 /**
  * 熔断状态接口
  */
-export interface McpStatus {
+export interface ModelRoutingStatus {
   modelId: string
   modelCode: string
   modelName: string
@@ -161,19 +161,19 @@ export const rateLimitApi = {
 /**
  * 熔断API
  */
-export const mcpApi = {
+export const circuitBreakerApi = {
   /**
    * 获取所有熔断规则
    */
-  getRules(): Promise<AxiosResponse<{ data: McpRule[] }>> {
-    return adminRequest.get('api/admin/mcp/rules')
+  getRules(): Promise<AxiosResponse<{ data: ModelRoutingRule[] }>> {
+    return adminRequest.get('api/admin/model-routing/rules')
   },
 
   /**
    * 创建或更新熔断规则
    */
-  upsertRule(data: McpRuleForm): Promise<AxiosResponse> {
-    return adminRequest.post('api/admin/mcp/rule', data)
+  upsertRule(data: ModelRoutingRuleForm): Promise<AxiosResponse> {
+    return adminRequest.post('api/admin/model-routing/rule', data)
   },
 
   /**
@@ -181,20 +181,20 @@ export const mcpApi = {
    * @param modelId 模型ID
    */
   deleteRule(modelId: string): Promise<AxiosResponse> {
-    return adminRequest.delete(`api/admin/mcp/rule/${modelId}`)
+    return adminRequest.delete(`api/admin/model-routing/rule/${modelId}`)
   },
 
   /**
    * 获取熔断状态
    */
-  getStatus(): Promise<AxiosResponse<{ data: McpStatus[] }>> {
-    return adminRequest.get('api/admin/mcp/status')
+  getStatus(): Promise<AxiosResponse<{ data: ModelRoutingStatus[] }>> {
+    return adminRequest.get('api/admin/model-routing/status')
   },
 
   /**
    * 重置熔断状态
    */
   resetStatus(modelId: string): Promise<AxiosResponse> {
-    return adminRequest.post(`api/admin/mcp/circuit/reset/${modelId}`)
+    return adminRequest.post(`api/admin/model-routing/circuit/reset/${modelId}`)
   }
 }

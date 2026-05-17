@@ -252,7 +252,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Clock, Monitor, Top, Bottom, Connection, WarningFilled } from '@element-plus/icons-vue'
 import { logApi, type Statistics, type Log } from '@/api/log'
-import { mcpApi, type McpStatus } from '@/api/mcp'
+import { routingApi, type ModelRoutingStatus } from '@/api/model-routing'
 
 const router = useRouter()
 
@@ -260,7 +260,7 @@ const stats = ref<Statistics>({
   modelTypeStats: [],
   modelStats: []
 })
-const modelStatus = ref<McpStatus[]>([])
+const modelStatus = ref<ModelRoutingStatus[]>([])
 const recentCalls = ref<Log[]>([])
 const showAllAlerts = ref(false)
 
@@ -318,7 +318,7 @@ const loadStats = async () => {
 
 const loadModelStatus = async () => {
   try {
-    const res = await mcpApi.getStatus()
+    const res = await routingApi.getStatus()
     modelStatus.value = res.data.data || []
     
     animateNumber('activeModels', modelStatus.value.filter(m => !m.circuitOpen).length)
@@ -425,31 +425,31 @@ const formatTime = (timestamp: string) => {
   })
 }
 
-const getModelStatusText = (model: McpStatus) => {
+const getModelStatusText = (model: ModelRoutingStatus) => {
   if (model.circuitOpen) return '熔断'
   if (model.currentConcurrent >= model.maxConcurrent * 0.8) return '繁忙'
   return '正常'
 }
 
-const getModelTagType = (model: McpStatus) => {
+const getModelTagType = (model: ModelRoutingStatus) => {
   if (model.circuitOpen) return 'danger'
   if (model.currentConcurrent >= model.maxConcurrent * 0.8) return 'warning'
   return 'success'
 }
 
-const getModelStatusClass = (model: McpStatus) => {
+const getModelStatusClass = (model: ModelRoutingStatus) => {
   if (model.circuitOpen) return 'status-danger'
   if (model.currentConcurrent >= model.maxConcurrent * 0.8) return 'status-warning'
   return 'status-normal'
 }
 
-const getConcurrentPercentage = (model: McpStatus): number => {
+const getConcurrentPercentage = (model: ModelRoutingStatus): number => {
   if (!model.maxConcurrent || model.maxConcurrent === 0) return 0
   const percentage = Math.round((model.currentConcurrent / model.maxConcurrent) * 100)
   return Math.min(100, Math.max(0, percentage))
 }
 
-const getProgressStatus = (model: McpStatus) => {
+const getProgressStatus = (model: ModelRoutingStatus) => {
   const percentage = getConcurrentPercentage(model)
   if (percentage >= 90) return 'exception'
   if (percentage >= 70) return 'warning'
@@ -482,7 +482,7 @@ const goToLogs = () => {
 }
 
 const goToMCP = () => {
-  router.push('/mcp')
+  router.push('/model-routing')
 }
 
 const startRealTimeUpdate = () => {

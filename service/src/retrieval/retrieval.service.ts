@@ -13,7 +13,7 @@ import { RagChatDto } from './dto/rag-chat.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { IsolationContext, buildIsolationWhere } from '../common/utils/isolation.util';
 import { StreamEmitter, StreamEvents } from '../stream';
-import { McpService } from '../mcp/mcp.service';
+import { ModelRoutingService } from "../model-routing/model-routing.service";
 import { ModelService } from '../model/model.service';
 
 /**
@@ -51,7 +51,7 @@ export class RetrievalService {
     private readonly bm25Service: BM25Service,
     private readonly promptTemplateService: PromptTemplateService,
     private readonly conversationService: ConversationService,
-    private readonly mcpService: McpService,
+    private readonly mcpService: ModelRoutingService,
     private readonly modelService: ModelService,
   ) {}
 

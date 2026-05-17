@@ -4,25 +4,25 @@ import { ModelService } from '../model/model.service';
 import { IntentClassifierService } from '../intent/intent.service';
 import { IntentRoutingLogService } from '../intent/routing-log/routing-log.service';
 import {
-  CreateMcpStrategyDto,
-  UpdateMcpStrategyDto,
-  CreateMcpRuleDto,
-  UpdateMcpRuleDto,
+  CreateModelRoutingStrategyDto,
+  UpdateModelRoutingStrategyDto,
+  CreateModelRoutingRuleDto,
+  UpdateModelRoutingRuleDto,
   StrategyType,
   CircuitStatus,
-} from './dto/mcp.dto';
+} from './dto/model-routing.dto';
 import { Model } from '@prisma/client';
 
 /**
- * MCP调度核心服务
+ * 模型路由调度核心服务
  * 负责模型路由、限流、熔断、降级
  */
 @Injectable()
-export class McpService {
+export class ModelRoutingService {
   /** 轮询计数器 */
   private roundRobinCounters: Map<string, number> = new Map();
   /** 日志器 */
-  private readonly logger = new Logger(McpService.name);
+  private readonly logger = new Logger(ModelRoutingService.name);
 
   /**
    * 构造函数
@@ -38,12 +38,12 @@ export class McpService {
   ) {}
 
   /**
-   * 创建MCP策略
+   * 创建模型路由策略
    * @param dto 创建策略DTO
    * @returns {Promise<Object>} 创建的策略
    */
-  async createStrategy(dto: CreateMcpStrategyDto) {
-    return this.prisma.mcpStrategy.create({
+  async createStrategy(dto: CreateModelRoutingStrategyDto) {
+    return this.prisma.modelRoutingStrategy.create({
       data: {
         modelType: dto.modelType,
         strategy: dto.strategy,
@@ -58,32 +58,32 @@ export class McpService {
   }
 
   /**
-   * 更新MCP策略
+   * 更新模型路由策略
    * @param modelType 模型类型
    * @param dto 更新策略DTO
    * @returns {Promise<Object>} 更新后的策略
    */
-  async updateStrategy(modelType: string, dto: UpdateMcpStrategyDto) {
-    const strategy = await this.prisma.mcpStrategy.findUnique({
+  async updateStrategy(modelType: string, dto: UpdateModelRoutingStrategyDto) {
+    const strategy = await this.prisma.modelRoutingStrategy.findUnique({
       where: { modelType },
     });
     if (!strategy) {
       throw new HttpException('策略不存在', HttpStatus.NOT_FOUND);
     }
 
-    return this.prisma.mcpStrategy.update({
+    return this.prisma.modelRoutingStrategy.update({
       where: { modelType },
       data: dto,
     });
   }
 
   /**
-   * 获取MCP策略
+   * 获取模型路由策略
    * @param modelType 模型类型
    * @returns {Promise<Object>} 策略详情
    */
   async getStrategy(modelType: string) {
-    let strategy = await this.prisma.mcpStrategy.findUnique({
+    let strategy = await this.prisma.modelRoutingStrategy.findUnique({
       where: { modelType },
     });
 
@@ -98,22 +98,22 @@ export class McpService {
   }
 
   /**
-   * 获取所有MCP策略
+   * 获取所有模型路由策略
    * @returns {Promise<Object[]> 策略列表
    */
   async getAllStrategies() {
-    return this.prisma.mcpStrategy.findMany({
+    return this.prisma.modelRoutingStrategy.findMany({
       orderBy: { createdAt: 'desc' },
     });
   }
 
   /**
-   * 创建MCP规则
+   * 创建模型路由规则
    * @param dto 创建规则DTO
    * @returns {Promise<Object>} 创建的规则
    */
-  async createRule(dto: CreateMcpRuleDto) {
-    return this.prisma.mcpRule.create({
+  async createRule(dto: CreateModelRoutingRuleDto) {
+    return this.prisma.modelRoutingRule.create({
       data: {
         modelId: dto.modelId as any,
         qpsLimit: dto.qpsLimit ?? 10,
@@ -123,18 +123,18 @@ export class McpService {
   }
 
   /**
-   * 创建或更新MCP规则
+   * 创建或更新模型路由规则
    * @param modelId 模型ID
    * @param dto 规则DTO
    * @returns {Promise<Object>} 创建或更新后的规则
    */
-  async upsertRule(modelId: string, dto: CreateMcpRuleDto | UpdateMcpRuleDto) {
-    const existingRule = await this.prisma.mcpRule.findFirst({
+  async upsertRule(modelId: string, dto: CreateModelRoutingRuleDto | UpdateModelRoutingRuleDto) {
+    const existingRule = await this.prisma.modelRoutingRule.findFirst({
       where: { modelId: modelId as any },
     });
 
     if (existingRule) {
-      return this.prisma.mcpRule.update({
+      return this.prisma.modelRoutingRule.update({
         where: { id: existingRule.id },
         data: {
           qpsLimit: dto.qpsLimit ?? existingRule.qpsLimit,
@@ -143,7 +143,7 @@ export class McpService {
       });
     }
 
-    return this.prisma.mcpRule.create({
+    return this.prisma.modelRoutingRule.create({
       data: {
         modelId: modelId as any,
         qpsLimit: dto.qpsLimit ?? 10,
@@ -153,20 +153,20 @@ export class McpService {
   }
 
   /**
-   * 更新MCP规则
+   * 更新模型路由规则
    * @param modelId 模型ID
    * @param dto 更新规则DTO
    * @returns {Promise<Object>} 更新后的规则
    */
-  async updateRule(modelId: string, dto: UpdateMcpRuleDto) {
-    const rule = await this.prisma.mcpRule.findFirst({
+  async updateRule(modelId: string, dto: UpdateModelRoutingRuleDto) {
+    const rule = await this.prisma.modelRoutingRule.findFirst({
       where: { modelId: modelId as any },
     });
     if (!rule) {
       return this.createRule({ modelId : modelId as any, ...dto });
     }
 
-    return this.prisma.mcpRule.update({
+    return this.prisma.modelRoutingRule.update({
       where: { id: rule.id },
       data: dto,
     });
@@ -178,7 +178,7 @@ export class McpService {
    * @returns {Promise<Object>} 规则详情
    */
   async getRule(modelId: string) {
-    let rule = await this.prisma.mcpRule.findFirst({
+    let rule = await this.prisma.modelRoutingRule.findFirst({
       where: { modelId: modelId as any },
     });
 
@@ -532,7 +532,7 @@ export class McpService {
    */
   async checkCircuit(modelId: string): Promise<boolean> {
     const rule = await this.getRule(modelId);
-    const strategy = await this.prisma.mcpStrategy.findFirst();
+    const strategy = await this.prisma.modelRoutingStrategy.findFirst();
 
     if (!strategy?.enableCircuit) {
       return true;
@@ -543,7 +543,7 @@ export class McpService {
       const circuitOpenTime = rule.circuitOpenTime?.getTime() || 0;
       const now = Date.now();
       if (now - circuitOpenTime >= strategy.circuitTimeout) {
-        await this.prisma.mcpRule.update({
+        await this.prisma.modelRoutingRule.update({
           where: { id: rule.id },
           data: {
             circuitStatus: CircuitStatus.HALF_OPEN,
@@ -564,7 +564,7 @@ export class McpService {
    */
   async reportError(modelId: string): Promise<void> {
     const rule = await this.getRule(modelId);
-    const strategy = await this.prisma.mcpStrategy.findFirst();
+    const strategy = await this.prisma.modelRoutingStrategy.findFirst();
 
     const errorCount = rule.errorCount + 1;
     const updateData: Record<string, unknown> = {
@@ -579,7 +579,7 @@ export class McpService {
       console.warn(`模型 ${modelId} 触发熔断`);
     }
 
-    await this.prisma.mcpRule.update({
+    await this.prisma.modelRoutingRule.update({
       where: { id: rule.id },
       data: updateData,
     });
@@ -603,7 +603,7 @@ export class McpService {
       console.log(`模型 ${modelId} 熔断恢复`);
     }
 
-    await this.prisma.mcpRule.update({
+    await this.prisma.modelRoutingRule.update({
       where: { id: rule.id },
       data: updateData,
     });
@@ -622,7 +622,7 @@ export class McpService {
     }
 
     // 增加并发计数
-    await this.prisma.mcpRule.update({
+    await this.prisma.modelRoutingRule.update({
       where: { id: rule.id },
       data: {
         currentConcurrent: rule.currentConcurrent + 1,
@@ -641,7 +641,7 @@ export class McpService {
     const rule = await this.getRule(modelId);
 
     if (rule.currentConcurrent > 0) {
-      await this.prisma.mcpRule.update({
+      await this.prisma.modelRoutingRule.update({
         where: { id: rule.id },
         data: {
           currentConcurrent: rule.currentConcurrent - 1,
@@ -655,7 +655,7 @@ export class McpService {
    * @returns {Promise<Array>} 所有规则列表
    */
   async getAllRules() {
-    return this.prisma.mcpRule.findMany({
+    return this.prisma.modelRoutingRule.findMany({
       include: {
         model: {
           select: {
@@ -675,7 +675,7 @@ export class McpService {
   async resetCircuit(modelId: string) {
     const rule = await this.getRule(modelId);
 
-    return this.prisma.mcpRule.update({
+    return this.prisma.modelRoutingRule.update({
       where: { id: rule.id },
       data: {
         circuitStatus: CircuitStatus.CLOSED,
@@ -691,7 +691,7 @@ export class McpService {
    * @returns {Promise<Object>} 删除的规则
    */
   async deleteRule(modelId: string) {
-    const rule = await this.prisma.mcpRule.findFirst({
+    const rule = await this.prisma.modelRoutingRule.findFirst({
       where: { modelId: modelId as any },
     });
 
@@ -699,7 +699,7 @@ export class McpService {
       throw new HttpException('规则不存在', HttpStatus.NOT_FOUND);
     }
 
-    return this.prisma.mcpRule.delete({
+    return this.prisma.modelRoutingRule.delete({
       where: { id: rule.id },
     });
   }
@@ -713,7 +713,7 @@ export class McpService {
     const statuses = [];
 
     // 获取策略配置
-    const strategy = await this.prisma.mcpStrategy.findFirst();
+    const strategy = await this.prisma.modelRoutingStrategy.findFirst();
     const circuitTimeout = strategy?.circuitTimeout || 300000;
 
     // 计算最近60秒的时间点

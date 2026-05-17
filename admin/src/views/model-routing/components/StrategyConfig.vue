@@ -156,16 +156,16 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { mcpApi, type McpStrategy, type McpStrategyForm } from '@/api/mcp'
+import { routingApi, type ModelRoutingStrategy, type ModelRoutingStrategyForm } from "@/api/model-routing"
 
 const strategyLoading = ref(false)
 const submitting = ref(false)
 const dialogVisible = ref(false)
-const strategies = ref<McpStrategy[]>([])
-const editingStrategy = ref<McpStrategy | null>(null)
+const strategies = ref<ModelRoutingStrategy[]>([])
+const editingStrategy = ref<ModelRoutingStrategy | null>(null)
 const formRef = ref<FormInstance>()
 
-const form = reactive<McpStrategyForm>({
+const form = reactive<ModelRoutingStrategyForm>({
   modelType: '',
   strategy: 'weight',
   retryCount: 3,
@@ -214,7 +214,7 @@ const getStrategyType = (strategy: string) => {
 const loadStrategies = async () => {
   strategyLoading.value = true
   try {
-    const { data } = await mcpApi.getStrategies()
+    const { data } = await routingApi.getStrategies()
     strategies.value = data.data || []
   } catch (error) {
     console.error('加载策略列表失败', error)
@@ -230,7 +230,7 @@ const handleAddStrategy = () => {
   dialogVisible.value = true
 }
 
-const handleEditStrategy = (row: McpStrategy) => {
+const handleEditStrategy = (row: ModelRoutingStrategy) => {
   editingStrategy.value = row
   Object.assign(form, {
     modelType: row.modelType,
@@ -266,10 +266,10 @@ const handleSubmit = async () => {
     submitting.value = true
     try {
       if (editingStrategy.value) {
-        await mcpApi.updateStrategy(editingStrategy.value.modelType, form)
+        await routingApi.updateStrategy(editingStrategy.value.modelType, form)
         ElMessage.success('更新成功')
       } else {
-        await mcpApi.createStrategy(form)
+        await routingApi.createStrategy(form)
         ElMessage.success('创建成功')
       }
       dialogVisible.value = false

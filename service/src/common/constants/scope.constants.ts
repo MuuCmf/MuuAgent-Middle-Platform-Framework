@@ -43,9 +43,9 @@ export enum AdminScope {
   PROMPT_TEMPLATE_READ = 'prompt-template:read',
   PROMPT_TEMPLATE_WRITE = 'prompt-template:write',
 
-  // MCP调度
-  MCP_READ = 'mcp:read',
-  MCP_WRITE = 'mcp:write',
+  // 模型路由调度
+  MODEL_ROUTING_READ = 'model-routing:read',
+  MODEL_ROUTING_WRITE = 'model-routing:write',
 
   // MCP Server
   MCP_SERVER_READ = 'mcp-server:read',
@@ -100,7 +100,7 @@ export const SCOPE_HIERARCHY: Record<string, string[]> = {
   [AdminScope.DOCUMENT_WRITE]: [AdminScope.DOCUMENT_READ],
   [AdminScope.CONVERSATION_WRITE]: [AdminScope.CONVERSATION_READ],
   [AdminScope.PROMPT_TEMPLATE_WRITE]: [AdminScope.PROMPT_TEMPLATE_READ],
-  [AdminScope.MCP_WRITE]: [AdminScope.MCP_READ],
+  [AdminScope.MODEL_ROUTING_WRITE]: [AdminScope.MODEL_ROUTING_READ],
   [AdminScope.MCP_SERVER_WRITE]: [AdminScope.MCP_SERVER_READ],
   [AdminScope.OAUTH_WRITE]: [AdminScope.OAUTH_READ],
   [AdminScope.RATE_LIMIT_WRITE]: [AdminScope.RATE_LIMIT_READ],
@@ -124,7 +124,7 @@ export const SCOPE_GROUPS: { label: string; scopes: AdminScope[] }[] = [
   { label: '文档', scopes: [AdminScope.DOCUMENT_READ, AdminScope.DOCUMENT_WRITE] },
   { label: '会话', scopes: [AdminScope.CONVERSATION_READ, AdminScope.CONVERSATION_WRITE] },
   { label: 'Prompt模板', scopes: [AdminScope.PROMPT_TEMPLATE_READ, AdminScope.PROMPT_TEMPLATE_WRITE] },
-  { label: 'MCP调度', scopes: [AdminScope.MCP_READ, AdminScope.MCP_WRITE, AdminScope.INTENT_KEYWORD_READ, AdminScope.INTENT_KEYWORD_WRITE, AdminScope.INTENT_DASHBOARD_READ, AdminScope.INTENT_CACHE_READ, AdminScope.INTENT_CACHE_WRITE, AdminScope.INTENT_ROUTING_LOG_READ] },
+  { label: '模型路由调度', scopes: [AdminScope.MODEL_ROUTING_READ, AdminScope.MODEL_ROUTING_WRITE, AdminScope.INTENT_KEYWORD_READ, AdminScope.INTENT_KEYWORD_WRITE, AdminScope.INTENT_DASHBOARD_READ, AdminScope.INTENT_CACHE_READ, AdminScope.INTENT_CACHE_WRITE, AdminScope.INTENT_ROUTING_LOG_READ] },
   { label: 'MCP Server', scopes: [AdminScope.MCP_SERVER_READ, AdminScope.MCP_SERVER_WRITE] },
   { label: 'OAuth', scopes: [AdminScope.OAUTH_READ, AdminScope.OAUTH_WRITE] },
   { label: '限流', scopes: [AdminScope.RATE_LIMIT_READ, AdminScope.RATE_LIMIT_WRITE] },
@@ -156,8 +156,8 @@ export const SCOPE_DESCRIPTIONS: Record<AdminScope, string> = {
   [AdminScope.CONVERSATION_WRITE]: '删除会话',
   [AdminScope.PROMPT_TEMPLATE_READ]: '查看Prompt模板',
   [AdminScope.PROMPT_TEMPLATE_WRITE]: '管理Prompt模板',
-  [AdminScope.MCP_READ]: '查看MCP调度配置',
-  [AdminScope.MCP_WRITE]: '管理MCP调度配置',
+  [AdminScope.MODEL_ROUTING_READ]: '查看模型路由调度配置',
+  [AdminScope.MODEL_ROUTING_WRITE]: '管理模型路由调度配置',
   [AdminScope.INTENT_KEYWORD_READ]: '查看意图关键词',
   [AdminScope.INTENT_KEYWORD_WRITE]: '管理意图关键词',
   [AdminScope.INTENT_DASHBOARD_READ]: '查看意图监控看板',

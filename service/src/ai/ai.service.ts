@@ -1,5 +1,5 @@
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
-import { McpService } from '../mcp/mcp.service';
+import { ModelRoutingService } from "../model-routing/model-routing.service";
 import { ModelService } from '../model/model.service';
 import { IntentClassifierService } from '../intent/intent.service';
 import { ConversationService } from '../conversation/conversation.service';
@@ -95,7 +95,7 @@ export class AiService {
    * @param toolCallParser 工具调用解析器
    */
   constructor(
-    private mcpService: McpService,
+    private mcpService: ModelRoutingService,
     private modelService: ModelService,
     private conversationService: ConversationService,
     private intentClassifier: IntentClassifierService,

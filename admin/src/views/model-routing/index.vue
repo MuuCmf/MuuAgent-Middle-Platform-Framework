@@ -1,7 +1,7 @@
 <template>
-  <div class="mcp-page">
+  <div class="model-routing-page">
     <div class="page-header">
-      <h2>MCP 调度管理</h2>
+      <h2>模型路由调度</h2>
       <p class="page-desc">管理模型调度策略、监控模型状态、配置意图识别规则</p>
     </div>
 
@@ -46,7 +46,7 @@ const activeTab = ref('status')
 </script>
 
 <style scoped lang="scss">
-.mcp-page {
+.model-routing-page {
   .page-header {
     margin-bottom: 20px;
 

@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, HttpException, HttpStatus, Forbi
 import { PrismaService } from '../common/prisma/prisma.service';
 import { SkillService } from '../skill/skill.service';
 import { McpServerService } from '../mcp-server/mcp-server.service';
-import { McpService } from '../mcp/mcp.service';
+import { ModelRoutingService } from "../model-routing/model-routing.service";
 import { IntentClassifierService } from '../intent/intent.service';
 import { AgentKbService } from './agent-kb.service';
 import { KbSearchTool } from './tools/kb-search.tool';
@@ -42,7 +42,7 @@ export class AgentService {
     private aiService: AiService,
     private promptTemplateService: PromptTemplateService,
     private conversationService: ConversationService,
-    private mcpService: McpService,
+    private mcpService: ModelRoutingService,
     private intentClassifier: IntentClassifierService,
     private workspaceToolHandler: WorkspaceToolHandler,
   ) {}

@@ -29,9 +29,9 @@ export enum CircuitStatus {
 }
 
 /**
- * 创建MCP策略DTO
+ * 创建模型路由策略DTO
  */
-export class CreateMcpStrategyDto {
+export class CreateModelRoutingStrategyDto {
   @ApiProperty({ description: '模型类型', example: 'llm' })
   @IsString()
   @IsNotEmpty()
@@ -81,9 +81,9 @@ export class CreateMcpStrategyDto {
 }
 
 /**
- * 更新MCP策略DTO
+ * 更新模型路由策略DTO
  */
-export class UpdateMcpStrategyDto {
+export class UpdateModelRoutingStrategyDto {
   @ApiPropertyOptional({ description: '调度策略' })
   @IsEnum(StrategyType)
   @IsOptional()
@@ -125,9 +125,9 @@ export class UpdateMcpStrategyDto {
 }
 
 /**
- * 创建MCP规则DTO
+ * 创建模型路由规则DTO
  */
-export class CreateMcpRuleDto {
+export class CreateModelRoutingRuleDto {
   @ApiProperty({ description: '模型ID' })
   @IsString()
   @IsNotEmpty()
@@ -147,9 +147,9 @@ export class CreateMcpRuleDto {
 }
 
 /**
- * 更新MCP规则DTO
+ * 更新模型路由规则DTO
  */
-export class UpdateMcpRuleDto {
+export class UpdateModelRoutingRuleDto {
   @ApiPropertyOptional({ description: 'QPS限制' })
   @IsNumber()
   @Min(1)

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { AiController } from './ai.controller';
-import { McpModule } from '../mcp/mcp.module';
+import { ModelRoutingModule } from "../model-routing/model-routing.module";
 import { ModelModule } from '../model/model.module';
 import { ConversationModule } from '../conversation/conversation.module';
 import { IntentModule } from '../intent/intent.module';
@@ -32,7 +32,7 @@ import { ToolCallParser } from './parsers/tool-call.parser';
  * AI调用模块
  */
 @Module({
-  imports: [McpModule, ModelModule, ConversationModule, IntentModule, PrismaModule],
+  imports: [ModelRoutingModule, ModelModule, ConversationModule, IntentModule, PrismaModule],
   controllers: [AiController],
   providers: [
     // 基础设施层

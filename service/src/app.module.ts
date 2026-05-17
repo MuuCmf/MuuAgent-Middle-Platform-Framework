@@ -8,7 +8,7 @@ import { AppModule as AppMgmtModule } from './app/app.module';
 import { ModelModule } from './model/model.module';
 import { ModelTemplateModule } from './model-template/model-template.module';
 import { PromptTemplateModule } from './prompt-template/prompt-template.module';
-import { McpModule } from './mcp/mcp.module';
+import { ModelRoutingModule } from "./model-routing/model-routing.module";
 import { McpServerModule } from './mcp-server/mcp-server.module';
 import { AiModule } from './ai/ai.module';
 import { SkillModule } from './skill/skill.module';
@@ -62,7 +62,7 @@ import { IntentModule } from './intent/intent.module';
     ModelModule,
     ModelTemplateModule,
     PromptTemplateModule,
-    McpModule,
+    ModelRoutingModule,
     McpServerModule,
     AiModule,
     SkillModule,

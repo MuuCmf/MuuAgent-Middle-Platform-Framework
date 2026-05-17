@@ -64,7 +64,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { mcpApi } from '@/api/mcp'
+import { routingApi } from "@/api/model-routing"
 
 const statusLoading = ref(false)
 const modelStatus = ref<any[]>([])
@@ -90,7 +90,7 @@ const getCircuitStatusText = (status: string) => {
 const loadModelStatus = async () => {
     statusLoading.value = true
     try {
-        const { data } = await mcpApi.getStatus()
+        const { data } = await routingApi.getStatus()
         modelStatus.value = data.data || []
     } catch (error) {
         console.error('加载模型状态失败', error)
@@ -102,7 +102,7 @@ const loadModelStatus = async () => {
 
 const handleResetCircuit = async (modelId: string) => {
     try {
-        await mcpApi.resetCircuit(modelId)
+        await routingApi.resetCircuit(modelId)
         ElMessage.success('熔断状态已重置')
         loadModelStatus()
     } catch (error) {
