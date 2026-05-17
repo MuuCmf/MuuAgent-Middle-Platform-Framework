@@ -98,6 +98,22 @@ export class ModelRoutingService {
   }
 
   /**
+   * 根据模型ID获取对应的策略配置
+   * @param modelId 模型ID
+   * @returns {Promise<Object|null>} 策略配置，模型不存在时返回null
+   */
+  private async getStrategyByModelId(modelId: string) {
+    const model = await this.prisma.model.findUnique({
+      where: { id: modelId as any },
+      select: { type: true },
+    });
+    if (!model) return null;
+    return this.prisma.modelRoutingStrategy.findUnique({
+      where: { modelType: model.type },
+    });
+  }
+
+  /**
    * 获取所有模型路由策略
    * @returns {Promise<Object[]> 策略列表
    */
@@ -195,10 +211,22 @@ export class ModelRoutingService {
    * @returns {Promise<Model>} 选中的模型
    */
   async selectModel(modelType: string): Promise<Model> {
+    const startTime = Date.now();
     const strategy = await this.getStrategy(modelType);
     const models = await this.modelService.getAvailableModels(modelType);
 
     if (!models.length) {
+      this.routingLogService.log({
+        userMessage: '',
+        detectedIntent: modelType,
+        confidence: 1.0,
+        source: 'auto',
+        modelType,
+        isDegraded: false,
+        costMs: Date.now() - startTime,
+        success: false,
+        errorMessage: '无可用模型',
+      }).catch(() => {});
       throw new HttpException('无可用模型', HttpStatus.SERVICE_UNAVAILABLE);
     }
 
@@ -215,7 +243,21 @@ export class ModelRoutingService {
       // 所有模型都熔断，尝试使用降级模型
       if (strategy.fallbackModelId) {
         try {
-          return await this.modelService.findOne(strategy.fallbackModelId);
+          const fallbackModel = await this.modelService.findOne(strategy.fallbackModelId);
+          this.routingLogService.log({
+            userMessage: '',
+            detectedIntent: modelType,
+            confidence: 1.0,
+            source: 'auto',
+            selectedModelId: Number(fallbackModel.id),
+            selectedModelCode: fallbackModel.code,
+            modelType,
+            isDegraded: true,
+            degradeReason: '所有模型熔断，使用降级模型',
+            costMs: Date.now() - startTime,
+            success: true,
+          }).catch(() => {});
+          return fallbackModel;
         } catch {
           this.logger.warn(`降级模型 ${strategy.fallbackModelId} 不可用，尝试兜底模型`);
         }
@@ -223,10 +265,36 @@ export class ModelRoutingService {
 
       // 兜底逻辑：尝试使用第一个可用模型（忽略熔断状态）
       if (models.length > 0) {
-        this.logger.warn(`所有模型熔断，使用兜底模型: ${models[0].code}`);
-        return models[0];
+        const fallbackModel = models[0];
+        this.logger.warn(`所有模型熔断，使用兜底模型: ${fallbackModel.code}`);
+        this.routingLogService.log({
+          userMessage: '',
+          detectedIntent: modelType,
+          confidence: 1.0,
+          source: 'auto',
+          selectedModelId: Number(fallbackModel.id),
+          selectedModelCode: fallbackModel.code,
+          modelType,
+          isDegraded: true,
+          degradeReason: '所有模型熔断，使用兜底模型',
+          costMs: Date.now() - startTime,
+          success: true,
+        }).catch(() => {});
+        return fallbackModel;
       }
 
+      this.routingLogService.log({
+        userMessage: '',
+        detectedIntent: modelType,
+        confidence: 1.0,
+        source: 'auto',
+        modelType,
+        isDegraded: true,
+        degradeReason: '所有模型不可用',
+        costMs: Date.now() - startTime,
+        success: false,
+        errorMessage: '所有模型不可用',
+      }).catch(() => {});
       throw new HttpException('所有模型不可用', HttpStatus.SERVICE_UNAVAILABLE);
     }
 
@@ -249,6 +317,21 @@ export class ModelRoutingService {
         selectedModel = this.selectByWeight(availableModels);
     }
 
+    // 记录路由日志
+    this.routingLogService.log({
+      userMessage: '',
+      detectedIntent: modelType,
+      confidence: 1.0,
+      source: 'auto',
+      selectedModelId: Number(selectedModel.id),
+      selectedModelCode: selectedModel.code,
+      modelType,
+      isDegraded: false,
+      costMs: Date.now() - startTime,
+      success: true,
+    }).catch(() => {});
+
+    this.logger.log(`模型调度: modelType=${modelType}, selected=${selectedModel.code}`);
     return selectedModel;
   }
 
@@ -451,7 +534,11 @@ export class ModelRoutingService {
         selectedModel = this.selectByWeight(availableModels);
     }
 
-    // 记录路由日志
+    // 记录路由日志（自动调度成功后更新降级原因）
+    if (isDegraded) {
+      degradeReason = `${degradeReason}，自动调度切换至 ${selectedModel.code}`;
+    }
+
     this.routingLogService.log({
       userMessage: '',
       detectedIntent: intent,
@@ -532,23 +619,30 @@ export class ModelRoutingService {
    */
   async checkCircuit(modelId: string): Promise<boolean> {
     const rule = await this.getRule(modelId);
-    const strategy = await this.prisma.modelRoutingStrategy.findFirst();
+    const strategy = await this.getStrategyByModelId(modelId);
 
     if (!strategy?.enableCircuit) {
       return true;
     }
 
     if (rule.circuitStatus === CircuitStatus.OPEN) {
-      // 检查是否可以进入半开状态
       const circuitOpenTime = rule.circuitOpenTime?.getTime() || 0;
       const now = Date.now();
       if (now - circuitOpenTime >= strategy.circuitTimeout) {
-        await this.prisma.modelRoutingRule.update({
-          where: { id: rule.id },
+        // 原子更新，防止多个并发请求同时设为 HALF_OPEN
+        const result = await this.prisma.modelRoutingRule.updateMany({
+          where: {
+            id: rule.id,
+            circuitStatus: CircuitStatus.OPEN,
+          },
           data: {
             circuitStatus: CircuitStatus.HALF_OPEN,
           },
         });
+
+        if (result.count > 0) {
+          this.logger.log(`模型 ${modelId} 熔断超时，进入半开探测状态`);
+        }
         return true;
       }
       throw new HttpException('模型熔断中', HttpStatus.SERVICE_UNAVAILABLE);
@@ -564,19 +658,28 @@ export class ModelRoutingService {
    */
   async reportError(modelId: string): Promise<void> {
     const rule = await this.getRule(modelId);
-    const strategy = await this.prisma.modelRoutingStrategy.findFirst();
+    const strategy = await this.getStrategyByModelId(modelId);
 
-    const errorCount = rule.errorCount + 1;
     const updateData: Record<string, unknown> = {
-      errorCount,
       lastErrorTime: new Date(),
     };
 
-    // 检查是否需要熔断
-    if (strategy?.enableCircuit && errorCount >= (strategy.circuitThreshold || 5)) {
+    // HALF_OPEN 状态下失败，立即重新熔断
+    if (rule.circuitStatus === CircuitStatus.HALF_OPEN) {
       updateData.circuitStatus = CircuitStatus.OPEN;
       updateData.circuitOpenTime = new Date();
-      console.warn(`模型 ${modelId} 触发熔断`);
+      updateData.errorCount = rule.errorCount + 1;
+      this.logger.warn(`模型 ${modelId} 半开探测失败，立即重新熔断`);
+    } else {
+      const errorCount = rule.errorCount + 1;
+      updateData.errorCount = errorCount;
+
+      // 检查是否需要熔断
+      if (strategy?.enableCircuit && errorCount >= (strategy.circuitThreshold || 5)) {
+        updateData.circuitStatus = CircuitStatus.OPEN;
+        updateData.circuitOpenTime = new Date();
+        this.logger.warn(`模型 ${modelId} 触发熔断，错误次数: ${errorCount}`);
+      }
     }
 
     await this.prisma.modelRoutingRule.update({
@@ -593,15 +696,15 @@ export class ModelRoutingService {
   async reportSuccess(modelId: string): Promise<void> {
     const rule = await this.getRule(modelId);
 
-    const updateData: Record<string, unknown> = {
-      errorCount: 0,
-    };
+    const updateData: Record<string, unknown> = {};
 
-    // 如果是半开状态，恢复为关闭状态
+    // 半开状态恢复为关闭状态，重置错误计数
     if (rule.circuitStatus === CircuitStatus.HALF_OPEN) {
       updateData.circuitStatus = CircuitStatus.CLOSED;
-      console.log(`模型 ${modelId} 熔断恢复`);
+      updateData.errorCount = 0;
+      this.logger.log(`模型 ${modelId} 半开探测成功，熔断恢复`);
     }
+    // CLOSED 状态下不重置 errorCount，维持错误累积计数
 
     await this.prisma.modelRoutingRule.update({
       where: { id: rule.id },
@@ -610,44 +713,49 @@ export class ModelRoutingService {
   }
 
   /**
-   * 检查并发限制
+   * 检查并发限制（原子操作，避免竞态条件）
    * @param modelId 模型ID
    * @returns {Promise<boolean>} 是否可以执行
    */
   async checkConcurrency(modelId: string): Promise<boolean> {
     const rule = await this.getRule(modelId);
 
-    if (rule.currentConcurrent >= rule.maxConcurrent) {
-      throw new HttpException('模型并发数已满', HttpStatus.TOO_MANY_REQUESTS);
-    }
-
-    // 增加并发计数
-    await this.prisma.modelRoutingRule.update({
-      where: { id: rule.id },
+    // 使用 updateMany 原子操作：仅当 currentConcurrent < maxConcurrent 时才递增
+    const result = await this.prisma.modelRoutingRule.updateMany({
+      where: {
+        id: rule.id,
+        currentConcurrent: { lt: rule.maxConcurrent },
+      },
       data: {
-        currentConcurrent: rule.currentConcurrent + 1,
+        currentConcurrent: { increment: 1 },
       },
     });
+
+    if (result.count === 0) {
+      throw new HttpException('模型并发数已满', HttpStatus.TOO_MANY_REQUESTS);
+    }
 
     return true;
   }
 
   /**
-   * 释放并发计数
+   * 释放并发计数（原子操作，避免竞态条件）
    * @param modelId 模型ID
    * @returns {Promise<void>}
    */
   async releaseConcurrency(modelId: string): Promise<void> {
     const rule = await this.getRule(modelId);
 
-    if (rule.currentConcurrent > 0) {
-      await this.prisma.modelRoutingRule.update({
-        where: { id: rule.id },
-        data: {
-          currentConcurrent: rule.currentConcurrent - 1,
-        },
-      });
-    }
+    // 原子递减，仅在 currentConcurrent > 0 时执行
+    await this.prisma.modelRoutingRule.updateMany({
+      where: {
+        id: rule.id,
+        currentConcurrent: { gt: 0 },
+      },
+      data: {
+        currentConcurrent: { decrement: 1 },
+      },
+    });
   }
 
   /**
@@ -705,48 +813,79 @@ export class ModelRoutingService {
   }
 
   /**
-   * 获取所有模型状态
+   * 获取所有模型状态（批量查询优化）
    * @returns {Promise<Array>} 模型状态列表
    */
   async getAllModelStatus() {
     const models = await this.prisma.model.findMany();
-    const statuses = [];
+    const modelIds = models.map(m => m.id);
 
-    // 获取策略配置
-    const strategy = await this.prisma.modelRoutingStrategy.findFirst();
-    const circuitTimeout = strategy?.circuitTimeout || 300000;
+    // 批量获取所有路由规则
+    const allRules = await this.prisma.modelRoutingRule.findMany({
+      where: { modelId: { in: modelIds as any } },
+    });
+    const ruleMap = new Map<bigint, (typeof allRules)[number]>();
+    for (const rule of allRules) {
+      ruleMap.set(rule.modelId, rule);
+    }
+
+    // 按模型类型获取策略
+    const modelTypes = [...new Set(models.map(m => m.type))];
+    const allStrategies = await this.prisma.modelRoutingStrategy.findMany({
+      where: { modelType: { in: modelTypes } },
+    });
+    const strategyMap = new Map<string, (typeof allStrategies)[number]>();
+    for (const s of allStrategies) {
+      strategyMap.set(s.modelType, s);
+    }
 
     // 计算最近60秒的时间点
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
 
-    for (const model of models) {
-      const rule = await this.getRule(model.id as any);
-      
-      // 查询最近60秒内的成功调用次数
-      const successCount = await this.prisma.aiInvokeLog.count({
-        where: {
-          modelId: model.id,
-          success: true,
-          createdAt: {
-            gte: oneMinuteAgo,
-          },
-        },
-      });
+    // 批量获取最近60秒统计数据
+    const successStats = await this.prisma.aiInvokeLog.groupBy({
+      by: ['modelId'],
+      where: {
+        modelId: { in: modelIds as any },
+        success: true,
+        createdAt: { gte: oneMinuteAgo },
+      },
+      _count: { id: true },
+    });
 
-      // 查询最近60秒内的失败调用次数
-      const failureCount = await this.prisma.aiInvokeLog.count({
-        where: {
-          modelId: model.id as any,
-          success: false,
-          createdAt: {
-            gte: oneMinuteAgo,
-          },
-        },
-      });
+    const failureStats = await this.prisma.aiInvokeLog.groupBy({
+      by: ['modelId'],
+      where: {
+        modelId: { in: modelIds as any },
+        success: false,
+        createdAt: { gte: oneMinuteAgo },
+      },
+      _count: { id: true },
+    });
+
+    const successMap = new Map<bigint | null, number>();
+    for (const s of successStats) {
+      successMap.set(s.modelId, s._count.id);
+    }
+
+    const failureMap = new Map<bigint | null, number>();
+    for (const s of failureStats) {
+      failureMap.set(s.modelId, s._count.id);
+    }
+
+    const statuses = [];
+
+    for (const model of models) {
+      const rule = ruleMap.get(model.id);
+      const strategy = strategyMap.get(model.type);
+      const circuitTimeout = strategy?.circuitTimeout || 300000;
+
+      const successCount = successMap.get(model.id) || 0;
+      const failureCount = failureMap.get(model.id) || 0;
 
       // 计算下次重试时间（仅在熔断开启状态）
       let nextRetryTime: string | undefined;
-      if (rule.circuitStatus === CircuitStatus.OPEN && rule.circuitOpenTime) {
+      if (rule?.circuitStatus === CircuitStatus.OPEN && rule?.circuitOpenTime) {
         const retryTime = new Date(rule.circuitOpenTime.getTime() + circuitTimeout);
         if (retryTime > new Date()) {
           nextRetryTime = retryTime.toISOString();
@@ -758,13 +897,13 @@ export class ModelRoutingService {
         modelCode: model.code,
         modelName: model.name,
         status: model.status,
-        circuitStatus: rule.circuitStatus,
-        errorCount: rule.errorCount,
-        currentConcurrent: rule.currentConcurrent,
-        maxConcurrent: rule.maxConcurrent,
-        qpsLimit: rule.qpsLimit,
-        lastErrorTime: rule.lastErrorTime?.toISOString(),
-        circuitOpenTime: rule.circuitOpenTime?.toISOString(),
+        circuitStatus: rule?.circuitStatus || 'closed',
+        errorCount: rule?.errorCount || 0,
+        currentConcurrent: rule?.currentConcurrent || 0,
+        maxConcurrent: rule?.maxConcurrent || 5,
+        qpsLimit: rule?.qpsLimit || 10,
+        lastErrorTime: rule?.lastErrorTime?.toISOString(),
+        circuitOpenTime: rule?.circuitOpenTime?.toISOString(),
         nextRetryTime,
         successCount,
         failureCount,
