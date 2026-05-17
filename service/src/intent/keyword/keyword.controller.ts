@@ -10,19 +10,19 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { IntentKeywordService } from './intent-keyword.service';
-import { IntentClassifierService } from '../intent/intent.service';
-import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
-import { ScopeGuard } from '../common/guards/scope.guard';
-import { RequireScope } from '../common/decorators/scope.decorator';
-import { AdminScope } from '../common/constants/scope.constants';
+import { IntentKeywordService } from './keyword.service';
+import { IntentClassifierService } from '../intent.service';
+import { CombinedAuthGuard } from '../../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../../common/guards/scope.guard';
+import { RequireScope } from '../../common/decorators/scope.decorator';
+import { AdminScope } from '../../common/constants/scope.constants';
 import {
   CreateIntentKeywordDto,
   UpdateIntentKeywordDto,
   QueryIntentKeywordDto,
   BatchImportKeywordDto,
-} from './dto/intent-keyword.dto';
-import { success, page } from '../common/response/api.response';
+} from '../dto/intent-keyword.dto';
+import { success, page } from '../../common/response/api.response';
 
 /**
  * 意图关键词管理控制器

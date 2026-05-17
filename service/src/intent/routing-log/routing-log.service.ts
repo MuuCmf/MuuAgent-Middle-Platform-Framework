@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { QueryRoutingLogDto } from './dto/intent-routing-log.dto';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { QueryRoutingLogDto } from '../dto/intent-routing-log.dto';
 
 /**
  * 路由日志记录参数

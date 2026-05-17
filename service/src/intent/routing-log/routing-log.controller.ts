@@ -6,13 +6,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { IntentRoutingLogService } from './intent-routing-log.service';
-import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
-import { ScopeGuard } from '../common/guards/scope.guard';
-import { RequireScope } from '../common/decorators/scope.decorator';
-import { AdminScope } from '../common/constants/scope.constants';
-import { QueryRoutingLogDto } from './dto/intent-routing-log.dto';
-import { success, page } from '../common/response/api.response';
+import { IntentRoutingLogService } from './routing-log.service';
+import { CombinedAuthGuard } from '../../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../../common/guards/scope.guard';
+import { RequireScope } from '../../common/decorators/scope.decorator';
+import { AdminScope } from '../../common/constants/scope.constants';
+import { QueryRoutingLogDto } from '../dto/intent-routing-log.dto';
+import { success, page } from '../../common/response/api.response';
 
 /**
  * 意图路由日志控制器

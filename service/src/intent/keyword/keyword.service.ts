@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
+import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   CreateIntentKeywordDto,
   UpdateIntentKeywordDto,
   QueryIntentKeywordDto,
   BatchImportKeywordDto,
-} from './dto/intent-keyword.dto';
+} from '../dto/intent-keyword.dto';
 
 /**
  * 意图关键词管理服务

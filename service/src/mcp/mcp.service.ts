@@ -2,7 +2,7 @@ import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { ModelService } from '../model/model.service';
 import { IntentClassifierService } from '../intent/intent.service';
-import { IntentRoutingLogService } from '../intent-routing-log/intent-routing-log.service';
+import { IntentRoutingLogService } from '../intent/routing-log/routing-log.service';
 import {
   CreateMcpStrategyDto,
   UpdateMcpStrategyDto,

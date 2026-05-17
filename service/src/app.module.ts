@@ -26,10 +26,6 @@ import { OAuthModule } from './oauth/oauth.module';
 import { ConversationModule } from './conversation/conversation.module';
 import { FileModule } from './file/file.module';
 import { IntentModule } from './intent/intent.module';
-import { IntentKeywordModule } from './intent-keyword/intent-keyword.module';
-import { IntentDashboardModule } from './intent-dashboard/intent-dashboard.module';
-import { IntentCacheModule } from './intent-cache/intent-cache.module';
-import { IntentRoutingLogModule } from './intent-routing-log/intent-routing-log.module';
 
 /**
  * 应用根模块
@@ -87,10 +83,6 @@ import { IntentRoutingLogModule } from './intent-routing-log/intent-routing-log.
     ConversationModule,
 
     IntentModule,
-    IntentKeywordModule,
-    IntentDashboardModule,
-    IntentCacheModule,
-    IntentRoutingLogModule,
   ],
 })
 export class AppModule {}

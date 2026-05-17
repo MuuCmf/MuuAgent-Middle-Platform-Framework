@@ -1,11 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
-import { ScopeGuard } from '../common/guards/scope.guard';
-import { RequireScope } from '../common/decorators/scope.decorator';
-import { AdminScope } from '../common/constants/scope.constants';
-import { success } from '../common/response/api.response';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { CombinedAuthGuard } from '../../common/guards/combined-auth.guard';
+import { ScopeGuard } from '../../common/guards/scope.guard';
+import { RequireScope } from '../../common/decorators/scope.decorator';
+import { AdminScope } from '../../common/constants/scope.constants';
+import { success } from '../../common/response/api.response';
 
 /**
  * 意图监控看板控制器
