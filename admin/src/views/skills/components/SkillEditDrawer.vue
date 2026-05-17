@@ -31,9 +31,13 @@
             <el-option label="HTTP请求 - 调用外部API" value="http" />
             <el-option label="函数技能 - 内置/插件/自定义" value="function" />
             <el-option label="数据库查询 - 执行SQL" value="database" />
-            <el-option label="MCP工具 - 调用第三方MCP Server" value="mcp" />
+            <el-option label="MCP工具 - 调用第三方MCP Server（高级）" value="mcp" />
             <el-option label="文件操作 - 上传/下载/处理" value="file" />
           </el-select>
+          <div v-if="form.type === 'mcp'" class="field-tip field-tip-warning">
+            ⚠️ 推荐通过<strong>智能体 → MCP Server 配置</strong>接入 MCP 工具，支持自动发现工具列表和参数 Schema。
+            仅在需要<strong>自定义工具名称/描述</strong>或<strong>独立调用（不经过智能体对话）</strong>时使用此方式。
+          </div>
         </el-form-item>
 
         <function-editor v-if="form.type === 'function'" v-model:code-type="form.codeType"
@@ -153,7 +157,40 @@
   "apiKey": "your-api-key",
   "toolName": "get_weather"
 }</pre>
-                      <p class="help-tip">💡 MCP (Model Context Protocol) 是 Anthropic 推出的开放协议</p>
+                      <div class="mcp-compare-notice">
+                        <p class="notice-title">💡 与智能体 MCP Server 配置的区别：</p>
+                        <table class="compare-table">
+                          <thead>
+                            <tr>
+                              <th></th>
+                              <th class="col-recommend">智能体 MCP Server ⭐推荐</th>
+                              <th>Skill MCP（当前）</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>工具发现</td>
+                              <td>自动发现所有工具</td>
+                              <td>手动填写 toolName</td>
+                            </tr>
+                            <tr>
+                              <td>参数 Schema</td>
+                              <td>自动获取</td>
+                              <td>手动填写</td>
+                            </tr>
+                            <tr>
+                              <td>多工具管理</td>
+                              <td>一个 Server 管理多个工具</td>
+                              <td>一个 Skill 仅一个工具</td>
+                            </tr>
+                            <tr>
+                              <td>适用场景</td>
+                              <td>常规 MCP 工具接入</td>
+                              <td>需自定义名称/描述或独立调用</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </el-collapse-item>
@@ -462,5 +499,68 @@ const handleSave = () => {
   font-size: 12px;
   color: #909399;
   margin-top: 4px;
+}
+
+.field-tip-warning {
+  color: #e6a23c;
+  background: #fdf6ec;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #faecd8;
+  line-height: 1.6;
+  margin-top: 8px;
+
+  strong {
+    color: #303133;
+  }
+}
+
+.mcp-compare-notice {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f0f9eb;
+  border: 1px solid #e1f3d8;
+  border-radius: 4px;
+
+  .notice-title {
+    margin: 0 0 10px 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: #67c23a;
+  }
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+
+  th, td {
+    padding: 6px 10px;
+    border: 1px solid #e1f3d8;
+    text-align: left;
+  }
+
+  th {
+    background: #e1f3d8;
+    color: #303133;
+    font-weight: 500;
+  }
+
+  .col-recommend {
+    color: #67c23a;
+  }
+
+  td {
+    color: #606266;
+    background: #fff;
+  }
+
+  td:first-child {
+    font-weight: 500;
+    color: #303133;
+    background: #f5f7fa;
+    white-space: nowrap;
+  }
 }
 </style>

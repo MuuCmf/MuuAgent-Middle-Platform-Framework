@@ -208,15 +208,15 @@ const keywordForm = reactive<IntentKeywordForm>({
  */
 const getKeywordIntentTagType = (intent: string): string => {
   const map: Record<string, string> = {
-    general: '',
+    general: 'primary',
     code: 'success',
     math: 'warning',
     creative: 'danger',
     image: 'info',
-    tts: '',
+    tts: 'info',
     asr: 'warning'
   }
-  return map[intent] || ''
+  return map[intent] || 'primary'
 }
 
 /**

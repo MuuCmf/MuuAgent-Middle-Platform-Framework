@@ -238,15 +238,15 @@ const dashboardMaxTrendValue = computed(() => {
  */
 const getDashboardIntentTagType = (intent: string): string => {
   const map: Record<string, string> = {
-    general: '',
+    general: 'primary',
     code: 'success',
     math: 'warning',
     creative: 'danger',
     image: 'info',
-    tts: '',
+    tts: 'info',
     asr: 'warning'
   }
-  return map[intent] || ''
+  return map[intent] || 'primary'
 }
 
 /**
@@ -293,6 +293,7 @@ const getDashboardBarHeight = (value: number, max: number): string => {
  * 格式化看板趋势标签
  */
 const formatDashboardTrendLabel = (time: string): string => {
+  if (!time) return '-'
   if (dashboardTrendGranularity.value === 'hour') {
     return time.slice(-5)
   }

@@ -135,15 +135,15 @@ const cacheFilterSource = ref<string>()
  */
 const getCacheIntentTagType = (intent: string): string => {
   const map: Record<string, string> = {
-    general: '',
+    general: 'primary',
     code: 'success',
     math: 'warning',
     creative: 'danger',
     image: 'info',
-    tts: '',
+    tts: 'info',
     asr: 'warning'
   }
-  return map[intent] || ''
+  return map[intent] || 'primary'
 }
 
 /**
@@ -171,7 +171,7 @@ const getCacheSourceTagType = (source: string): string => {
     ai: 'warning',
     default: 'info'
   }
-  return map[source] || ''
+  return map[source] || 'primary'
 }
 
 /**

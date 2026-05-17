@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Put, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { McpServerService } from './mcp-server.service';
 import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
@@ -8,7 +8,6 @@ import { RequireScope } from '../common/decorators/scope.decorator';
 import {
   DiscoverToolsDto,
   TestConnectionDto,
-  UpdateAgentMcpServersDto,
 } from './dto/mcp-server.dto';
 import { success } from '../common/response/api.response';
 
@@ -53,26 +52,5 @@ export class McpServerController {
   async testConnection(@Body() dto: TestConnectionDto) {
     const result = await this.mcpServerService.testConnection(dto);
     return success(result);
-  }
-
-  /**
-   * 更新智能体MCP Server配置
-   * @param id 智能体ID
-   * @param dto 更新配置DTO
-   * @returns {Promise<ApiResponseClass>} 更新结果
-   */
-  @Put('agent/:id/mcp-servers')
-  @ApiOperation({ summary: '更新智能体MCP Server配置' })
-  @ApiResponse({ status: 200, description: '配置更新成功' })
-  @RequireScope(AdminScope.MCP_SERVER_WRITE)
-  async updateAgentMcpServers(
-    @Param('id') id: string,
-    @Body() dto: UpdateAgentMcpServersDto,
-  ) {
-    const mcpServersJson = JSON.stringify(dto.mcpServers);
-    return success({
-      message: '配置更新成功',
-      mcpServers: mcpServersJson,
-    });
   }
 }

@@ -421,7 +421,7 @@ export class SkillService {
       throw new HttpException('MCP 工具名称未配置', HttpStatus.BAD_REQUEST);
     }
 
-    const result = await this.mcpClient.quickCall(
+    const result = await this.mcpClient.callTool(
       {
         url,
         apiKey,

@@ -208,7 +208,7 @@ const getStrategyType = (strategy: string) => {
     round_robin: 'warning',
     failover: 'danger'
   }
-  return map[strategy] || ''
+  return map[strategy] || 'primary'
 }
 
 const loadStrategies = async () => {

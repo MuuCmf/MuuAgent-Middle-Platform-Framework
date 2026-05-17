@@ -6,9 +6,7 @@ import {
   IsArray,
   IsBoolean,
   IsNumber,
-  ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 
 /**
  * MCP Server配置DTO
@@ -93,17 +91,6 @@ export class TestConnectionDto {
   @IsNumber()
   @IsOptional()
   timeout?: number;
-}
-
-/**
- * 更新智能体MCP Server配置DTO
- */
-export class UpdateAgentMcpServersDto {
-  @ApiProperty({ description: 'MCP Server配置列表', type: [McpServerConfigDto] })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => McpServerConfigDto)
-  mcpServers: McpServerConfigDto[];
 }
 
 /**

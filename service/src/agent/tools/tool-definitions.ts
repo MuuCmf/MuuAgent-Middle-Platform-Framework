@@ -127,68 +127,23 @@ export class ToolDefinitionBuilder {
    * @returns Function Calling 工具定义列表
    */
   static convertToFunctionCallingFormat(tools: ToolDefinition[]): FunctionToolDefinition[] {
+    const validTypes = ['kb', 'skill', 'mcp', 'builtin'];
     return tools.map(tool => {
-      if (tool.type === 'kb') {
-        return {
-          type: 'function',
-          function: {
-            name: tool.name,
-            description: tool.description,
-            parameters: {
-              type: 'object',
-              properties: tool.parameters?.properties || {},
-              required: tool.parameters?.required || [],
-            },
-          },
-        };
+      if (!validTypes.includes(tool.type)) {
+        throw new Error(`Unknown tool type: ${tool.type}`);
       }
-
-      if (tool.type === 'skill') {
-        return {
-          type: 'function',
-          function: {
-            name: tool.name,
-            description: tool.description,
-            parameters: {
-              type: 'object',
-              properties: tool.parameters?.properties || {},
-              required: tool.parameters?.required || [],
-            },
+      return {
+        type: 'function' as const,
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: {
+            type: 'object' as const,
+            properties: tool.parameters?.properties || {},
+            required: tool.parameters?.required || [],
           },
-        };
-      }
-
-      if (tool.type === 'mcp') {
-        return {
-          type: 'function',
-          function: {
-            name: tool.name,
-            description: tool.description,
-            parameters: {
-              type: 'object',
-              properties: tool.parameters?.properties || {},
-              required: tool.parameters?.required || [],
-            },
-          },
-        };
-      }
-
-      if (tool.type === 'builtin') {
-        return {
-          type: 'function',
-          function: {
-            name: tool.name,
-            description: tool.description,
-            parameters: {
-              type: 'object',
-              properties: tool.parameters?.properties || {},
-              required: tool.parameters?.required || [],
-            },
-          },
-        };
-      }
-
-      throw new Error(`Unknown tool type: ${tool.type}`);
+        },
+      };
     });
   }
 }
