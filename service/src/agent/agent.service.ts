@@ -1,6 +1,5 @@
 import { Injectable, Logger, NotFoundException, HttpException, HttpStatus, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { SkillService } from '../skill/skill.service';
 import { McpServerService } from '../mcp-server/mcp-server.service';
 import { ModelRoutingService } from "../model-routing/model-routing.service";
 import { IntentClassifierService } from '../intent/intent.service';
@@ -30,7 +29,7 @@ import type { ModelMessage } from 'ai';
 import { StreamEmitter, StreamEvents } from '../stream';
 import { WorkspaceToolHandler } from '../workspace/workspace-tool.handler';
 import { WORKSPACE_TOOLS, WORKSPACE_TOOL_NAMES } from '../workspace/workspace-tool.definitions';
-import { SkillRegistry } from '../skill/skill-registry';
+import { SkillRegistry, SkillMetadata } from '../skill/skill-registry';
 
 @Injectable()
 export class AgentService {
@@ -38,7 +37,6 @@ export class AgentService {
 
   constructor(
     private prisma: PrismaService,
-    private skillService: SkillService,
     private mcpServerService: McpServerService,
     private agentKbService: AgentKbService,
     private kbSearchTool: KbSearchTool,
@@ -341,37 +339,19 @@ export class AgentService {
     }
 
     // ===== 技能工具注入（渐进式披露架构） =====
-    // 收集绑定的技能 code 列表
     let boundSkillCodes: string[] = [];
-    if (agent.skills) {
-      try {
-        boundSkillCodes = JSON.parse(agent.skills);
-        // 保留直接工具调用（向后兼容）：每个 DB 技能仍然注册为 skill__{code} 工具
-        for (const code of boundSkillCodes) {
-          try {
-            const skill = await this.skillService.findByCode(code, isolationContext);
-            if (skill) {
-              tools.push({
-                name: `skill__${skill.code}`,
-                description: skill.description || '',
-                parameters: skill.params ? JSON.parse(skill.params) : { type: 'object', properties: {} },
-                type: 'skill',
-              });
-            }
-          } catch (e) {
-            this.logger.warn(`Skill not found: ${code}`);
-          }
-        }
-      } catch (e) {
-        this.logger.warn('Failed to parse skills config');
-      }
-    }
+    try { boundSkillCodes = JSON.parse(agent.skills || '[]'); } catch {}
 
-    // 构建技能清单（L1 元数据），用于 system prompt 和 use_skill 工具
+    // 构建技能清单（L1 元数据）—— SkillRegistry 是唯一数据源
     let skillManifest = '';
+    const boundSkills: SkillMetadata[] = [];
     try {
       const allSkills = await this.skillRegistry.listAll(isolationContext);
-      const boundSkills = allSkills.filter(s => boundSkillCodes.includes(s.name));
+      for (const s of allSkills) {
+        if (boundSkillCodes.includes(s.name)) {
+          boundSkills.push(s);
+        }
+      }
       if (boundSkills.length > 0) {
         skillManifest = boundSkills.map(s =>
           `- **${s.name}** [${s.source}]: ${s.description}`
@@ -381,16 +361,26 @@ export class AgentService {
       this.logger.warn('构建技能清单失败:', e);
     }
 
+    // 日志：绑定但不在注册中心的技能
+    const foundNames = new Set(boundSkills.map(s => s.name));
+    for (const code of boundSkillCodes) {
+      if (!foundNames.has(code)) {
+        this.logger.warn(`技能 "${code}" 已绑定但不在注册中心（可能被删除或不可见）`);
+      }
+    }
+
+    const availableSkillNames = boundSkills.map(s => s.name).join(', ') || '无';
+
     // 添加 use_skill 元工具（L1 → L2 触发）
     tools.push({
       name: 'use_skill',
-      description: `按需加载指定技能的完整指令。可用技能: ${boundSkillCodes.join(', ') || '无'}。当需要技能的详细操作步骤时调用此工具。`,
+      description: `按需加载指定技能的完整指令。可用技能: ${availableSkillNames}。当需要技能的详细操作步骤、API参数格式或执行注意事项时调用此工具。`,
       parameters: {
         type: 'object',
         properties: {
           skill_name: {
             type: 'string',
-            description: `要加载的技能名称。可用技能: ${boundSkillCodes.join(', ') || '无'}`,
+            description: `要加载的技能名称。可用: ${availableSkillNames}`,
           },
         },
         required: ['skill_name'],
@@ -409,6 +399,82 @@ export class AgentService {
           reference_path: { type: 'string', description: '参考文档的相对路径，如 api-docs.md' },
         },
         required: ['skill_name', 'reference_path'],
+      },
+      type: 'builtin',
+    });
+
+    // 添加 run_script 元工具（执行技能预置脚本）
+    const hasScriptedSkills = boundSkills.some(s => s.hasScripts);
+    if (hasScriptedSkills) {
+      tools.push({
+        name: 'run_script',
+        description: `执行技能预置的脚本（位于技能目录 scripts/ 中）。使用前必须先通过 use_skill 加载技能指令。支持的脚本类型: .js / .py / .sh。`,
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_name: { type: 'string', description: `技能名称。可用: ${availableSkillNames}` },
+            script: { type: 'string', description: '脚本路径，如 "extract.py"' },
+            args: { type: 'object', description: '传递给脚本的参数' },
+            timeout: { type: 'number', description: '超时（毫秒），默认 30000' },
+          },
+          required: ['skill_name', 'script'],
+        },
+        type: 'builtin',
+      });
+    }
+
+    // 添加通用能力工具（固定集合，不随技能数量增长）
+    tools.push({
+      name: 'http_request',
+      description: `发起 HTTP 请求。用于调用外部 API、发送 webhook、获取远程数据等。使用前请确保已通过 use_skill 加载相关技能指令，了解正确的 URL、参数和认证方式。禁止访问内网地址。`,
+      parameters: {
+        type: 'object',
+        properties: {
+          method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'], description: 'HTTP 方法' },
+          url: { type: 'string', description: '完整的请求 URL（含协议）' },
+          headers: { type: 'object', description: '请求头' },
+          query: { type: 'object', description: 'URL 查询参数' },
+          body: { description: '请求体' },
+          timeout: { type: 'number', description: '超时（毫秒），默认 30000' },
+        },
+        required: ['method', 'url'],
+      },
+      type: 'builtin',
+    });
+
+    tools.push({
+      name: 'run_code',
+      description: `在安全沙箱中执行代码。支持 JavaScript（VM2 沙箱）、Python 和 Bash。JS 中通过 params 变量访问参数；Python/Bash 通过 stdin JSON 接收。代码执行有超时限制，禁止网络和文件系统访问。`,
+      parameters: {
+        type: 'object',
+        properties: {
+          language: { type: 'string', enum: ['javascript', 'python', 'bash'], description: '代码语言' },
+          code: { type: 'string', description: '要执行的代码' },
+          params: { type: 'object', description: '传递给代码的参数' },
+          timeout: { type: 'number', description: '超时（毫秒），JS 默认 5000，Python/Bash 默认 30000' },
+        },
+        required: ['language', 'code'],
+      },
+      type: 'builtin',
+    });
+
+    tools.push({
+      name: 'db_query',
+      description: `执行只读数据库查询（仅允许 SELECT/SHOW/DESCRIBE/EXPLAIN）。支持 MySQL 命名参数。使用前请确保已通过 use_skill 加载相关技能指令。密码支持 {{ENV:VAR}} 环境变量。`,
+      parameters: {
+        type: 'object',
+        properties: {
+          host: { type: 'string', description: '数据库主机地址' },
+          port: { type: 'number', description: '端口，默认 3306' },
+          user: { type: 'string', description: '数据库用户名' },
+          password: { type: 'string', description: '数据库密码' },
+          database: { type: 'string', description: '数据库名称' },
+          sql: { type: 'string', description: 'SQL 查询语句（仅允许 SELECT）' },
+          params: { type: 'object', description: 'SQL 参数键值对' },
+          max_rows: { type: 'number', description: '最大返回行数，默认 100' },
+          timeout: { type: 'number', description: '超时（毫秒），默认 10000' },
+        },
+        required: ['host', 'user', 'password', 'database', 'sql'],
       },
       type: 'builtin',
     });
@@ -504,7 +570,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
 
     // 注入技能清单（L1 元数据层，渐进式披露）
     if (skillManifest) {
-      systemPrompt += `\n\n## 可用技能清单\n以下是可用的专业技能。每个技能包含详细操作指令，调用 \`use_skill\` 工具并传入技能名称即可加载完整指令。\n\n${skillManifest}`;
+      systemPrompt += `\n\n## 可用技能清单\n以下是可用的专业技能。调用 \`use_skill\` 加载完整指令后，使用通用工具（http_request / run_code / db_query / run_script 等）执行技能中的操作。\n\n${skillManifest}`;
     }
 
     // 追加工作目录上下文
@@ -762,7 +828,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
                         arguments: JSON.stringify(toolCall.args),
                       },
                     },
-                    { agent: context.agent, conversationId: context.conversationId, uid },
+                    { agent: context.agent, conversationId: context.conversationId, uid, isolationContext: { appCode: appCode || context.agent?.appCode || null, isSuperAdmin: false } },
                   );
                 }
 
@@ -1003,7 +1069,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
                     arguments: JSON.stringify(toolCall.args),
                   },
                 },
-                { agent: context.agent, conversationId: context.conversationId, uid },
+                { agent: context.agent, conversationId: context.conversationId, uid, isolationContext: { appCode: context.agent?.appCode || null, isSuperAdmin: false } },
               );
             }
 
@@ -1162,7 +1228,7 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
                   arguments: JSON.stringify(toolCall.args),
                 },
               },
-              { agent: context.agent, conversationId: context.conversationId, uid },
+              { agent: context.agent, conversationId: context.conversationId, uid, isolationContext: { appCode: appCode || context.agent?.appCode || null, isSuperAdmin: false } },
             );
 
             // 记录行动步骤

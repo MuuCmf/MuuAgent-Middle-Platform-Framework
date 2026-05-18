@@ -1,21 +1,13 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
-import { SkillService } from './skill.service';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SkillMdParser } from './standard/skill-md-parser';
 import { SkillMdValidator, ValidationError } from './standard/skill-md-validator';
 import { IsolationContext } from '../common/utils/isolation.util';
-import { PrismaService } from '../common/prisma/prisma.service';
 import * as path from 'path';
-
-/**
- * 导入模式
- */
-export type ImportMode = 'database' | 'filesystem';
 
 /**
  * 导入选项
  */
 export interface ImportOptions {
-  mode: ImportMode;
   appCode?: string;
   isPublic?: boolean;
   overwrite?: boolean;
@@ -49,7 +41,6 @@ export interface SecurityIssue {
 export interface ImportResult {
   success: boolean;
   skillName: string;
-  mode: ImportMode;
   securityScan: SecurityScanResult;
   validationErrors: ValidationError[];
   warnings: string[];
@@ -66,7 +57,7 @@ interface ExtractedFile {
 
 /**
  * 技能导入器
- * 负责导入 Agent Skills 标准格式的技能
+ * 负责导入 Agent Skills 标准格式的技能到文件系统
  */
 @Injectable()
 export class SkillImporter {
@@ -105,20 +96,17 @@ export class SkillImporter {
   ];
 
   constructor(
-    private readonly skillService: SkillService,
     private readonly parser: SkillMdParser,
     private readonly validator: SkillMdValidator,
-    private readonly prisma: PrismaService,
   ) {}
 
   /**
-   * 从文件映射导入标准技能
-   * @param files 文件映射 { 相对路径 → 内容 }
+   * 从文件映射导入标准技能到文件系统
    */
   async importFromFiles(
     files: Map<string, string | Buffer>,
-    options: ImportOptions,
-    context?: IsolationContext,
+    options: ImportOptions = {},
+    _context?: IsolationContext,
   ): Promise<ImportResult> {
     // 1. 提取所有文件
     const extracted: ExtractedFile[] = [];
@@ -149,7 +137,6 @@ export class SkillImporter {
       return {
         success: false,
         skillName: parsed.frontmatter.name || 'unknown',
-        mode: options.mode,
         securityScan: { critical: 0, high: 0, medium: 0, low: 0, issues: [], summary: '', passed: true },
         validationErrors: validation.errors,
         warnings: validation.warnings,
@@ -159,12 +146,8 @@ export class SkillImporter {
     // 5. 安全扫描
     const securityScan = this.securityScan(extracted);
 
-    // 6. 按模式导入
-    if (options.mode === 'database') {
-      return this.importToDatabase(parsed, extracted, options, context, securityScan, validation);
-    } else {
-      return this.importToFilesystem(parsed, extracted, options, securityScan, validation);
-    }
+    // 6. 写入文件系统
+    return this.writeToFilesystem(parsed, extracted, options, securityScan, validation);
   }
 
   /**
@@ -174,7 +157,6 @@ export class SkillImporter {
     const issues: SecurityIssue[] = [];
 
     for (const file of files) {
-      // 扩展名白名单检查
       const ext = path.extname(file.relativePath).toLowerCase();
       if (ext && !this.allowedExtensions.has(ext)) {
         issues.push({
@@ -204,12 +186,10 @@ export class SkillImporter {
         }
       }
 
-      // SKILL.md 检查提示注入（body + frontmatter 字段）
+      // SKILL.md 检查提示注入
       if (file.relativePath.endsWith('SKILL.md')) {
-        // 提取 frontmatter 部分单独检查
         const fmMatch = file.content.match(/^---\s*\n([\s\S]*?)\n---/);
         const fmContent = fmMatch ? fmMatch[1] : '';
-        const bodyContent = fmMatch ? file.content.slice(fmMatch[0].length) : file.content;
 
         for (const pattern of this.promptInjectionPatterns) {
           if (pattern.test(file.content)) {
@@ -269,100 +249,9 @@ export class SkillImporter {
   }
 
   /**
-   * 导入为 DB 技能
+   * 写入文件系统
    */
-  private async importToDatabase(
-    parsed: any,
-    files: ExtractedFile[],
-    options: ImportOptions,
-    context: IsolationContext | undefined,
-    securityScan: SecurityScanResult,
-    validation: { errors: ValidationError[]; warnings: string[] },
-  ): Promise<ImportResult> {
-    if (!securityScan.passed) {
-      throw new BadRequestException(`安全扫描未通过: ${securityScan.summary}`);
-    }
-
-    const fm = parsed.frontmatter;
-
-    // 检查是否已存在
-    let existing = null;
-    try {
-      existing = await this.skillService.findByCode(fm.name, context);
-    } catch { /* 技能不存在，继续创建 */ }
-    if (existing && !options.overwrite) {
-      throw new BadRequestException(`技能 "${fm.name}" 已存在，如需覆盖请设置 overwrite: true`);
-    }
-
-    // 确定技能类型
-    const hasScripts = files.some(f =>
-      f.relativePath.includes('/scripts/') && !f.relativePath.endsWith('/')
-    );
-
-    let type = 'FUNCTION';
-    let codeType = 'builtin';
-    let codeContent = '';
-
-    // 检查是否有 JS 脚本
-    const jsScript = files.find(f => f.relativePath.endsWith('.js') && f.relativePath.includes('/scripts/'));
-    if (jsScript) {
-      type = 'FUNCTION';
-      codeType = 'sandbox';
-      codeContent = jsScript.content;
-    }
-
-    // 根据 metadata 判断
-    const skillType = fm.metadata?.skillType;
-    if (skillType === 'HTTP' || skillType === 'DATABASE' || skillType === 'MCP') {
-      type = skillType;
-      codeType = '';
-    }
-
-    // 提取参数定义
-    const paramsFromBody = this.extractParamsFromBody(parsed.body);
-
-    const createDto = {
-      name: fm.name,
-      code: fm.name,
-      description: fm.description,
-      type,
-      params: JSON.stringify(paramsFromBody),
-      config: JSON.stringify({
-        importedFrom: 'agent-skills-standard',
-        importedAt: new Date().toISOString(),
-        originalFrontmatter: fm,
-        hasScripts,
-      }),
-      status: true,
-      timeout: 30000,
-      codeType: codeType || undefined,
-      codeContent: codeContent || undefined,
-      appCode: options.appCode,
-      isPublic: options.isPublic ?? false,
-    };
-
-    if (existing && options.overwrite) {
-      await this.skillService.update(String(existing.id), createDto as any, context);
-    } else {
-      await this.skillService.create(createDto, context);
-    }
-
-    this.logger.log(`技能 "${fm.name}" 已导入为数据库技能`);
-
-    return {
-      success: true,
-      skillName: fm.name,
-      mode: 'database',
-      securityScan,
-      validationErrors: [],
-      warnings: validation.warnings,
-    };
-  }
-
-  /**
-   * 导入为文件系统技能
-   */
-  private async importToFilesystem(
+  private async writeToFilesystem(
     parsed: any,
     files: ExtractedFile[],
     options: ImportOptions,
@@ -376,7 +265,6 @@ export class SkillImporter {
     const fs = await import('fs/promises');
     const targetDir = options.targetDir || path.join(process.cwd(), 'skills', 'standard');
 
-    // 确定目标子目录
     let skillDir: string;
     if (options.appCode) {
       skillDir = path.join(targetDir, `app-${options.appCode}`, parsed.frontmatter.name);
@@ -395,7 +283,7 @@ export class SkillImporter {
       createdPaths.push(tmpDir);
 
       for (const file of files) {
-        const relPath = file.relativePath.replace(/^[^/]+\//, ''); // 移除根目录名
+        const relPath = file.relativePath.replace(/^[^/]+\//, '');
         const fullPath = path.join(tmpDir, relPath || 'SKILL.md');
         const dir = path.dirname(fullPath);
         await fs.mkdir(dir, { recursive: true });
@@ -413,12 +301,10 @@ export class SkillImporter {
 
       try {
         await fs.rename(tmpDir, skillDir);
-        // 清理备份
         if (backupDir) {
           await fs.rm(backupDir, { recursive: true, force: true });
         }
       } catch (renameErr) {
-        // 重命名失败，恢复备份
         if (backupDir) {
           try { await fs.rename(backupDir, skillDir); } catch { /* ignore */ }
         }
@@ -431,7 +317,6 @@ export class SkillImporter {
       for (const p of createdPaths.reverse()) {
         try { await fs.rm(p, { recursive: true, force: true }); } catch { /* ignore */ }
       }
-      // 清理可能遗留的备份
       const backups = await fs.readdir(targetDir).catch(() => []);
       for (const name of backups) {
         if (name.startsWith(parsed.frontmatter.name + '.backup-')) {
@@ -446,7 +331,6 @@ export class SkillImporter {
     return {
       success: true,
       skillName: parsed.frontmatter.name,
-      mode: 'filesystem',
       securityScan,
       validationErrors: [],
       warnings: [
@@ -454,22 +338,5 @@ export class SkillImporter {
         '文件系统导入后需重新扫描技能索引才能被 Agent 发现',
       ],
     };
-  }
-
-  /**
-   * 从正文中提取参数定义
-   */
-  private extractParamsFromBody(body: string): Record<string, unknown> {
-    const params: Record<string, unknown> = {};
-    const jsonMatch = body.match(/```json\s*\n([\s\S]*?)\n```/);
-    if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[1]);
-        if (typeof parsed === 'object' && parsed !== null) {
-          return parsed;
-        }
-      } catch { /* ignore */ }
-    }
-    return params;
   }
 }

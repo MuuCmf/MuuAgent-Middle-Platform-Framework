@@ -1,47 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { skillApi, type Skill, type SkillForm, type StandardSkill, type ScanResult, type ImportResult } from '@/api/skill'
+import { skillApi, type StandardSkill, type ScanResult, type ImportResult } from '@/api/skill'
 import { ElMessage } from 'element-plus'
 
 export const useSkillStore = defineStore('skill', () => {
-  const skills = ref<Skill[]>([])
   const standardSkills = ref<StandardSkill[]>([])
-  const loading = ref(false)
   const scanning = ref(false)
-
-  // ===== DB 技能 CRUD =====
-
-  const loadSkills = async () => {
-    loading.value = true
-    try {
-      const res = await skillApi.getList()
-      if (res.data && res.data.data) {
-        skills.value = res.data.data.list || []
-      } else {
-        skills.value = []
-      }
-    } catch (error) {
-      console.error('加载技能失败', error)
-      skills.value = []
-    } finally {
-      loading.value = false
-    }
-  }
-
-  const createSkill = async (data: SkillForm) => {
-    await skillApi.create(data)
-    await loadSkills()
-  }
-
-  const updateSkill = async (id: number | string, data: SkillForm) => {
-    await skillApi.update(id as number, data)
-    await loadSkills()
-  }
-
-  const deleteSkill = async (id: number | string) => {
-    await skillApi.delete(id as number)
-    await loadSkills()
-  }
 
   // ===== 标准技能操作 =====
 
@@ -75,15 +39,13 @@ export const useSkillStore = defineStore('skill', () => {
 
   const importSkill = async (
     file: File,
-    mode: 'database' | 'filesystem',
-    options?: { appCode?: string; isPublic?: boolean; overwrite?: boolean }
+    options?: { appCode?: string; isPublic?: boolean; overwrite?: boolean },
   ): Promise<ImportResult | null> => {
     try {
-      const res = await skillApi.importSkill(file, mode, options)
+      const res = await skillApi.importSkill(file, options)
       const result = res.data?.data
       if (result?.success) {
         ElMessage.success(`技能 "${result.skillName}" 导入成功`)
-        await loadSkills()
         await loadStandardSkills()
       }
       return result || null
@@ -93,38 +55,22 @@ export const useSkillStore = defineStore('skill', () => {
     }
   }
 
-  const exportSkill = async (id: number | string, skillName: string) => {
+  const refreshIndex = async () => {
     try {
-      const res = await skillApi.exportSkill(id)
-      // 触发浏览器下载
-      const url = window.URL.createObjectURL(new Blob([res.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `${skillName}.zip`)
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-      ElMessage.success('导出成功')
+      await skillApi.refreshSkills()
+      await loadStandardSkills()
+      ElMessage.success('索引已刷新')
     } catch (error: any) {
-      ElMessage.error('导出失败: ' + (error.response?.data?.message || error.message))
+      ElMessage.error('刷新失败: ' + (error.response?.data?.message || error.message))
     }
   }
 
   return {
-    skills,
     standardSkills,
-    loading,
     scanning,
-    // DB CRUD
-    loadSkills,
-    createSkill,
-    updateSkill,
-    deleteSkill,
-    // 标准技能
     loadStandardSkills,
     scanSkills,
     importSkill,
-    exportSkill,
+    refreshIndex,
   }
 })

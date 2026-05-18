@@ -475,7 +475,7 @@ interface InternalCustomModelParams {
   contextWindow: number
 }
 import type { McpServerConfig } from '@/api/mcp-server'
-import type { Skill } from '@/api/skill'
+import type { StandardSkill } from '@/api/skill'
 import type { KbInfo } from '@/api/kb'
 import type { PromptTemplate } from '@/api/prompt-template'
 import type { ModelTemplate } from '@/api/model-template'
@@ -492,7 +492,7 @@ import AppSelector from '@/components/AppSelector.vue'
 interface Props {
   visible: boolean
   agent?: Agent | null
-  availableSkills?: Skill[]
+  availableSkills?: StandardSkill[]
 }
 
 interface Emits {
@@ -846,9 +846,9 @@ const handleTemplateChange = (code: string) => {
   }
 }
 
-const getSkillName = (code: string) => {
-  const skill = props.availableSkills.find(s => s.code === code)
-  return skill?.name || code
+const getSkillName = (name: string) => {
+  const skill = props.availableSkills.find(s => s.name === name)
+  return skill?.name || name
 }
 
 const getKbName = (code: string) => {

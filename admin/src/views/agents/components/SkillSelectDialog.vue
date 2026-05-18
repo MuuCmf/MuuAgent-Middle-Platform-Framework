@@ -10,7 +10,7 @@
       <div class="search-box">
         <el-input
           v-model="searchKeyword"
-          placeholder="搜索技能名称或标识"
+          placeholder="搜索技能名称"
           clearable
           prefix-icon="Search"
         />
@@ -26,12 +26,12 @@
         <div class="selected-tags">
           <el-tag
             v-for="skill in selectedSkills"
-            :key="skill.code"
+            :key="skill.name"
             closable
-            @close="removeSkill(skill.code)"
+            @close="removeSkill(skill.name)"
             style="margin: 4px;"
           >
-            {{ skill.name }} ({{ skill.code }})
+            {{ skill.name }}
           </el-tag>
         </div>
       </div>
@@ -43,21 +43,20 @@
         <div v-else class="skill-items">
           <div
             v-for="skill in filteredSkills"
-            :key="skill.code"
+            :key="skill.name"
             class="skill-item"
-            :class="{ 'is-selected': isSkillSelected(skill.code) }"
+            :class="{ 'is-selected': isSkillSelected(skill.name) }"
             @click="toggleSkill(skill)"
           >
             <div class="skill-checkbox">
               <el-checkbox
-                :model-value="isSkillSelected(skill.code)"
+                :model-value="isSkillSelected(skill.name)"
                 @click.stop
                 @change="toggleSkill(skill)"
               />
             </div>
             <div class="skill-info">
               <div class="skill-name">{{ skill.name }}</div>
-              <div class="skill-code">{{ skill.code }}</div>
               <div class="skill-description" v-if="skill.description">
                 {{ skill.description }}
               </div>
@@ -80,11 +79,15 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import type { Skill } from '@/api/skill'
+
+interface SkillItem {
+  name: string
+  description: string
+}
 
 interface Props {
   modelValue: boolean
-  skills: Skill[]
+  skills: SkillItem[]
   selectedCodes?: string[]
 }
 
@@ -106,7 +109,7 @@ const visible = computed({
 })
 
 const searchKeyword = ref('')
-const selectedSkills = ref<Skill[]>([])
+const selectedSkills = ref<SkillItem[]>([])
 
 const filteredSkills = computed(() => {
   if (!searchKeyword.value) {
@@ -116,7 +119,6 @@ const filteredSkills = computed(() => {
   const keyword = searchKeyword.value.toLowerCase()
   return props.skills.filter(skill =>
     skill.name.toLowerCase().includes(keyword) ||
-    skill.code.toLowerCase().includes(keyword) ||
     (skill.description && skill.description.toLowerCase().includes(keyword))
   )
 })
@@ -124,18 +126,18 @@ const filteredSkills = computed(() => {
 watch(visible, (newVal) => {
   if (newVal) {
     selectedSkills.value = props.skills.filter(skill =>
-      props.selectedCodes.includes(skill.code)
+      props.selectedCodes.includes(skill.name)
     )
     searchKeyword.value = ''
   }
 })
 
-const isSkillSelected = (code: string) => {
-  return selectedSkills.value.some(skill => skill.code === code)
+const isSkillSelected = (name: string) => {
+  return selectedSkills.value.some(skill => skill.name === name)
 }
 
-const toggleSkill = (skill: Skill) => {
-  const index = selectedSkills.value.findIndex(s => s.code === skill.code)
+const toggleSkill = (skill: SkillItem) => {
+  const index = selectedSkills.value.findIndex(s => s.name === skill.name)
   if (index > -1) {
     selectedSkills.value.splice(index, 1)
   } else {
@@ -143,8 +145,8 @@ const toggleSkill = (skill: Skill) => {
   }
 }
 
-const removeSkill = (code: string) => {
-  const index = selectedSkills.value.findIndex(s => s.code === code)
+const removeSkill = (name: string) => {
+  const index = selectedSkills.value.findIndex(s => s.name === name)
   if (index > -1) {
     selectedSkills.value.splice(index, 1)
   }
@@ -155,8 +157,8 @@ const clearSelection = () => {
 }
 
 const handleConfirm = () => {
-  const codes = selectedSkills.value.map(skill => skill.code)
-  emit('confirm', codes)
+  const names = selectedSkills.value.map(skill => skill.name)
+  emit('confirm', names)
   handleClose()
 }
 
@@ -253,13 +255,6 @@ const handleClose = () => {
 .skill-name {
   font-weight: 500;
   color: #303133;
-  margin-bottom: 4px;
-}
-
-.skill-code {
-  font-size: 12px;
-  color: #909399;
-  font-family: 'Courier New', monospace;
   margin-bottom: 4px;
 }
 

@@ -1,16 +1,8 @@
 import { Module } from '@nestjs/common';
-import { SkillService } from './skill.service';
 import { SkillController } from './skill.controller';
 import { McpClientService } from './mcp-client.service';
-import { PromptTemplateModule } from '../prompt-template/prompt-template.module';
-import { AiModule } from '../ai/ai.module';
-import { ModelModule } from '../model/model.module';
-import { FileModule } from '../file/file.module';
 import { BuiltinExecutor } from './executors/builtin.executor';
-import { PluginExecutor } from './executors/plugin.executor';
 import { SandboxExecutor } from './executors/sandbox.executor';
-import { PluginLoader } from './plugin-loader';
-import { DatabaseExecutor } from './executors/database.executor';
 import { ConnectionPoolManager } from './database/connection-pool.manager';
 import { SqlValidator } from './database/sql-validator';
 
@@ -22,24 +14,20 @@ import { FileSkillProvider } from './standard/file-skill-provider';
 import { ScriptRunner } from './standard/script-runner';
 import { StandardSkillExecutor } from './standard/standard-skill-executor';
 import { SkillRegistry } from './skill-registry';
-import { SkillExporter } from './skill-exporter';
 import { SkillImporter } from './skill-importer';
 
 /**
- * 技能模块
+ * 技能模块（标准技能）
+ *
+ * 所有技能均以 Agent Skills V1.0 标准格式存储在文件系统中。
+ * 不再维护 DB 技能表。
  */
 @Module({
-  imports: [PromptTemplateModule, AiModule, ModelModule, FileModule],
   controllers: [SkillController],
   providers: [
-    // 现有组件
-    SkillService,
     McpClientService,
     BuiltinExecutor,
-    PluginExecutor,
     SandboxExecutor,
-    PluginLoader,
-    DatabaseExecutor,
     ConnectionPoolManager,
     SqlValidator,
 
@@ -51,19 +39,20 @@ import { SkillImporter } from './skill-importer';
     ScriptRunner,
     StandardSkillExecutor,
     SkillRegistry,
-    SkillExporter,
     SkillImporter,
   ],
   exports: [
-    SkillService,
     McpClientService,
     BuiltinExecutor,
+    SandboxExecutor,
+    ScriptRunner,
+    ConnectionPoolManager,
+    SqlValidator,
 
     // 导出标准技能组件供 Agent 等模块使用
     SkillRegistry,
     SkillScanner,
     StandardSkillExecutor,
-    SkillExporter,
     SkillImporter,
   ],
 })

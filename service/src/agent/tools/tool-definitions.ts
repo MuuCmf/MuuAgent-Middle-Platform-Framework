@@ -127,7 +127,7 @@ export class ToolDefinitionBuilder {
    * @returns Function Calling 工具定义列表
    */
   static convertToFunctionCallingFormat(tools: ToolDefinition[]): FunctionToolDefinition[] {
-    const validTypes = ['kb', 'skill', 'mcp', 'builtin'];
+    const validTypes = ['kb', 'skill', 'mcp', 'builtin', 'workspace'];
     return tools.map(tool => {
       if (!validTypes.includes(tool.type)) {
         throw new Error(`Unknown tool type: ${tool.type}`);

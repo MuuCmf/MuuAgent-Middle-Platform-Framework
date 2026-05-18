@@ -11,6 +11,10 @@ import { RetrievalModule } from '../retrieval/retrieval.module';
 import { AiModule } from '../ai/ai.module';
 import { KbSearchTool } from './tools/kb-search.tool';
 import { ToolExecutor } from './tools/tool-executor';
+import { HttpRequestTool } from './tools/http-request.tool';
+import { RunCodeTool } from './tools/run-code.tool';
+import { DbQueryTool } from './tools/db-query.tool';
+import { RunScriptTool } from './tools/run-script.tool';
 import { PromptTemplateModule } from '../prompt-template/prompt-template.module';
 import { ConversationModule } from '../conversation/conversation.module';
 import { IntentModule } from '../intent/intent.module';
@@ -27,6 +31,10 @@ import { WorkspaceModule } from '../workspace/workspace.module';
     AgentKbService,
     KbSearchTool,
     ToolExecutor,
+    HttpRequestTool,
+    RunCodeTool,
+    DbQueryTool,
+    RunScriptTool,
   ],
   exports: [AgentService, AgentKbService, ToolExecutor],
 })

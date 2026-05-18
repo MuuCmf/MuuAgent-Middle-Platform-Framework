@@ -125,8 +125,8 @@ const userStore = useUserStore()
 const agents = computed(() => agentStore.agents)
 const loading = computed(() => agentStore.loading)
 const { loadAgents, createAgent, updateAgent, deleteAgent } = agentStore
-const skills = computed(() => skillStore.skills)
-const { loadSkills } = skillStore
+const skills = computed(() => skillStore.standardSkills)
+const { loadStandardSkills } = skillStore
 
 const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 const filterAppCode = ref('')
@@ -214,7 +214,7 @@ const handleDelete = async (id: number) => {
 
 onMounted(() => {
   loadAgents()
-  loadSkills()
+  loadStandardSkills()
 })
 </script>
 

@@ -1,10 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { SkillService } from './skill.service';
 import { SkillScanner } from './standard/skill-scanner';
 import { FileSkillProvider } from './standard/file-skill-provider';
 import { SkillFrontmatter } from './standard/skill-md-validator';
 import { IsolationContext } from '../common/utils/isolation.util';
-import { Skill } from '@prisma/client';
 
 /**
  * 技能元数据（L1 层，始终驻留）
@@ -12,7 +10,7 @@ import { Skill } from '@prisma/client';
 export interface SkillMetadata {
   name: string;
   description: string;
-  source: 'database' | 'filesystem';
+  source: 'filesystem';
   type?: string;
   appCode?: string | null;
   isPublic: boolean;
@@ -39,7 +37,7 @@ export interface SkillDescriptor {
  * 技能数据提供者接口
  */
 export interface ISkillProvider {
-  readonly source: 'database' | 'filesystem';
+  readonly source: 'filesystem';
   listAll(context?: IsolationContext): Promise<SkillMetadata[]>;
   resolve(name: string, context?: IsolationContext): Promise<SkillDescriptor | null>;
   loadReference?(skillName: string, referencePath: string): Promise<string>;
@@ -49,8 +47,8 @@ export interface ISkillProvider {
 /**
  * 统一技能注册中心
  *
- * 合并 DB 技能和文件系统技能，对上层提供一致的查询接口。
- * 同名技能 DB 优先。
+ * 所有技能均以 Agent Skills V1.0 标准格式存储在文件系统中。
+ * Provider 模式支持扩展，按注册顺序查询。
  */
 @Injectable()
 export class SkillRegistry implements OnModuleInit {
@@ -58,14 +56,11 @@ export class SkillRegistry implements OnModuleInit {
   private readonly providers: ISkillProvider[] = [];
 
   constructor(
-    private readonly skillService: SkillService,
     private readonly skillScanner: SkillScanner,
     private readonly fileSkillProvider: FileSkillProvider,
   ) {}
 
   async onModuleInit() {
-    // 注册 Provider（DB 优先）
-    this.registerProvider(new DbSkillProvider(this.skillService));
     this.registerProvider(this.fileSkillProvider);
     this.logger.log(`技能注册中心已初始化，共 ${this.providers.length} 个 Provider`);
   }
@@ -79,13 +74,12 @@ export class SkillRegistry implements OnModuleInit {
 
   /**
    * 列出所有可用技能的 L1 元数据
-   * DB 技能优先，同名文件系统技能被遮蔽
+   * 按注册顺序遍历，同名技能先注册的优先
    */
   async listAll(context?: IsolationContext): Promise<SkillMetadata[]> {
     const seen = new Set<string>();
     const results: SkillMetadata[] = [];
 
-    // DB Provider 优先（先注册的先遍历）
     for (const provider of this.providers) {
       try {
         const list = await provider.listAll(context);
@@ -137,7 +131,7 @@ export class SkillRegistry implements OnModuleInit {
       if (provider.loadReference) {
         try {
           return await provider.loadReference(skillName, referencePath);
-        } catch (err) {
+        } catch {
           // 继续尝试下一个 provider
         }
       }
@@ -174,83 +168,5 @@ export class SkillRegistry implements OnModuleInit {
   async refresh(): Promise<void> {
     await this.skillScanner.scan();
     this.logger.log('技能索引已刷新');
-  }
-}
-
-/**
- * DB 技能数据提供者
- * 适配现有 SkillService 到 ISkillProvider 接口
- */
-class DbSkillProvider implements ISkillProvider {
-  readonly source = 'database' as const;
-
-  constructor(private readonly skillService: SkillService) {}
-
-  async listAll(context?: IsolationContext): Promise<SkillMetadata[]> {
-    const result = await this.skillService.findAll(
-      { pageSize: 9999, status: true },
-      context || { appCode: null, isSuperAdmin: false },
-    );
-    const skills: Skill[] = Array.isArray(result) ? result : (result as { list: Skill[] }).list || [];
-
-    return skills.map(s => ({
-      name: s.code,
-      description: s.description || '',
-      source: 'database' as const,
-      type: s.type,
-      appCode: s.appCode,
-      isPublic: s.isPublic,
-      hasReferences: false,
-      hasScripts: s.type === 'FUNCTION' && s.codeType === 'sandbox',
-    }));
-  }
-
-  async resolve(name: string, context?: IsolationContext): Promise<SkillDescriptor | null> {
-    const skill = await this.skillService.findByCode(name, context);
-    if (!skill) return null;
-
-    let params: Record<string, unknown> = {};
-    try {
-      params = JSON.parse(skill.params || '{}');
-    } catch { /* ignore */ }
-
-    let config: Record<string, unknown> = {};
-    try {
-      config = JSON.parse(skill.config || '{}');
-    } catch { /* ignore */ }
-
-    const instructions = [
-      `# ${skill.name}`,
-      '',
-      `## 描述`,
-      skill.description || '',
-      '',
-      `## 参数`,
-      '```json',
-      JSON.stringify(params, null, 2),
-      '```',
-      '',
-      `## 类型`,
-      skill.type,
-    ].join('\n');
-
-    return {
-      metadata: {
-        name: skill.code,
-        description: skill.description || '',
-        source: 'database',
-        type: skill.type,
-        appCode: skill.appCode,
-        isPublic: skill.isPublic,
-        hasReferences: false,
-        hasScripts: skill.type === 'FUNCTION' && skill.codeType === 'sandbox',
-      },
-      instructions,
-      executionConfig: {
-        type: skill.type,
-        config,
-        params,
-      },
-    };
   }
 }

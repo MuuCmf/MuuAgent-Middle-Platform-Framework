@@ -30,19 +30,13 @@
         <el-icon class="upload-icon"><UploadFilled /></el-icon>
         <div class="upload-text">
           <p>拖拽 .zip 文件到此处或<em>点击上传</em></p>
-          <p class="upload-hint">支持 Agent Skills 标准格式的技能压缩包</p>
+          <p class="upload-hint">支持 Agent Skills 标准格式的技能压缩包，导入到文件系统</p>
         </div>
       </el-upload>
 
       <el-divider />
 
       <el-form label-width="100px" size="default">
-        <el-form-item label="导入模式">
-          <el-radio-group v-model="importMode">
-            <el-radio value="database">导入为数据库技能</el-radio>
-            <el-radio value="filesystem">注册为文件系统技能</el-radio>
-          </el-radio-group>
-        </el-form-item>
         <el-form-item v-if="isSuperAdmin" label="目标应用">
           <AppSelector v-model="targetAppCode" placeholder="不选则为公开技能" style="width: 100%;" />
         </el-form-item>
@@ -76,7 +70,6 @@
         <p>正在进行安全扫描...</p>
       </div>
       <div v-else-if="scanResult" class="scan-result">
-        <!-- 总体统计 -->
         <div class="scan-summary">
           <el-row :gutter="12">
             <el-col :span="6">
@@ -106,7 +99,6 @@
           </el-row>
         </div>
 
-        <!-- 总体结论 -->
         <el-alert
           :type="scanResult.passed ? 'success' : 'error'"
           :title="scanResult.passed ? '安全扫描通过' : '安全扫描未通过'"
@@ -116,7 +108,6 @@
           style="margin-bottom: 12px;"
         />
 
-        <!-- 问题详情 -->
         <div v-if="scanResult.issues.length > 0" class="issues-list">
           <h4>发现 {{ scanResult.issues.length }} 个问题</h4>
           <div
@@ -151,7 +142,7 @@
         <el-result
           :icon="importResult.success ? 'success' : 'error'"
           :title="importResult.success ? '导入成功' : '导入失败'"
-          :sub-title="`技能: ${importResult.skillName} (${importModeLabel})`"
+          :sub-title="`技能: ${importResult.skillName}（文件系统）`"
         >
           <template v-if="importResult.warnings.length > 0" #extra>
             <el-alert
@@ -235,8 +226,6 @@ const userStore = useUserStore()
 const skillStore = useSkillStore()
 
 const isSuperAdmin = computed(() => userStore.isSuperAdmin)
-const importMode = ref<'database' | 'filesystem'>('database')
-const importModeLabel = computed(() => importMode.value === 'database' ? '数据库技能' : '文件系统技能')
 const targetAppCode = ref('')
 const overwrite = ref(false)
 
@@ -244,15 +233,12 @@ const step = ref(0)
 const uploadFile = ref<File | null>(null)
 const uploadRef = ref()
 
-// 预览状态
 const previewLoading = ref(false)
 const previewData = ref<{ frontmatter: Record<string, unknown>; body: string; rawContent: string } | null>(null)
 
-// 扫描状态
 const scanLoading = ref(false)
 const scanResult = ref<SecurityScanResult | null>(null)
 
-// 导入状态
 const importLoading = ref(false)
 const importResult = ref<ImportResult | null>(null)
 
@@ -262,26 +248,20 @@ const handleFileChange = (file: UploadFile) => {
 
 const handleFileRemove = () => {
   uploadFile.value = null
-  // 重置后续步骤
   step.value = 0
   previewData.value = null
   scanResult.value = null
   importResult.value = null
 }
 
-/** 预览：读取 zip 内容并解析 SKILL.md */
 const handlePreview = async () => {
   if (!uploadFile.value) {
     ElMessage.warning('请先上传技能文件')
     return
   }
   step.value = 1
-  // 前端预览能力有限，尝试读取文件元信息
-  // 实际的 SKILL.md 解析在服务端完成
   previewLoading.value = true
   try {
-    // zip 文件是二进制，前端预览展示文件元信息
-    // 实际的 SKILL.md 解析在服务端完成
     previewData.value = {
       frontmatter: { name: uploadFile.value.name.replace('.zip', ''), description: '(预览将在服务端解析)' },
       body: '文件上传后将在服务端完成 SKILL.md 解析和安全扫描。\n\n请在下一步查看扫描结果。',
@@ -294,15 +274,11 @@ const handlePreview = async () => {
   }
 }
 
-/** 安全扫描 */
 const handleScan = async () => {
   if (!uploadFile.value) return
   step.value = 2
   scanLoading.value = true
   try {
-    // 调用导入接口但不实际导入，只获取安全扫描结果
-    // 实际流程：先调用 validate 获取 SKILL.md 内容，这里简化为直接进入导入流程
-    // 安全扫描在服务端 import 时自动完成，这里显示模拟的扫描状态
     scanResult.value = {
       critical: 0,
       high: 0,
@@ -320,20 +296,18 @@ const handleScan = async () => {
   }
 }
 
-/** 执行导入 */
 const handleImport = async () => {
   if (!uploadFile.value) return
   step.value = 3
   importLoading.value = true
   try {
-    const result = await skillStore.importSkill(uploadFile.value, importMode.value, {
+    const result = await skillStore.importSkill(uploadFile.value, {
       appCode: targetAppCode.value || undefined,
       isPublic: targetAppCode.value ? false : true,
       overwrite: overwrite.value,
     })
     if (result) {
       importResult.value = result
-      // 更新安全扫描结果
       scanResult.value = result.securityScan
       if (result.success) {
         emit('imported')
