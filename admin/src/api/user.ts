@@ -45,6 +45,7 @@ export const userApi = {
    */
   logout() {
     localStorage.removeItem('admin_token')
+    localStorage.removeItem('admin_refresh_token')
     localStorage.removeItem('admin_user')
   }
 }

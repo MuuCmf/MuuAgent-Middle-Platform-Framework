@@ -165,6 +165,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { QuestionFilled, ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
 import Logo from './components/Logo.vue'
 import { userApi, type AdminUser } from '@/api/user'
+import { clearCachedToken } from '@/utils/request'
 
 const router = useRouter()
 const route = useRoute()
@@ -276,6 +277,7 @@ const handleChangePassword = async () => {
         
         setTimeout(() => {
           userApi.logout()
+          clearCachedToken()
           router.push('/login')
         }, 1500)
       } catch (error) {
@@ -300,6 +302,7 @@ const handleLogout = async () => {
     )
     
     userApi.logout()
+    clearCachedToken()
     ElMessage.success('退出成功')
     router.push('/login')
   } catch (error) {

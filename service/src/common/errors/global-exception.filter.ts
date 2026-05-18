@@ -16,7 +16,7 @@ import { ErrorCode, ErrorCodeToHttpStatus, ErrorCodeMessages } from './error-cod
  * 错误响应结构
  */
 interface ErrorResponse {
-  code: number;
+  code: ErrorCode;
   message: string;
   data?: Record<string, unknown>;
   traceId?: string;
@@ -57,7 +57,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     
     this.logError(exception, request, errorResponse);
 
-    response.status(errorResponse.code >= 500 ? HttpStatus.INTERNAL_SERVER_ERROR : errorResponse.code).json(
+    const httpStatus = ErrorCodeToHttpStatus[errorResponse.code] || HttpStatus.INTERNAL_SERVER_ERROR;
+    
+    response.status(httpStatus).json(
       fail(errorResponse.code, errorResponse.message, errorResponse.data),
     );
   }

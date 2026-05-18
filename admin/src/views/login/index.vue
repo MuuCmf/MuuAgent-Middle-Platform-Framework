@@ -59,7 +59,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { adminRequest } from '@/utils/request'
+import { adminRequest, clearCachedToken } from '@/utils/request'
 
 const router = useRouter()
 const loginFormRef = ref<FormInstance>()
@@ -90,10 +90,14 @@ const handleLogin = async () => {
         const response = await adminRequest.post('api/admin/login', loginForm)
         const { accessToken, refreshToken, admin } = response.data.data
         
+        console.log('[登录] 收到响应:', { accessToken: '存在', refreshToken: refreshToken ? '存在' : '不存在', admin })
+        
         localStorage.setItem('admin_token', accessToken)
         localStorage.setItem('admin_refresh_token', refreshToken)
         localStorage.setItem('admin_user', JSON.stringify(admin))
-        
+
+        clearCachedToken()
+
         ElMessage.success('登录成功')
         router.push('/')
       } catch (error) {
