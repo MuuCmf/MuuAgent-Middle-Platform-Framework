@@ -27,6 +27,32 @@
             {{ tool }}
           </el-tag>
         </el-descriptions-item>
+        <el-descriptions-item v-if="frontmatter.requires && (requiredKnowledgeBases.length > 0 || requiredSkills.length > 0)" label="Dependencies" :span="2">
+          <div v-if="requiredKnowledgeBases.length > 0" style="margin-bottom: 4px;">
+            <span style="font-size: 12px; color: #999;">知识库:</span>
+            <el-tag
+              v-for="kb in requiredKnowledgeBases"
+              :key="kb"
+              size="small"
+              type="info"
+              style="margin-right: 4px; margin-left: 4px;"
+            >
+              {{ kb }}
+            </el-tag>
+          </div>
+          <div v-if="requiredSkills.length > 0">
+            <span style="font-size: 12px; color: #999;">技能:</span>
+            <el-tag
+              v-for="skill in requiredSkills"
+              :key="skill"
+              size="small"
+              type="primary"
+              style="margin-right: 4px; margin-left: 4px;"
+            >
+              {{ skill }}
+            </el-tag>
+          </div>
+        </el-descriptions-item>
         <template v-if="frontmatter.metadata && Object.keys(frontmatter.metadata).length > 0">
           <el-descriptions-item
             v-for="(value, key) in frontmatter.metadata"
@@ -73,6 +99,26 @@ const props = withDefaults(defineProps<Props>(), {
 const allowedToolsList = computed(() => {
   const tools = props.frontmatter?.['allowed-tools']
   if (typeof tools === 'string') return tools.split(/\s+/).filter(Boolean)
+  return []
+})
+
+const requiredKnowledgeBases = computed(() => {
+  const requires = props.frontmatter?.requires
+  if (typeof requires === 'object' && requires !== null && 'knowledgeBases' in requires) {
+    const kbs = (requires as Record<string, unknown>).knowledgeBases
+    if (Array.isArray(kbs)) return kbs as string[]
+    if (typeof kbs === 'string') return [kbs]
+  }
+  return []
+})
+
+const requiredSkills = computed(() => {
+  const requires = props.frontmatter?.requires
+  if (typeof requires === 'object' && requires !== null && 'skills' in requires) {
+    const skills = (requires as Record<string, unknown>).skills
+    if (Array.isArray(skills)) return skills as string[]
+    if (typeof skills === 'string') return [skills]
+  }
   return []
 })
 

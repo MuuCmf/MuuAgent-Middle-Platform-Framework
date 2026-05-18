@@ -23,10 +23,10 @@
         <ul>
           <li><strong>智能体</strong>：具有特定能力的AI助手，可以自动调用技能完成任务</li>
           <li><strong>系统提示词</strong>：定义智能体的角色和行为方式</li>
-          <li><strong>绑定技能</strong>：智能体可以调用的技能列表，以JSON数组格式填写</li>
-          <li><strong>MCP Server</strong>：Model Context Protocol Server，提供外部工具和数据源</li>
+          <li><strong>绑定技能</strong>：智能体可以调用的技能列表，技能封装了知识库、MCP等能力</li>
+          <li><strong>技能依赖</strong>：技能可声明依赖知识库、MCP Server等资源，自动加载</li>
           <li><strong>最大执行步数</strong>：限制智能体最多执行多少步操作</li>
-          <li><strong>温度参数</strong>：控制输出随机性，0-1之间，值越大越随机</li>
+          <li><strong>推理模式</strong>：支持NONE/REACT/PLAN/REFLECT多种推理策略</li>
         </ul>
       </div>
 

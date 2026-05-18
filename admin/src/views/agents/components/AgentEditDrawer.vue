@@ -314,6 +314,7 @@ Final Answer: 最终答案</pre>
 
       <div class="form-section">
         <div class="section-title">能力绑定</div>
+        <div class="section-desc">智能体的能力通过技能封装，技能可声明依赖知识库、MCP Server 等资源</div>
         <el-form-item label="技能" prop="skills">
           <div class="bind-wrapper">
             <el-button type="primary" plain @click="handleSelectSkills">
@@ -333,53 +334,6 @@ Final Answer: 最终答案</pre>
                 <el-tag v-for="code in selectedSkillCodes" :key="code" closable @close="removeSkill(code)">
                   {{ getSkillName(code) }}
                 </el-tag>
-              </div>
-            </div>
-          </div>
-        </el-form-item>
-
-        <el-form-item label="知识库" prop="knowledgeBases">
-          <div class="bind-wrapper">
-            <el-button type="primary" plain @click="handleSelectKbs">
-              <el-icon>
-                <Plus />
-              </el-icon>
-              选择知识库
-            </el-button>
-            <div class="bind-content">
-              <div v-if="selectedKbCodes.length === 0" class="empty-tip">
-                <el-icon>
-                  <Warning />
-                </el-icon>
-                <span>暂未绑定知识库</span>
-              </div>
-              <div v-else class="tag-list">
-                <el-tag v-for="code in selectedKbCodes" :key="code" closable type="success" @close="removeKb(code)">
-                  {{ getKbName(code) }}
-                </el-tag>
-              </div>
-            </div>
-          </div>
-        </el-form-item>
-
-        <el-form-item label="MCP Server" prop="mcpServers">
-          <div class="bind-wrapper">
-            <el-button type="primary" plain @click="handleAddMcpServer">
-              <el-icon>
-                <Plus />
-              </el-icon>
-              添加 Server
-            </el-button>
-            <div class="bind-content">
-              <div v-if="mcpServers.length === 0" class="empty-tip">
-                <el-icon>
-                  <Warning />
-                </el-icon>
-                <span>暂未绑定 MCP Server</span>
-              </div>
-              <div v-else class="mcp-list">
-                <McpServerCard v-for="(config, index) in mcpServers" :key="index" :config="config"
-                  @delete="handleDeleteMcpServer(index)" @edit="handleEditMcpServer(index)" />
               </div>
             </div>
           </div>
@@ -451,13 +405,8 @@ Final Answer: 最终答案</pre>
       </div>
     </template>
 
-    <McpServerConfigDialog v-model="mcpServerDialogVisible"
-      :config="editingMcpServerIndex !== null ? mcpServers[editingMcpServerIndex] : null" @save="handleMcpServerSave" />
-
     <SkillSelectDialog v-model="skillSelectDialogVisible" :skills="availableSkills" :selected-codes="selectedSkillCodes"
       @confirm="handleSkillSelect" />
-
-    <KbSelectDialog v-model="kbSelectDialogVisible" :selected-codes="selectedKbCodes" @confirm="handleKbSelect" />
   </el-drawer>
 </template>
 
@@ -466,7 +415,7 @@ import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, InfoFilled, Warning } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import type { Agent, AgentForm, WorkspaceAgentConfig, CustomModelParams } from '@/api/agent'
+import type { Agent, AgentForm, WorkspaceAgentConfig } from '@/api/agent'
 
 interface InternalCustomModelParams {
   temperature: number
@@ -474,19 +423,13 @@ interface InternalCustomModelParams {
   maxTokens: number
   contextWindow: number
 }
-import type { McpServerConfig } from '@/api/mcp-server'
 import type { StandardSkill } from '@/api/skill'
-import type { KbInfo } from '@/api/kb'
 import type { PromptTemplate } from '@/api/prompt-template'
 import type { ModelTemplate } from '@/api/model-template'
-import { kbApi } from '@/api/kb'
 import { promptTemplateApi } from '@/api/prompt-template'
 import { modelTemplateApi } from '@/api/model-template'
 import { useUserStore } from '@/stores/user'
-import McpServerConfigDialog from './McpServerConfigDialog.vue'
-import McpServerCard from './McpServerCard.vue'
 import SkillSelectDialog from './SkillSelectDialog.vue'
-import KbSelectDialog from './KbSelectDialog.vue'
 import AppSelector from '@/components/AppSelector.vue'
 
 interface Props {
@@ -519,15 +462,12 @@ const form = ref<AgentForm>({
   code: '',
   systemPrompt: '',
   skills: '[]',
-  mcpServers: '[]',
-  knowledgeBases: '[]',
   maxSteps: 5,
   status: true,
   modelTemplateCode: '',
   customModelParams: '',
   reasoningMode: 'NONE',
   reasoningPrompt: '',
-  kbRetrievalMode: 'tool',
   workspaceConfig: {
     enabled: false,
     allowedOperations: [],
@@ -540,16 +480,8 @@ const form = ref<AgentForm>({
 
 const editingAgent = computed(() => props.agent)
 
-const mcpServerDialogVisible = ref(false)
-const editingMcpServerIndex = ref<number | null>(null)
-const mcpServers = ref<McpServerConfig[]>([])
-
 const skillSelectDialogVisible = ref(false)
 const selectedSkillCodes = ref<string[]>([])
-
-const kbSelectDialogVisible = ref(false)
-const selectedKbCodes = ref<string[]>([])
-const availableKbs = ref<KbInfo[]>([])
 
 const promptMode = ref<'template' | 'custom'>('template')
 
@@ -658,8 +590,6 @@ watch(() => props.visible, (newVal) => {
         skills: Array.isArray(editingAgent.value.skills)
           ? JSON.stringify(editingAgent.value.skills)
           : editingAgent.value.skills,
-        mcpServers: editingAgent.value.mcpServers || '[]',
-        knowledgeBases: editingAgent.value.knowledgeBases || '[]',
         appCode: editingAgent.value.appCode || '',
         isPublic: editingAgent.value.isPublic ?? false,
         workspaceConfig: {
@@ -669,9 +599,7 @@ watch(() => props.visible, (newVal) => {
           deniedExtensions: ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs'],
         },
       }
-      mcpServers.value = parseJsonSafe(editingAgent.value.mcpServers || '[]')
       selectedSkillCodes.value = parseJsonSafe(editingAgent.value.skills || '[]')
-      selectedKbCodes.value = parseJsonSafe(editingAgent.value.knowledgeBases || '[]')
 
       // 解析 workspaceConfig
       const rawConfig = editingAgent.value.workspaceConfig
@@ -727,7 +655,6 @@ watch(() => props.visible, (newVal) => {
     } else {
       resetForm()
     }
-    loadKbs()
     loadPromptTemplates()
     loadModelTemplates()
   }
@@ -748,15 +675,12 @@ const resetForm = () => {
     code: '',
     systemPrompt: '',
     skills: '[]',
-    mcpServers: '[]',
-    knowledgeBases: '[]',
     maxSteps: 5,
     status: true,
     modelTemplateCode: '',
     customModelParams: '',
     reasoningMode: 'NONE',
     reasoningPrompt: '',
-    kbRetrievalMode: 'tool',
     workspaceConfig: {
       enabled: false,
       allowedOperations: [],
@@ -776,24 +700,11 @@ const resetForm = () => {
     contextWindow: 8192,
   }
   selectedModelTemplate.value = null
-  mcpServers.value = []
   selectedSkillCodes.value = []
-  selectedKbCodes.value = []
   promptMode.value = 'template'
   selectedTemplateCode.value = ''
   selectedTemplate.value = null
   formRef.value?.resetFields()
-}
-
-const loadKbs = async () => {
-  try {
-    const response = await kbApi.getList({ pageSize: 100, status: true })
-    if (response.data.code === 200) {
-      availableKbs.value = response.data.data.list
-    }
-  } catch (error) {
-    console.error('加载知识库列表失败', error)
-  }
 }
 
 const loadPromptTemplates = async () => {
@@ -851,11 +762,6 @@ const getSkillName = (name: string) => {
   return skill?.name || name
 }
 
-const getKbName = (code: string) => {
-  const kb = availableKbs.value.find(k => k.kbCode === code)
-  return kb?.kbName || code
-}
-
 const handleSelectSkills = () => {
   skillSelectDialogVisible.value = true
 }
@@ -873,48 +779,6 @@ const removeSkill = (code: string) => {
   }
 }
 
-const handleSelectKbs = () => {
-  kbSelectDialogVisible.value = true
-}
-
-const handleKbSelect = (codes: string[]) => {
-  selectedKbCodes.value = codes
-  form.value.knowledgeBases = JSON.stringify(codes)
-}
-
-const removeKb = (code: string) => {
-  const index = selectedKbCodes.value.indexOf(code)
-  if (index > -1) {
-    selectedKbCodes.value.splice(index, 1)
-    form.value.knowledgeBases = JSON.stringify(selectedKbCodes.value)
-  }
-}
-
-const handleAddMcpServer = () => {
-  editingMcpServerIndex.value = null
-  mcpServerDialogVisible.value = true
-}
-
-const handleEditMcpServer = (index: number) => {
-  editingMcpServerIndex.value = index
-  mcpServerDialogVisible.value = true
-}
-
-const handleDeleteMcpServer = (index: number) => {
-  mcpServers.value.splice(index, 1)
-  ElMessage.success('已删除 MCP Server')
-}
-
-const handleMcpServerSave = (config: McpServerConfig) => {
-  if (editingMcpServerIndex.value !== null) {
-    mcpServers.value[editingMcpServerIndex.value] = config
-    ElMessage.success('MCP Server 配置已更新')
-  } else {
-    mcpServers.value.push(config)
-    ElMessage.success('MCP Server 已添加')
-  }
-}
-
 const handleSave = async () => {
   if (!formRef.value) return
 
@@ -926,8 +790,6 @@ const handleSave = async () => {
         ElMessage.warning('技能列表格式错误')
         return
       }
-
-      form.value.mcpServers = JSON.stringify(mcpServers.value)
 
       // 处理自定义模型参数
       if (enableCustomParams.value) {

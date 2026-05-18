@@ -56,20 +56,10 @@ export class CreateAgentDto {
   @IsNotEmpty()
   systemPrompt: string;
 
-  @ApiPropertyOptional({ description: '绑定的技能code列表(JSON数组)', example: '["get_weather","get_time"]' })
+  @ApiPropertyOptional({ description: '绑定的技能code列表(JSON数组)', example: '["weather-skill","database-skill"]' })
   @IsString()
   @IsOptional()
   skills?: string;
-
-  @ApiPropertyOptional({ description: '绑定的MCP Server配置(JSON数组)', example: '[{"name":"filesystem","url":"http://localhost:8081/mcp","enabled":true}]' })
-  @IsString()
-  @IsOptional()
-  mcpServers?: string;
-
-  @ApiPropertyOptional({ description: '绑定的知识库code列表(JSON数组)', example: '["kb_product","kb_faq"]' })
-  @IsString()
-  @IsOptional()
-  knowledgeBases?: string;
 
   @ApiPropertyOptional({ description: '最大执行步数', default: 5 })
   @IsNumber()
@@ -155,16 +145,6 @@ export class UpdateAgentDto {
   @IsString()
   @IsOptional()
   skills?: string;
-
-  @ApiPropertyOptional({ description: '绑定的MCP Server配置(JSON数组)' })
-  @IsString()
-  @IsOptional()
-  mcpServers?: string;
-
-  @ApiPropertyOptional({ description: '绑定的知识库code列表(JSON数组)' })
-  @IsString()
-  @IsOptional()
-  knowledgeBases?: string;
 
   @ApiPropertyOptional({ description: '最大执行步数' })
   @IsNumber()

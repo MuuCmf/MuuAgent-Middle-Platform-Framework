@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RetrievalService } from '../retrieval/retrieval.service';
 import { AiService } from '../ai/ai.service';
+import { SkillRegistry } from '../skill/skill-registry';
+import { IsolationContext } from '../common/services/base-isolated.service';
 
 /**
  * 知识库检索结果
@@ -31,6 +33,7 @@ export interface AugmentedPrompt {
 
 /**
  * 智能体知识库服务
+ * 从智能体绑定的技能所依赖的知识库中检索内容
  */
 @Injectable()
 export class AgentKbService {
@@ -41,19 +44,58 @@ export class AgentKbService {
    * @param prisma Prisma服务
    * @param retrievalService 检索服务
    * @param aiService AI服务
+   * @param skillRegistry 技能注册中心
    */
   constructor(
     private readonly prisma: PrismaService,
     private readonly retrievalService: RetrievalService,
     private readonly aiService: AiService,
+    private readonly skillRegistry: SkillRegistry,
   ) {}
 
   /**
-   * 检索智能体绑定的知识库
+   * 从智能体绑定的技能依赖中获取知识库列表
+   * @param agentId 智能体ID
+   * @param isolationContext 隔离上下文
+   * @returns {Promise<string[]>} 知识库code列表
+   */
+  async getAgentKbCodes(agentId: string, isolationContext?: IsolationContext): Promise<string[]> {
+    const agent = await this.prisma.agent.findUnique({
+      where: { id: agentId as any },
+      select: { skills: true, appCode: true },
+    });
+
+    if (!agent || !agent.skills) {
+      return [];
+    }
+
+    const skillCodes: string[] = JSON.parse(agent.skills);
+    if (skillCodes.length === 0) {
+      return [];
+    }
+
+    const context: IsolationContext = isolationContext || { appCode: agent.appCode || null, isSuperAdmin: false };
+    const kbCodes = new Set<string>();
+
+    for (const skillCode of skillCodes) {
+      const skill = await this.skillRegistry.resolve(skillCode, context);
+      if (skill?.frontmatter?.requires?.knowledgeBases) {
+        for (const kbCode of skill.frontmatter.requires.knowledgeBases) {
+          kbCodes.add(kbCode);
+        }
+      }
+    }
+
+    return Array.from(kbCodes);
+  }
+
+  /**
+   * 检索智能体绑定的技能所依赖的知识库
    * @param agentId 智能体ID
    * @param query 查询问题
    * @param topK 每个知识库返回的条数
    * @param similarityThreshold 相似度阈值
+   * @param isolationContext 隔离上下文
    * @returns {Promise<KbRetrievalResult[]>} 检索结果
    */
   async retrieveFromAgentKbs(
@@ -61,26 +103,18 @@ export class AgentKbService {
     query: string,
     topK: number = 5,
     similarityThreshold: number = 0.7,
+    isolationContext?: IsolationContext,
   ): Promise<KbRetrievalResult[]> {
     const startTime = Date.now();
 
-    const agent = await this.prisma.agent.findUnique({
-      where: { id: agentId as any },
-      select: { knowledgeBases: true },
-    });
-
-    if (!agent || !agent.knowledgeBases) {
-      this.logger.warn(`智能体 ${agentId} 未绑定知识库`);
-      return [];
-    }
-
-    const kbCodes: string[] = JSON.parse(agent.knowledgeBases);
+    const kbCodes = await this.getAgentKbCodes(agentId, isolationContext);
+    
     if (kbCodes.length === 0) {
-      this.logger.warn(`智能体 ${agentId} 绑定的知识库列表为空`);
+      this.logger.warn(`智能体 ${agentId} 绑定的技能未声明知识库依赖`);
       return [];
     }
 
-    this.logger.log(`智能体 ${agentId} 绑定了 ${kbCodes.length} 个知识库: ${kbCodes.join(', ')}`);
+    this.logger.log(`智能体 ${agentId} 通过技能绑定了 ${kbCodes.length} 个知识库: ${kbCodes.join(', ')}`);
 
     const kbs = await this.prisma.kbInfo.findMany({
       where: {
@@ -202,6 +236,7 @@ ${context}
    * @param systemPrompt 系统提示词
    * @param topK 检索条数
    * @param similarityThreshold 相似度阈值
+   * @param isolationContext 隔离上下文
    * @returns {Promise<AugmentedPrompt>} 增强后的提示词
    */
   async augmentPromptWithKb(
@@ -210,12 +245,14 @@ ${context}
     systemPrompt: string,
     topK?: number,
     similarityThreshold?: number,
+    isolationContext?: IsolationContext,
   ): Promise<AugmentedPrompt> {
     const retrievalResults = await this.retrieveFromAgentKbs(
       agentId,
       query,
       topK,
       similarityThreshold,
+      isolationContext,
     );
 
     return this.buildAugmentedPrompt(systemPrompt, retrievalResults);

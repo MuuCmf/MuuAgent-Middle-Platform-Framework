@@ -15,6 +15,7 @@ import { ScriptRunner } from './standard/script-runner';
 import { StandardSkillExecutor } from './standard/standard-skill-executor';
 import { SkillRegistry } from './skill-registry';
 import { SkillImporter } from './skill-importer';
+import { SkillVersionManager } from './skill-version-manager';
 
 /**
  * 技能模块（标准技能）
@@ -40,6 +41,7 @@ import { SkillImporter } from './skill-importer';
     StandardSkillExecutor,
     SkillRegistry,
     SkillImporter,
+    SkillVersionManager,
   ],
   exports: [
     McpClientService,
@@ -54,6 +56,7 @@ import { SkillImporter } from './skill-importer';
     SkillScanner,
     StandardSkillExecutor,
     SkillImporter,
+    SkillVersionManager,
   ],
 })
 export class SkillModule {}

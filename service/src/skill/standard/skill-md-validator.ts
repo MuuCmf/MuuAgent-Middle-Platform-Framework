@@ -1,15 +1,37 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 /**
+ * 技能依赖配置
+ */
+export interface SkillRequires {
+  mcpServers?: string[];
+  knowledgeBases?: string[];
+  tools?: string[];
+  skills?: string[];
+}
+
+/**
+ * 技能版本配置
+ */
+export interface SkillVersion {
+  version: string;
+  title?: string;
+  changelog?: string;
+}
+
+/**
  * SKILL.md Frontmatter 字段定义
  */
 export interface SkillFrontmatter {
   name: string;
+  version?: string;
   description: string;
   license?: string;
   compatibility?: string;
   metadata?: Record<string, string>;
   allowedTools?: string;
+  requires?: SkillRequires;
+  versions?: SkillVersion[];
 }
 
 /**

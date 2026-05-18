@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 /**
@@ -52,7 +52,7 @@ export class IsolationService {
   /** 默认公开标识字段名 */
   private readonly isPublicField: string;
 
-  constructor(config?: IsolationServiceConfig) {
+  constructor(@Optional() config?: IsolationServiceConfig) {
     this.appCodeField = config?.appCodeField || 'appCode';
     this.isPublicField = config?.isPublicField || 'isPublic';
   }

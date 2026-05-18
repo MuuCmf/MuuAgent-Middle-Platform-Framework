@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, OnModuleInit } from '@nestjs/common';
 import { McpServerController } from './mcp-server.controller';
 import { McpServerService } from './mcp-server.service';
+import { McpServerRegistry } from './mcp-server-registry';
 import { SkillModule } from '../skill/skill.module';
 
 /**
@@ -10,7 +11,29 @@ import { SkillModule } from '../skill/skill.module';
 @Module({
   imports: [SkillModule],
   controllers: [McpServerController],
-  providers: [McpServerService],
-  exports: [McpServerService],
+  providers: [McpServerService, McpServerRegistry],
+  exports: [McpServerService, McpServerRegistry],
 })
-export class McpServerModule {}
+export class McpServerModule implements OnModuleInit {
+  constructor(
+    private readonly mcpServerRegistry: McpServerRegistry,
+  ) {}
+
+  async onModuleInit() {
+    await this.loadMcpServersFromConfig();
+  }
+
+  private async loadMcpServersFromConfig() {
+    try {
+      const mcpConfigEnv = process.env.MCP_SERVER_CONFIG;
+      if (mcpConfigEnv) {
+        const servers = JSON.parse(mcpConfigEnv);
+        if (Array.isArray(servers)) {
+          this.mcpServerRegistry.registerAll(servers);
+        }
+      }
+    } catch (error) {
+      console.error('从环境变量加载MCP Server配置失败:', error);
+    }
+  }
+}

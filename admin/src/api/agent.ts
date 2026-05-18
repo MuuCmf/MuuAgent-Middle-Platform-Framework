@@ -22,16 +22,12 @@ export interface Agent {
   description?: string
   systemPrompt: string
   skills: string
-  mcpServers?: string
-  knowledgeBases?: string
   maxSteps: number
   status: boolean
   modelTemplateCode?: string
   customModelParams?: string
   reasoningMode?: string
   reasoningPrompt?: string
-  kbRetrievalMode?: string
-  kbRetrievalMethod?: string
   workspaceConfig?: WorkspaceAgentConfig | string
   appCode?: string
   isPublic?: boolean
@@ -45,16 +41,12 @@ export interface AgentForm {
   description?: string
   systemPrompt: string
   skills: string
-  mcpServers?: string
-  knowledgeBases?: string
   maxSteps: number
   status: boolean
   modelTemplateCode?: string
   customModelParams?: string
   reasoningMode?: string
   reasoningPrompt?: string
-  kbRetrievalMode?: string
-  kbRetrievalMethod?: string
   workspaceConfig: WorkspaceAgentConfig
   appCode?: string
   isPublic?: boolean

@@ -160,8 +160,6 @@ model Agent {
   systemPrompt    String   @db.Text /// 系统提示词
   promptTemplateCode String? @map("prompt_template_code") /// 使用的提示词模板标识
   skills          String   @db.Text /// 绑定的技能code列表(JSON数组)
-  mcpServers      String?  @db.Text /// 绑定的MCP Server配置(JSON数组)
-  knowledgeBases  String?  @db.Text /// 绑定的知识库code列表(JSON数组)
   maxSteps        Int      @default(5) /// 最大执行步数
   status          Boolean  @default(true) /// 是否启用
 
@@ -172,9 +170,6 @@ model Agent {
   // ===== 推理模式配置 =====
   reasoningMode     String  @default("NONE") @map("reasoning_mode") /// 推理模式: NONE/REACT/PLAN/REFLECT
   reasoningPrompt   String? @map("reasoning_prompt") @db.Text /// 自定义推理提示词
-
-  // ===== 知识库检索配置 =====
-  kbRetrievalMode   String  @default("tool") @map("kb_retrieval_mode") /// 知识库检索模式: tool
 
   // ===== 工作目录文件操作配置 =====
   workspaceConfig   String?  @map("workspace_config") @db.Text /// 工作目录配置(JSON): { enabled, allowedOperations, maxFileSize, deniedExtensions }
