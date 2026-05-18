@@ -33,13 +33,13 @@ export const useSkillStore = defineStore('skill', () => {
     await loadSkills()
   }
 
-  const updateSkill = async (id: number, data: SkillForm) => {
-    await skillApi.update(id, data)
+  const updateSkill = async (id: number | string, data: SkillForm) => {
+    await skillApi.update(id as number, data)
     await loadSkills()
   }
 
-  const deleteSkill = async (id: number) => {
-    await skillApi.delete(id)
+  const deleteSkill = async (id: number | string) => {
+    await skillApi.delete(id as number)
     await loadSkills()
   }
 
@@ -93,7 +93,7 @@ export const useSkillStore = defineStore('skill', () => {
     }
   }
 
-  const exportSkill = async (id: number, skillName: string) => {
+  const exportSkill = async (id: number | string, skillName: string) => {
     try {
       const res = await skillApi.exportSkill(id)
       // 触发浏览器下载

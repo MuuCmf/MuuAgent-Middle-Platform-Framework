@@ -150,10 +150,13 @@ export class SkillController {
       skillCode: string;
       userRequest: string;
     },
+    @Req() req: Request,
   ) {
+    const context = extractIsolationContext(req);
     const renderedPrompt = await this.skillService.renderSkillInvokePrompt(
       body.skillCode,
       body.userRequest,
+      context,
     );
     return success({ renderedPrompt });
   }
@@ -453,7 +456,7 @@ export class SkillController {
   }
 
   /**
-   * 从 zip buffer 提取文件映射
+   * 从 zip buffer 提取文件映射（含 ZIP 炸弹防护）
    */
   private async extractZipFiles(buffer: Buffer): Promise<Map<string, string>> {
     const AdmZip = await import('adm-zip');
@@ -461,13 +464,30 @@ export class SkillController {
     const files = new Map<string, string>();
     const entries = zip.getEntries();
 
+    // ZIP 炸弹防护：限制单次导入最大文件数和总解压大小
+    const MAX_FILES = 100;
+    const MAX_UNCOMPRESSED_SIZE = 5 * 1024 * 1024; // 5MB
+    let totalUncompressedSize = 0;
+
     for (const entry of entries) {
       if (entry.isDirectory) continue;
       // 跳过隐藏文件和 macOS 元数据
       const parts = entry.entryName.replace(/\\/g, '/').split('/');
       if (parts.some(p => p.startsWith('.') || p === '__MACOSX')) continue;
 
-      files.set(entry.entryName, entry.getData().toString('utf-8'));
+      if (files.size >= MAX_FILES) {
+        throw new BadRequestException(`压缩包包含过多文件（超过 ${MAX_FILES} 个），可能存在 ZIP 炸弹攻击`);
+      }
+
+      const data = entry.getData();
+      totalUncompressedSize += data.length;
+      if (totalUncompressedSize > MAX_UNCOMPRESSED_SIZE) {
+        throw new BadRequestException(
+          `解压后总大小超过限制 ${MAX_UNCOMPRESSED_SIZE / 1024 / 1024}MB，可能存在 ZIP 炸弹攻击`,
+        );
+      }
+
+      files.set(entry.entryName, data.toString('utf-8'));
     }
 
     return files;

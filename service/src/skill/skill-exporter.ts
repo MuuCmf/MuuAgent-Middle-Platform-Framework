@@ -1,6 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SkillService } from './skill.service';
-import { SkillMdParser } from './standard/skill-md-parser';
 import { SkillMdValidator } from './standard/skill-md-validator';
 import { IsolationContext } from '../common/utils/isolation.util';
 import * as yaml from 'js-yaml';
@@ -28,9 +27,6 @@ export class SkillExporter {
     context?: IsolationContext,
   ): Promise<Map<string, string | Buffer>> {
     const skill = await this.skillService.findByCode(skillCode, context);
-    if (!skill) {
-      throw new BadRequestException(`技能 ${skillCode} 不存在`);
-    }
 
     const files = new Map<string, string | Buffer>();
 
@@ -108,7 +104,16 @@ export class SkillExporter {
     }
 
     if (skill.type === 'HTTP') {
-      sections.push(`## 配置\n\`\`\`json\n${skill.config || '{}'}\n\`\`\`\n`);
+      // 仅导出公开的配置字段，避免泄露凭证
+      try {
+        const config = JSON.parse(skill.config || '{}');
+        const safeConfig: Record<string, unknown> = {};
+        if (config.url) safeConfig.url = config.url;
+        if (config.method) safeConfig.method = config.method;
+        sections.push(`## 配置\n\`\`\`json\n${JSON.stringify(safeConfig, null, 2)}\n\`\`\`\n`);
+      } catch {
+        sections.push(`## 配置\n\`\`\`json\n{}\n\`\`\`\n`);
+      }
     }
 
     // 超时

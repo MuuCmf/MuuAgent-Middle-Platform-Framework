@@ -204,8 +204,13 @@ export class SkillImporter {
         }
       }
 
-      // SKILL.md 检查提示注入
+      // SKILL.md 检查提示注入（body + frontmatter 字段）
       if (file.relativePath.endsWith('SKILL.md')) {
+        // 提取 frontmatter 部分单独检查
+        const fmMatch = file.content.match(/^---\s*\n([\s\S]*?)\n---/);
+        const fmContent = fmMatch ? fmMatch[1] : '';
+        const bodyContent = fmMatch ? file.content.slice(fmMatch[0].length) : file.content;
+
         for (const pattern of this.promptInjectionPatterns) {
           if (pattern.test(file.content)) {
             issues.push({
@@ -214,6 +219,34 @@ export class SkillImporter {
               file: file.relativePath,
               detail: `匹配注入模式: ${pattern}`,
             });
+          }
+        }
+        // 检查 metadata 值中是否包含注入
+        const metaMatch = fmContent.match(/metadata:\s*\n([\s\S]*?)(?:\n\w|$)/);
+        if (metaMatch) {
+          for (const pattern of this.promptInjectionPatterns) {
+            if (pattern.test(metaMatch[1])) {
+              issues.push({
+                level: 'high',
+                type: '疑似提示注入（metadata）',
+                file: file.relativePath,
+                detail: `metadata 值匹配注入模式: ${pattern}`,
+              });
+            }
+          }
+        }
+        // 检查 description 中是否包含注入
+        const descMatch = fmContent.match(/^description:\s*(.+)$/m);
+        if (descMatch) {
+          for (const pattern of this.promptInjectionPatterns) {
+            if (pattern.test(descMatch[1])) {
+              issues.push({
+                level: 'high',
+                type: '疑似提示注入（description）',
+                file: file.relativePath,
+                detail: `description 匹配注入模式: ${pattern}`,
+              });
+            }
           }
         }
       }
@@ -231,7 +264,7 @@ export class SkillImporter {
       low,
       issues,
       summary: `发现 ${critical} 严重、${high} 高危、${medium} 中危、${low} 低危问题`,
-      passed: critical === 0,
+      passed: critical === 0 && high === 0,
     };
   }
 
@@ -253,7 +286,10 @@ export class SkillImporter {
     const fm = parsed.frontmatter;
 
     // 检查是否已存在
-    const existing = await this.skillService.findByCode(fm.name, context).catch(() => null);
+    let existing = null;
+    try {
+      existing = await this.skillService.findByCode(fm.name, context);
+    } catch { /* 技能不存在，继续创建 */ }
     if (existing && !options.overwrite) {
       throw new BadRequestException(`技能 "${fm.name}" 已存在，如需覆盖请设置 overwrite: true`);
     }
@@ -337,7 +373,7 @@ export class SkillImporter {
       throw new BadRequestException(`安全扫描未通过: ${securityScan.summary}`);
     }
 
-    const fs = require('fs/promises');
+    const fs = await import('fs/promises');
     const targetDir = options.targetDir || path.join(process.cwd(), 'skills', 'standard');
 
     // 确定目标子目录
@@ -350,18 +386,62 @@ export class SkillImporter {
       skillDir = path.join(targetDir, parsed.frontmatter.name);
     }
 
-    // 创建目录并写入文件
-    await fs.mkdir(skillDir, { recursive: true });
+    // 使用临时目录写入，成功后再重命名（原子性导入）
+    const tmpDir = skillDir + '.tmp-' + Date.now();
+    const createdPaths: string[] = [];
 
-    for (const file of files) {
-      const relPath = file.relativePath.replace(/^[^/]+\//, ''); // 移除根目录名
-      const fullPath = path.join(skillDir, relPath || 'SKILL.md');
-      const dir = path.dirname(fullPath);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(fullPath, file.content, 'utf-8');
+    try {
+      await fs.mkdir(tmpDir, { recursive: true });
+      createdPaths.push(tmpDir);
+
+      for (const file of files) {
+        const relPath = file.relativePath.replace(/^[^/]+\//, ''); // 移除根目录名
+        const fullPath = path.join(tmpDir, relPath || 'SKILL.md');
+        const dir = path.dirname(fullPath);
+        await fs.mkdir(dir, { recursive: true });
+        createdPaths.push(fullPath);
+        await fs.writeFile(fullPath, file.content, 'utf-8');
+      }
+
+      // 原子性替换：如果目标已存在，先备份
+      let backupDir: string | null = null;
+      try {
+        await fs.access(skillDir);
+        backupDir = skillDir + '.backup-' + Date.now();
+        await fs.rename(skillDir, backupDir);
+      } catch { /* 目标不存在，无需备份 */ }
+
+      try {
+        await fs.rename(tmpDir, skillDir);
+        // 清理备份
+        if (backupDir) {
+          await fs.rm(backupDir, { recursive: true, force: true });
+        }
+      } catch (renameErr) {
+        // 重命名失败，恢复备份
+        if (backupDir) {
+          try { await fs.rename(backupDir, skillDir); } catch { /* ignore */ }
+        }
+        throw renameErr;
+      }
+
+      this.logger.log(`技能 "${parsed.frontmatter.name}" 已导入到 ${skillDir}`);
+    } catch (err) {
+      // 清理临时文件和备份
+      for (const p of createdPaths.reverse()) {
+        try { await fs.rm(p, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
+      // 清理可能遗留的备份
+      const backups = await fs.readdir(targetDir).catch(() => []);
+      for (const name of backups) {
+        if (name.startsWith(parsed.frontmatter.name + '.backup-')) {
+          try { await fs.rm(path.join(targetDir, name), { recursive: true, force: true }); } catch { /* ignore */ }
+        }
+      }
+      throw new BadRequestException(
+        `写入文件系统失败: ${(err as Error).message}`,
+      );
     }
-
-    this.logger.log(`技能 "${parsed.frontmatter.name}" 已导入到 ${skillDir}`);
 
     return {
       success: true,

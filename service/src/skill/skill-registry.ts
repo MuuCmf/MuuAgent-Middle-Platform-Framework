@@ -4,6 +4,7 @@ import { SkillScanner } from './standard/skill-scanner';
 import { FileSkillProvider } from './standard/file-skill-provider';
 import { SkillFrontmatter } from './standard/skill-md-validator';
 import { IsolationContext } from '../common/utils/isolation.util';
+import { Skill } from '@prisma/client';
 
 /**
  * 技能元数据（L1 层，始终驻留）
@@ -161,6 +162,13 @@ export class SkillRegistry implements OnModuleInit {
   }
 
   /**
+   * 获取扫描器中的技能索引条目（含 directoryPath 等文件系统信息）
+   */
+  getScannerEntry(name: string) {
+    return this.skillScanner.findByName(name);
+  }
+
+  /**
    * 刷新文件系统技能索引
    */
   async refresh(): Promise<void> {
@@ -183,9 +191,9 @@ class DbSkillProvider implements ISkillProvider {
       { pageSize: 9999, status: true },
       context || { appCode: null, isSuperAdmin: false },
     );
-    const skills = Array.isArray(result) ? result : (result as any).list || [];
+    const skills: Skill[] = Array.isArray(result) ? result : (result as { list: Skill[] }).list || [];
 
-    return skills.map((s: any) => ({
+    return skills.map(s => ({
       name: s.code,
       description: s.description || '',
       source: 'database' as const,
@@ -203,19 +211,19 @@ class DbSkillProvider implements ISkillProvider {
 
     let params: Record<string, unknown> = {};
     try {
-      params = JSON.parse((skill as any).params || '{}');
+      params = JSON.parse(skill.params || '{}');
     } catch { /* ignore */ }
 
     let config: Record<string, unknown> = {};
     try {
-      config = JSON.parse((skill as any).config || '{}');
+      config = JSON.parse(skill.config || '{}');
     } catch { /* ignore */ }
 
     const instructions = [
-      `# ${(skill as any).name}`,
+      `# ${skill.name}`,
       '',
       `## 描述`,
-      (skill as any).description || '',
+      skill.description || '',
       '',
       `## 参数`,
       '```json',
@@ -223,49 +231,26 @@ class DbSkillProvider implements ISkillProvider {
       '```',
       '',
       `## 类型`,
-      (skill as any).type,
+      skill.type,
     ].join('\n');
 
     return {
       metadata: {
-        name: (skill as any).code,
-        description: (skill as any).description || '',
+        name: skill.code,
+        description: skill.description || '',
         source: 'database',
-        type: (skill as any).type,
-        appCode: (skill as any).appCode,
-        isPublic: (skill as any).isPublic,
+        type: skill.type,
+        appCode: skill.appCode,
+        isPublic: skill.isPublic,
         hasReferences: false,
-        hasScripts: (skill as any).type === 'FUNCTION' && (skill as any).codeType === 'sandbox',
+        hasScripts: skill.type === 'FUNCTION' && skill.codeType === 'sandbox',
       },
       instructions,
       executionConfig: {
-        type: (skill as any).type,
+        type: skill.type,
         config,
         params,
       },
     };
   }
-}
-
-/**
- * Prisma Skill 类型（让 DbSkillProvider 编译通过）
- */
-interface PrismaSkill {
-  id: bigint;
-  name: string;
-  code: string;
-  description: string | null;
-  type: string;
-  params: string;
-  config: string;
-  status: boolean;
-  timeout: number;
-  codeType: string | null;
-  pluginName: string | null;
-  functionName: string | null;
-  codeContent: string | null;
-  appCode: string | null;
-  isPublic: boolean;
-  createdAt: Date;
-  updatedAt: Date;
 }

@@ -156,7 +156,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Delete, Promotion, WarningFilled } from '@element-plus/icons-vue'
+import { Delete, Promotion } from '@element-plus/icons-vue'
 import { testHttpRequest } from '@/api/skill'
 
 interface HeaderItem {

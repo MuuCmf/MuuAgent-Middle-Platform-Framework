@@ -1,6 +1,7 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as chokidar from 'chokidar';
 import { SkillMdParser } from './skill-md-parser';
 import { SkillMdValidator, SkillFrontmatter, ValidationError } from './skill-md-validator';
 
@@ -30,6 +31,7 @@ export interface ScannerConfig {
   rootDirs: string[];
   excludePatterns: string[];
   appCode?: string;
+  watchEnabled?: boolean;
 }
 
 /**
@@ -44,6 +46,7 @@ export interface ScanResult {
 const DEFAULT_CONFIG: ScannerConfig = {
   rootDirs: [path.join(process.cwd(), 'skills', 'standard')],
   excludePatterns: ['node_modules', '.git', '__pycache__', '.DS_Store'],
+  watchEnabled: false,
 };
 
 /**
@@ -51,10 +54,12 @@ const DEFAULT_CONFIG: ScannerConfig = {
  * 扫描指定目录，递归查找所有 SKILL.md，建立 L1 元数据索引
  */
 @Injectable()
-export class SkillScanner implements OnModuleInit {
+export class SkillScanner implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SkillScanner.name);
   private readonly index = new Map<string, SkillIndexEntry>();
   private config: ScannerConfig = DEFAULT_CONFIG;
+  private watcher: chokidar.FSWatcher | null = null;
+  private scanDebounceTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly parser: SkillMdParser,
@@ -63,6 +68,13 @@ export class SkillScanner implements OnModuleInit {
 
   async onModuleInit() {
     await this.scan();
+    if (this.config.watchEnabled) {
+      this.startWatch();
+    }
+  }
+
+  async onModuleDestroy() {
+    this.stopWatch();
   }
 
   /**
@@ -264,6 +276,75 @@ export class SkillScanner implements OnModuleInit {
     }
 
     return { appCode: null, isPublic: true };
+  }
+
+  /**
+   * 启动文件监听，技能目录变更时自动增量扫描
+   */
+  startWatch(): void {
+    if (this.watcher) return;
+
+    const watchPaths = this.config.rootDirs.filter(dir => {
+      try { require('fs').accessSync(dir); return true; } catch { return false; }
+    });
+
+    if (watchPaths.length === 0) {
+      this.logger.warn('没有可监听的技能目录');
+      return;
+    }
+
+    this.watcher = chokidar.watch(watchPaths, {
+      ignored: [
+        /(^|[\/\\])\../, // 隐藏文件
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/__pycache__/**',
+      ],
+      persistent: true,
+      ignoreInitial: true,
+      awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+    });
+
+    this.watcher.on('all', (event, filePath) => {
+      if (!filePath.endsWith('SKILL.md')) return;
+      this.logger.log(`检测到技能文件变更 [${event}]: ${filePath}`);
+      this.debouncedScan();
+    });
+
+    this.logger.log(`文件监听已启动，监控 ${watchPaths.length} 个目录`);
+  }
+
+  /**
+   * 停止文件监听
+   */
+  stopWatch(): void {
+    if (this.watcher) {
+      this.watcher.close();
+      this.watcher = null;
+      this.logger.log('文件监听已停止');
+    }
+    if (this.scanDebounceTimer) {
+      clearTimeout(this.scanDebounceTimer);
+      this.scanDebounceTimer = null;
+    }
+  }
+
+  /**
+   * 防抖扫描，500ms 内的多次变更合并为一次扫描
+   */
+  private debouncedScan(): void {
+    if (this.scanDebounceTimer) {
+      clearTimeout(this.scanDebounceTimer);
+    }
+    this.scanDebounceTimer = setTimeout(async () => {
+      this.scanDebounceTimer = null;
+      try {
+        await this.scan();
+        this.logger.log('增量扫描完成');
+      } catch (err) {
+        this.logger.error(`增量扫描失败: ${(err as Error).message}`);
+      }
+    }, 500);
   }
 
   /**

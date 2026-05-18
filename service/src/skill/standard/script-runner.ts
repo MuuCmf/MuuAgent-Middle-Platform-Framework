@@ -84,13 +84,14 @@ export class ScriptRunner {
 
   /**
    * 路径安全检查
-   * 确保脚本路径在技能目录内，防止目录穿越攻击
+   * 确保脚本路径在技能目录内，防止目录穿越和符号链接攻击
    */
   private validatePath(skillDir: string, scriptPath: string): void {
-    const normalizedDir = path.resolve(skillDir);
+    const normalizedDir = fs.realpathSync(path.resolve(skillDir));
     const fullPath = path.resolve(normalizedDir, scriptPath);
+    const resolvedPath = fs.realpathSync(fullPath);
 
-    if (!fullPath.startsWith(normalizedDir)) {
+    if (!resolvedPath.startsWith(normalizedDir)) {
       throw new Error(`不允许访问技能目录外的文件: ${scriptPath}`);
     }
 
@@ -149,9 +150,14 @@ export class ScriptRunner {
       let truncated = false;
       let killed = false;
 
-      const env = { ...process.env, ...options.env };
-      // 限制子进程能力
-      env.PATH = '/usr/local/bin:/usr/bin:/bin';
+      // 仅传递安全的环境变量，不暴露整个 process.env
+      const env: Record<string, string> = {
+        PATH: '/usr/local/bin:/usr/bin:/bin',
+        HOME: process.env.HOME || '/tmp',
+        LANG: process.env.LANG || 'en_US.UTF-8',
+        TZ: process.env.TZ || 'UTC',
+        ...options.env,
+      };
 
       const child = spawn(runtime, [filePath], {
         env,

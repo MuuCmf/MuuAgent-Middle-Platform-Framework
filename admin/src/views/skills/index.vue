@@ -7,8 +7,7 @@
 
     <div class="card">
       <div class="card-title">
-        <span>技能列表</span>
-        <el-tag type="info" size="small">{{ skills.length }} 个</el-tag>
+        <span>技能管理</span>
         <AppSelector
           v-if="isSuperAdmin"
           v-model="filterAppCode"
@@ -30,146 +29,161 @@
           <li><strong>参数描述</strong>：描述技能需要的参数格式，帮助AI正确传参</li>
         </ul>
       </div>
-      <el-space style="margin-bottom: 16px;">
-        <el-button type="primary" @click="handleAdd">
-          <el-icon><Plus /></el-icon>
-          添加技能
-        </el-button>
-        <el-button type="success" @click="selectSkillDialogVisible = true">
-          <el-icon><MagicStick /></el-icon>
-          智能选择技能
-        </el-button>
-        <el-button @click="handleImport">
-          <el-icon><Upload /></el-icon>
-          导入技能
-        </el-button>
-        <el-button @click="handleScan" :loading="scanning">
-          <el-icon><Refresh /></el-icon>
-          扫描标准技能
-        </el-button>
-      </el-space>
 
-      <!-- 来源筛选 -->
-      <el-radio-group v-model="sourceFilter" size="small" style="margin-bottom: 12px; margin-left: 8px;">
-        <el-radio-button label="all">全部</el-radio-button>
-        <el-radio-button label="database">数据库</el-radio-button>
-        <el-radio-button label="filesystem">文件系统</el-radio-button>
-      </el-radio-group>
+      <el-tabs v-model="activeTab" class="skill-tabs">
+        <el-tab-pane label="数据库技能" name="database">
+          <template #label>
+            <span class="tab-label">
+              <el-icon><Coin /></el-icon>
+              数据库技能
+              <el-tag type="info" size="small" style="margin-left: 8px;">{{ skills.length }}</el-tag>
+            </span>
+          </template>
 
-      <el-table :data="skills" stripe v-loading="loading">
-        <el-table-column prop="name" label="名称" width="120" />
-        <el-table-column prop="code" label="标识" width="150">
-          <template #default="{ row }">
-            <el-tag type="info">{{ row.code }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="type" label="类型" width="100">
-          <template #default="{ row }">
-            <el-tag size="small">{{ row.type }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="source" label="来源" width="90">
-          <template #default="{ row }">
-            <el-tag size="small" :type="row.source === 'filesystem' ? 'success' : ''">
-              {{ row.source === 'filesystem' ? '文件系统' : '数据库' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="appCode" label="所属应用" width="100" v-if="isSuperAdmin">
-          <template #default="{ row }">
-            <el-tag v-if="row.appCode" type="warning" size="small">{{ row.appCode }}</el-tag>
-            <span v-else style="color: #999">全局</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="isPublic" label="公开状态" width="90">
-          <template #default="{ row }">
-            <el-tag :type="row.isPublic ? 'success' : 'info'" size="small">
-              {{ row.isPublic ? '公开' : '私有' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="150">
-          <template #default="{ row }">
-            {{ row.description?.substring(0, 50) }}{{ row.description?.length > 50 ? '...' : '' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.status ? 'success' : 'danger'" size="small">
-              {{ row.status ? '启用' : '禁用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="360" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" @click="handleTest(row)">测试</el-button>
-            <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button
-              v-if="!row.source || row.source === 'database'"
-              size="small"
-              type="warning"
-              @click="handleExport(row)"
-            >导出</el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
+          <el-space style="margin-bottom: 16px;">
+            <el-button type="primary" @click="handleAdd">
+              <el-icon><Plus /></el-icon>
+              添加技能
+            </el-button>
+            <el-button type="success" @click="selectSkillDialogVisible = true">
+              <el-icon><MagicStick /></el-icon>
+              智能选择技能
+            </el-button>
+            <el-button @click="handleImport">
+              <el-icon><Upload /></el-icon>
+              导入技能
+            </el-button>
+          </el-space>
 
-    <!-- 文件系统技能表 -->
-    <div v-if="standardSkills.length > 0 && sourceFilter !== 'database'" class="card" style="margin-top: 16px;">
-      <div class="card-title">
-        <span>标准技能（文件系统）</span>
-        <el-tag type="success" size="small">{{ standardSkills.length }} 个</el-tag>
-        <span style="font-size: 12px; color: #909399; margin-left: 12px;">基于 Agent Skills 开放标准，从 skills/standard/ 目录扫描发现</span>
-      </div>
-      <el-table :data="standardSkills" stripe size="small">
-        <el-table-column prop="name" label="名称" width="150">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="handlePreviewSkillMd(row.name)">{{ row.name }}</el-button>
+          <el-table :data="skills" stripe v-loading="loading">
+            <el-table-column prop="name" label="名称" width="120" />
+            <el-table-column prop="code" label="标识" width="150">
+              <template #default="{ row }">
+                <el-tag type="info">{{ row.code }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="type" label="类型" width="100">
+              <template #default="{ row }">
+                <el-tag size="small">{{ row.type }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="appCode" label="所属应用" width="100" v-if="isSuperAdmin">
+              <template #default="{ row }">
+                <el-tag v-if="row.appCode" type="warning" size="small">{{ row.appCode }}</el-tag>
+                <span v-else style="color: #999">全局</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="isPublic" label="公开状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.isPublic ? 'success' : 'info'" size="small">
+                  {{ row.isPublic ? '公开' : '私有' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="description" label="描述" min-width="150">
+              <template #default="{ row }">
+                {{ row.description?.substring(0, 50) }}{{ row.description?.length > 50 ? '...' : '' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="80">
+              <template #default="{ row }">
+                <el-tag :type="row.status ? 'success' : 'danger'" size="small">
+                  {{ row.status ? '启用' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="280" fixed="right">
+              <template #default="{ row }">
+                <el-button size="small" @click="handleTest(row)">测试</el-button>
+                <el-button size="small" @click="handleEdit(row)">编辑</el-button>
+                <el-button size="small" type="warning" @click="handleExport(row)">导出</el-button>
+                <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="文件系统技能" name="filesystem">
+          <template #label>
+            <span class="tab-label">
+              <el-icon><Folder /></el-icon>
+              文件系统技能
+              <el-tag type="success" size="small" style="margin-left: 8px;">{{ standardSkills.length }}</el-tag>
+            </span>
           </template>
-        </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="200">
-          <template #default="{ row }">
-            {{ row.description?.substring(0, 80) }}{{ row.description?.length > 80 ? '...' : '' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="hasScripts" label="脚本" width="70">
-          <template #default="{ row }">
-            <el-tag :type="row.hasScripts ? 'warning' : 'info'" size="small">
-              {{ row.hasScripts ? '有' : '无' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="hasReferences" label="参考文档" width="90">
-          <template #default="{ row }">
-            <el-tag :type="row.hasReferences ? 'warning' : 'info'" size="small">
-              {{ row.hasReferences ? '有' : '无' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="appCode" label="所属应用" width="100">
-          <template #default="{ row }">
-            <el-tag v-if="row.appCode" size="small" type="warning">{{ row.appCode }}</el-tag>
-            <span v-else style="color: #999; font-size: 12px;">公开</span>
-          </template>
-        </el-table-column>
-      </el-table>
+
+          <div class="filesystem-header">
+            <span class="filesystem-tip">基于 Agent Skills 开放标准，从 skills/standard/ 目录扫描发现</span>
+            <el-button @click="handleScan" :loading="scanning">
+              <el-icon><Refresh /></el-icon>
+              扫描标准技能
+            </el-button>
+          </div>
+
+          <el-table :data="standardSkills" stripe v-loading="scanning">
+            <el-table-column prop="name" label="名称" width="150">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="handlePreviewSkillMd(row.name)">{{ row.name }}</el-button>
+              </template>
+            </el-table-column>
+            <el-table-column prop="description" label="描述" min-width="200">
+              <template #default="{ row }">
+                {{ row.description?.substring(0, 80) }}{{ row.description?.length > 80 ? '...' : '' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="hasScripts" label="脚本" width="70">
+              <template #default="{ row }">
+                <el-tag :type="row.hasScripts ? 'warning' : 'info'" size="small">
+                  {{ row.hasScripts ? '有' : '无' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="hasReferences" label="参考文档" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.hasReferences ? 'warning' : 'info'" size="small">
+                  {{ row.hasReferences ? '有' : '无' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="appCode" label="所属应用" width="100">
+              <template #default="{ row }">
+                <el-tag v-if="row.appCode" size="small" type="warning">{{ row.appCode }}</el-tag>
+                <span v-else style="color: #999; font-size: 12px;">公开</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" fixed="right">
+              <template #default="{ row }">
+                <el-button size="small" @click="handlePreviewSkillMd(row.name)">查看详情</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <el-empty v-if="standardSkills.length === 0 && !scanning" description="暂无文件系统技能，点击上方按钮扫描" />
+        </el-tab-pane>
+      </el-tabs>
     </div>
 
     <!-- 技能导入对话框 -->
     <SkillImportDialog v-model:visible="importDialogVisible" @imported="handleImported" />
 
-    <!-- SKILL.md 预览对话框 -->
-    <el-dialog v-model="previewDialogVisible" title="SKILL.md 预览" width="700px">
-      <SkillMdPreview
-        v-if="previewSkillData"
-        :frontmatter="previewSkillData.frontmatter"
-        :body="previewSkillData.body"
-        :raw-content="previewSkillData.rawContent"
-      />
-      <el-empty v-else description="加载中..." />
-    </el-dialog>
+    <!-- SKILL.md 预览抽屉 -->
+    <el-drawer
+      v-model="previewDialogVisible"
+      title="SKILL.md 预览"
+      direction="rtl"
+      size="50%"
+      :destroy-on-close="true"
+    >
+      <div class="preview-drawer-content">
+        <SkillMdPreview
+          v-if="previewSkillData"
+          :frontmatter="previewSkillData.frontmatter"
+          :body="previewSkillData.body"
+          :raw-content="previewSkillData.rawContent"
+        />
+        <el-empty v-else description="加载中..." />
+      </div>
+    </el-drawer>
 
     <SkillEditDrawer v-model:visible="drawerVisible" :skill="editingSkill" @save="handleSave" />
 
@@ -271,7 +285,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, MagicStick, Upload, Refresh } from '@element-plus/icons-vue'
+import { Plus, MagicStick, Upload, Refresh, Coin, Folder } from '@element-plus/icons-vue'
 import { useSkillStore, useUserStore } from '@/stores'
 import { skillApi } from '@/api/skill'
 import type { Skill, SkillForm } from '@/api/skill'
@@ -307,7 +321,7 @@ const selectSkillResult = ref<{ skillCode: string; params: Record<string, unknow
 const selectSkillLoading = ref(false)
 
 // 标准技能 & 导入导出
-const sourceFilter = ref('all')
+const activeTab = ref('database')
 const importDialogVisible = ref(false)
 const previewDialogVisible = ref(false)
 const previewSkillData = ref<{ frontmatter: Record<string, unknown>; body: string; rawContent: string } | null>(null)
@@ -458,6 +472,36 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+.skill-tabs {
+  :deep(.el-tabs__header) {
+    margin-bottom: 16px;
+  }
+
+  .tab-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+
+.filesystem-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+
+  .filesystem-tip {
+    font-size: 12px;
+    color: #909399;
+  }
+}
+
+.preview-drawer-content {
+  height: 100%;
+  overflow-y: auto;
+  padding: 0 16px;
+}
+
 .test-dialog-content {
   max-height: 65vh;
   overflow-y: auto;

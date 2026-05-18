@@ -86,24 +86,31 @@ export class StandardSkillExecutor {
       return result;
     }
 
-    // 文件系统技能：执行脚本（如果请求）
+    // 文件系统技能：从索引获取技能目录
     if (options?.scriptPath) {
-      // 检查 allowed-tools
-      if (descriptor.allowedTools && !descriptor.allowedTools.includes('bash') && !descriptor.allowedTools.includes('python')) {
-        throw new Error(`技能 "${skillName}" 未授权脚本执行（allowed-tools: ${descriptor.allowedTools?.join(', ') || '无'}）`);
-      }
-
-      // 查找技能目录
       const entry = await this.skillRegistry.findByName(skillName, context);
       if (!entry) {
         throw new Error(`技能 "${skillName}" 不在索引中`);
       }
 
-      // 文件系统技能的目录信息需要通过 FileSkillProvider 获取
-      // 这里委托给 SkillRegistry，由它路由到正确的 Provider
+      // 从扫描器获取技能目录路径
+      let skillDir = '';
+      if (descriptor.metadata.source === 'filesystem') {
+        const scannerEntry = this.skillRegistry.getScannerEntry(skillName);
+        skillDir = scannerEntry?.directoryPath || '';
+      }
+
+      if (!skillDir) {
+        throw new Error(`无法确定技能 "${skillName}" 的目录路径`);
+      }
+
+      if (descriptor.allowedTools && !descriptor.allowedTools.includes('bash') && !descriptor.allowedTools.includes('python')) {
+        throw new Error(`技能 "${skillName}" 未授权脚本执行（allowed-tools: ${descriptor.allowedTools?.join(', ') || '无'}）`);
+      }
+
       try {
         result.scriptResult = await this.scriptRunner.run(
-          '', // 由 SkillRegistry 内部的 FileSkillProvider 补全路径
+          skillDir,
           options.scriptPath,
           options.scriptArgs || {},
           { timeout: options.scriptTimeout },

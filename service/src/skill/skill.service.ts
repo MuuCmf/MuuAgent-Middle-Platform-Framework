@@ -29,6 +29,7 @@ import { DatabaseQueryResult } from './database/dto/database-config.dto';
 @Injectable()
 export class SkillService {
   private readonly logger = new Logger(SkillService.name);
+  private readonly DEFAULT_TIMEOUT = 30000;
 
   /**
    * 构造函数
@@ -231,23 +232,17 @@ export class SkillService {
       }
     } catch (error) {
       success = false;
+      // 保留原始 HttpException 的状态码和消息
+      if (error instanceof HttpException) {
+        await this.logInvoke(skill, params, startTime, success, error.message, context);
+        throw error;
+      }
       errorMessage = error instanceof Error ? error.message : '执行失败';
       result = { error: errorMessage };
     }
 
     // 记录调用日志
-    await this.prisma.skillInvokeLog.create({
-      data: {
-        skillId: skill.id,
-        skillCode: skill.code,
-        params: JSON.stringify(params),
-        result: JSON.stringify(result),
-        costMs: Date.now() - startTime,
-        success,
-        errorMessage,
-        appCode: context?.appCode || skill.appCode,
-      },
-    });
+    await this.logInvoke(skill, params, startTime, success, errorMessage, context);
 
     if (!success) {
       throw new HttpException(errorMessage || '执行失败', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -439,6 +434,33 @@ export class SkillService {
   }
 
   /**
+   * 记录技能调用日志
+   */
+  private async logInvoke(
+    skill: { id: any; code: string; appCode?: string | null },
+    params: Record<string, unknown>,
+    startTime: number,
+    success: boolean,
+    errorMessage: string | null,
+    context?: IsolationContext,
+  ): Promise<void> {
+    try {
+      await this.prisma.skillInvokeLog.create({
+        data: {
+          skillId: skill.id,
+          skillCode: skill.code,
+          params: JSON.stringify(params),
+          result: JSON.stringify({}),
+          costMs: Date.now() - startTime,
+          success,
+          errorMessage,
+          appCode: context?.appCode || skill.appCode,
+        },
+      });
+    } catch { /* 日志记录失败不应影响主流程 */ }
+  }
+
+  /**
    * 获取技能描述(用于LLM)
    * @param skillCodes 技能标识列表
    * @returns {Promise<string>} 技能描述文本
@@ -464,9 +486,11 @@ export class SkillService {
   async renderSkillInvokePrompt(
     skillCode: string,
     userRequest: string,
+    context?: IsolationContext,
   ): Promise<string> {
+    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const skill = await this.prisma.skill.findFirst({
-      where: { code: skillCode },
+      where: { code: skillCode, ...isolationWhere },
     });
 
     if (!skill) {
@@ -670,7 +694,7 @@ export class SkillService {
         if (!codeContent) {
           throw new HttpException('代码内容不能为空', HttpStatus.BAD_REQUEST);
         }
-        const sandboxResult = await this.sandboxExecutor.execute(codeContent, params);
+        const sandboxResult = await this.sandboxExecutor.execute(codeContent, params, this.DEFAULT_TIMEOUT);
         return sandboxResult;
 
       default:

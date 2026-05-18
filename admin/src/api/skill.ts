@@ -2,7 +2,7 @@ import { adminRequest, type ApiResponse } from '@/utils/request'
 import type { AxiosResponse } from 'axios'
 
 export interface Skill {
-  id: number
+  id: number | string
   name: string
   code: string
   type: string
@@ -17,6 +17,7 @@ export interface Skill {
   codeContent?: string
   appCode?: string
   isPublic?: boolean
+  source?: 'database' | 'filesystem'
   createdAt: string
   updatedAt: string
 }
@@ -349,7 +350,7 @@ export const skillApi = {
   /**
    * 导出 DB 技能为标准格式（下载 .zip）
    */
-  exportSkill(id: number): Promise<AxiosResponse<Blob>> {
+  exportSkill(id: number | string): Promise<AxiosResponse<Blob>> {
     return adminRequest.get(`api/admin/skill/${id}/export`, {
       responseType: 'blob',
     }) as any

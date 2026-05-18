@@ -309,10 +309,10 @@ const handleScan = async () => {
       medium: 0,
       low: 0,
       issues: [],
-      summary: '将调用服务端安全扫描检查：提示注入、危险代码、依赖安装、环境变量读取等模式',
+      summary: '点击"确认导入"后，服务端将自动执行：提示注入检测、危险代码模式扫描、文件类型白名单验证、依赖安装行为检测、硬编码凭证检测',
       passed: true,
     }
-    ElMessage.success('预检通过，请点击"确认导入"提交')
+    ElMessage.info('请点击"确认导入"提交到服务端进行完整安全扫描')
   } catch (error: any) {
     ElMessage.error('扫描失败')
   } finally {
@@ -328,7 +328,7 @@ const handleImport = async () => {
   try {
     const result = await skillStore.importSkill(uploadFile.value, importMode.value, {
       appCode: targetAppCode.value || undefined,
-      isPublic: !targetAppCode.value || undefined,
+      isPublic: targetAppCode.value ? false : true,
       overwrite: overwrite.value,
     })
     if (result) {

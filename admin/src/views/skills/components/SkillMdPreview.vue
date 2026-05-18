@@ -139,8 +139,6 @@ const renderedBody = computed(() => {
       border: 1px solid #e4e7ed;
       border-radius: 6px;
       padding: 16px;
-      max-height: 500px;
-      overflow-y: auto;
       font-size: 13px;
       line-height: 1.7;
       color: #303133;
@@ -193,8 +191,6 @@ const renderedBody = computed(() => {
     overflow-x: auto;
     white-space: pre-wrap;
     word-break: break-word;
-    max-height: 400px;
-    overflow-y: auto;
   }
 }
 </style>
