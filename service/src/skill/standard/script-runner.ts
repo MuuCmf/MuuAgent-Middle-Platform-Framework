@@ -85,18 +85,32 @@ export class ScriptRunner {
   /**
    * 路径安全检查
    * 确保脚本路径在技能目录内，防止目录穿越和符号链接攻击
+   *
+   * 先解析技能目录和脚本父目录的真实路径以消除符号链接，
+   * 再通过前缀匹配确保脚本不逃逸出技能目录。
    */
   private validatePath(skillDir: string, scriptPath: string): void {
-    const normalizedDir = fs.realpathSync(path.resolve(skillDir));
-    const fullPath = path.resolve(normalizedDir, scriptPath);
-    const resolvedPath = fs.realpathSync(fullPath);
-
-    if (!resolvedPath.startsWith(normalizedDir)) {
-      throw new Error(`不允许访问技能目录外的文件: ${scriptPath}`);
-    }
-
     if (scriptPath.includes('..')) {
       throw new Error(`脚本路径不能包含 ".." : ${scriptPath}`);
+    }
+
+    const normalizedDir = fs.realpathSync(path.resolve(skillDir));
+    const fullPath = path.resolve(normalizedDir, scriptPath);
+
+    // 只解析脚本所在目录的真实路径（目录必须存在），不要求脚本文件本身已存在
+    const scriptParentDir = path.dirname(fullPath);
+    let resolvedParentDir: string;
+    try {
+      resolvedParentDir = fs.realpathSync(scriptParentDir);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error(`脚本目录不存在: ${scriptParentDir}`);
+      }
+      throw err;
+    }
+
+    if (!resolvedParentDir.startsWith(normalizedDir + path.sep) && resolvedParentDir !== normalizedDir) {
+      throw new Error(`不允许访问技能目录外的文件: ${scriptPath}`);
     }
   }
 

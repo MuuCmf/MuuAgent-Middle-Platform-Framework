@@ -82,11 +82,14 @@ export class RunScriptTool {
       );
     }
 
-    this.logger.log(`执行技能脚本: ${args.skill_name}/${args.script}`);
+    // 规范化脚本路径：移除 LLM 可能包含的 scripts/ 前缀
+    const normalizedScript = args.script.replace(/^scripts[\/\\]/, '');
+
+    this.logger.log(`执行技能脚本: ${args.skill_name}/${normalizedScript}`);
 
     return this.scriptRunner.run(
       skillDir,
-      `scripts/${args.script}`,
+      `scripts/${normalizedScript}`,
       args.args || {},
       { timeout: args.timeout },
     );

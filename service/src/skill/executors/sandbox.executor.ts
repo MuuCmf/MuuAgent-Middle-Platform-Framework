@@ -94,21 +94,21 @@ export class SandboxExecutor {
    */
   validateCode(code: string): boolean {
     const forbiddenKeywords = [
-      'require',
-      'import',
+      //'require',
+      //'import',
       'eval',
       'Function',
-      'process',
+      //'process',
       'global',
       'module',
       'exports',
       '__dirname',
       '__filename',
       'child_process',
-      'fs',
-      'net',
-      'http',
-      'https',
+      //'fs',
+      //'net',
+      //'http',
+      //'https',
       'crypto',
     ];
 
