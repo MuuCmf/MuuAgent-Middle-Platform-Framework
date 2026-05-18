@@ -25,7 +25,12 @@ export class RunCodeTool implements IAgentTool {
     description: `在安全沙箱中执行代码。支持 JavaScript（VM2 沙箱）、Python 和 Bash。
 使用前请确保已通过 use_skill 加载相关技能指令。
 JS 可直接使用 params 变量访问参数；Python/Bash 通过 stdin JSON 接收参数。
-代码执行有超时限制，禁止网络和文件系统访问。`,
+代码执行有超时限制，禁止网络和文件系统访问。
+
+**重要提示**：
+- JavaScript 代码可以通过 return 语句返回结果，或使用 console.log 输出结果
+- 返回值格式：{ result: 返回值, consoleOutput: [控制台输出数组] }
+- 如果只需要输出信息，使用 console.log 即可，输出会被收集并返回`,
     parameters: {
       type: 'object',
       properties: {

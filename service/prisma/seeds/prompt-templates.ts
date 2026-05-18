@@ -215,51 +215,7 @@ Final Answer: [最终答案]`,
   });
   console.log('✅ 创建 Reflect 推理模板:', reflectTemplate.code);
 
-  // 6. 技能调用模板
-  const skillTemplate = await prisma.promptTemplate.create({
-    data: {
-      code: 'skill-invoke-default',
-      name: '技能调用提示词',
-      category: 'skill',
-      content: `你是一个技能选择助手。你的任务是根据用户的请求，选择最合适的技能并提取参数。
-
-## 可用技能列表
-
-{{skillDescription}}
-
-## 用户请求
-
-{{userRequest}}
-
-## 返回格式要求
-
-请严格按照以下 JSON 格式返回结果，不要添加任何其他内容：
-{
-  "skillCode": "技能标识",
-  "params": {
-    "参数名": "参数值"
-  },
-  "reason": "选择理由"
-}
-
-## 重要规则
-
-1. skillCode 必须是上述可用技能之一
-2. params 必须是一个对象，包含调用技能所需的参数
-3. 如果用户请求不需要调用技能，返回 skillCode 为空字符串
-4. 只返回 JSON，不要有任何其他文字说明`,
-      variables: JSON.stringify([
-        { name: 'skillDescription', type: 'string', required: true, description: '可用技能列表描述' },
-        { name: 'userRequest', type: 'string', required: true, description: '用户请求' }
-      ]),
-      isDefault: true,
-      status: true,
-      description: '技能调用场景的提示词模板',
-    },
-  });
-  console.log('✅ 创建技能调用模板:', skillTemplate.code);
-
-  // 7. 意图识别模板
+  // 6. 意图识别模板
   const intentTemplate = await prisma.promptTemplate.create({
     data: {
       code: 'intent-classify-default',

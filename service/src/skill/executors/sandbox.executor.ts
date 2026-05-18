@@ -22,6 +22,7 @@ export class SandboxExecutor {
     timeout: number = 5000,
   ): Promise<FunctionResult> {
     const startTime = Date.now();
+    const consoleOutput: string[] = [];
 
     try {
       if (!this.validateCode(code)) {
@@ -36,9 +37,27 @@ export class SandboxExecutor {
         sandbox: {
           params,
           console: {
-            log: (...args: any[]) => this.logger.debug('沙箱日志:', ...args),
-            error: (...args: any[]) => this.logger.error('沙箱错误:', ...args),
-            warn: (...args: any[]) => this.logger.warn('沙箱警告:', ...args),
+            log: (...args: any[]) => {
+              const output = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+              ).join(' ');
+              consoleOutput.push(output);
+              this.logger.debug('沙箱日志:', output);
+            },
+            error: (...args: any[]) => {
+              const output = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+              ).join(' ');
+              consoleOutput.push(`[ERROR] ${output}`);
+              this.logger.error('沙箱错误:', output);
+            },
+            warn: (...args: any[]) => {
+              const output = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+              ).join(' ');
+              consoleOutput.push(`[WARN] ${output}`);
+              this.logger.warn('沙箱警告:', output);
+            },
           },
           Math,
           Date,
@@ -70,9 +89,14 @@ export class SandboxExecutor {
 
       this.logger.log(`沙箱函数执行成功，耗时 ${duration}ms`);
 
+      const returnData = {
+        result: result || null,
+        consoleOutput: consoleOutput.length > 0 ? consoleOutput : undefined,
+      };
+
       return {
         success: true,
-        data: result || {},
+        data: returnData,
         duration,
       };
     } catch (error) {
@@ -83,6 +107,7 @@ export class SandboxExecutor {
         success: false,
         error: error instanceof Error ? error.message : '执行失败',
         duration,
+        data: consoleOutput.length > 0 ? { consoleOutput } : undefined,
       };
     }
   }

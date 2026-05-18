@@ -139,21 +139,3 @@ Action: [行动]
 Final Answer: [最终答案]',
 '[{"name":"basePrompt","type":"string","required":true,"description":"智能体的基础提示词"},{"name":"tools","type":"string","required":true,"description":"工具描述"}]',
 false, true, 'Reflect推理模式的提示词模板', NOW(), NOW());
-
--- 6. 技能调用模板
-INSERT INTO prompt_templates (id, code, name, category, content, variables, isDefault, status, description, createdAt, updatedAt) VALUES
-(UUID(), 'skill-invoke-default', '技能调用提示词', 'skill',
-'你是一个技能调用助手。
-
-## 技能信息
-- 名称: {{skillName}}
-- 描述: {{skillDescription}}
-- 类型: {{skillType}}
-
-## 用户请求
-{{userRequest}}
-
-## 任务
-请根据用户请求，分析需要调用哪个技能，以及需要传递什么参数。',
-'[{"name":"skillName","type":"string","required":true,"description":"技能名称"},{"name":"skillDescription","type":"string","required":true,"description":"技能描述"},{"name":"skillType","type":"string","required":true,"description":"技能类型"},{"name":"userRequest","type":"string","required":true,"description":"用户请求"}]',
-true, true, '技能调用场景的提示词模板', NOW(), NOW());

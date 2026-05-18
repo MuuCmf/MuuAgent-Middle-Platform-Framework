@@ -215,7 +215,6 @@ curl -X POST http://localhost:3000/api/admin/prompt-template/render \
 | `agent` | 智能体系统提示词 | 智能体角色定义、行为规范 |
 | `rag` | RAG 问答提示词 | 知识库问答、文档检索 |
 | `react` | ReAct 推理提示词 | 思考-行动-观察循环 |
-| `skill` | 技能调用提示词 | 技能选择、参数提取 |
 | `custom` | 自定义提示词 | 其他场景 |
 
 ### 变量定义
@@ -605,13 +604,11 @@ const parsed = JSON.parse(result.text);
 - **标识命名**：使用小写字母和连字符，格式为 `{场景}-{类型}-{描述}`
   - ✅ `rag-chat-default`
   - ✅ `react-reasoning-default`
-  - ✅ `skill-invoke-default`
   - ❌ `RAG_Chat_Default`
 
 - **名称命名**：使用中文，简洁明了
   - ✅ `RAG问答提示词`
   - ✅ `ReAct推理提示词`
-  - ✅ `技能调用提示词`
 
 ### 2. 变量设计原则
 
@@ -856,25 +853,7 @@ console.log(systemPrompt);
 // 3. 如果不确定，请明确说明
 ```
 
-### 3. 智能技能选择
-
-```typescript
-// 智能选择技能
-const result = await skillApi.selectSkill({
-  userRequest: '帮我查询北京的天气',
-  availableSkills: ['get_weather', 'search_web', 'calculate']
-});
-
-console.log(result);
-// 输出:
-// {
-//   skillCode: 'get_weather',
-//   params: { city: '北京' },
-//   reason: '用户明确要求查询北京的天气，get_weather 技能正好提供天气查询功能'
-// }
-```
-
-### 4. 版本管理
+### 3. 版本管理
 
 ```typescript
 // 更新模板并记录变更
@@ -892,7 +871,7 @@ await promptTemplateApi.rollback(templateId, 2, {
 });
 ```
 
-### 5. 前端集成示例
+### 4. 前端集成示例
 
 ```vue
 <template>

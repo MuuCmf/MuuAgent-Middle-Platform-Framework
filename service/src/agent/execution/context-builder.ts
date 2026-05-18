@@ -199,6 +199,8 @@ export class ContextBuilder {
             },
           });
         }
+      } else if (def.name === 'run_code') {
+        tools.push(def);
       } else {
         const existing = tools.find(t => t.name === def.name);
         if (!existing) {
@@ -291,8 +293,8 @@ export class ContextBuilder {
     }
 
     const toolDescriptions = tools.map(t => {
-      const params = JSON.stringify(t.parameters, null, 2);
-      return `- ${t.name}: ${t.description}\n参数: ${params}`;
+      const simplifiedParams = this.simplifyParameters(t.parameters);
+      return `- ${t.name}: ${t.description}\n参数: ${simplifiedParams}`;
     }).join('\n');
 
     if (toolDescriptions) {
@@ -300,6 +302,29 @@ export class ContextBuilder {
     }
 
     return systemPrompt;
+  }
+
+  private simplifyParameters(parameters: any): string {
+    if (!parameters || !parameters.properties) {
+      return '{}';
+    }
+
+    const required = parameters.required || [];
+    const props = parameters.properties;
+    const simplified: Record<string, string> = {};
+
+    for (const [key, value] of Object.entries(props)) {
+      const prop = value as any;
+      const isRequired = required.includes(key);
+      const typeDesc = prop.type || 'any';
+      const enumDesc = prop.enum ? ` (${prop.enum.join('|')})` : '';
+      const desc = prop.description ? ` - ${prop.description}` : '';
+      const reqMark = isRequired ? '*' : '';
+      
+      simplified[key] = `${typeDesc}${enumDesc}${reqMark}${desc}`;
+    }
+
+    return JSON.stringify(simplified, null, 0);
   }
 
   private getDefaultReasoningPrompt(mode: string): string {
@@ -352,9 +377,20 @@ export class ContextBuilder {
       }
     }
 
-    const customParams = typeof agent.customModelParams === 'string'
-      ? JSON.parse(agent.customModelParams)
-      : agent.customModelParams || {};
+    let customParams: ModelParams = {};
+    if (agent.customModelParams) {
+      try {
+        if (typeof agent.customModelParams === 'string') {
+          if (agent.customModelParams.trim()) {
+            customParams = JSON.parse(agent.customModelParams);
+          }
+        } else {
+          customParams = agent.customModelParams;
+        }
+      } catch (error) {
+        this.logger.warn(`解析自定义模型参数失败: ${error}`);
+      }
+    }
 
     return mergeModelParams({
       templateParams,
