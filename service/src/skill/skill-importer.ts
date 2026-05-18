@@ -1,7 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SkillMdParser } from './standard/skill-md-parser';
 import { SkillMdValidator, ValidationError } from './standard/skill-md-validator';
-import { IsolationContext } from '../common/utils/isolation.util';
+import { IsolationContext } from '../common/services/base-isolated.service';
 import * as path from 'path';
 
 /**

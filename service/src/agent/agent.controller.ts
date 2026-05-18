@@ -21,7 +21,7 @@ import { RequireScope } from "../common/decorators/scope.decorator";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { RateLimitGuard } from "../rate-limit/rate-limit.guard";
 import { RateLimitInterceptor } from "../rate-limit/rate-limit.interceptor";
-import { extractIsolationContext, IsolationContext } from "../common/utils/isolation.util";
+import { extractIsolationContext, IsolationContext } from "../common/services/base-isolated.service";
 import {
   CreateAgentDto,
   UpdateAgentDto,

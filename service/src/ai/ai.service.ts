@@ -13,7 +13,7 @@ import {
   AsrDto,
 } from './dto/ai.dto';
 import { Model } from '@prisma/client';
-import { IsolationContext } from '../common/utils/isolation.util';
+import { IsolationContext } from '../common/services/base-isolated.service';
 import { mergeModelParams, ModelParams } from '../common/utils/model-params.util';
 import { StrategyFactory } from './strategies/strategy.factory';
 import { ModelExecutor } from './core/model.executor';

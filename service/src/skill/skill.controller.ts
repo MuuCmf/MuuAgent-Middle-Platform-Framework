@@ -18,7 +18,7 @@ import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { AdminScope } from '../common/constants/scope.constants';
 import { RequireScope } from '../common/decorators/scope.decorator';
-import { extractIsolationContext } from '../common/utils/isolation.util';
+import { extractIsolationContext } from '../common/services/base-isolated.service';
 import { QueryStandardSkillDto, ValidateSkillMdDto } from './dto/skill.dto';
 import { success } from '../common/response/api.response';
 import { Request } from 'express';

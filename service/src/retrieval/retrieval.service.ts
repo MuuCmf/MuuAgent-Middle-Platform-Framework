@@ -12,7 +12,7 @@ import { ConversationType } from '../conversation/dto/create-conversation.dto';
 import { RetrievalDto } from './dto/retrieval.dto';
 import { RagChatDto } from './dto/rag-chat.dto';
 import { v4 as uuidv4 } from 'uuid';
-import { IsolationContext, buildIsolationWhere } from '../common/utils/isolation.util';
+import { IsolationService, IsolationContext } from '../common/services/base-isolated.service';
 import { StreamEmitter, StreamEvents } from '../stream';
 import { ModelRoutingService } from "../model-routing/model-routing.service";
 import { ModelService } from '../model/model.service';
@@ -56,6 +56,7 @@ export class RetrievalService {
     private readonly conversationService: ConversationService,
     private readonly mcpService: ModelRoutingService,
     private readonly modelService: ModelService,
+    private readonly isolationService: IsolationService,
   ) {}
 
   /**
@@ -91,7 +92,7 @@ export class RetrievalService {
     const startTime = Date.now();
     const requestId = uuidv4();
 
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = IsolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const kb = await this.prisma.kbInfo.findFirst({
       where: { id: dto.kbId, isDeleted: false, status: true, ...isolationWhere },
     });
@@ -377,7 +378,7 @@ export class RetrievalService {
       dto.query,
     );
 
-    const isolationWhere = buildIsolationWhere(isolationContext);
+    const isolationWhere = IsolationService.buildIsolationWhere(isolationContext);
     const kb = await this.prisma.kbInfo.findFirst({
       where: { id: dto.kbId, isDeleted: false, status: true, ...isolationWhere },
     });
@@ -573,7 +574,7 @@ export class RetrievalService {
       dto.query,
     );
 
-    const isolationWhere = buildIsolationWhere(isolationContext);
+    const isolationWhere = IsolationService.buildIsolationWhere(isolationContext);
     const kb = await this.prisma.kbInfo.findFirst({
       where: { id: dto.kbId, isDeleted: false, status: true, ...isolationWhere },
     });

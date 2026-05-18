@@ -4,7 +4,7 @@ import { CreateKbDto } from './dto/create-kb.dto';
 import { UpdateKbDto } from './dto/update-kb.dto';
 import { QueryKbListDto } from './dto/query-kb-list.dto';
 import { DeleteKbDto } from './dto/delete-kb.dto';
-import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
+import { IsolationService, IsolationContext } from '../common/services/base-isolated.service';
 
 /**
  * 知识库管理服务
@@ -14,8 +14,12 @@ export class KbService {
   /**
    * 构造函数
    * @param prisma Prisma服务
+   * @param isolationService 应用隔离服务
    */
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly isolationService: IsolationService,
+  ) {}
 
   /**
    * 创建知识库
@@ -40,7 +44,7 @@ export class KbService {
       }
     }
 
-    const data = buildCreateData({
+    const data = this.isolationService.buildCreateData({
       kbName: dto.kbName,
       kbCode: dto.kbCode,
       embeddingModel: embeddingModel,
@@ -77,7 +81,7 @@ export class KbService {
     const pageSize = dto.pageSize || 10;
     const skip = (pageNum - 1) * pageSize;
 
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const where: any = {
       isDeleted: false,
       ...isolationWhere,
@@ -169,7 +173,7 @@ export class KbService {
    * @returns {Promise<any>} 知识库详情
    */
   async findOne(kbId: string, context?: IsolationContext): Promise<any> {
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const kb = await this.prisma.kbInfo.findFirst({
       where: { id: kbId, isDeleted: false, ...isolationWhere },
       include: {
@@ -216,7 +220,7 @@ export class KbService {
    * @returns {Promise<any>} 更新结果
    */
   async update(dto: UpdateKbDto, context?: IsolationContext): Promise<any> {
-    const where = buildOwnerWhere(dto.kbId, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(dto.kbId, context || { appCode: null, isSuperAdmin: false });
     const kb = await this.prisma.kbInfo.findFirst({
       where: { ...where, isDeleted: false },
     });
@@ -269,7 +273,7 @@ export class KbService {
    * @returns {Promise<any>} 删除结果
    */
   async delete(dto: DeleteKbDto, context?: IsolationContext): Promise<any> {
-    const where = buildOwnerWhere(dto.kbId, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(dto.kbId, context || { appCode: null, isSuperAdmin: false });
     const kb = await this.prisma.kbInfo.findFirst({
       where: { ...where, isDeleted: false },
     });

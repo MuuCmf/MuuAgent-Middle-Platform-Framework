@@ -3,7 +3,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateConversationDto, ConversationType } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { QueryConversationDto } from './dto/query-conversation.dto';
-import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
+import { IsolationService, IsolationContext } from '../common/services/base-isolated.service';
 
 /**
  * 会话服务
@@ -16,8 +16,12 @@ export class ConversationService {
   /**
    * 构造函数
    * @param prisma Prisma服务
+   * @param isolationService 应用隔离服务
    */
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly isolationService: IsolationService,
+  ) {}
 
   /**
    * 创建新会话
@@ -28,7 +32,7 @@ export class ConversationService {
   async create(dto: CreateConversationDto, context?: IsolationContext) {
     const conversationType = dto.conversationType || ConversationType.AGENT;
 
-    const data = buildCreateData({
+    const data = this.isolationService.buildCreateData({
       conversationType,
       targetId: dto.targetId as any,
       title: dto.title,
@@ -64,7 +68,7 @@ export class ConversationService {
     this.logger.log(`getOrCreate: conversationType=${conversationType}, targetId=${targetId}, conversationId=${conversationId}, uid=${uid}`);
 
     if (conversationId) {
-      const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, 'appCode', 'isPublic', false);
+      const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
       const existing = await this.prisma.conversation.findFirst({
         where: { id: conversationId, ...isolationWhere },
       });
@@ -101,7 +105,7 @@ export class ConversationService {
    * @returns 更新后的会话
    */
   async update(id: string, dto: UpdateConversationDto, context?: IsolationContext) {
-    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
     const conversation = await this.prisma.conversation.findFirst({
       where: { ...where },
     });
@@ -122,7 +126,7 @@ export class ConversationService {
    * @param context 隔离上下文
    */
   async remove(id: string, context?: IsolationContext) {
-    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
     const conversation = await this.prisma.conversation.findFirst({
       where: { ...where },
     });
@@ -145,7 +149,7 @@ export class ConversationService {
    * @returns 会话详情（包含消息）
    */
   async findOne(id: string, messageLimit?: number, context?: IsolationContext) {
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, 'appCode', 'isPublic', false);
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
     const conversation = await this.prisma.conversation.findFirst({
       where: { id, ...isolationWhere },
     });
@@ -192,7 +196,7 @@ export class ConversationService {
     const { conversationType, targetId, uid, status, keyword, page = 1, pageSize = 20 } = query;
     const skip = (page - 1) * pageSize;
 
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, 'appCode', 'isPublic', false);
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
     const where: any = { ...isolationWhere };
 
     if (conversationType) where.conversationType = conversationType;

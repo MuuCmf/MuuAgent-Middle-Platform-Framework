@@ -13,7 +13,7 @@ import {
   RenderPromptTemplateDto,
   RollbackPromptTemplateDto,
 } from './dto/prompt-template.dto';
-import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
+import { IsolationService, IsolationContext } from '../common/services/base-isolated.service';
 
 /**
  * Prompt 模板服务
@@ -23,7 +23,10 @@ import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere
 export class PromptTemplateService {
   private readonly logger = new Logger(PromptTemplateService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly isolationService: IsolationService,
+  ) {}
 
   /**
    * 创建模板
@@ -32,7 +35,7 @@ export class PromptTemplateService {
    * @returns 创建的模板
    */
   async create(dto: CreatePromptTemplateDto, context?: IsolationContext) {
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const existing = await this.prisma.promptTemplate.findFirst({
       where: { code: dto.code, ...isolationWhere },
     });
@@ -52,7 +55,7 @@ export class PromptTemplateService {
       });
     }
 
-    const data = buildCreateData({
+    const data = this.isolationService.buildCreateData({
       name: dto.name,
       code: dto.code,
       category: dto.category,
@@ -94,7 +97,7 @@ export class PromptTemplateService {
    * @returns 更新后的模板
    */
   async update(code: string, dto: UpdatePromptTemplateDto, context?: IsolationContext) {
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const template = await this.prisma.promptTemplate.findFirst({
       where: { code, ...isolationWhere },
     });
@@ -153,7 +156,7 @@ export class PromptTemplateService {
    * @param context 隔离上下文
    */
   async delete(id: string, context?: IsolationContext) {
-    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
     const template = await this.prisma.promptTemplate.findFirst({
       where: { ...where },
     });
@@ -176,7 +179,7 @@ export class PromptTemplateService {
    * @returns 模板详情
    */
   async findOne(id: string, context?: IsolationContext) {
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const template = await this.prisma.promptTemplate.findFirst({
       where: { id, ...isolationWhere },
       include: {
@@ -201,7 +204,7 @@ export class PromptTemplateService {
    * @returns 模板详情
    */
   async findByCode(code: string, context?: IsolationContext) {
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const template = await this.prisma.promptTemplate.findFirst({
       where: { code, ...isolationWhere },
     });
@@ -224,7 +227,7 @@ export class PromptTemplateService {
     const pageSize = Number(query.pageSize) || 10;
     const skip = (page - 1) * pageSize;
 
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const where: any = { ...isolationWhere };
 
     if (query.code) {
@@ -388,7 +391,7 @@ export class PromptTemplateService {
    * @returns 回滚后的模板
    */
   async rollback(id: string, version: number, dto?: RollbackPromptTemplateDto, context?: IsolationContext) {
-    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
     const template = await this.prisma.promptTemplate.findFirst({
       where: { ...where },
     });
@@ -438,7 +441,7 @@ export class PromptTemplateService {
    * @returns 默认模板
    */
   async getDefaultTemplate(category: string, context?: IsolationContext) {
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const template = await this.prisma.promptTemplate.findFirst({
       where: {
         category,
@@ -458,8 +461,8 @@ export class PromptTemplateService {
    * @returns 更新后的模板
    */
   async setDefault(id: string, context?: IsolationContext) {
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
-    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
     const template = await this.prisma.promptTemplate.findFirst({
       where: { ...where },
     });

@@ -6,7 +6,7 @@ import { RagChatDto } from './dto/rag-chat.dto';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
-import { extractIsolationContext } from '../common/utils/isolation.util';
+import { extractIsolationContext } from '../common/services/base-isolated.service';
 import { success } from '../common/response/api.response';
 import type { Request } from 'express';
 import { Observable } from 'rxjs';

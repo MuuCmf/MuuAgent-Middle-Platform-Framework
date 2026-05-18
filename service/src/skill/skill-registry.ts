@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SkillScanner } from './standard/skill-scanner';
 import { FileSkillProvider } from './standard/file-skill-provider';
 import { SkillFrontmatter } from './standard/skill-md-validator';
-import { IsolationContext } from '../common/utils/isolation.util';
+import { IsolationContext } from '../common/services/base-isolated.service';
 
 /**
  * 技能元数据（L1 层，始终驻留）

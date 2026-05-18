@@ -9,7 +9,7 @@ import { RunScriptTool } from './run-script.tool';
 import { BuiltinExecutor } from '../../skill/executors/builtin.executor';
 import { BUILTIN_TOOL_DEFINITIONS } from './tool-definitions';
 import { WORKSPACE_TOOL_NAMES } from '../../workspace/workspace-tool.definitions';
-import { IsolationContext } from '../../common/utils/isolation.util';
+import { IsolationContext } from '../../common/services/base-isolated.service';
 
 /**
  * 工具调用信息

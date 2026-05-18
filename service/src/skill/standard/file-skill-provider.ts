@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SkillScanner, SkillIndexEntry } from './skill-scanner';
 import { SkillMdParser } from './skill-md-parser';
 import { ISkillProvider, SkillMetadata, SkillDescriptor } from '../skill-registry';
-import { IsolationContext } from '../../common/utils/isolation.util';
+import { IsolationContext } from '../../common/services/base-isolated.service';
 
 /**
  * 文件系统技能数据提供者

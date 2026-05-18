@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SkillRegistry, SkillDescriptor } from '../skill-registry';
 import { ScriptRunner, ScriptResult } from './script-runner';
-import { IsolationContext } from '../../common/utils/isolation.util';
+import { IsolationContext } from '../../common/services/base-isolated.service';
 
 /**
  * 标准技能执行结果

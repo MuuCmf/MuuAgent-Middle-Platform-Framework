@@ -12,7 +12,7 @@ import { PromptTemplateService } from '../prompt-template/prompt-template.servic
 import { ModelTemplateService } from '../model-template/model-template.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationType } from '../conversation/dto/create-conversation.dto';
-import { IsolationContext, buildIsolationWhere, buildCreateData, buildOwnerWhere } from '../common/utils/isolation.util';
+import { IsolationService, IsolationContext } from '../common/services/base-isolated.service';
 import { mergeModelParams, ModelParams, SYSTEM_DEFAULTS } from '../common/utils/model-params.util';
 import {
   CreateAgentDto,
@@ -49,10 +49,11 @@ export class AgentService {
     private intentClassifier: IntentClassifierService,
     private workspaceToolHandler: WorkspaceToolHandler,
     private skillRegistry: SkillRegistry,
+    private readonly isolationService: IsolationService,
   ) {}
 
   async create(dto: CreateAgentDto, context?: IsolationContext) {
-    const data = buildCreateData({
+    const data = this.isolationService.buildCreateData({
       name: dto.name,
       code: dto.code,
       description: dto.description,
@@ -76,7 +77,7 @@ export class AgentService {
   }
 
   async update(id: string, dto: UpdateAgentDto, context?: IsolationContext) {
-    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
     const agent = await this.prisma.agent.findFirst({ where });
     if (!agent) {
       throw new NotFoundException('智能体不存在或无权限操作');
@@ -94,7 +95,7 @@ export class AgentService {
   }
 
   async remove(id: string, context?: IsolationContext): Promise<void> {
-    const where = buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
     const agent = await this.prisma.agent.findFirst({ where });
     if (!agent) {
       throw new NotFoundException('智能体不存在或无权限操作');
@@ -104,7 +105,7 @@ export class AgentService {
   }
 
   async findOne(id: string, context?: IsolationContext) {
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const agent = await this.prisma.agent.findFirst({
       where: { id, ...isolationWhere },
     });
@@ -115,7 +116,7 @@ export class AgentService {
   }
 
   async findByCode(code: string, context?: IsolationContext) {
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const agent = await this.prisma.agent.findFirst({
       where: { code, ...isolationWhere },
     });
@@ -129,7 +130,7 @@ export class AgentService {
     const { status, page = 1, pageSize = 10 } = query;
     const skip = (page - 1) * pageSize;
 
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const where: Record<string, unknown> = { ...isolationWhere };
     if (status !== undefined) where.status = status;
 
@@ -221,7 +222,7 @@ export class AgentService {
    */
   private async getAgent(agentId: string, context?: IsolationContext) {
     this.logger.log(`[AgentStream] 获取智能体: ${agentId}`);
-    const isolationWhere = buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     
     // 将隔离条件与 id/code 条件合并为 AND 关系，避免两个 OR 同级时后者覆盖前者
     const where = {
