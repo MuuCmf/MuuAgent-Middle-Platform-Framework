@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SkillService } from '../../skill/skill.service';
+import { SkillRegistry } from '../../skill/skill-registry';
 import { McpServerService } from '../../mcp-server/mcp-server.service';
 import { KbSearchTool } from './kb-search.tool';
 import { BuiltinExecutor } from '../../skill/executors/builtin.executor';
@@ -59,6 +60,7 @@ export class ToolExecutor {
 
   constructor(
     private readonly skillService: SkillService,
+    private readonly skillRegistry: SkillRegistry,
     private readonly mcpServerService: McpServerService,
     private readonly kbSearchTool: KbSearchTool,
     private readonly builtinExecutor: BuiltinExecutor,
@@ -169,6 +171,16 @@ export class ToolExecutor {
     args: Record<string, unknown>,
     context: ToolExecutionContext,
   ): Promise<unknown> {
+    // 渐进式披露：use_skill（L1 → L2）
+    if (name === 'use_skill') {
+      return await this.executeUseSkill(args, context);
+    }
+
+    // L3：加载参考文档
+    if (name === 'load_reference') {
+      return await this.executeLoadReference(args);
+    }
+
     if (name.startsWith('skill__')) {
       return await this.executeSkill(name.slice(7), args, context);
     }
@@ -276,6 +288,89 @@ export class ToolExecutor {
       },
       { appCode: context.agent.appCode, isSuperAdmin: false },
     );
+  }
+
+  /**
+   * 执行 use_skill 元工具（渐进式披露 L1 → L2）
+   * 按需加载技能的完整指令
+   */
+  private async executeUseSkill(
+    args: Record<string, unknown>,
+    context: ToolExecutionContext,
+  ): Promise<unknown> {
+    const skillName = args.skill_name as string;
+    if (!skillName) {
+      throw new Error('缺少 skill_name 参数');
+    }
+
+    const descriptor = await this.skillRegistry.resolve(
+      skillName,
+      { appCode: context.agent.appCode, isSuperAdmin: false },
+    );
+
+    if (!descriptor) {
+      throw new Error(`技能 "${skillName}" 不存在或不可用`);
+    }
+
+    this.logger.log(`[use_skill] 加载技能 "${skillName}" 完整指令 (${descriptor.instructions.length} 字符)`);
+
+    const result: Record<string, unknown> = {
+      skill_name: skillName,
+      source: descriptor.metadata.source,
+      instructions: descriptor.instructions,
+    };
+
+    if (descriptor.allowedTools && descriptor.allowedTools.length > 0) {
+      result.allowed_tools = descriptor.allowedTools;
+    }
+
+    if (descriptor.metadata.hasReferences) {
+      try {
+        const refs = await this.skillRegistry.listReferences(skillName);
+        result.available_references = refs;
+      } catch { /* ignore */ }
+    }
+
+    if (descriptor.executionConfig) {
+      result.execution_type = descriptor.executionConfig.type;
+    }
+
+    return result;
+  }
+
+  /**
+   * 执行 load_reference 元工具（渐进式披露 L3）
+   * 按需加载技能的参考文档
+   */
+  private async executeLoadReference(
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    const skillName = args.skill_name as string;
+    const referencePath = args.reference_path as string;
+
+    if (!skillName) throw new Error('缺少 skill_name 参数');
+    if (!referencePath) throw new Error('缺少 reference_path 参数');
+
+    const content = await this.skillRegistry.loadReference(skillName, referencePath);
+
+    const maxLength = 8000;
+    if (content.length > maxLength) {
+      this.logger.warn(`[load_reference] 文档 ${referencePath} 被截断 (${content.length} → ${maxLength} 字符)`);
+      return {
+        skill_name: skillName,
+        reference_path: referencePath,
+        content: content.slice(0, maxLength),
+        truncated: true,
+        total_length: content.length,
+      };
+    }
+
+    return {
+      skill_name: skillName,
+      reference_path: referencePath,
+      content,
+      truncated: false,
+    };
   }
 
   /**

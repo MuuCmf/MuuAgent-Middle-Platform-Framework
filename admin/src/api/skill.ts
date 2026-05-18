@@ -137,6 +137,75 @@ export interface HttpTestResult {
   costMs: number
 }
 
+// ===== Agent Skills 开放标准相关类型 =====
+
+/** 标准技能元数据 */
+export interface StandardSkill {
+  name: string
+  description: string
+  source: 'database' | 'filesystem'
+  type?: string
+  appCode?: string | null
+  isPublic: boolean
+  hasReferences: boolean
+  hasScripts: boolean
+  hasAssets?: boolean
+  discoveredAt?: string
+  fileSize?: number
+}
+
+/** 安全扫描问题 */
+export interface SecurityIssue {
+  level: 'critical' | 'high' | 'medium' | 'low'
+  type: string
+  file: string
+  detail: string
+  line?: number
+}
+
+/** 安全扫描结果 */
+export interface SecurityScanResult {
+  critical: number
+  high: number
+  medium: number
+  low: number
+  issues: SecurityIssue[]
+  summary: string
+  passed: boolean
+}
+
+/** 导入结果 */
+export interface ImportResult {
+  success: boolean
+  skillName: string
+  mode: 'database' | 'filesystem'
+  securityScan: SecurityScanResult
+  validationErrors: Array<{ field: string; message: string; code: string }>
+  warnings: string[]
+}
+
+/** 校验结果 */
+export interface ValidateSkillMdResult {
+  valid: boolean
+  errors: Array<{ field: string; message: string; code: string }>
+  warnings: string[]
+}
+
+/** SKILL.md 预览 */
+export interface SkillMdPreview {
+  skillName: string
+  frontmatter: Record<string, unknown>
+  body: string
+  rawContent: string
+}
+
+/** 扫描结果 */
+export interface ScanResult {
+  skills: StandardSkill[]
+  errors: Array<{ path: string; errors: Array<{ field: string; message: string; code: string }> }>
+  scanDuration: number
+}
+
 export const skillApi = {
   getList(): Promise<AxiosResponse<ApiResponse<SkillListResponse>>> {
     return adminRequest.get('api/admin/skill')
@@ -232,6 +301,72 @@ export const skillApi = {
    */
   testHttpRequest(config: string, params?: Record<string, unknown>): Promise<AxiosResponse<ApiResponse<HttpTestResult>>> {
     return adminRequest.post('api/admin/skill/test-http', { config, params })
+  },
+
+  // ===== Agent Skills 开放标准接口 =====
+
+  /**
+   * 列出文件系统发现的技能
+   */
+  listStandardSkills(): Promise<AxiosResponse<ApiResponse<StandardSkill[]>>> {
+    return adminRequest.get('api/admin/skill/standard/list')
+  },
+
+  /**
+   * 触发文件系统技能扫描
+   */
+  scanStandardSkills(): Promise<AxiosResponse<ApiResponse<ScanResult>>> {
+    return adminRequest.post('api/admin/skill/standard/scan')
+  },
+
+  /**
+   * 获取单个标准技能的 SKILL.md 预览
+   */
+  getSkillMdPreview(name: string): Promise<AxiosResponse<ApiResponse<SkillMdPreview>>> {
+    return adminRequest.get(`api/admin/skill/standard/${name}`)
+  },
+
+  /**
+   * 导入标准技能（.zip 上传）
+   */
+  importSkill(
+    file: File,
+    mode: 'database' | 'filesystem',
+    options?: { appCode?: string; isPublic?: boolean; overwrite?: boolean }
+  ): Promise<AxiosResponse<ApiResponse<ImportResult>>> {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('mode', mode)
+    if (options?.appCode) formData.append('appCode', options.appCode)
+    if (options?.isPublic !== undefined) formData.append('isPublic', String(options.isPublic))
+    if (options?.overwrite !== undefined) formData.append('overwrite', String(options.overwrite))
+    return adminRequest.post('api/admin/skill/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    })
+  },
+
+  /**
+   * 导出 DB 技能为标准格式（下载 .zip）
+   */
+  exportSkill(id: number): Promise<AxiosResponse<Blob>> {
+    return adminRequest.get(`api/admin/skill/${id}/export`, {
+      responseType: 'blob',
+    }) as any
+  },
+
+  /**
+   * 验证 SKILL.md 内容（不上传文件）
+   */
+  validateSkillMd(content: string): Promise<AxiosResponse<ApiResponse<ValidateSkillMdResult>>> {
+    return adminRequest.post('api/admin/skill/validate', { content })
+  },
+
+  /**
+   * 刷新技能索引
+   */
+  refreshSkills(): Promise<AxiosResponse<ApiResponse<void>>> {
+    return adminRequest.post('api/admin/skill/refresh')
   },
 }
 

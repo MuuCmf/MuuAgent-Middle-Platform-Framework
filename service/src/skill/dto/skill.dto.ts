@@ -221,3 +221,48 @@ export class QuerySkillDto {
   @IsOptional()
   pageSize?: number;
 }
+
+/**
+ * 导入标准技能DTO
+ */
+export class ImportSkillDto {
+  @ApiProperty({ description: '导入模式', enum: ['database', 'filesystem'] })
+  @IsString()
+  @IsNotEmpty()
+  mode: string;
+
+  @ApiPropertyOptional({ description: '目标应用标识' })
+  @IsString()
+  @IsOptional()
+  appCode?: string;
+
+  @ApiPropertyOptional({ description: '是否公开' })
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  @IsBoolean()
+  @IsOptional()
+  isPublic?: boolean;
+
+  @ApiPropertyOptional({ description: '覆盖已有技能' })
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  @IsBoolean()
+  @IsOptional()
+  overwrite?: boolean;
+}
+
+/**
+ * 验证 SKILL.md DTO
+ */
+export class ValidateSkillMdDto {
+  @ApiProperty({ description: 'SKILL.md 完整内容' })
+  @IsString()
+  @IsNotEmpty()
+  content: string;
+}

@@ -9,8 +9,14 @@ import {
   Query,
   UseGuards,
   Req,
+  Res,
+  UseInterceptors,
+  UploadedFile,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { SkillService } from './skill.service';
 import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
@@ -22,10 +28,18 @@ import {
   UpdateSkillDto,
   ExecuteSkillDto,
   QuerySkillDto,
+  ImportSkillDto,
+  ValidateSkillMdDto,
 } from './dto/skill.dto';
 import { success, page } from '../common/response/api.response';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { DatabaseExecutor } from './executors/database.executor';
+import { SkillRegistry } from './skill-registry';
+import { SkillScanner } from './standard/skill-scanner';
+import { SkillImporter } from './skill-importer';
+import { SkillExporter } from './skill-exporter';
+import { SkillMdParser } from './standard/skill-md-parser';
+import { SkillMdValidator } from './standard/skill-md-validator';
 
 /**
  * 技能管理控制器
@@ -43,6 +57,12 @@ export class SkillController {
   constructor(
     private readonly skillService: SkillService,
     private readonly databaseExecutor: DatabaseExecutor,
+    private readonly skillRegistry: SkillRegistry,
+    private readonly skillScanner: SkillScanner,
+    private readonly skillImporter: SkillImporter,
+    private readonly skillExporter: SkillExporter,
+    private readonly skillMdParser: SkillMdParser,
+    private readonly skillMdValidator: SkillMdValidator,
   ) {}
 
   /**
@@ -177,6 +197,139 @@ export class SkillController {
     return success(skill);
   }
 
+  // ===== Agent Skills 开放标准接口 =====
+
+  /**
+   * 列出文件系统发现的技能
+   */
+  @Get('standard/list')
+  @ApiOperation({ summary: '列出标准技能（文件系统）' })
+  @RequireScope(AdminScope.SKILL_READ)
+  async listStandardSkills() {
+    const entries = this.skillScanner.getIndex();
+    return success(entries.map(e => ({
+      name: e.name,
+      description: e.description,
+      source: e.source,
+      appCode: e.appCode,
+      isPublic: e.isPublic,
+      hasReferences: e.hasReferences,
+      hasScripts: e.hasScripts,
+      hasAssets: e.hasAssets,
+      discoveredAt: e.discoveredAt,
+      fileSize: e.fileSize,
+    })));
+  }
+
+  /**
+   * 触发文件系统技能扫描
+   */
+  @Post('standard/scan')
+  @ApiOperation({ summary: '扫描标准技能目录' })
+  @RequireScope(AdminScope.SKILL_WRITE)
+  async scanStandardSkills() {
+    const result = await this.skillScanner.scan();
+    return success(result);
+  }
+
+  /**
+   * 获取标准技能 SKILL.md 预览
+   */
+  @Get('standard/:name')
+  @ApiOperation({ summary: '预览标准技能 SKILL.md' })
+  @RequireScope(AdminScope.SKILL_READ)
+  async getStandardSkill(@Param('name') name: string) {
+    const entry = this.skillScanner.findByName(name);
+    if (!entry) {
+      throw new NotFoundException('标准技能不存在');
+    }
+    try {
+      const parsed = await this.skillMdParser.parseFromFile(entry.skillMdPath);
+      return success({
+        skillName: parsed.frontmatter.name,
+        frontmatter: parsed.frontmatter,
+        body: parsed.body,
+        rawContent: `${parsed.rawYaml}\n---\n${parsed.body}`,
+      });
+    } catch (err) {
+      throw new BadRequestException(
+        `解析 SKILL.md 失败: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /**
+   * 导入标准技能（.zip 上传）
+   */
+  @Post('import')
+  @ApiOperation({ summary: '导入标准技能' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @RequireScope(AdminScope.SKILL_WRITE)
+  async importSkill(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: ImportSkillDto,
+    @Req() req: Request,
+  ) {
+    if (!file) {
+      throw new BadRequestException('请上传技能文件');
+    }
+    const context = extractIsolationContext(req);
+    const files = await this.extractZipFiles(file.buffer);
+    const result = await this.skillImporter.importFromFiles(
+      files,
+      {
+        mode: dto.mode as 'database' | 'filesystem',
+        appCode: dto.appCode,
+        isPublic: dto.isPublic,
+        overwrite: dto.overwrite,
+      },
+      context,
+    );
+    return success(result);
+  }
+
+  /**
+   * 导出 DB 技能为标准 .zip
+   */
+  @Get(':id/export')
+  @ApiOperation({ summary: '导出技能为标准格式' })
+  @RequireScope(AdminScope.SKILL_READ)
+  async exportSkill(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    const context = extractIsolationContext(req);
+    const skill = await this.skillService.findOne(id, context);
+    const files = await this.skillExporter.exportToStandard(skill.code, context);
+
+    // 在内存中构建 zip
+    const AdmZip = await import('adm-zip');
+    const zip = new AdmZip.default();
+    for (const [relativePath, content] of files) {
+      const fileContent = typeof content === 'string' ? Buffer.from(content, 'utf-8') : content;
+      zip.addFile(relativePath, fileContent);
+    }
+    const zipBuffer = zip.toBuffer();
+
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${skill.code}.zip"`,
+      'Content-Length': zipBuffer.length.toString(),
+    });
+    res.end(zipBuffer);
+  }
+
+  /**
+   * 刷新技能索引
+   */
+  @Post('refresh')
+  @ApiOperation({ summary: '刷新技能索引' })
+  @RequireScope(AdminScope.SKILL_WRITE)
+  async refreshSkills() {
+    await this.skillRegistry.refresh();
+    return success(null, '索引已刷新');
+  }
+
+  // ===== 测试与工具接口 =====
+
   /**
    * 获取内置函数列表
    * @returns {Promise<Object>} 内置函数列表
@@ -276,5 +429,47 @@ export class SkillController {
   ) {
     const result = await this.skillService.testHttpRequest(body.config, body.params || {});
     return success(result);
+  }
+
+  /**
+   * 验证 SKILL.md 内容
+   */
+  @Post('validate')
+  @ApiOperation({ summary: '验证 SKILL.md 内容' })
+  @RequireScope(AdminScope.SKILL_WRITE)
+  async validateSkillMd(@Body() dto: ValidateSkillMdDto) {
+    try {
+      const parsed = await this.skillMdParser.parseFromString(dto.content);
+      const validation = this.skillMdValidator.validate(parsed);
+      return success({
+        valid: validation.valid,
+        errors: validation.errors,
+        warnings: validation.warnings,
+        frontmatter: validation.valid ? parsed.frontmatter : undefined,
+      });
+    } catch (err) {
+      throw new BadRequestException(`SKILL.md 格式错误: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * 从 zip buffer 提取文件映射
+   */
+  private async extractZipFiles(buffer: Buffer): Promise<Map<string, string>> {
+    const AdmZip = await import('adm-zip');
+    const zip = new AdmZip.default(buffer);
+    const files = new Map<string, string>();
+    const entries = zip.getEntries();
+
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
+      // 跳过隐藏文件和 macOS 元数据
+      const parts = entry.entryName.replace(/\\/g, '/').split('/');
+      if (parts.some(p => p.startsWith('.') || p === '__MACOSX')) continue;
+
+      files.set(entry.entryName, entry.getData().toString('utf-8'));
+    }
+
+    return files;
   }
 }

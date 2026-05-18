@@ -14,6 +14,17 @@ import { DatabaseExecutor } from './executors/database.executor';
 import { ConnectionPoolManager } from './database/connection-pool.manager';
 import { SqlValidator } from './database/sql-validator';
 
+// 标准技能子系统
+import { SkillMdParser } from './standard/skill-md-parser';
+import { SkillMdValidator } from './standard/skill-md-validator';
+import { SkillScanner } from './standard/skill-scanner';
+import { FileSkillProvider } from './standard/file-skill-provider';
+import { ScriptRunner } from './standard/script-runner';
+import { StandardSkillExecutor } from './standard/standard-skill-executor';
+import { SkillRegistry } from './skill-registry';
+import { SkillExporter } from './skill-exporter';
+import { SkillImporter } from './skill-importer';
+
 /**
  * 技能模块
  */
@@ -21,6 +32,7 @@ import { SqlValidator } from './database/sql-validator';
   imports: [PromptTemplateModule, AiModule, ModelModule, FileModule],
   controllers: [SkillController],
   providers: [
+    // 现有组件
     SkillService,
     McpClientService,
     BuiltinExecutor,
@@ -30,7 +42,29 @@ import { SqlValidator } from './database/sql-validator';
     DatabaseExecutor,
     ConnectionPoolManager,
     SqlValidator,
+
+    // 标准技能子系统
+    SkillMdParser,
+    SkillMdValidator,
+    SkillScanner,
+    FileSkillProvider,
+    ScriptRunner,
+    StandardSkillExecutor,
+    SkillRegistry,
+    SkillExporter,
+    SkillImporter,
   ],
-  exports: [SkillService, McpClientService, BuiltinExecutor],
+  exports: [
+    SkillService,
+    McpClientService,
+    BuiltinExecutor,
+
+    // 导出标准技能组件供 Agent 等模块使用
+    SkillRegistry,
+    SkillScanner,
+    StandardSkillExecutor,
+    SkillExporter,
+    SkillImporter,
+  ],
 })
 export class SkillModule {}

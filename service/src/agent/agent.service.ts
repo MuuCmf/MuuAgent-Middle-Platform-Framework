@@ -30,6 +30,7 @@ import type { ModelMessage } from 'ai';
 import { StreamEmitter, StreamEvents } from '../stream';
 import { WorkspaceToolHandler } from '../workspace/workspace-tool.handler';
 import { WORKSPACE_TOOLS, WORKSPACE_TOOL_NAMES } from '../workspace/workspace-tool.definitions';
+import { SkillRegistry } from '../skill/skill-registry';
 
 @Injectable()
 export class AgentService {
@@ -49,6 +50,7 @@ export class AgentService {
     private mcpService: ModelRoutingService,
     private intentClassifier: IntentClassifierService,
     private workspaceToolHandler: WorkspaceToolHandler,
+    private skillRegistry: SkillRegistry,
   ) {}
 
   async create(dto: CreateAgentDto, context?: IsolationContext) {
@@ -338,10 +340,14 @@ export class AgentService {
       }
     }
 
+    // ===== 技能工具注入（渐进式披露架构） =====
+    // 收集绑定的技能 code 列表
+    let boundSkillCodes: string[] = [];
     if (agent.skills) {
       try {
-        const skillCodes = JSON.parse(agent.skills);
-        for (const code of skillCodes) {
+        boundSkillCodes = JSON.parse(agent.skills);
+        // 保留直接工具调用（向后兼容）：每个 DB 技能仍然注册为 skill__{code} 工具
+        for (const code of boundSkillCodes) {
           try {
             const skill = await this.skillService.findByCode(code, isolationContext);
             if (skill) {
@@ -360,6 +366,52 @@ export class AgentService {
         this.logger.warn('Failed to parse skills config');
       }
     }
+
+    // 构建技能清单（L1 元数据），用于 system prompt 和 use_skill 工具
+    let skillManifest = '';
+    try {
+      const allSkills = await this.skillRegistry.listAll(isolationContext);
+      const boundSkills = allSkills.filter(s => boundSkillCodes.includes(s.name));
+      if (boundSkills.length > 0) {
+        skillManifest = boundSkills.map(s =>
+          `- **${s.name}** [${s.source}]: ${s.description}`
+        ).join('\n');
+      }
+    } catch (e) {
+      this.logger.warn('构建技能清单失败:', e);
+    }
+
+    // 添加 use_skill 元工具（L1 → L2 触发）
+    tools.push({
+      name: 'use_skill',
+      description: `按需加载指定技能的完整指令。可用技能: ${boundSkillCodes.join(', ') || '无'}。当需要技能的详细操作步骤时调用此工具。`,
+      parameters: {
+        type: 'object',
+        properties: {
+          skill_name: {
+            type: 'string',
+            description: `要加载的技能名称。可用技能: ${boundSkillCodes.join(', ') || '无'}`,
+          },
+        },
+        required: ['skill_name'],
+      },
+      type: 'builtin',
+    });
+
+    // 添加 load_reference 元工具（L3 资源加载）
+    tools.push({
+      name: 'load_reference',
+      description: '加载技能的参考文档（references/ 中的文件）。当技能指令中引用了附加文档时使用。',
+      parameters: {
+        type: 'object',
+        properties: {
+          skill_name: { type: 'string', description: '技能名称' },
+          reference_path: { type: 'string', description: '参考文档的相对路径，如 api-docs.md' },
+        },
+        required: ['skill_name', 'reference_path'],
+      },
+      type: 'builtin',
+    });
 
     const kbCodes: string[] = JSON.parse(agent.knowledgeBases || '[]');
     if (kbCodes.length > 0) {
@@ -449,6 +501,11 @@ ${limits.length > 0 ? '\n限制条件：\n' + limits.join('\n') : ''}`;
       hasTools: hasTools,
       tools: toolsDescription
     });
+
+    // 注入技能清单（L1 元数据层，渐进式披露）
+    if (skillManifest) {
+      systemPrompt += `\n\n## 可用技能清单\n以下是可用的专业技能。每个技能包含详细操作指令，调用 \`use_skill\` 工具并传入技能名称即可加载完整指令。\n\n${skillManifest}`;
+    }
 
     // 追加工作目录上下文
     if (workspaceContext) {

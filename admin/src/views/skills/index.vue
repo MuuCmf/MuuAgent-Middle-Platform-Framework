@@ -32,18 +32,29 @@
       </div>
       <el-space style="margin-bottom: 16px;">
         <el-button type="primary" @click="handleAdd">
-          <el-icon>
-            <Plus />
-          </el-icon>
+          <el-icon><Plus /></el-icon>
           添加技能
         </el-button>
         <el-button type="success" @click="selectSkillDialogVisible = true">
-          <el-icon>
-            <MagicStick />
-          </el-icon>
+          <el-icon><MagicStick /></el-icon>
           智能选择技能
         </el-button>
+        <el-button @click="handleImport">
+          <el-icon><Upload /></el-icon>
+          导入技能
+        </el-button>
+        <el-button @click="handleScan" :loading="scanning">
+          <el-icon><Refresh /></el-icon>
+          扫描标准技能
+        </el-button>
       </el-space>
+
+      <!-- 来源筛选 -->
+      <el-radio-group v-model="sourceFilter" size="small" style="margin-bottom: 12px; margin-left: 8px;">
+        <el-radio-button label="all">全部</el-radio-button>
+        <el-radio-button label="database">数据库</el-radio-button>
+        <el-radio-button label="filesystem">文件系统</el-radio-button>
+      </el-radio-group>
 
       <el-table :data="skills" stripe v-loading="loading">
         <el-table-column prop="name" label="名称" width="120" />
@@ -55,6 +66,13 @@
         <el-table-column prop="type" label="类型" width="100">
           <template #default="{ row }">
             <el-tag size="small">{{ row.type }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="source" label="来源" width="90">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.source === 'filesystem' ? 'success' : ''">
+              {{ row.source === 'filesystem' ? '文件系统' : '数据库' }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="appCode" label="所属应用" width="100" v-if="isSuperAdmin">
@@ -82,15 +100,76 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="handleTest(row)">测试</el-button>
             <el-button size="small" @click="handleEdit(row)">编辑</el-button>
+            <el-button
+              v-if="!row.source || row.source === 'database'"
+              size="small"
+              type="warning"
+              @click="handleExport(row)"
+            >导出</el-button>
             <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </div>
+
+    <!-- 文件系统技能表 -->
+    <div v-if="standardSkills.length > 0 && sourceFilter !== 'database'" class="card" style="margin-top: 16px;">
+      <div class="card-title">
+        <span>标准技能（文件系统）</span>
+        <el-tag type="success" size="small">{{ standardSkills.length }} 个</el-tag>
+        <span style="font-size: 12px; color: #909399; margin-left: 12px;">基于 Agent Skills 开放标准，从 skills/standard/ 目录扫描发现</span>
+      </div>
+      <el-table :data="standardSkills" stripe size="small">
+        <el-table-column prop="name" label="名称" width="150">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="handlePreviewSkillMd(row.name)">{{ row.name }}</el-button>
+          </template>
+        </el-table-column>
+        <el-table-column prop="description" label="描述" min-width="200">
+          <template #default="{ row }">
+            {{ row.description?.substring(0, 80) }}{{ row.description?.length > 80 ? '...' : '' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="hasScripts" label="脚本" width="70">
+          <template #default="{ row }">
+            <el-tag :type="row.hasScripts ? 'warning' : 'info'" size="small">
+              {{ row.hasScripts ? '有' : '无' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="hasReferences" label="参考文档" width="90">
+          <template #default="{ row }">
+            <el-tag :type="row.hasReferences ? 'warning' : 'info'" size="small">
+              {{ row.hasReferences ? '有' : '无' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="appCode" label="所属应用" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.appCode" size="small" type="warning">{{ row.appCode }}</el-tag>
+            <span v-else style="color: #999; font-size: 12px;">公开</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <!-- 技能导入对话框 -->
+    <SkillImportDialog v-model:visible="importDialogVisible" @imported="handleImported" />
+
+    <!-- SKILL.md 预览对话框 -->
+    <el-dialog v-model="previewDialogVisible" title="SKILL.md 预览" width="700px">
+      <SkillMdPreview
+        v-if="previewSkillData"
+        :frontmatter="previewSkillData.frontmatter"
+        :body="previewSkillData.body"
+        :raw-content="previewSkillData.rawContent"
+      />
+      <el-empty v-else description="加载中..." />
+    </el-dialog>
 
     <SkillEditDrawer v-model:visible="drawerVisible" :skill="editingSkill" @save="handleSave" />
 
@@ -192,11 +271,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, MagicStick } from '@element-plus/icons-vue'
+import { Plus, MagicStick, Upload, Refresh } from '@element-plus/icons-vue'
 import { useSkillStore, useUserStore } from '@/stores'
 import { skillApi } from '@/api/skill'
 import type { Skill, SkillForm } from '@/api/skill'
 import SkillEditDrawer from './components/SkillEditDrawer.vue'
+import SkillImportDialog from './components/SkillImportDialog.vue'
+import SkillMdPreview from './components/SkillMdPreview.vue'
 import AppSelector from '@/components/AppSelector.vue'
 
 const skillStore = useSkillStore()
@@ -224,6 +305,13 @@ const selectUserRequest = ref('')
 const selectedSkillCodes = ref<string[]>([])
 const selectSkillResult = ref<{ skillCode: string; params: Record<string, unknown>; reason?: string } | null>(null)
 const selectSkillLoading = ref(false)
+
+// 标准技能 & 导入导出
+const sourceFilter = ref('all')
+const importDialogVisible = ref(false)
+const previewDialogVisible = ref(false)
+const previewSkillData = ref<{ frontmatter: Record<string, unknown>; body: string; rawContent: string } | null>(null)
+const { standardSkills, scanning, loadStandardSkills, scanSkills, exportSkill } = skillStore
 
 const handleAppFilterChange = () => {
   loadSkills()
@@ -327,8 +415,45 @@ const executeSelectSkill = async () => {
   }
 }
 
+const handleImport = () => {
+  importDialogVisible.value = true
+}
+
+const handleScan = async () => {
+  await scanSkills()
+}
+
+const handleExport = async (skill: Skill) => {
+  await exportSkill(skill.id, skill.code)
+}
+
+const handlePreviewSkillMd = async (name: string) => {
+  previewDialogVisible.value = true
+  previewSkillData.value = null
+  try {
+    const res = await skillApi.getSkillMdPreview(name)
+    const data = res.data?.data
+    if (data) {
+      previewSkillData.value = {
+        frontmatter: data.frontmatter || {},
+        body: data.body || '',
+        rawContent: data.rawContent || '',
+      }
+    }
+  } catch (error: any) {
+    ElMessage.error('加载 SKILL.md 失败: ' + (error.response?.data?.message || error.message))
+    previewDialogVisible.value = false
+  }
+}
+
+const handleImported = () => {
+  loadSkills()
+  loadStandardSkills()
+}
+
 onMounted(() => {
   loadSkills()
+  loadStandardSkills()
 })
 </script>
 
