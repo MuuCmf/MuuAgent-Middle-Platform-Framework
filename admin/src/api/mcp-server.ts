@@ -2,7 +2,7 @@ import { adminRequest } from '@/utils/request'
 import type { AxiosResponse } from 'axios'
 
 /**
- * MCP Server配置接口
+ * MCP Server 配置接口
  */
 export interface McpServerConfig {
   name: string
@@ -11,6 +11,66 @@ export interface McpServerConfig {
   tools?: string[]
   timeout?: number
   enabled?: boolean
+}
+
+/**
+ * MCP Server 响应接口
+ */
+export interface McpServer {
+  id: string
+  name: string
+  displayName?: string
+  description?: string
+  url: string
+  hasApiKey: boolean
+  timeout: number
+  enabled: boolean
+  tools?: string[]
+  healthStatus?: string
+  lastSyncAt?: string
+  lastHealthCheck?: string
+  appCode?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * 创建 MCP Server 请求接口
+ */
+export interface CreateMcpServerRequest {
+  name: string
+  displayName?: string
+  description?: string
+  url: string
+  apiKey?: string
+  timeout?: number
+  enabled?: boolean
+  tools?: string[]
+  metadata?: Record<string, unknown>
+  appCode?: string
+}
+
+/**
+ * 更新 MCP Server 请求接口
+ */
+export interface UpdateMcpServerRequest {
+  displayName?: string
+  description?: string
+  url?: string
+  apiKey?: string | null
+  timeout?: number
+  enabled?: boolean
+  tools?: string[]
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * 查询 MCP Server 请求接口
+ */
+export interface QueryMcpServerRequest {
+  enabled?: boolean
+  appCode?: string
+  healthStatus?: string
 }
 
 /**
@@ -28,6 +88,7 @@ export interface ToolDescription {
  * 发现工具请求接口
  */
 export interface DiscoverToolsRequest {
+  serverId?: string
   url: string
   apiKey?: string
   timeout?: number
@@ -37,6 +98,7 @@ export interface DiscoverToolsRequest {
  * 测试连接请求接口
  */
 export interface TestConnectionRequest {
+  serverId?: string
   url: string
   apiKey?: string
   toolName?: string
@@ -50,6 +112,7 @@ export interface TestConnectionRequest {
 export interface TestConnectionResponse {
   success: boolean
   message: string
+  latency?: number
   result?: {
     toolCount?: number
     tools?: ToolDescription[]
@@ -57,10 +120,11 @@ export interface TestConnectionResponse {
 }
 
 /**
- * 更新智能体MCP Server配置请求接口
+ * 健康检查结果接口
  */
-export interface UpdateAgentMcpServersRequest {
-  mcpServers: McpServerConfig[]
+export interface HealthCheckResult {
+  healthy: boolean
+  latency: number
 }
 
 /**
@@ -68,7 +132,53 @@ export interface UpdateAgentMcpServersRequest {
  */
 export const mcpServerApi = {
   /**
-   * 发现MCP Server工具
+   * 获取 MCP Server 列表
+   * @param params 查询参数
+   * @returns {Promise<AxiosResponse>} MCP Server 列表
+   */
+  getList(params?: QueryMcpServerRequest): Promise<AxiosResponse<{ data: McpServer[] }>> {
+    return adminRequest.get('api/admin/mcp-server', { params })
+  },
+
+  /**
+   * 获取 MCP Server 详情
+   * @param id MCP Server ID
+   * @returns {Promise<AxiosResponse>} MCP Server 详情
+   */
+  getById(id: string): Promise<AxiosResponse<{ data: McpServer }>> {
+    return adminRequest.get(`api/admin/mcp-server/${id}`)
+  },
+
+  /**
+   * 创建 MCP Server
+   * @param data 创建请求
+   * @returns {Promise<AxiosResponse>} 创建的 MCP Server
+   */
+  create(data: CreateMcpServerRequest): Promise<AxiosResponse<{ data: McpServer }>> {
+    return adminRequest.post('api/admin/mcp-server', data)
+  },
+
+  /**
+   * 更新 MCP Server
+   * @param id MCP Server ID
+   * @param data 更新请求
+   * @returns {Promise<AxiosResponse>} 更新后的 MCP Server
+   */
+  update(id: string, data: UpdateMcpServerRequest): Promise<AxiosResponse<{ data: McpServer }>> {
+    return adminRequest.put(`api/admin/mcp-server/${id}`, data)
+  },
+
+  /**
+   * 删除 MCP Server
+   * @param id MCP Server ID
+   * @returns {Promise<AxiosResponse>} 删除结果
+   */
+  delete(id: string): Promise<AxiosResponse> {
+    return adminRequest.delete(`api/admin/mcp-server/${id}`)
+  },
+
+  /**
+   * 发现 MCP Server 工具
    * @param data 发现工具请求
    * @returns {Promise<AxiosResponse>} 工具列表
    */
@@ -77,7 +187,16 @@ export const mcpServerApi = {
   },
 
   /**
-   * 测试MCP Server连接
+   * 同步 MCP Server 工具
+   * @param id MCP Server ID
+   * @returns {Promise<AxiosResponse>} 同步结果
+   */
+  syncTools(id: string): Promise<AxiosResponse<{ data: { toolCount: number; tools: ToolDescription[] } }>> {
+    return adminRequest.post(`api/admin/mcp-server/${id}/sync`)
+  },
+
+  /**
+   * 测试 MCP Server 连接
    * @param data 测试连接请求
    * @returns {Promise<AxiosResponse>} 测试结果
    */
@@ -86,15 +205,27 @@ export const mcpServerApi = {
   },
 
   /**
-   * 更新智能体MCP Server配置
-   * @param agentId 智能体ID
-   * @param data 更新配置请求
-   * @returns {Promise<AxiosResponse>} 更新结果
+   * 测试已注册的 MCP Server 连接
+   * @param id MCP Server ID
+   * @returns {Promise<AxiosResponse>} 测试结果
    */
-  updateAgentMcpServers(
-    agentId: number,
-    data: UpdateAgentMcpServersRequest
-  ): Promise<AxiosResponse<{ data: { message: string; mcpServers: string } }>> {
-    return adminRequest.put(`api/admin/mcp-server/agent/${agentId}/mcp-servers`, data)
+  testConnectionById(id: string): Promise<AxiosResponse<{ data: { success: boolean; message: string; latency?: number } }>> {
+    return adminRequest.post(`api/admin/mcp-server/${id}/test`)
+  },
+
+  /**
+   * 健康检查所有 MCP Server
+   * @returns {Promise<AxiosResponse>} 健康状态
+   */
+  healthCheckAll(): Promise<AxiosResponse<{ data: Record<string, HealthCheckResult> }>> {
+    return adminRequest.post('api/admin/mcp-server/health-check')
+  },
+
+  /**
+   * 刷新 MCP Server 缓存
+   * @returns {Promise<AxiosResponse>} 刷新结果
+   */
+  refreshCache(): Promise<AxiosResponse<{ data: { message: string } }>> {
+    return adminRequest.post('api/admin/mcp-server/refresh-cache')
   }
 }

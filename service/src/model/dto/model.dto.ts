@@ -170,10 +170,9 @@ export class UpdateModelDto {
   @IsOptional()
   endpoint?: string;
 
-  @ApiPropertyOptional({ description: 'API密钥' })
-  @IsString()
+  @ApiPropertyOptional({ description: 'API密钥（传null清空，传空字符串不更新）' })
   @IsOptional()
-  apiKey?: string;
+  apiKey?: string | null;
 
   @ApiPropertyOptional({ description: '权重' })
   @IsNumber()

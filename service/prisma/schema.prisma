@@ -532,8 +532,8 @@ model KbRetrievalLog {
   similarityThresh Float   @map("similarity_thresh") /// 相似度阈值
   retrievalCount  Int      @default(0) @map("retrieval_count") /// 召回切片数量
   results         String?  @db.Text /// 检索结果(JSON数组): [{"chunkId":"xxx","score":0.85,"docName":"文档名","content":"切片内容摘要"}]
-  costTime        Int      @map("cost_time") /// 检索耗时
-  requestId String   @map("request_id") /// 链路ID
+  costTime        Int?     @map("cost_time") /// 检索耗时(毫秒)
+  requestId       String?  @map("request_id") /// 链路ID
   clientIp        String?  @map("client_ip") /// 客户端IP
 
   // ===== 应用隔离 =====
@@ -549,6 +549,42 @@ model KbRetrievalLog {
   @@index([requestId])
   @@index([appCode, createdAt])
   @@map("kb_retrieval_logs")
+}
+
+/// MCP Server 配置表 - 存储第三方 MCP Server 连接配置
+model McpServer {
+  id              BigInt    @id @default(0)
+  name            String    @unique /// 服务器名称（唯一标识）
+  displayName     String?   @map("display_name") /// 显示名称
+  description     String?   @db.Text /// 描述
+  url             String    /// HTTP 端点地址
+  apiKey          String?   @map("api_key") @db.Text /// API 密钥（加密存储）
+  timeout         Int       @default(30000) /// 超时时间（毫秒）
+  enabled         Boolean   @default(true) /// 是否启用
+  tools           String?   @db.Text /// 允许的工具列表（JSON 数组）
+  metadata        String?   @db.Text /// 扩展元数据（JSON）
+  
+  // ===== 连接状态 =====
+  lastSyncAt      DateTime? @map("last_sync_at") /// 最后同步工具时间
+  lastHealthCheck DateTime? @map("last_health_check") /// 最后健康检查时间
+  healthStatus    String?   @map("health_status") @default("unknown") /// 健康状态: healthy/unhealthy/unknown
+  
+  // ===== 应用隔离 =====
+  appCode         String?   @map("app_code") /// 所属应用（租户隔离）
+  
+  // ===== 创建者信息 =====
+  createdBy       String?   @map("created_by") /// 创建者uid
+  updatedBy       String?   @map("updated_by") /// 更新者uid
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  isDeleted       Boolean   @default(false) @map("is_deleted") /// 软删除
+
+  @@index([name])
+  @@index([appCode])
+  @@index([enabled])
+  @@index([healthStatus])
+  @@map("mcp_servers")
 }
 
 /// OAuth客户端

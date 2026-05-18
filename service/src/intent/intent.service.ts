@@ -103,7 +103,8 @@ export class IntentClassifierService implements OnModuleInit {
 
     // 2. 关键词匹配
     const keywordResult = this.matchByKeywords(trimmedMessage);
-    if (keywordResult.confidence >= 0.8) {
+    // 降低阈值到 0.6，减少对 AI 的依赖，提升响应速度
+    if (keywordResult.confidence >= 0.6) {
       await this.saveToCache(trimmedMessage, keywordResult);
       this.logger.debug(`关键词匹配意图: ${keywordResult.intent} (置信度: ${keywordResult.confidence})`);
       return keywordResult;
@@ -242,6 +243,8 @@ export class IntentClassifierService implements OnModuleInit {
 4. 只返回JSON，不要有任何其他文字`;
       }
 
+      const intentAiTimeout = parseInt(process.env.INTENT_AI_TIMEOUT || '5000', 10);
+      
       const response = await axios.post(
         endpoint,
         {
@@ -258,7 +261,7 @@ export class IntentClassifierService implements OnModuleInit {
             'Content-Type': 'application/json',
             ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
           },
-          timeout: 15000,
+          timeout: intentAiTimeout,
         },
       );
 

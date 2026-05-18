@@ -55,7 +55,6 @@ export class ModelService {
       throw new NotFoundException('模型不存在');
     }
 
-    // 如果更新code，检查是否与其他模型重复
     if (dto.code && dto.code !== model.code) {
       const existing = await this.prisma.model.findUnique({ where: { code: dto.code } });
       if (existing) {
@@ -63,9 +62,21 @@ export class ModelService {
       }
     }
 
+    const updateData: Record<string, unknown> = { ...dto };
+    
+    if (dto.apiKey !== undefined) {
+      if (dto.apiKey === null) {
+        updateData.apiKey = null;
+      } else if (dto.apiKey === '') {
+        delete updateData.apiKey;
+      } else {
+        updateData.apiKey = dto.apiKey;
+      }
+    }
+
     return this.prisma.model.update({
       where: { id: id as any },
-      data: dto,
+      data: updateData,
     });
   }
 

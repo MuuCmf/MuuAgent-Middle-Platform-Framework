@@ -4,11 +4,8 @@ import * as fs from 'fs/promises';
 import * as crypto from 'crypto';
 import { SandboxExecutor } from '../../skill/executors/sandbox.executor';
 import { ScriptRunner, ScriptResult } from '../../skill/standard/script-runner';
-import { FunctionToolDefinition } from './tool-definitions';
+import { IAgentTool, ToolDefinition, ToolExecutionContext } from './abstract/tool.interface';
 
-/**
- * 代码执行结果
- */
 export interface RunCodeResult {
   success: boolean;
   data?: unknown;
@@ -17,77 +14,54 @@ export interface RunCodeResult {
   language: string;
 }
 
-/**
- * 通用代码执行工具
- *
- * 取代所有 FUNCTION 类型的 DB 技能。支持 JS（VM2 沙箱）、Python 和 Bash。
- * JS 执行复用 SandboxExecutor，Python/Bash 通过 ScriptRunner 子进程执行。
- */
 @Injectable()
-export class RunCodeTool {
+export class RunCodeTool implements IAgentTool {
   private readonly logger = new Logger(RunCodeTool.name);
+
+  readonly name = 'run_code';
+
+  readonly definition: ToolDefinition = {
+    name: 'run_code',
+    description: `在安全沙箱中执行代码。支持 JavaScript（VM2 沙箱）、Python 和 Bash。
+使用前请确保已通过 use_skill 加载相关技能指令。
+JS 可直接使用 params 变量访问参数；Python/Bash 通过 stdin JSON 接收参数。
+代码执行有超时限制，禁止网络和文件系统访问。`,
+    parameters: {
+      type: 'object',
+      properties: {
+        language: { type: 'string', enum: ['javascript', 'python', 'bash'], description: '代码语言' },
+        code: { type: 'string', description: '要执行的代码。JS 中通过 params 全局变量访问参数' },
+        params: { type: 'object', description: '传递给代码的参数。JS 中通过 params 变量访问；Python/Bash 通过 stdin JSON 接收' },
+        timeout: { type: 'number', description: '超时（毫秒），JS 默认 5000，Python/Bash 默认 30000' },
+      },
+      required: ['language', 'code'],
+    },
+    type: 'builtin',
+  };
 
   constructor(
     private readonly sandboxExecutor: SandboxExecutor,
     private readonly scriptRunner: ScriptRunner,
   ) {}
 
-  static readonly definition: FunctionToolDefinition = {
-    type: 'function',
-    function: {
-      name: 'run_code',
-      description: `在安全沙箱中执行代码。支持 JavaScript（VM2 沙箱）、Python 和 Bash。
-使用前请确保已通过 use_skill 加载相关技能指令。
-JS 可直接使用 params 变量访问参数；Python/Bash 通过 stdin JSON 接收参数。
-代码执行有超时限制，禁止网络和文件系统访问。`,
-      parameters: {
-        type: 'object',
-        properties: {
-          language: {
-            type: 'string',
-            enum: ['javascript', 'python', 'bash'],
-            description: '代码语言',
-          },
-          code: {
-            type: 'string',
-            description: '要执行的代码。JS 中通过 params 全局变量访问参数',
-          },
-          params: {
-            type: 'object',
-            description: '传递给代码的参数。JS 中通过 params 变量访问；Python/Bash 通过 stdin JSON 接收',
-          },
-          timeout: {
-            type: 'number',
-            description: '超时（毫秒），JS 默认 5000，Python/Bash 默认 30000',
-          },
-        },
-        required: ['language', 'code'],
-      },
-    },
-  };
+  async execute(args: Record<string, unknown>, _context: ToolExecutionContext): Promise<unknown> {
+    const language = args.language as string;
+    const code = args.code as string;
+    const params = args.params as Record<string, unknown> | undefined;
+    const timeout = args.timeout as number | undefined;
 
-  async execute(args: {
-    language: string;
-    code: string;
-    params?: Record<string, unknown>;
-    timeout?: number;
-  }): Promise<RunCodeResult> {
-    switch (args.language) {
+    switch (language) {
       case 'javascript':
-        return this.executeJavaScript(args.code, args.params || {}, args.timeout);
+        return this.executeJavaScript(code, params || {}, timeout);
       case 'python':
       case 'bash':
-        return this.executeWithScriptRunner(args.language, args.code, args.params || {}, args.timeout);
+        return this.executeWithScriptRunner(language, code, params || {}, timeout);
       default:
-        throw new HttpException(`不支持的语言: ${args.language}`, HttpStatus.BAD_REQUEST);
+        throw new HttpException(`不支持的语言: ${language}`, HttpStatus.BAD_REQUEST);
     }
   }
 
-  private async executeJavaScript(
-    code: string,
-    params: Record<string, unknown>,
-    timeout?: number,
-  ): Promise<RunCodeResult> {
+  private async executeJavaScript(code: string, params: Record<string, unknown>, timeout?: number): Promise<RunCodeResult> {
     const result = await this.sandboxExecutor.execute(code, params, timeout || 5000);
     return {
       success: result.success,
@@ -98,12 +72,7 @@ JS 可直接使用 params 变量访问参数；Python/Bash 通过 stdin JSON 接
     };
   }
 
-  private async executeWithScriptRunner(
-    language: string,
-    code: string,
-    params: Record<string, unknown>,
-    timeout?: number,
-  ): Promise<RunCodeResult> {
+  private async executeWithScriptRunner(language: string, code: string, params: Record<string, unknown>, timeout?: number): Promise<RunCodeResult> {
     const tmpDir = path.join(process.cwd(), 'skills', '.tmp');
     await fs.mkdir(tmpDir, { recursive: true });
 
@@ -119,12 +88,7 @@ JS 可直接使用 params 变量访问参数；Python/Bash 通过 stdin JSON 接
         stringArgs[k] = typeof v === 'string' ? v : JSON.stringify(v);
       }
 
-      const result: ScriptResult = await this.scriptRunner.run(
-        tmpDir,
-        tmpFileName,
-        stringArgs,
-        { timeout: timeout || 30000 },
-      );
+      const result: ScriptResult = await this.scriptRunner.run(tmpDir, tmpFileName, stringArgs, { timeout: timeout || 30000 });
 
       return {
         success: result.exitCode === 0,

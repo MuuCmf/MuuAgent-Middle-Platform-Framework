@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RetrievalService } from '../../retrieval/retrieval.service';
-import { ToolDefinition } from '../react/react.types';
+import { ToolDefinition } from './abstract/tool.interface';
 
 /**
  * 知识库检索工具配置

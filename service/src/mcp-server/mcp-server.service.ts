@@ -1,23 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { McpClientService } from '../skill/mcp-client.service';
+import { McpServerRegistry, McpServerConfig } from './mcp-server-registry';
+import { McpServerRepository } from './mcp-server.repository';
 import {
   McpServerConfigDto,
   DiscoverToolsDto,
   TestConnectionDto,
   ToolDescriptionDto,
 } from './dto/mcp-server.dto';
-
-/**
- * MCP Server配置接口
- */
-interface McpServerConfig {
-  name: string;
-  url: string;
-  apiKey?: string;
-  tools?: string[];
-  timeout?: number;
-  enabled?: boolean;
-}
 
 /**
  * MCP工具定义接口
@@ -39,8 +29,14 @@ export class McpServerService {
   /**
    * 构造函数
    * @param mcpClientService MCP客户端服务
+   * @param registry MCP Server注册表
+   * @param repository MCP Server仓库
    */
-  constructor(private readonly mcpClientService: McpClientService) {}
+  constructor(
+    private readonly mcpClientService: McpClientService,
+    private readonly registry: McpServerRegistry,
+    private readonly repository: McpServerRepository,
+  ) {}
 
   /**
    * 发现MCP Server提供的工具列表
@@ -51,9 +47,11 @@ export class McpServerService {
     this.logger.log(`开始发现工具: ${dto.url}`);
 
     try {
+      const apiKey = await this.getApiKey(dto.serverId, dto.apiKey);
+
       const tools = await this.mcpClientService.listTools({
         url: dto.url,
-        apiKey: dto.apiKey,
+        apiKey,
         timeout: dto.timeout || 30000,
       });
 
@@ -64,9 +62,34 @@ export class McpServerService {
         inputSchema: tool.inputSchema,
       }));
     } catch (error) {
-      this.logger.error(`发现工具失败: ${error}`);
+      const err = error as Error;
+      this.logger.error(`发现工具失败: ${err.message}`);
       throw error;
     }
+  }
+
+  /**
+   * 按服务器名称发现工具
+   * @param serverName 服务器名称
+   * @returns {Promise<ToolDescriptionDto[]>} 工具描述列表
+   */
+  async discoverToolsByName(serverName: string): Promise<ToolDescriptionDto[]> {
+    const config = await this.registry.get(serverName);
+    if (!config) {
+      throw new Error(`MCP Server "${serverName}" 未找到`);
+    }
+
+    const tools = await this.discoverTools({
+      url: config.url,
+      apiKey: config.apiKey,
+      timeout: config.timeout,
+    });
+
+    const filteredTools = this.filterTools(tools, config.tools, serverName);
+
+    await this.repository.updateSyncTime(config.id);
+
+    return filteredTools;
   }
 
   /**
@@ -78,11 +101,13 @@ export class McpServerService {
     this.logger.log(`测试连接: ${dto.url}`);
 
     try {
+      const apiKey = await this.getApiKey(dto.serverId, dto.apiKey);
+
       if (dto.toolName) {
         const result = await this.mcpClientService.callTool(
           {
             url: dto.url,
-            apiKey: dto.apiKey,
+            apiKey,
             timeout: dto.timeout || 30000,
           },
           dto.toolName,
@@ -97,7 +122,7 @@ export class McpServerService {
       } else {
         const tools = await this.mcpClientService.listTools({
           url: dto.url,
-          apiKey: dto.apiKey,
+          apiKey,
           timeout: dto.timeout || 30000,
         });
 
@@ -118,34 +143,105 @@ export class McpServerService {
   }
 
   /**
-   * 批量发现多个MCP Server的工具
+   * 测试已注册的 MCP Server 连接
+   * @param serverName 服务器名称
+   * @returns {Promise<{success: boolean; message: string; latency?: number}>} 测试结果
+   */
+  async testConnectionByName(serverName: string): Promise<{
+    success: boolean;
+    message: string;
+    latency?: number;
+  }> {
+    const config = await this.registry.get(serverName);
+    if (!config) {
+      return {
+        success: false,
+        message: `MCP Server "${serverName}" 未找到`,
+      };
+    }
+
+    const result = await this.mcpClientService.healthCheck({
+      url: config.url,
+      apiKey: config.apiKey,
+      timeout: config.timeout,
+    });
+
+    const healthStatus = result.healthy ? 'healthy' : 'unhealthy';
+    await this.registry.updateHealthStatus(serverName, healthStatus);
+
+    return {
+      success: result.healthy,
+      message: result.healthy ? '连接正常' : result.error || '连接失败',
+      latency: result.latency,
+    };
+  }
+
+  /**
+   * 批量发现多个MCP Server的工具（并行）
    * @param configs MCP Server配置列表
    * @returns {Promise<ToolDescriptionDto[]>} 合并后的工具描述列表
    */
   async discoverAllTools(configs: McpServerConfigDto[]): Promise<ToolDescriptionDto[]> {
-    const allTools: ToolDescriptionDto[] = [];
+    const enabledConfigs = configs.filter(c => c.enabled !== false);
 
-    for (const config of configs) {
-      if (config.enabled === false) {
-        this.logger.log(`MCP Server ${config.name} 已禁用，跳过`);
-        continue;
-      }
-
-      try {
-        const tools = await this.discoverTools({
+    const results = await Promise.allSettled(
+      enabledConfigs.map(config =>
+        this.discoverTools({
           url: config.url,
           apiKey: config.apiKey,
           timeout: config.timeout || 30000,
-        });
+        }).then(tools => this.filterTools(tools, config.tools || [], config.name)),
+      ),
+    );
 
-        const filteredTools = this.filterTools(tools, config.tools || [], config.name);
-        allTools.push(...filteredTools);
+    const allTools: ToolDescriptionDto[] = [];
 
-        this.logger.log(`MCP Server ${config.name} 发现 ${filteredTools.length} 个工具`);
-      } catch (error) {
-        this.logger.error(`MCP Server ${config.name} 发现工具失败: ${error}`);
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        allTools.push(...result.value);
+        this.logger.log(
+          `MCP Server ${enabledConfigs[index].name} 发现 ${result.value.length} 个工具`,
+        );
+      } else {
+        this.logger.error(
+          `MCP Server ${enabledConfigs[index].name} 发现工具失败: ${result.reason}`,
+        );
       }
-    }
+    });
+
+    return allTools;
+  }
+
+  /**
+   * 从注册表发现所有工具
+   * @param appCode 应用标识（可选）
+   * @returns {Promise<ToolDescriptionDto[]>} 工具描述列表
+   */
+  async discoverAllToolsFromRegistry(appCode?: string): Promise<ToolDescriptionDto[]> {
+    const configs = await this.registry.getAll(appCode);
+
+    const results = await Promise.allSettled(
+      configs.map(async config => {
+        const tools = await this.discoverTools({
+          url: config.url,
+          apiKey: config.apiKey,
+          timeout: config.timeout,
+        });
+        return this.filterTools(tools, config.tools, config.name);
+      }),
+    );
+
+    const allTools: ToolDescriptionDto[] = [];
+
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        allTools.push(...result.value);
+      } else {
+        this.logger.error(
+          `MCP Server ${configs[index].name} 发现工具失败: ${result.reason}`,
+        );
+      }
+    });
 
     return allTools;
   }
@@ -182,7 +278,7 @@ export class McpServerService {
    * @returns {string} 完整的工具名称
    */
   private buildToolName(toolName: string, serverName: string): string {
-    return `mcp:${serverName}:${toolName}`;
+    return `mcp__${serverName}__${toolName}`;
   }
 
   /**
@@ -191,7 +287,7 @@ export class McpServerService {
    * @returns {{serverName: string; toolName: string} | null} 解析结果
    */
   parseToolName(fullToolName: string): { serverName: string; toolName: string } | null {
-    const match = fullToolName.match(/^mcp:([^:]+):(.+)$/);
+    const match = fullToolName.match(/^mcp__(.+)__(.+)$/);
     if (!match) {
       return null;
     }
@@ -242,6 +338,70 @@ export class McpServerService {
   }
 
   /**
+   * 按名称调用MCP工具
+   * @param serverName 服务器名称
+   * @param toolName 工具名称
+   * @param args 参数
+   * @returns {Promise<unknown>} 执行结果
+   */
+  async callToolByName(
+    serverName: string,
+    toolName: string,
+    args: Record<string, unknown> = {},
+  ): Promise<unknown> {
+    const config = await this.registry.get(serverName);
+    if (!config) {
+      throw new Error(`MCP Server "${serverName}" 未找到`);
+    }
+
+    if (!config.enabled) {
+      throw new Error(`MCP Server ${serverName} 已禁用`);
+    }
+
+    this.logger.log(`调用MCP工具: ${serverName}/${toolName}`);
+
+    return this.mcpClientService.callTool(
+      {
+        url: config.url,
+        apiKey: config.apiKey,
+        timeout: config.timeout,
+      },
+      toolName,
+      args,
+    );
+  }
+
+  /**
+   * 健康检查所有 MCP Server
+   * @param appCode 应用标识（可选）
+   * @returns {Promise<Record<string, {healthy: boolean; latency: number}>>} 健康状态
+   */
+  async healthCheckAll(appCode?: string): Promise<Record<string, { healthy: boolean; latency: number }>> {
+    const configs = await this.registry.getAll(appCode);
+    const results: Record<string, { healthy: boolean; latency: number }> = {};
+
+    await Promise.all(
+      configs.map(async config => {
+        const result = await this.mcpClientService.healthCheck({
+          url: config.url,
+          apiKey: config.apiKey,
+          timeout: 5000,
+        });
+
+        const healthStatus = result.healthy ? 'healthy' : 'unhealthy';
+        await this.registry.updateHealthStatus(config.name, healthStatus);
+
+        results[config.name] = {
+          healthy: result.healthy,
+          latency: result.latency,
+        };
+      }),
+    );
+
+    return results;
+  }
+
+  /**
    * 构建工具描述文本（用于系统提示词）
    * @param tools 工具列表
    * @returns {string} 工具描述文本
@@ -285,5 +445,29 @@ export class McpServerService {
       this.logger.error(`解析MCP Server配置失败: ${error}`);
       return [];
     }
+  }
+
+  /**
+   * 获取 API Key（优先使用传入的值，否则从数据库获取）
+   * @param serverId MCP Server ID
+   * @param providedApiKey 传入的 API Key
+   * @returns {Promise<string | undefined>} API Key
+   */
+  private async getApiKey(
+    serverId?: string,
+    providedApiKey?: string,
+  ): Promise<string | undefined> {
+    if (providedApiKey) {
+      return providedApiKey;
+    }
+
+    if (serverId) {
+      const server = await this.repository.findById(serverId);
+      if (server?.apiKey) {
+        return server.apiKey;
+      }
+    }
+
+    return undefined;
   }
 }

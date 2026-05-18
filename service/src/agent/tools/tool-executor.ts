@@ -3,12 +3,7 @@ import { ToolRegistry } from './tool-registry';
 import { McpServerService } from '../../mcp-server/mcp-server.service';
 import { McpServerRegistry } from '../../mcp-server/mcp-server-registry';
 import { KbSearchTool } from './kb-search.tool';
-import { HttpRequestTool } from './http-request.tool';
-import { RunCodeTool } from './run-code.tool';
-import { DbQueryTool } from './db-query.tool';
-import { RunScriptTool } from './run-script.tool';
 import { BuiltinExecutor } from '../../skill/executors/builtin.executor';
-import { BUILTIN_TOOL_DEFINITIONS } from './tool-definitions';
 import { WORKSPACE_TOOL_NAMES } from '../../workspace/workspace-tool.definitions';
 import { IsolationContext } from '../../common/services/base-isolated.service';
 import { ToolCall, ToolExecutionResult, ToolExecutionContext } from './abstract/tool.interface';
@@ -30,10 +25,6 @@ export class ToolExecutor {
     private readonly mcpServerService: McpServerService,
     private readonly mcpServerRegistry: McpServerRegistry,
     private readonly kbSearchTool: KbSearchTool,
-    private readonly httpRequestTool: HttpRequestTool,
-    private readonly runCodeTool: RunCodeTool,
-    private readonly dbQueryTool: DbQueryTool,
-    private readonly runScriptTool: RunScriptTool,
     private readonly builtinExecutor: BuiltinExecutor,
     private readonly skillKbService: SkillKbService,
   ) {}
@@ -120,16 +111,6 @@ export class ToolExecutor {
       return registeredTool.execute(args, context);
     }
 
-    if (name === 'http_request') {
-      return await this.httpRequestTool.execute(args as any);
-    }
-    if (name === 'run_code') {
-      return await this.runCodeTool.execute(args as any);
-    }
-    if (name === 'db_query') {
-      return await this.dbQueryTool.execute(args as any);
-    }
-
     if (name.startsWith('mcp__')) {
       return await this.executeMcpTool(name, args, context);
     }
@@ -142,7 +123,7 @@ export class ToolExecutor {
       throw new Error(`工作目录工具 "${name}" 需要在客户端执行，不应在服务端直接调用`);
     }
 
-    if (BUILTIN_TOOL_DEFINITIONS[name]) {
+    if (this.builtinExecutor.hasFunction(name)) {
       return await this.executeBuiltinTool(name, args);
     }
 
@@ -162,14 +143,13 @@ export class ToolExecutor {
     const serverName = parts[1];
     const toolName = parts.slice(2).join('__');
 
-    const isolationCtx = this.getIsolationContext(context);
-    const serverConfig = this.mcpServerRegistry.getServer(serverName, isolationCtx);
+    const serverConfig = await this.mcpServerRegistry.getServer(serverName);
 
     if (!serverConfig) {
       throw new Error(`MCP server not found in registry: ${serverName}`);
     }
 
-    return await this.mcpServerService.callTool([serverConfig], toolName, args);
+    return await this.mcpServerService.callToolByName(serverName, toolName, args);
   }
 
   private async executeKbSearch(

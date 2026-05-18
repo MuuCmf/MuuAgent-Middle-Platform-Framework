@@ -1,4 +1,4 @@
-import { ToolDefinition } from '../../agent/react/react.types';
+import { ToolDefinition } from '../../agent/tools/abstract/tool.interface';
 import { jsonSchema, type Tool } from 'ai';
 
 /**

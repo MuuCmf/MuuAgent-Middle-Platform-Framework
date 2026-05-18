@@ -42,6 +42,19 @@ export class ModelAdminController {
   constructor(private readonly modelService: ModelService) {}
 
   /**
+   * 转换模型响应（添加 hasApiKey 字段，移除 apiKey）
+   * @param model 模型数据
+   * @returns {any} 转换后的模型数据
+   */
+  private toResponse(model: any): any {
+    const { apiKey, ...rest } = model;
+    return {
+      ...rest,
+      hasApiKey: !!apiKey,
+    };
+  }
+
+  /**
    * 创建模型
    * @param dto 创建模型DTO
    * @returns {Promise<Object>} 创建结果
@@ -51,7 +64,7 @@ export class ModelAdminController {
   @RequireScope(AdminScope.MODEL_WRITE)
   async create(@Body() dto: CreateModelDto) {
     const model = await this.modelService.create(dto);
-    return success(model, '模型创建成功');
+    return success(this.toResponse(model), '模型创建成功');
   }
 
   /**
@@ -65,7 +78,7 @@ export class ModelAdminController {
   @RequireScope(AdminScope.MODEL_WRITE)
   async update(@Param('id') id: string, @Body() dto: UpdateModelDto) {
     const model = await this.modelService.update(id, dto);
-    return success(model, '模型更新成功');
+    return success(this.toResponse(model), '模型更新成功');
   }
 
   /**
@@ -91,7 +104,7 @@ export class ModelAdminController {
   @RequireScope(AdminScope.MODEL_READ)
   async findOne(@Param('id') id: string) {
     const model = await this.modelService.findOne(id);
-    return success(model);
+    return success(this.toResponse(model));
   }
 
   /**
@@ -104,7 +117,8 @@ export class ModelAdminController {
   @RequireScope(AdminScope.MODEL_READ)
   async findAll(@Query() query: QueryModelDto) {
     const { list, total, page: pageNum, pageSize } = await this.modelService.findAll(query);
-    return page(list, total, pageNum, pageSize);
+    const safeList = list.map(model => this.toResponse(model));
+    return page(safeList, total, pageNum, pageSize);
   }
 
   /**
@@ -143,7 +157,7 @@ export class ModelAdminController {
   @RequireScope(AdminScope.MODEL_WRITE)
   async toggleStatus(@Param('id') id: string, @Body('status') status: boolean) {
     const model = await this.modelService.toggleStatus(id, status);
-    return success(model, '状态更新成功');
+    return success(this.toResponse(model), '状态更新成功');
   }
 }
 

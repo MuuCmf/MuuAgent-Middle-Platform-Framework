@@ -33,15 +33,7 @@ export interface ReasoningStep {
   costMs?: number;
 }
 
-/**
- * 工具定义
- */
-export interface ToolDefinition {
-  name: string;
-  description: string;
-  parameters: Record<string, any>;
-  type: 'skill' | 'mcp' | 'kb' | 'builtin' | 'workspace';
-}
+export { ToolDefinition } from '../tools/abstract/tool.interface';
 
 /**
  * 执行结果

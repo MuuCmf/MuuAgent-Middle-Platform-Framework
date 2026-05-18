@@ -120,6 +120,15 @@ export class BuiltinExecutor {
   }
 
   /**
+   * 检查函数是否存在
+   * @param functionName 函数名称
+   * @returns 是否存在
+   */
+  hasFunction(functionName: string): boolean {
+    return functionName in this.functions;
+  }
+
+  /**
    * 获取所有内置函数列表
    */
   getFunctionList(): Array<{

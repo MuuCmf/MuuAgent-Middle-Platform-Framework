@@ -13,7 +13,6 @@ import { ToolExecutor } from './tools/tool-executor';
 import { HttpRequestTool } from './tools/http-request.tool';
 import { RunCodeTool } from './tools/run-code.tool';
 import { DbQueryTool } from './tools/db-query.tool';
-import { RunScriptTool } from './tools/run-script.tool';
 import { PromptTemplateModule } from '../prompt-template/prompt-template.module';
 import { ConversationModule } from '../conversation/conversation.module';
 import { IntentModule } from '../intent/intent.module';
@@ -23,7 +22,7 @@ import { CommonModule } from '../common/common.module';
 import { ToolRegistry } from './tools/tool-registry';
 import { UseSkillTool } from './tools/skill-meta/use-skill.tool';
 import { LoadReferenceTool } from './tools/skill-meta/load-reference.tool';
-import { RunScriptTool as SkillRunScriptTool } from './tools/skill-meta/run-script-tool';
+import { RunScriptTool } from './tools/skill-meta/run-script-tool';
 
 import { ContextBuilder } from './execution/context-builder';
 import { ExecutionContext } from './execution/execution-context';
@@ -40,7 +39,10 @@ export class ToolRegistrar implements OnModuleInit {
     private readonly toolRegistry: ToolRegistry,
     private readonly useSkillTool: UseSkillTool,
     private readonly loadReferenceTool: LoadReferenceTool,
-    private readonly runScriptTool: SkillRunScriptTool,
+    private readonly runScriptTool: RunScriptTool,
+    private readonly httpRequestTool: HttpRequestTool,
+    private readonly runCodeTool: RunCodeTool,
+    private readonly dbQueryTool: DbQueryTool,
   ) {}
 
   onModuleInit() {
@@ -48,6 +50,9 @@ export class ToolRegistrar implements OnModuleInit {
       this.toolRegistry.register(this.useSkillTool);
       this.toolRegistry.register(this.loadReferenceTool);
       this.toolRegistry.register(this.runScriptTool);
+      this.toolRegistry.register(this.httpRequestTool);
+      this.toolRegistry.register(this.runCodeTool);
+      this.toolRegistry.register(this.dbQueryTool);
     }
   }
 }
@@ -83,10 +88,9 @@ export class ToolRegistrar implements OnModuleInit {
     HttpRequestTool,
     RunCodeTool,
     DbQueryTool,
-    RunScriptTool,
     UseSkillTool,
     LoadReferenceTool,
-    SkillRunScriptTool,
+    RunScriptTool,
     ToolRegistrar,
   ],
   exports: [AgentService, ToolExecutor, ToolRegistry],

@@ -108,7 +108,50 @@ export class SkillMdParser {
       allowedTools: typeof raw['allowed-tools'] === 'string'
         ? raw['allowed-tools'].trim()
         : undefined,
+      requires: this.normalizeRequires(raw.requires),
     };
+  }
+
+  /**
+   * 规范化 requires 字段
+   * @param requires 原始 requires 对象
+   * @returns 规范化后的 SkillRequires 对象
+   */
+  private normalizeRequires(requires: unknown): SkillFrontmatter['requires'] {
+    if (!requires || typeof requires !== 'object') {
+      return undefined;
+    }
+
+    const raw = requires as Record<string, unknown>;
+    const result: NonNullable<SkillFrontmatter['requires']> = {};
+
+    const mcpServers = raw['mcp-servers'] || raw.mcpServers;
+    if (Array.isArray(mcpServers)) {
+      result.mcpServers = mcpServers
+        .filter((v: unknown): v is string => typeof v === 'string')
+        .map((v: string) => v.trim());
+    }
+
+    const knowledgeBases = raw['knowledge-bases'] || raw.knowledgeBases;
+    if (Array.isArray(knowledgeBases)) {
+      result.knowledgeBases = knowledgeBases
+        .filter((v: unknown): v is string => typeof v === 'string')
+        .map((v: string) => v.trim());
+    }
+
+    if (Array.isArray(raw.tools)) {
+      result.tools = raw.tools
+        .filter((v: unknown): v is string => typeof v === 'string')
+        .map((v: string) => v.trim());
+    }
+
+    if (Array.isArray(raw.skills)) {
+      result.skills = raw.skills
+        .filter((v: unknown): v is string => typeof v === 'string')
+        .map((v: string) => v.trim());
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
   }
 
   /**

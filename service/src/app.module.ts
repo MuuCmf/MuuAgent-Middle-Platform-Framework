@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { CommonModule } from './common/common.module';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
@@ -37,6 +38,8 @@ import { IntentModule } from './intent/intent.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    EventEmitterModule.forRoot(),
 
     ThrottlerModule.forRoot([
       {

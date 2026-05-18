@@ -8,7 +8,7 @@ export interface Model {
   type: string
   provider: string
   endpoint?: string
-  apiKey?: string
+  hasApiKey: boolean
   weight: number
   status: boolean
   description?: string
@@ -26,7 +26,7 @@ export interface ModelForm {
   type: string
   provider: string
   endpoint?: string
-  apiKey?: string
+  apiKey?: string | null
   weight: number
   status: boolean
   description?: string

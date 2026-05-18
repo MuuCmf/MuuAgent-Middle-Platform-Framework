@@ -125,7 +125,23 @@
       </el-form-item>
 
       <el-form-item label="API密钥">
-        <el-input v-model="modelForm.apiKey" type="password" placeholder="留空则不传递" />
+        <div class="api-key-wrapper">
+          <el-input
+            v-model="modelForm.apiKey"
+            type="password"
+            show-password
+            :placeholder="hasExistingApiKey ? '已设置，留空保留原值' : '留空则不传递'"
+            :disabled="clearApiKey"
+          />
+          <el-checkbox
+            v-if="editingModel && hasExistingApiKey"
+            v-model="clearApiKey"
+            label="清空 API Key"
+          />
+        </div>
+        <div class="form-tip" v-if="editingModel && hasExistingApiKey && !clearApiKey">
+          已保存 API Key，输入新值将覆盖
+        </div>
       </el-form-item>
 
       <el-row :gutter="16">
@@ -188,6 +204,7 @@ const { loadModels, createModel, updateModel, deleteModel } = modelStore
 const modelDialogVisible = ref(false)
 const editingModel = ref<Model | null>(null)
 const selectedTags = ref<string[]>([])
+const clearApiKey = ref(false)
 const modelForm = ref<ModelForm>({
   name: '',
   code: '',
@@ -199,6 +216,10 @@ const modelForm = ref<ModelForm>({
   status: true,
   tags: '',
   category: ''
+})
+
+const hasExistingApiKey = computed(() => {
+  return !!editingModel.value?.hasApiKey
 })
 
 /**
@@ -218,6 +239,7 @@ const resetModelForm = () => {
     category: ''
   }
   selectedTags.value = []
+  clearApiKey.value = false
   editingModel.value = null
 }
 
@@ -289,8 +311,9 @@ const handleAddModel = () => {
  */
 const handleEditModel = (model: Model) => {
   editingModel.value = model
-  modelForm.value = { ...model }
+  modelForm.value = { ...model, apiKey: '' }
   selectedTags.value = parseTags(model.tags)
+  clearApiKey.value = false
   modelDialogVisible.value = true
 }
 
@@ -305,7 +328,11 @@ const handleSaveModel = async () => {
 
   try {
     if (editingModel.value) {
-      await updateModel(editingModel.value.id, modelForm.value)
+      const updateData = {
+        ...modelForm.value,
+        apiKey: clearApiKey.value ? null : modelForm.value.apiKey || undefined
+      }
+      await updateModel(editingModel.value.id, updateData)
       ElMessage.success('更新成功')
     } else {
       await createModel(modelForm.value)
@@ -348,3 +375,21 @@ onMounted(() => {
   loadModels()
 })
 </script>
+
+<style scoped lang="scss">
+.api-key-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .el-input {
+    flex: 1;
+  }
+}
+
+.form-tip {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 4px;
+}
+</style>

@@ -59,6 +59,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '技能', icon: 'Tools' }
       },
       {
+        path: 'mcp-server',
+        name: 'McpServer',
+        component: () => import('@/views/mcp-server/index.vue'),
+        meta: { title: 'MCP Server', icon: 'Connection' }
+      },
+      {
         path: 'agents',
         name: 'Agents',
         component: () => import('@/views/agents/index.vue'),

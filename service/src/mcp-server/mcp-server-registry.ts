@@ -1,98 +1,329 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { McpServerRepository } from './mcp-server.repository';
 import { IsolationContext } from '../common/services/base-isolated.service';
+import { McpServer } from '@prisma/client';
 
 /**
- * MCP Server 配置
+ * MCP Server 配置（运行时使用）
  */
 export interface McpServerConfig {
+  id: string;
   name: string;
+  displayName?: string;
+  description?: string;
   url: string;
   apiKey?: string;
-  description?: string;
-  enabled?: boolean;
+  timeout: number;
+  enabled: boolean;
+  tools: string[];
+  metadata: Record<string, unknown>;
+  appCode?: string;
+  healthStatus?: string;
+}
+
+/**
+ * 缓存项
+ */
+interface CacheItem {
+  config: McpServerConfig;
+  expireAt: number;
 }
 
 /**
  * MCP Server 注册表
- * 支持按名称引用 MCP Server 配置
+ * 支持数据库持久化、内存缓存、事件通知
  */
 @Injectable()
-export class McpServerRegistry {
+export class McpServerRegistry implements OnModuleInit {
   private readonly logger = new Logger(McpServerRegistry.name);
-  private servers = new Map<string, McpServerConfig>();
 
   /**
-   * 注册 MCP Server
+   * 内存缓存
    */
-  register(config: McpServerConfig): void {
-    const name = config.name.toLowerCase();
-    this.servers.set(name, { ...config, enabled: config.enabled ?? true });
-    this.logger.debug(`MCP Server 已注册: ${config.name}`);
+  private cache = new Map<string, CacheItem>();
+
+  /**
+   * 缓存 TTL（5分钟）
+   */
+  private readonly CACHE_TTL = 5 * 60 * 1000;
+
+  /**
+   * 最后刷新时间
+   */
+  private lastRefresh = 0;
+
+  /**
+   * 构造函数
+   * @param repository MCP Server 仓库
+   * @param eventEmitter 事件发射器
+   */
+  constructor(
+    private readonly repository: McpServerRepository,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
+
+  /**
+   * 模块初始化时加载配置
+   */
+  async onModuleInit() {
+    await this.loadFromEnv();
+    await this.refresh();
   }
 
   /**
-   * 批量注册
+   * 从环境变量加载初始配置（兼容旧配置方式）
    */
-  registerAll(configs: McpServerConfig[]): void {
-    for (const config of configs) {
-      this.register(config);
+  private async loadFromEnv(): Promise<void> {
+    try {
+      const mcpConfigEnv = process.env.MCP_SERVER_CONFIG;
+      if (mcpConfigEnv) {
+        const servers = JSON.parse(mcpConfigEnv);
+        if (Array.isArray(servers)) {
+          this.logger.log('从环境变量加载 MCP Server 配置');
+
+          for (const server of servers) {
+            const existing = await this.repository.findByName(server.name);
+            if (!existing) {
+              await this.repository.create({
+                name: server.name,
+                url: server.url,
+                apiKey: server.apiKey,
+                timeout: server.timeout,
+                enabled: server.enabled ?? true,
+                tools: server.tools,
+              });
+              this.logger.log(`已导入 MCP Server: ${server.name}`);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error(`从环境变量加载 MCP Server 配置失败: ${error}`);
     }
   }
 
   /**
-   * 按名称获取 MCP Server 配置
+   * 刷新缓存
    */
-  get(name: string): McpServerConfig | undefined {
-    return this.servers.get(name.toLowerCase());
-  }
+  async refresh(): Promise<void> {
+    const servers = await this.repository.findEnabled();
+    this.cache.clear();
 
-  /**
-   * 获取 MCP Server 配置（兼容 context-builder 的调用方式）
-   * @param name - MCP Server 名称
-   * @param isolationContext - 隔离上下文（保留参数以保持接口一致）
-   */
-  getServer(name: string, _isolationContext?: IsolationContext): McpServerConfig | undefined {
-    const config = this.servers.get(name.toLowerCase());
-    if (!config) {
-      this.logger.warn(`MCP Server ${name} 未在注册表中找到`);
+    for (const server of servers) {
+      const config = this.toConfig(server);
+      this.cache.set(config.name.toLowerCase(), {
+        config,
+        expireAt: Date.now() + this.CACHE_TTL,
+      });
     }
-    return config;
+
+    this.lastRefresh = Date.now();
+    this.logger.log(`已刷新 ${servers.length} 个 MCP Server 配置`);
   }
 
   /**
-   * 获取所有注册的 MCP Server
+   * 确保缓存有效
    */
-  getAll(): McpServerConfig[] {
-    return Array.from(this.servers.values()).filter(s => s.enabled);
+  private async ensureCache(): Promise<void> {
+    const now = Date.now();
+    if (this.cache.size === 0 || now - this.lastRefresh > this.CACHE_TTL) {
+      await this.refresh();
+    }
+  }
+
+  /**
+   * 获取 MCP Server 配置
+   * @param name 服务器名称
+   * @returns {Promise<McpServerConfig | undefined>} 配置或 undefined
+   */
+  async get(name: string): Promise<McpServerConfig | undefined> {
+    await this.ensureCache();
+    const item = this.cache.get(name.toLowerCase());
+    return item?.config;
+  }
+
+  /**
+   * 获取 MCP Server 配置（兼容旧接口）
+   * @param name 服务器名称
+   * @param _isolationContext 隔离上下文（保留参数以保持接口一致）
+   * @returns {Promise<McpServerConfig | undefined>} 配置或 undefined
+   */
+  async getServer(
+    name: string,
+    _isolationContext?: IsolationContext,
+  ): Promise<McpServerConfig | undefined> {
+    return this.get(name);
+  }
+
+  /**
+   * 获取所有启用的 MCP Server
+   * @param appCode 应用标识（可选，用于租户隔离）
+   * @returns {Promise<McpServerConfig[]>} 配置列表
+   */
+  async getAll(appCode?: string): Promise<McpServerConfig[]> {
+    await this.ensureCache();
+    const configs = Array.from(this.cache.values()).map(item => item.config);
+
+    if (appCode) {
+      return configs.filter(c => !c.appCode || c.appCode === appCode);
+    }
+
+    return configs;
   }
 
   /**
    * 检查是否存在指定名称的 MCP Server
+   * @param name 服务器名称
+   * @returns {Promise<boolean>} 是否存在
    */
-  has(name: string): boolean {
-    return this.servers.has(name.toLowerCase());
+  async has(name: string): Promise<boolean> {
+    await this.ensureCache();
+    return this.cache.has(name.toLowerCase());
   }
 
   /**
-   * 移除指定 MCP Server
+   * 获取所有 MCP Server 名称
+   * @returns {Promise<string[]>} 名称列表
    */
-  remove(name: string): void {
-    this.servers.delete(name.toLowerCase());
-    this.logger.debug(`MCP Server 已移除: ${name}`);
+  async getNames(): Promise<string[]> {
+    await this.ensureCache();
+    return Array.from(this.cache.keys());
   }
 
   /**
-   * 获取所有注册的 MCP Server 名称
+   * 注册 MCP Server（创建或更新）
+   * @param config 配置
+   * @returns {Promise<McpServerConfig>} 配置
    */
-  getNames(): string[] {
-    return Array.from(this.servers.keys());
+  async register(config: Omit<McpServerConfig, 'id'>): Promise<McpServerConfig> {
+    this.validateConfig(config);
+
+    const name = config.name.toLowerCase();
+    const existing = await this.repository.findByName(config.name);
+
+    let server: McpServer;
+
+    if (existing) {
+      server = await this.repository.update(existing.id, {
+        displayName: config.displayName,
+        description: config.description,
+        url: config.url,
+        apiKey: config.apiKey,
+        timeout: config.timeout,
+        enabled: config.enabled,
+        tools: config.tools,
+        metadata: config.metadata,
+      });
+
+      this.eventEmitter.emit('mcp.server.updated', { name: config.name, config });
+      this.logger.debug(`MCP Server 已更新: ${config.name}`);
+    } else {
+      server = await this.repository.create({
+        name: config.name,
+        displayName: config.displayName,
+        description: config.description,
+        url: config.url,
+        apiKey: config.apiKey,
+        timeout: config.timeout,
+        enabled: config.enabled,
+        tools: config.tools,
+        metadata: config.metadata,
+        appCode: config.appCode,
+      });
+
+      this.eventEmitter.emit('mcp.server.registered', { name: config.name, config });
+      this.logger.debug(`MCP Server 已注册: ${config.name}`);
+    }
+
+    const newConfig = this.toConfig(server);
+    this.cache.set(name, {
+      config: newConfig,
+      expireAt: Date.now() + this.CACHE_TTL,
+    });
+
+    return newConfig;
   }
 
   /**
-   * 清空注册表
+   * 移除 MCP Server
+   * @param name 服务器名称
    */
-  clear(): void {
-    this.servers.clear();
-    this.logger.log('MCP Server 注册表已清空');
+  async remove(name: string): Promise<void> {
+    const existing = await this.repository.findByName(name);
+    if (existing) {
+      await this.repository.softDelete(existing.id);
+      this.cache.delete(name.toLowerCase());
+      this.eventEmitter.emit('mcp.server.removed', { name });
+      this.logger.debug(`MCP Server 已移除: ${name}`);
+    }
+  }
+
+  /**
+   * 更新健康状态
+   * @param name 服务器名称
+   * @param healthStatus 健康状态
+   */
+  async updateHealthStatus(name: string, healthStatus: string): Promise<void> {
+    const existing = await this.repository.findByName(name);
+    if (existing) {
+      await this.repository.updateHealthStatus(existing.id, healthStatus);
+
+      const cached = this.cache.get(name.toLowerCase());
+      if (cached) {
+        cached.config.healthStatus = healthStatus;
+      }
+    }
+  }
+
+  /**
+   * 清空缓存
+   */
+  clearCache(): void {
+    this.cache.clear();
+    this.lastRefresh = 0;
+    this.logger.log('MCP Server 缓存已清空');
+  }
+
+  /**
+   * 验证配置
+   * @param config 配置
+   */
+  private validateConfig(config: Partial<McpServerConfig>): void {
+    if (!config.name || !config.name.trim()) {
+      throw new Error('MCP Server 名称不能为空');
+    }
+
+    if (!config.url) {
+      throw new Error('MCP Server URL 不能为空');
+    }
+
+    try {
+      new URL(config.url);
+    } catch {
+      throw new Error(`MCP Server URL 格式无效: ${config.url}`);
+    }
+  }
+
+  /**
+   * 转换数据库记录为配置对象
+   * @param server 数据库记录
+   * @returns {McpServerConfig} 配置对象
+   */
+  private toConfig(server: McpServer): McpServerConfig {
+    return {
+      id: server.id.toString(),
+      name: server.name,
+      displayName: server.displayName || undefined,
+      description: server.description || undefined,
+      url: server.url,
+      apiKey: server.apiKey || undefined,
+      timeout: server.timeout,
+      enabled: server.enabled,
+      tools: this.repository.parseTools(server),
+      metadata: this.repository.parseMetadata(server),
+      appCode: server.appCode || undefined,
+      healthStatus: server.healthStatus || undefined,
+    };
   }
 }

@@ -164,109 +164,48 @@ export class ContextBuilder {
       }
     }
 
-    tools.push({
-      name: 'use_skill',
-      description: `按需加载指定技能的完整指令。可用技能: ${availableSkillNames}。当需要技能的详细操作步骤、API参数格式或执行注意事项时调用此工具。`,
-      parameters: {
-        type: 'object',
-        properties: {
-          skill_name: {
-            type: 'string',
-            description: `要加载的技能名称。可用: ${availableSkillNames}`,
+    const registeredTools = this.toolRegistry.getAll();
+    for (const tool of registeredTools) {
+      const def = tool.definition;
+      
+      if (def.name === 'use_skill') {
+        tools.push({
+          ...def,
+          description: `按需加载指定技能的完整指令。可用技能: ${availableSkillNames}。当需要技能的详细操作步骤、API参数格式或执行注意事项时调用此工具。`,
+          parameters: {
+            ...def.parameters,
+            properties: {
+              skill_name: {
+                type: 'string',
+                description: `要加载的技能名称。可用: ${availableSkillNames}`,
+              },
+            },
           },
-        },
-        required: ['skill_name'],
-      },
-      type: 'skill-meta' as const,
-    });
-
-    tools.push({
-      name: 'load_reference',
-      description: '加载技能的参考文档（references/ 中的文件）。当技能指令中引用了附加文档时使用。',
-      parameters: {
-        type: 'object',
-        properties: {
-          skill_name: { type: 'string', description: '技能名称' },
-          reference_path: { type: 'string', description: '参考文档的相对路径' },
-        },
-        required: ['skill_name', 'reference_path'],
-      },
-      type: 'skill-meta' as const,
-    });
-
-    const hasScriptedSkills = boundSkills.some(s => s.metadata.hasScripts);
-    if (hasScriptedSkills) {
-      tools.push({
-        name: 'run_script',
-        description: `执行技能预置的脚本（位于技能目录 scripts/ 中）。使用前必须先通过 use_skill 加载技能指令。`,
-        parameters: {
-          type: 'object',
-          properties: {
-            skill_name: { type: 'string', description: `技能名称。可用: ${availableSkillNames}` },
-            script: { type: 'string', description: '脚本路径' },
-            args: { type: 'object', description: '传递给脚本的参数' },
-            timeout: { type: 'number', description: '超时（毫秒）' },
-          },
-          required: ['skill_name', 'script'],
-        },
-        type: 'skill-meta' as const,
-      });
+        });
+      } else if (def.name === 'run_script') {
+        const hasScriptedSkills = boundSkills.some(s => s.metadata.hasScripts);
+        if (hasScriptedSkills) {
+          tools.push({
+            ...def,
+            parameters: {
+              ...def.parameters,
+              properties: {
+                ...def.parameters.properties,
+                skill_name: {
+                  type: 'string',
+                  description: `技能名称。可用: ${availableSkillNames}`,
+                },
+              },
+            },
+          });
+        }
+      } else {
+        const existing = tools.find(t => t.name === def.name);
+        if (!existing) {
+          tools.push(def);
+        }
+      }
     }
-
-    tools.push({
-      name: 'http_request',
-      description: '发起 HTTP 请求。用于调用外部 API、发送 webhook、获取远程数据等。',
-      parameters: {
-        type: 'object',
-        properties: {
-          method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'], description: 'HTTP 方法' },
-          url: { type: 'string', description: '完整的请求 URL' },
-          headers: { type: 'object', description: '请求头' },
-          query: { type: 'object', description: 'URL 查询参数' },
-          body: { description: '请求体' },
-          timeout: { type: 'number', description: '超时（毫秒）' },
-        },
-        required: ['method', 'url'],
-      },
-      type: 'builtin' as const,
-    });
-
-    tools.push({
-      name: 'run_code',
-      description: '在安全沙箱中执行代码。支持 JavaScript、Python 和 Bash。',
-      parameters: {
-        type: 'object',
-        properties: {
-          language: { type: 'string', enum: ['javascript', 'python', 'bash'], description: '代码语言' },
-          code: { type: 'string', description: '要执行的代码' },
-          params: { type: 'object', description: '传递给代码的参数' },
-          timeout: { type: 'number', description: '超时（毫秒）' },
-        },
-        required: ['language', 'code'],
-      },
-      type: 'builtin' as const,
-    });
-
-    tools.push({
-      name: 'db_query',
-      description: '执行只读数据库查询（仅允许 SELECT/SHOW/DESCRIBE/EXPLAIN）。',
-      parameters: {
-        type: 'object',
-        properties: {
-          host: { type: 'string', description: '数据库主机地址' },
-          port: { type: 'number', description: '端口' },
-          user: { type: 'string', description: '数据库用户名' },
-          password: { type: 'string', description: '数据库密码' },
-          database: { type: 'string', description: '数据库名称' },
-          sql: { type: 'string', description: 'SQL 查询语句' },
-          params: { type: 'object', description: 'SQL 参数' },
-          max_rows: { type: 'number', description: '最大返回行数' },
-          timeout: { type: 'number', description: '超时（毫秒）' },
-        },
-        required: ['host', 'user', 'password', 'database', 'sql'],
-      },
-      type: 'builtin' as const,
-    });
 
     if (dto.workspace && agent.workspaceConfig) {
       const config = typeof agent.workspaceConfig === 'string'
@@ -274,21 +213,7 @@ export class ContextBuilder {
         : agent.workspaceConfig;
 
       if (config.enabled) {
-        const workspaceTools = WORKSPACE_TOOLS.map(t => ({
-          name: t.function.name,
-          description: t.function.description,
-          parameters: t.function.parameters,
-          type: 'workspace' as const,
-        }));
-        tools.push(...workspaceTools);
-      }
-    }
-
-    const registeredTools = this.toolRegistry.getAll();
-    for (const tool of registeredTools) {
-      const existing = tools.find(t => t.name === tool.definition.name);
-      if (!existing) {
-        tools.push(tool.definition);
+        tools.push(...WORKSPACE_TOOLS);
       }
     }
 
@@ -331,7 +256,7 @@ export class ContextBuilder {
   }
 
   private async addMcpTools(tools: ToolDefinition[], serverName: string): Promise<void> {
-    const serverConfig = this.mcpServerRegistry.get(serverName);
+    const serverConfig = await this.mcpServerRegistry.get(serverName);
     if (!serverConfig) {
       this.logger.warn(`MCP Server ${serverName} 未在注册表中找到`);
       return;
@@ -341,7 +266,7 @@ export class ContextBuilder {
       const toolsResult = await this.mcpServerService.discoverTools({
         url: serverConfig.url,
         apiKey: serverConfig.apiKey,
-        timeout: 30000,
+        timeout: serverConfig.timeout || 30000,
       });
 
       if (Array.isArray(toolsResult)) {
