@@ -103,6 +103,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '熔断限流', icon: 'Warning' }
       },
       {
+        path: 'cache',
+        name: 'Cache',
+        component: () => import('@/views/cache/index.vue'),
+        meta: { title: '缓存管理', icon: 'Coin' }
+      },
+      {
         path: 'conversations',
         name: 'Conversations',
         meta: { title: '会话管理', icon: 'ChatLineSquare' },

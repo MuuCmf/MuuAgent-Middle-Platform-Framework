@@ -75,6 +75,46 @@ export interface ReasoningStep {
   createdAt?: string
 }
 
+/**
+ * 工具缓存统计信息
+ */
+export interface ToolCacheStats {
+  /** 当前缓存项数量 */
+  size: number
+  /** 最大缓存项数量 */
+  maxSize: number
+  /** 命中次数 */
+  hits: number
+  /** 未命中次数 */
+  misses: number
+  /** 命中率 (0-1) */
+  hitRate: number
+  /** 淘汰次数 */
+  evictions: number
+  /** 过期清理次数 */
+  expirations: number
+  /** 总请求数 */
+  totalRequests: number
+  /** 平均访问次数 */
+  avgAccessCount: number
+  /** 内存使用估算 (字节) */
+  estimatedMemoryUsage: number
+}
+
+/**
+ * 工具缓存配置
+ */
+export interface ToolCacheConfig {
+  /** 最大缓存项数量 */
+  maxSize: number
+  /** 默认TTL (毫秒) */
+  defaultTtl: number
+  /** 是否启用缓存 */
+  enabled: boolean
+  /** 不缓存的工具名称列表 */
+  excludeTools: string[]
+}
+
 export const agentApi = {
   getList(): Promise<AxiosResponse<{ data: AgentListResponse }>> {
     return adminRequest.get('api/admin/agent')
@@ -90,5 +130,33 @@ export const agentApi = {
 
   delete(id: number): Promise<AxiosResponse> {
     return adminRequest.delete(`api/admin/agent/${id}`)
+  },
+
+  /**
+   * 获取工具缓存统计信息
+   */
+  getCacheStats(): Promise<AxiosResponse<{ data: ToolCacheStats }>> {
+    return adminRequest.get('api/admin/agent/cache/stats')
+  },
+
+  /**
+   * 获取工具缓存配置
+   */
+  getCacheConfig(): Promise<AxiosResponse<{ data: ToolCacheConfig }>> {
+    return adminRequest.get('api/admin/agent/cache/config')
+  },
+
+  /**
+   * 清空工具缓存
+   */
+  clearCache(): Promise<AxiosResponse> {
+    return adminRequest.delete('api/admin/agent/cache')
+  },
+
+  /**
+   * 手动清理过期缓存
+   */
+  cleanupExpiredCache(): Promise<AxiosResponse<{ data: { cleanedCount: number } }>> {
+    return adminRequest.post('api/admin/agent/cache/cleanup')
   }
 }

@@ -14,6 +14,7 @@ import {
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { AgentService } from "./agent.service";
+import { ToolExecutor } from "./tools/tool-executor";
 import { CombinedAuthGuard } from "../common/guards/combined-auth.guard";
 import { ScopeGuard } from "../common/guards/scope.guard";
 import { AdminScope } from "../common/constants/scope.constants";
@@ -39,7 +40,10 @@ import { StreamEmitter, SseResponseBuilder } from '../stream';
 @UseGuards(CombinedAuthGuard, ScopeGuard)
 @Controller("admin/agent")
 export class AgentAdminController {
-  constructor(private readonly agentService: AgentService) {}
+  constructor(
+    private readonly agentService: AgentService,
+    private readonly toolExecutor: ToolExecutor,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: "创建智能体" })
@@ -89,6 +93,38 @@ export class AgentAdminController {
       pageSize,
     } = await this.agentService.findAll(query, context);
     return page(list, total, pageNum, pageSize);
+  }
+
+  @Get("cache/stats")
+  @ApiOperation({ summary: "获取工具缓存统计信息" })
+  @RequireScope(AdminScope.AGENT_READ)
+  getCacheStats() {
+    const stats = this.toolExecutor.getCacheStats();
+    return success(stats);
+  }
+
+  @Get("cache/config")
+  @ApiOperation({ summary: "获取工具缓存配置" })
+  @RequireScope(AdminScope.AGENT_READ)
+  getCacheConfig() {
+    const config = this.toolExecutor.getCacheConfig();
+    return success(config);
+  }
+
+  @Delete("cache")
+  @ApiOperation({ summary: "清空工具缓存" })
+  @RequireScope(AdminScope.AGENT_WRITE)
+  clearCache() {
+    this.toolExecutor.clearCache();
+    return success(null, "缓存已清空");
+  }
+
+  @Post("cache/cleanup")
+  @ApiOperation({ summary: "手动清理过期缓存" })
+  @RequireScope(AdminScope.AGENT_WRITE)
+  cleanupExpiredCache() {
+    const count = this.toolExecutor.cleanupExpiredCache();
+    return success({ cleanedCount: count }, `已清理 ${count} 个过期缓存项`);
   }
 }
 

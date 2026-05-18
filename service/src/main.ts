@@ -5,6 +5,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
 import { Request, Response, NextFunction } from 'express';
+import { GlobalExceptionFilter } from './common/errors';
 
 /**
  * 应用启动入口函数
@@ -30,6 +31,9 @@ async function bootstrap(): Promise<void> {
       transform: true,
     }),
   );
+
+  // 全局异常过滤器
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   // SPA 路由支持
   app.use((req: Request, res: Response, next: NextFunction) => {

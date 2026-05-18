@@ -54,13 +54,18 @@ export function success<T>(data: T, message = 'success'): ApiResponse<T> {
  * 失败响应工厂函数
  * @param code 错误码
  * @param message 错误消息
- * @returns {ApiResponse<null>} 统一响应对象
+ * @param data 额外数据
+ * @returns {ApiResponse<null | Record<string, unknown>>} 统一响应对象
  */
-export function fail(code: number, message: string): ApiResponse<null> {
+export function fail(
+  code: number,
+  message: string,
+  data?: Record<string, unknown>,
+): ApiResponse<null | Record<string, unknown>> {
   return {
     code,
     message,
-    data: null,
+    data: data || null,
     timestamp: new Date().toISOString(),
   };
 }
