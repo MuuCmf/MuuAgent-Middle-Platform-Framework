@@ -45,9 +45,9 @@ export const useSkillStore = defineStore('skill', () => {
 
   // ===== 标准技能操作 =====
 
-  const loadStandardSkills = async () => {
+  const loadStandardSkills = async (appCode?: string) => {
     try {
-      const res = await skillApi.listStandardSkills()
+      const res = await skillApi.listStandardSkills(appCode)
       standardSkills.value = res.data?.data || []
     } catch (error) {
       console.error('加载标准技能失败', error)
@@ -55,14 +55,14 @@ export const useSkillStore = defineStore('skill', () => {
     }
   }
 
-  const scanSkills = async (): Promise<ScanResult | null> => {
+  const scanSkills = async (appCode?: string): Promise<ScanResult | null> => {
     scanning.value = true
     try {
       const res = await skillApi.scanStandardSkills()
       const result = res.data?.data
       if (result) {
-        standardSkills.value = result.skills || []
-        ElMessage.success(`扫描完成，发现 ${result.skills?.length || 0} 个技能`)
+        await loadStandardSkills(appCode)
+        ElMessage.success(`扫描完成，发现 ${standardSkills.value.length} 个技能`)
       }
       return result || null
     } catch (error: any) {

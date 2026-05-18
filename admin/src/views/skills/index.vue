@@ -329,6 +329,7 @@ const { standardSkills, scanning, loadStandardSkills, scanSkills, exportSkill } 
 
 const handleAppFilterChange = () => {
   loadSkills()
+  loadStandardSkills(filterAppCode.value)
 }
 
 const handleAdd = () => {
@@ -434,7 +435,7 @@ const handleImport = () => {
 }
 
 const handleScan = async () => {
-  await scanSkills()
+  await scanSkills(filterAppCode.value)
 }
 
 const handleExport = async (skill: Skill) => {
@@ -462,12 +463,12 @@ const handlePreviewSkillMd = async (name: string) => {
 
 const handleImported = () => {
   loadSkills()
-  loadStandardSkills()
+  loadStandardSkills(filterAppCode.value)
 }
 
 onMounted(() => {
   loadSkills()
-  loadStandardSkills()
+  loadStandardSkills(filterAppCode.value)
 })
 </script>
 

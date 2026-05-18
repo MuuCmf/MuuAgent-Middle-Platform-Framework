@@ -308,9 +308,12 @@ export const skillApi = {
 
   /**
    * 列出文件系统发现的技能
+   * @param appCode 可选的应用标识筛选
    */
-  listStandardSkills(): Promise<AxiosResponse<ApiResponse<StandardSkill[]>>> {
-    return adminRequest.get('api/admin/skill/standard/list')
+  listStandardSkills(appCode?: string): Promise<AxiosResponse<ApiResponse<StandardSkill[]>>> {
+    const params: Record<string, string> = {};
+    if (appCode) params.appCode = appCode;
+    return adminRequest.get('api/admin/skill/standard/list', { params });
   },
 
   /**

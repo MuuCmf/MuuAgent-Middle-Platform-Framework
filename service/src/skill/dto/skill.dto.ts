@@ -191,6 +191,16 @@ export class ExecuteSkillDto {
 }
 
 /**
+ * 查询标准技能列表DTO
+ */
+export class QueryStandardSkillDto {
+  @ApiPropertyOptional({ description: '应用标识筛选' })
+  @IsString()
+  @IsOptional()
+  appCode?: string;
+}
+
+/**
  * 查询技能列表DTO
  */
 export class QuerySkillDto {

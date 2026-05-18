@@ -28,6 +28,7 @@ import {
   UpdateSkillDto,
   ExecuteSkillDto,
   QuerySkillDto,
+  QueryStandardSkillDto,
   ImportSkillDto,
   ValidateSkillMdDto,
 } from './dto/skill.dto';
@@ -208,8 +209,8 @@ export class SkillController {
   @Get('standard/list')
   @ApiOperation({ summary: '列出标准技能（文件系统）' })
   @RequireScope(AdminScope.SKILL_READ)
-  async listStandardSkills() {
-    const entries = this.skillScanner.getIndex();
+  async listStandardSkills(@Query() query: QueryStandardSkillDto) {
+    const entries = this.skillScanner.getIndex(query.appCode);
     return success(entries.map(e => ({
       name: e.name,
       description: e.description,

@@ -93,9 +93,12 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
 
   /**
    * 获取完整索引
+   * @param appCode 可选的应用标识筛选，返回该应用的技能 + 公开技能
    */
-  getIndex(): SkillIndexEntry[] {
-    return Array.from(this.index.values());
+  getIndex(appCode?: string): SkillIndexEntry[] {
+    const all = Array.from(this.index.values());
+    if (!appCode) return all;
+    return all.filter(e => e.appCode === appCode || e.isPublic);
   }
 
   /**
