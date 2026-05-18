@@ -308,15 +308,6 @@ export class LogService {
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
-        include: {
-          skill: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-            },
-          },
-        },
       }),
       this.prisma.skillInvokeLog.count({ where }),
     ]);
@@ -486,15 +477,6 @@ export class LogService {
   async getSkillLogById(id: string) {
     const log = await this.prisma.skillInvokeLog.findUnique({
       where: { id: id as any },
-      include: {
-        skill: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-          },
-        },
-      },
     });
 
     if (!log) {
@@ -505,7 +487,7 @@ export class LogService {
       ...log,
       request: log.params,
       response: log.result,
-      skillName: log.skill?.name || log.skillCode,
+      skillName: log.skillCode,
     };
   }
 

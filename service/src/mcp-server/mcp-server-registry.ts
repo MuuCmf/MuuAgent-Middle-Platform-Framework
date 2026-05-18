@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { IsolationContext } from '../common/services/base-isolated.service';
 
 /**
  * MCP Server 配置
@@ -43,6 +44,19 @@ export class McpServerRegistry {
    */
   get(name: string): McpServerConfig | undefined {
     return this.servers.get(name.toLowerCase());
+  }
+
+  /**
+   * 获取 MCP Server 配置（兼容 context-builder 的调用方式）
+   * @param name - MCP Server 名称
+   * @param isolationContext - 隔离上下文（保留参数以保持接口一致）
+   */
+  getServer(name: string, _isolationContext?: IsolationContext): McpServerConfig | undefined {
+    const config = this.servers.get(name.toLowerCase());
+    if (!config) {
+      this.logger.warn(`MCP Server ${name} 未在注册表中找到`);
+    }
+    return config;
   }
 
   /**

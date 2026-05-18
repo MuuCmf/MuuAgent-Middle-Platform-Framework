@@ -10,7 +10,6 @@ import { IsolationContext } from '../../common/services/base-isolated.service';
  */
 @Injectable()
 export class FileSkillProvider implements ISkillProvider {
-  readonly source = 'filesystem' as const;
   private readonly logger = new Logger(FileSkillProvider.name);
 
   constructor(
@@ -18,6 +17,11 @@ export class FileSkillProvider implements ISkillProvider {
     private readonly parser: SkillMdParser,
   ) {}
 
+  /**
+   * 列出所有可用技能的元数据
+   * @param context 隔离上下文
+   * @returns 技能元数据列表
+   */
   async listAll(context?: IsolationContext): Promise<SkillMetadata[]> {
     const allEntries = this.scanner.getIndex();
 
@@ -26,6 +30,12 @@ export class FileSkillProvider implements ISkillProvider {
       .map(entry => this.toMetadata(entry));
   }
 
+  /**
+   * 解析完整技能描述符
+   * @param name 技能名称
+   * @param context 隔离上下文
+   * @returns 技能描述符
+   */
   async resolve(name: string, context?: IsolationContext): Promise<SkillDescriptor | null> {
     const entry = this.scanner.findByName(name);
 
@@ -49,6 +59,20 @@ export class FileSkillProvider implements ISkillProvider {
     }
   }
 
+  /**
+   * 支持 references 功能
+   * @returns true
+   */
+  supportsReferences(): boolean {
+    return true;
+  }
+
+  /**
+   * 加载参考文档内容
+   * @param skillName 技能名称
+   * @param referencePath 参考文档路径
+   * @returns 文档内容
+   */
   async loadReference(skillName: string, referencePath: string): Promise<string> {
     const entry = this.scanner.findByName(skillName);
     if (!entry) {
@@ -74,6 +98,11 @@ export class FileSkillProvider implements ISkillProvider {
     }
   }
 
+  /**
+   * 列出技能的所有参考文档
+   * @param skillName 技能名称
+   * @returns 参考文档路径列表
+   */
   async listReferences(skillName: string): Promise<string[]> {
     const entry = this.scanner.findByName(skillName);
     if (!entry || !entry.hasReferences) return [];

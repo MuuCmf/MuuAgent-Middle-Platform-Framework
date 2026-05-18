@@ -2,7 +2,34 @@
   <div class="page-container">
     <div class="page-header">
       <h1 class="page-title">技能管理</h1>
-      <p class="page-description">管理 Agent Skills 标准格式技能，所有技能存储在文件系统中</p>
+      <p class="page-description">管理 Agent Skills 标准格式技能，实现三层缓存架构</p>
+    </div>
+
+    <!-- 缓存统计信息 -->
+    <div class="card" v-if="skillStats?.cacheConfig">
+      <div class="card-title">缓存架构</div>
+      <div class="cache-stats">
+        <div class="stat-item">
+          <div class="stat-label">L1 技能元数据</div>
+          <div class="stat-value">{{ skillStats.cacheConfig.l1TtlMinutes }}分钟</div>
+          <div class="stat-desc">Redis缓存</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">L2 技能描述符</div>
+          <div class="stat-value">{{ skillStats.cacheConfig.l2TtlMinutes }}分钟</div>
+          <div class="stat-desc">内存LRU缓存</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">L3 参考文档</div>
+          <div class="stat-value">{{ skillStats.cacheConfig.l3TtlMinutes }}分钟</div>
+          <div class="stat-desc">Redis缓存</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">L2 最大容量</div>
+          <div class="stat-value">{{ skillStats.cacheConfig.l2MaxSize }}</div>
+          <div class="stat-desc">条</div>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -20,19 +47,23 @@
       <div class="help-tip">
         <div class="help-tip-title">技能管理说明</div>
         <ul>
-          <li><strong>Agent Skills V1.0 标准</strong>：所有技能以 SKILL.md + scripts/ + references/ 目录结构存储</li>
-          <li><strong>渐进式披露</strong>：L1 索引（名称/描述）→ L2 use_skill 加载指令 → L3 load_reference 加载参考文档</li>
-          <li><strong>通用能力工具</strong>：http_request / run_code / db_query / run_script 替代原 DB 技能类型</li>
-          <li><strong>脚本执行</strong>：技能可包含 scripts/ 目录下的预置脚本（.js / .py / .sh），经安全审计后可由 Agent 调用</li>
+          <li><strong>三层缓存架构</strong>：L1元数据(Redis 30分钟) → L2描述符(内存 5分钟) → L3参考文档(Redis 1小时)</li>
+          <li><strong>数据来源</strong>：Database优先查询，文件系统作为回源</li>
+          <li><strong>同步机制</strong>：扫描文件系统后自动同步到数据库，清除缓存生效</li>
+          <li><strong>Agent Skills V1.0</strong>：所有技能以 SKILL.md + scripts/ + references/ 目录结构存储</li>
         </ul>
       </div>
 
       <div class="filesystem-header">
         <span class="filesystem-tip">
-          从 skills/standard/ 目录扫描发现
+          已加载技能数量
           <el-tag type="success" size="small" style="margin-left: 8px;">{{ standardSkills.length }}</el-tag>
         </span>
         <el-space>
+          <el-button @click="handleSync" :loading="syncing">
+            <el-icon><Refresh /></el-icon>
+            同步数据库
+          </el-button>
           <el-button @click="handleScan" :loading="scanning">
             <el-icon><Refresh /></el-icon>
             扫描
@@ -40,6 +71,10 @@
           <el-button @click="handleRefreshIndex">
             <el-icon><RefreshRight /></el-icon>
             刷新索引
+          </el-button>
+          <el-button @click="handleClearCache">
+            <el-icon><Delete /></el-icon>
+            清除缓存
           </el-button>
           <el-button type="primary" @click="importDialogVisible = true">
             <el-icon><Upload /></el-icon>
@@ -57,6 +92,13 @@
         <el-table-column prop="description" label="描述" min-width="200">
           <template #default="{ row }">
             {{ row.description?.substring(0, 80) }}{{ row.description?.length > 80 ? '...' : '' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="source" label="来源" width="90">
+          <template #default="{ row }">
+            <el-tag :type="row.source === 'database' ? 'success' : 'warning'" size="small">
+              {{ row.source === 'database' ? '数据库' : '文件系统' }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="hasScripts" label="脚本" width="70">
@@ -93,9 +135,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="handlePreviewSkillMd(row.name)">查看详情</el-button>
+            <el-button size="small" type="danger" link @click="handleClearSkillCache(row.name)">清除缓存</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -130,7 +173,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh, RefreshRight, Upload } from '@element-plus/icons-vue'
+import { Refresh, RefreshRight, Upload, Delete } from '@element-plus/icons-vue'
 import { useSkillStore, useUserStore } from '@/stores'
 import { skillApi } from '@/api/skill'
 import SkillImportDialog from './components/SkillImportDialog.vue'
@@ -142,22 +185,43 @@ const userStore = useUserStore()
 
 const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 const filterAppCode = ref('')
-const { standardSkills, scanning, loadStandardSkills, scanSkills, refreshIndex } = skillStore
+const { scanning, syncing, skillStats, loadStandardSkills, scanSkills, refreshIndex, syncToDatabase, invalidateSkillCache, confirmClearAllCache, loadSkillStats } = skillStore
+
+// 计算属性：标准技能列表
+const standardSkills = computed(() => skillStore.standardSkills)
 
 const importDialogVisible = ref(false)
 const previewDialogVisible = ref(false)
 const previewSkillData = ref<{ frontmatter: Record<string, unknown>; body: string; rawContent: string } | null>(null)
 
+// 处理应用筛选变化
 const handleAppFilterChange = () => {
   loadStandardSkills(filterAppCode.value)
 }
 
+// 处理扫描点击事件
 const handleScan = async () => {
-  await scanSkills(filterAppCode.value)
+  await scanSkills()
 }
 
+// 处理刷新索引点击事件
 const handleRefreshIndex = async () => {
   await refreshIndex()
+}
+
+// 处理同步点击事件
+const handleSync = async () => {
+  await syncToDatabase()
+}
+
+// 处理清除缓存点击事件
+const handleClearCache = async () => {
+  await confirmClearAllCache()
+}
+
+// 处理清除技能缓存点击事件
+const handleClearSkillCache = async (name: string) => {
+  await invalidateSkillCache(name)
 }
 
 const handlePreviewSkillMd = async (name: string) => {
@@ -185,6 +249,7 @@ const handleImported = () => {
 
 onMounted(() => {
   loadStandardSkills(filterAppCode.value)
+  loadSkillStats()
 })
 </script>
 
@@ -205,5 +270,37 @@ onMounted(() => {
   height: 100%;
   overflow-y: auto;
   padding: 0 16px;
+}
+
+.cache-stats {
+  display: flex;
+  gap: 24px;
+  padding: 16px 0;
+
+  .stat-item {
+    flex: 1;
+    text-align: center;
+    padding: 16px;
+    background: #f5f7fa;
+    border-radius: 8px;
+
+    .stat-label {
+      font-size: 12px;
+      color: #909399;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: #303133;
+    }
+
+    .stat-desc {
+      font-size: 12px;
+      color: #909399;
+      margin-top: 4px;
+    }
+  }
 }
 </style>

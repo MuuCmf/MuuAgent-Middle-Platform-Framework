@@ -1,7 +1,6 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { SkillRegistry } from '../../skill/skill-registry';
-import { StandardSkillExecutor } from '../../skill/standard/standard-skill-executor';
-import { ScriptResult } from '../../skill/standard/script-runner';
+import { ScriptRunner, ScriptResult } from '../../skill/standard/script-runner';
 import { FunctionToolDefinition } from './tool-definitions';
 
 /**
@@ -16,7 +15,7 @@ export class RunScriptTool {
 
   constructor(
     private readonly skillRegistry: SkillRegistry,
-    private readonly standardSkillExecutor: StandardSkillExecutor,
+    private readonly scriptRunner: ScriptRunner,
   ) {}
 
   static readonly definition: FunctionToolDefinition = {
@@ -51,6 +50,15 @@ export class RunScriptTool {
     },
   };
 
+  /**
+   * 执行技能脚本
+   * @param args 参数
+   * @param args.skill_name 技能名称
+   * @param args.script 脚本路径
+   * @param args.args 脚本参数
+   * @param args.timeout 超时时间
+   * @returns 脚本执行结果
+   */
   async execute(
     args: {
       skill_name: string;
@@ -59,15 +67,15 @@ export class RunScriptTool {
       timeout?: number;
     },
   ): Promise<ScriptResult> {
-    const scannerEntry = this.skillRegistry.getScannerEntry(args.skill_name);
-    if (!scannerEntry) {
+    const skillDir = this.skillRegistry.getSkillDirectory(args.skill_name);
+    if (!skillDir) {
       throw new HttpException(
         `技能 "${args.skill_name}" 不存在或不是文件系统技能`,
         HttpStatus.NOT_FOUND,
       );
     }
 
-    if (!scannerEntry.hasScripts) {
+    if (!this.skillRegistry.hasScripts(args.skill_name)) {
       throw new HttpException(
         `技能 "${args.skill_name}" 没有 scripts/ 目录`,
         HttpStatus.BAD_REQUEST,
@@ -76,11 +84,11 @@ export class RunScriptTool {
 
     this.logger.log(`执行技能脚本: ${args.skill_name}/${args.script}`);
 
-    return this.standardSkillExecutor.executeScript(
-      scannerEntry.directoryPath,
+    return this.scriptRunner.run(
+      skillDir,
       `scripts/${args.script}`,
       args.args || {},
-      args.timeout,
+      { timeout: args.timeout },
     );
   }
 }

@@ -8,7 +8,7 @@ import { ConversationService } from '../../conversation/conversation.service';
 import { PromptTemplateService } from '../../prompt-template/prompt-template.service';
 import { ModelTemplateService } from '../../model-template/model-template.service';
 import { ToolRegistry } from '../tools/tool-registry';
-import { AgentKbService } from '../agent-kb.service';
+import { SkillKbService } from '../../skill/skill-kb.service';
 import { SkillRegistry, SkillDescriptor } from '../../skill/skill-registry';
 import { WorkspaceToolHandler } from '../../workspace/workspace-tool.handler';
 import { WORKSPACE_TOOLS } from '../../workspace/workspace-tool.definitions';
@@ -32,7 +32,7 @@ export class ContextBuilder {
     private readonly promptTemplateService: PromptTemplateService,
     private readonly modelTemplateService: ModelTemplateService,
     private readonly toolRegistry: ToolRegistry,
-    private readonly agentKbService: AgentKbService,
+    private readonly skillKbService: SkillKbService,
     private readonly skillRegistry: SkillRegistry,
     private readonly workspaceToolHandler: WorkspaceToolHandler,
     private readonly kbSearchTool: KbSearchTool,
@@ -118,13 +118,13 @@ export class ContextBuilder {
   private async buildTools(agent: any, dto: AgentChatDto): Promise<ToolDefinition[]> {
     const tools: ToolDefinition[] = [];
 
-    let boundSkillCodes: string[] = [];
+    let boundSkillNames: string[] = [];
     try {
-      boundSkillCodes = JSON.parse(agent.skills || '[]');
+      boundSkillNames = JSON.parse(agent.skills || '[]');
     } catch {}
 
     const isolationContext: IsolationContext = { appCode: agent.appCode || null, isSuperAdmin: false };
-    const boundSkills = await this.resolveSkillsWithDependencies(boundSkillCodes, isolationContext);
+    const boundSkills = await this.resolveSkillsWithDependencies(boundSkillNames, isolationContext);
 
     const availableSkillNames = boundSkills.map(s => s.metadata.name).join(', ') || '无';
 
@@ -295,35 +295,35 @@ export class ContextBuilder {
     return tools;
   }
 
-  private async resolveSkillsWithDependencies(skillCodes: string[], isolationContext: IsolationContext): Promise<SkillDescriptor[]> {
+  private async resolveSkillsWithDependencies(skillNames: string[], isolationContext: IsolationContext): Promise<SkillDescriptor[]> {
     const resolved: SkillDescriptor[] = [];
     const visited = new Set<string>();
 
-    for (const code of skillCodes) {
-      await this.resolveSkillRecursive(code, isolationContext, visited, resolved);
+    for (const name of skillNames) {
+      await this.resolveSkillRecursive(name, isolationContext, visited, resolved);
     }
 
     return resolved;
   }
 
   private async resolveSkillRecursive(
-    code: string,
+    name: string,
     isolationContext: IsolationContext,
     visited: Set<string>,
     resolved: SkillDescriptor[],
   ): Promise<void> {
-    if (visited.has(code)) return;
-    visited.add(code);
+    if (visited.has(name)) return;
+    visited.add(name);
 
-    const skill = await this.skillRegistry.resolve(code, isolationContext);
+    const skill = await this.skillRegistry.resolve(name, isolationContext);
     if (!skill) {
-      this.logger.warn(`技能 ${code} 不存在或无法解析`);
+      this.logger.warn(`技能 "${name}" 不存在或无法解析`);
       return;
     }
 
     if (skill.frontmatter?.requires?.skills) {
-      for (const depCode of skill.frontmatter.requires.skills) {
-        await this.resolveSkillRecursive(depCode, isolationContext, visited, resolved);
+      for (const depName of skill.frontmatter.requires.skills) {
+        await this.resolveSkillRecursive(depName, isolationContext, visited, resolved);
       }
     }
 

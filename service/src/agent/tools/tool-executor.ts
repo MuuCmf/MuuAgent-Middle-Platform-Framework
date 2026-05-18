@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ToolRegistry } from './tool-registry';
 import { McpServerService } from '../../mcp-server/mcp-server.service';
+import { McpServerRegistry } from '../../mcp-server/mcp-server-registry';
 import { KbSearchTool } from './kb-search.tool';
 import { HttpRequestTool } from './http-request.tool';
 import { RunCodeTool } from './run-code.tool';
@@ -11,6 +12,7 @@ import { BUILTIN_TOOL_DEFINITIONS } from './tool-definitions';
 import { WORKSPACE_TOOL_NAMES } from '../../workspace/workspace-tool.definitions';
 import { IsolationContext } from '../../common/services/base-isolated.service';
 import { ToolCall, ToolExecutionResult, ToolExecutionContext } from './abstract/tool.interface';
+import { SkillKbService } from '../../skill/skill-kb.service';
 
 interface CacheItem {
   result: unknown;
@@ -26,12 +28,14 @@ export class ToolExecutor {
   constructor(
     private readonly toolRegistry: ToolRegistry,
     private readonly mcpServerService: McpServerService,
+    private readonly mcpServerRegistry: McpServerRegistry,
     private readonly kbSearchTool: KbSearchTool,
     private readonly httpRequestTool: HttpRequestTool,
     private readonly runCodeTool: RunCodeTool,
     private readonly dbQueryTool: DbQueryTool,
     private readonly runScriptTool: RunScriptTool,
     private readonly builtinExecutor: BuiltinExecutor,
+    private readonly skillKbService: SkillKbService,
   ) {}
 
   async executeToolCall(
@@ -151,14 +155,18 @@ export class ToolExecutor {
     context: ToolExecutionContext,
   ): Promise<unknown> {
     const parts = name.split('__');
+    if (parts.length < 3) {
+      throw new Error(`Invalid MCP tool name format: ${name}. Expected: mcp__serverName__toolName`);
+    }
+    
     const serverName = parts[1];
     const toolName = parts.slice(2).join('__');
 
-    const mcpServers = JSON.parse(context.agent.mcpServers || '[]');
-    const serverConfig = mcpServers.find((s: any) => s.name === serverName);
+    const isolationCtx = this.getIsolationContext(context);
+    const serverConfig = this.mcpServerRegistry.getServer(serverName, isolationCtx);
 
     if (!serverConfig) {
-      throw new Error(`MCP server not found: ${serverName}`);
+      throw new Error(`MCP server not found in registry: ${serverName}`);
     }
 
     return await this.mcpServerService.callTool([serverConfig], toolName, args);
@@ -168,7 +176,9 @@ export class ToolExecutor {
     args: Record<string, unknown>,
     context: ToolExecutionContext,
   ): Promise<unknown> {
-    const kbCodes = JSON.parse(context.agent.knowledgeBases || '[]');
+    const isolationCtx = this.getIsolationContext(context);
+    const kbCodes = await this.skillKbService.getAgentKbCodes(context.agent.id.toString(), isolationCtx);
+    
     return await this.kbSearchTool.execute(context.agent.id, kbCodes, {
       query: args.query as string,
       kb_codes: args.kb_codes as string[] | undefined,

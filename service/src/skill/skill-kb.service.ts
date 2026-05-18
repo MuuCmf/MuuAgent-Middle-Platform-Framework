@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RetrievalService } from '../retrieval/retrieval.service';
 import { AiService } from '../ai/ai.service';
-import { SkillRegistry } from '../skill/skill-registry';
+import { SkillRegistry } from './skill-registry';
 import { IsolationContext } from '../common/services/base-isolated.service';
 
 /**
@@ -32,12 +32,12 @@ export interface AugmentedPrompt {
 }
 
 /**
- * 智能体知识库服务
- * 从智能体绑定的技能所依赖的知识库中检索内容
+ * 技能知识库服务
+ * 从技能声明的依赖中解析知识库并提供检索功能
  */
 @Injectable()
-export class AgentKbService {
-  private readonly logger = new Logger(AgentKbService.name);
+export class SkillKbService {
+  private readonly logger = new Logger(SkillKbService.name);
 
   /**
    * 构造函数
@@ -54,7 +54,7 @@ export class AgentKbService {
   ) {}
 
   /**
-   * 从智能体绑定的技能依赖中获取知识库列表
+   * 从技能依赖中获取知识库列表
    * @param agentId 智能体ID
    * @param isolationContext 隔离上下文
    * @returns {Promise<string[]>} 知识库code列表
@@ -69,16 +69,16 @@ export class AgentKbService {
       return [];
     }
 
-    const skillCodes: string[] = JSON.parse(agent.skills);
-    if (skillCodes.length === 0) {
+    const skillNames: string[] = JSON.parse(agent.skills);
+    if (skillNames.length === 0) {
       return [];
     }
 
     const context: IsolationContext = isolationContext || { appCode: agent.appCode || null, isSuperAdmin: false };
     const kbCodes = new Set<string>();
 
-    for (const skillCode of skillCodes) {
-      const skill = await this.skillRegistry.resolve(skillCode, context);
+    for (const skillName of skillNames) {
+      const skill = await this.skillRegistry.resolve(skillName, context);
       if (skill?.frontmatter?.requires?.knowledgeBases) {
         for (const kbCode of skill.frontmatter.requires.knowledgeBases) {
           kbCodes.add(kbCode);
@@ -90,7 +90,7 @@ export class AgentKbService {
   }
 
   /**
-   * 检索智能体绑定的技能所依赖的知识库
+   * 检索技能依赖的知识库
    * @param agentId 智能体ID
    * @param query 查询问题
    * @param topK 每个知识库返回的条数
@@ -108,7 +108,7 @@ export class AgentKbService {
     const startTime = Date.now();
 
     const kbCodes = await this.getAgentKbCodes(agentId, isolationContext);
-    
+
     if (kbCodes.length === 0) {
       this.logger.warn(`智能体 ${agentId} 绑定的技能未声明知识库依赖`);
       return [];
@@ -193,7 +193,7 @@ export class AgentKbService {
     for (const result of retrievalResults) {
       for (const chunk of result.chunks) {
         contextParts.push(`【${result.kbName}】${chunk.content}`);
-        
+
         const sourceKey = `${result.kbCode}-${chunk.docName}`;
         if (!sources.find(s => `${s.kbCode}-${s.docName}` === sourceKey)) {
           sources.push({

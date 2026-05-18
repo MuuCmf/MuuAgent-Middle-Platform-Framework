@@ -357,4 +357,101 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
     this.index.clear();
     this.logger.log('技能索引已清除');
   }
+
+  /**
+   * 构建同步到数据库的条目
+   * 读取完整的技能内容和参考文档
+   */
+  async buildSyncEntries(): Promise<Array<{
+    name: string;
+    description: string;
+    directoryPath: string;
+    skillMdPath: string;
+    frontmatter: SkillFrontmatter;
+    hasScripts: boolean;
+    hasReferences: boolean;
+    hasAssets: boolean;
+    appCode: string | null;
+    isPublic: boolean;
+    instructions: string;
+    allowedTools?: string[];
+    references?: Array<{ filePath: string; content: string }>;
+  }>> {
+    const entries: Array<{
+      name: string;
+      description: string;
+      directoryPath: string;
+      skillMdPath: string;
+      frontmatter: SkillFrontmatter;
+      hasScripts: boolean;
+      hasReferences: boolean;
+      hasAssets: boolean;
+      appCode: string | null;
+      isPublic: boolean;
+      instructions: string;
+      allowedTools?: string[];
+      references?: Array<{ filePath: string; content: string }>;
+    }> = [];
+
+    for (const [, indexEntry] of this.index) {
+      try {
+        // 解析技能完整内容
+        const parsed = await this.parser.parseFromFile(indexEntry.skillMdPath);
+        
+        // 加载参考文档
+        let references: Array<{ filePath: string; content: string }> | undefined;
+        if (indexEntry.hasReferences) {
+          references = await this.loadReferences(indexEntry.directoryPath);
+        }
+
+        entries.push({
+          name: indexEntry.name,
+          description: indexEntry.description,
+          directoryPath: indexEntry.directoryPath,
+          skillMdPath: indexEntry.skillMdPath,
+          frontmatter: indexEntry.frontmatter,
+          hasScripts: indexEntry.hasScripts,
+          hasReferences: indexEntry.hasReferences,
+          hasAssets: indexEntry.hasAssets,
+          appCode: indexEntry.appCode,
+          isPublic: indexEntry.isPublic,
+          instructions: parsed.body,
+          allowedTools: parsed.frontmatter.allowedTools
+            ? parsed.frontmatter.allowedTools.split(/\s+/).filter(Boolean)
+            : undefined,
+          references,
+        });
+      } catch (err) {
+        this.logger.warn(`构建同步条目失败 - ${indexEntry.name}: ${(err as Error).message}`);
+      }
+    }
+
+    return entries;
+  }
+
+  /**
+   * 加载技能目录下的所有参考文档
+   */
+  private async loadReferences(directoryPath: string): Promise<Array<{ filePath: string; content: string }>> {
+    const references: Array<{ filePath: string; content: string }> = [];
+    const refDir = path.join(directoryPath, 'references');
+
+    try {
+      const files = await fs.readdir(refDir);
+      
+      for (const fileName of files) {
+        const filePath = path.join(refDir, fileName);
+        const stat = await fs.stat(filePath);
+        
+        if (stat.isFile()) {
+          const content = await fs.readFile(filePath, 'utf-8');
+          references.push({ filePath: fileName, content });
+        }
+      }
+    } catch {
+      // 忽略读取失败
+    }
+
+    return references;
+  }
 }

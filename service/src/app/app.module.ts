@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from '../common/prisma/prisma.module';
+import { SkillModule } from '../skill/skill.module';
 
 /**
  * 应用管理模块
@@ -14,7 +15,7 @@ import { PrismaModule } from '../common/prisma/prisma.module';
  * - 应用使用统计
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, SkillModule],
   controllers: [AppController],
   providers: [AppService],
   exports: [AppService],

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   Query,
@@ -11,6 +12,8 @@ import {
   UploadedFile,
   NotFoundException,
   BadRequestException,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
@@ -18,12 +21,11 @@ import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { AdminScope } from '../common/constants/scope.constants';
 import { RequireScope } from '../common/decorators/scope.decorator';
-import { extractIsolationContext } from '../common/services/base-isolated.service';
+import { extractIsolationContext, IsolationContext } from '../common/services/base-isolated.service';
 import { QueryStandardSkillDto, ValidateSkillMdDto } from './dto/skill.dto';
 import { success } from '../common/response/api.response';
 import { Request } from 'express';
 import { SkillRegistry } from './skill-registry';
-import { SkillScanner } from './standard/skill-scanner';
 import { SkillImporter } from './skill-importer';
 import { SkillMdParser } from './standard/skill-md-parser';
 import { SkillMdValidator } from './standard/skill-md-validator';
@@ -31,8 +33,12 @@ import { SkillMdValidator } from './standard/skill-md-validator';
 /**
  * 技能管理控制器（标准技能）
  *
- * 所有技能均以 Agent Skills V1.0 标准格式（SKILL.md）存储在文件系统中。
- * 不再维护 DB 技能表。
+ * 实现三层缓存架构：
+ * - L1层：技能元数据列表（Redis缓存，TTL 30分钟）
+ * - L2层：完整技能描述符（内存LRU缓存，TTL 5分钟）
+ * - L3层：参考文档内容（Redis缓存，TTL 1小时）
+ *
+ * Provider查询顺序：Database -> Filesystem（回源）
  */
 @ApiTags('技能（管理端）')
 @ApiBearerAuth()
@@ -41,73 +47,80 @@ import { SkillMdValidator } from './standard/skill-md-validator';
 export class SkillController {
   constructor(
     private readonly skillRegistry: SkillRegistry,
-    private readonly skillScanner: SkillScanner,
     private readonly skillImporter: SkillImporter,
     private readonly skillMdParser: SkillMdParser,
     private readonly skillMdValidator: SkillMdValidator,
   ) {}
 
   // ============================================================
-  // 技能发现
+  // 技能发现（经过缓存层）
   // ============================================================
 
   /**
-   * 列出文件系统发现的技能
+   * 列出所有可用技能（经过L1缓存）
+   * GET /admin/skill/standard/list
    */
   @Get('standard/list')
-  @ApiOperation({ summary: '列出标准技能（文件系统）' })
+  @ApiOperation({ summary: '列出标准技能（经过缓存层）' })
   @RequireScope(AdminScope.SKILL_READ)
-  async listStandardSkills(@Query() query: QueryStandardSkillDto) {
-    const entries = this.skillScanner.getIndex(query.appCode);
-    return success(entries.map(e => ({
-      name: e.name,
-      description: e.description,
-      source: e.source,
-      appCode: e.appCode,
-      isPublic: e.isPublic,
-      hasReferences: e.hasReferences,
-      hasScripts: e.hasScripts,
-      hasAssets: e.hasAssets,
-      discoveredAt: e.discoveredAt,
-      fileSize: e.fileSize,
+  async listStandardSkills(@Query() query: QueryStandardSkillDto, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const skills = await this.skillRegistry.listAll(context);
+    
+    const filtered = query.appCode
+      ? skills.filter(s => s.appCode === query.appCode || s.isPublic)
+      : skills;
+
+    return success(filtered.map(s => ({
+      name: s.name,
+      description: s.description,
+      source: s.source,
+      appCode: s.appCode,
+      isPublic: s.isPublic,
+      hasReferences: s.hasReferences,
+      hasScripts: s.hasScripts,
     })));
   }
 
   /**
-   * 触发文件系统技能扫描
+   * 触发技能扫描并同步到数据库（清除所有缓存）
+   * POST /admin/skill/standard/scan
    */
   @Post('standard/scan')
-  @ApiOperation({ summary: '扫描标准技能目录' })
+  @ApiOperation({ summary: '扫描标准技能目录并同步到数据库' })
   @RequireScope(AdminScope.SKILL_WRITE)
   async scanStandardSkills() {
-    const result = await this.skillScanner.scan();
+    const result = await this.skillRegistry.refresh();
     return success(result);
   }
 
   /**
-   * 获取标准技能 SKILL.md 预览
+   * 获取标准技能详情（经过L2缓存）
+   * GET /admin/skill/standard/:name
    */
   @Get('standard/:name')
-  @ApiOperation({ summary: '预览标准技能 SKILL.md' })
+  @ApiOperation({ summary: '获取标准技能详情（经过缓存层）' })
   @RequireScope(AdminScope.SKILL_READ)
-  async getStandardSkill(@Param('name') name: string) {
-    const entry = this.skillScanner.findByName(name);
-    if (!entry) {
+  async getStandardSkill(@Param('name') name: string, @Req() req: Request) {
+    const context = extractIsolationContext(req);
+    const descriptor = await this.skillRegistry.resolve(name, context);
+    
+    if (!descriptor) {
       throw new NotFoundException('标准技能不存在');
     }
-    try {
-      const parsed = await this.skillMdParser.parseFromFile(entry.skillMdPath);
-      return success({
-        skillName: parsed.frontmatter.name,
-        frontmatter: parsed.frontmatter,
-        body: parsed.body,
-        rawContent: `${parsed.rawYaml}\n---\n${parsed.body}`,
-      });
-    } catch (err) {
-      throw new BadRequestException(
-        `解析 SKILL.md 失败: ${(err as Error).message}`,
-      );
-    }
+
+    return success({
+      skillName: descriptor.metadata.name,
+      description: descriptor.metadata.description,
+      source: descriptor.metadata.source,
+      appCode: descriptor.metadata.appCode,
+      isPublic: descriptor.metadata.isPublic,
+      hasReferences: descriptor.metadata.hasReferences,
+      hasScripts: descriptor.metadata.hasScripts,
+      frontmatter: descriptor.frontmatter,
+      instructions: descriptor.instructions,
+      allowedTools: descriptor.allowedTools,
+    });
   }
 
   // ============================================================
@@ -116,7 +129,7 @@ export class SkillController {
 
   /**
    * 导入标准技能（.zip 上传）
-   * 仅支持文件系统模式，不再支持导入为 DB 技能。
+   * POST /admin/skill/import
    */
   @Post('import')
   @ApiOperation({ summary: '导入标准技能' })
@@ -142,6 +155,10 @@ export class SkillController {
       },
       context,
     );
+    
+    // 导入后清除所有缓存
+    this.skillRegistry.clearAllCache();
+    
     return success(result);
   }
 
@@ -150,14 +167,78 @@ export class SkillController {
   // ============================================================
 
   /**
-   * 刷新技能索引
+   * 刷新技能索引（扫描 + 同步 + 清除缓存）
+   * POST /admin/skill/refresh
    */
   @Post('refresh')
   @ApiOperation({ summary: '刷新技能索引' })
   @RequireScope(AdminScope.SKILL_WRITE)
   async refreshSkills() {
     await this.skillRegistry.refresh();
-    return success(null, '索引已刷新');
+    return success(null, '索引已刷新，数据库已同步，缓存已清除');
+  }
+
+  // ============================================================
+  // 缓存管理
+  // ============================================================
+
+  /**
+   * 清除指定技能的缓存
+   * DELETE /admin/skill/cache/:name
+   */
+  @Delete('cache/:name')
+  @ApiOperation({ summary: '清除指定技能的缓存' })
+  @RequireScope(AdminScope.SKILL_WRITE)
+  async invalidateSkillCache(@Param('name') name: string) {
+    this.skillRegistry.invalidateCache(name);
+    return success(null, `技能 "${name}" 的缓存已清除`);
+  }
+
+  /**
+   * 清除所有技能缓存
+   * DELETE /admin/skill/cache
+   */
+  @Delete('cache')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '清除所有技能缓存' })
+  @RequireScope(AdminScope.SKILL_WRITE)
+  async clearAllCache() {
+    this.skillRegistry.clearAllCache();
+    return success(null, '所有技能缓存已清除');
+  }
+
+  /**
+   * 手动同步技能到数据库
+   * POST /admin/skill/sync
+   */
+  @Post('sync')
+  @ApiOperation({ summary: '手动同步技能到数据库' })
+  @RequireScope(AdminScope.SKILL_WRITE)
+  async syncToDatabase() {
+    const synced = await this.skillRegistry.syncToDatabase();
+    this.skillRegistry.clearAllCache();
+    return success({ synced }, `已同步 ${synced} 个技能到数据库`);
+  }
+
+  /**
+   * 获取技能缓存统计信息
+   * GET /admin/skill/stats
+   */
+  @Get('stats')
+  @ApiOperation({ summary: '获取技能统计信息' })
+  @RequireScope(AdminScope.SKILL_READ)
+  async getSkillStats() {
+    const stats = this.skillRegistry.getStats();
+    return success({
+      filesystemSkills: stats.filesystemSkills,
+      l2CacheSize: stats.l2CacheSize,
+      cacheConfig: {
+        l1TtlMinutes: stats.cacheConfig.L1_TTL / 60000,
+        l2TtlMinutes: stats.cacheConfig.L2_TTL / 60000,
+        l3TtlMinutes: stats.cacheConfig.L3_TTL / 60000,
+        l2MaxSize: stats.cacheConfig.L2_MAX_SIZE,
+      },
+    });
   }
 
   // ============================================================
@@ -166,6 +247,7 @@ export class SkillController {
 
   /**
    * 验证 SKILL.md 内容
+   * POST /admin/skill/validate
    */
   @Post('validate')
   @ApiOperation({ summary: '验证 SKILL.md 内容' })
@@ -199,7 +281,7 @@ export class SkillController {
     const entries = zip.getEntries();
 
     const MAX_FILES = 100;
-    const MAX_UNCOMPRESSED_SIZE = 5 * 1024 * 1024; // 5MB
+    const MAX_UNCOMPRESSED_SIZE = 5 * 1024 * 1024;
     let totalUncompressedSize = 0;
 
     for (const entry of entries) {

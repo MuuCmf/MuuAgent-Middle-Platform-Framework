@@ -3,6 +3,8 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { AppUsageService } from '../common/services/app-usage.service';
 import { CreateAppDto, UpdateAppDto, QueryAppDto, ResetSecretDto } from './dto/app.dto';
 import { randomUUID } from 'crypto';
+import { SkillRegistry } from '../skill/skill-registry';
+import { IsolationContext } from '../common/services/base-isolated.service';
 
 /**
  * 应用管理服务
@@ -25,6 +27,7 @@ export class AppService {
   constructor(
     private prisma: PrismaService,
     private appUsageService: AppUsageService,
+    private skillRegistry: SkillRegistry,
   ) {}
 
   /**
@@ -251,7 +254,7 @@ export class AppService {
 
     const [
       agentCount,
-      skillCount,
+      skills,
       kbCount,
       todayUsage,
       monthUsage,
@@ -259,7 +262,7 @@ export class AppService {
       monthTokens,
     ] = await Promise.all([
       this.prisma.agent.count({ where: { appCode: app.code } }),
-      this.prisma.skill.count({ where: { appCode: app.code } }),
+      this.skillRegistry.listAll({ appCode: app.code } as IsolationContext),
       this.prisma.kbInfo.count({ where: { appCode: app.code } }),
       this.prisma.appUsage.findUnique({
         where: { appCode_date: { appCode: app.code, date: today } },
@@ -271,7 +274,7 @@ export class AppService {
 
     return {
       agentCount,
-      skillCount,
+      skillCount: skills.length,
       kbCount,
       todayCalls: todayUsage?.callCount || 0,
       todayTokens: todayTokens.inputTokens + todayTokens.outputTokens,

@@ -114,43 +114,6 @@ model IntentCache {
   @@map("intent_cache")
 }
 
-/// 技能表 - 可被Agent调用的工具
-model Skill {
-  id          BigInt  @id @default(0)
-  name        String   /// 技能名称
-  code        String   /// 技能唯一标识
-  description String   @db.Text /// 功能描述(给LLM看)
-  type        String   /// 类型: http / function / database / rpc / mcp
-  params      String   @db.Text /// 入参描述(JSON格式)
-  config      String   @db.Text /// 执行配置(JSON格式)
-  status      Boolean  @default(true) /// 是否启用
-  timeout     Int      @default(30000) /// 超时时间(毫秒)
-
-  // ===== 函数技能专用字段 =====
-  codeType      String?  @map("code_type") /// 代码类型: builtin / plugin / sandbox
-  pluginName    String?  @map("plugin_name") /// 插件名称(plugin类型专用)
-  functionName  String?  @map("function_name") /// 函数名称
-  codeContent   String?  @map("code_content") @db.Text /// 沙箱代码内容(sandbox类型专用)
-
-  // ===== 应用隔离 =====
-  appCode       String?  @map("app_code") /// 所属应用标识
-  isPublic      Boolean  @default(false) @map("is_public") /// 是否公开（公开=所有应用可用）
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  /// 关联
-  app           AppTenant? @relation(fields: [appCode], references: [code])
-  invokeLogs    SkillInvokeLog[]
-
-  @@unique([code, appCode]) /// 同一应用下code唯一
-  @@index([type, status])
-  @@index([codeType])
-  @@index([appCode])
-  @@index([isPublic])
-  @@map("skills")
-}
-
 /// 智能体表 - AI Agent配置
 model Agent {
   id              BigInt  @id @default(0)
@@ -159,7 +122,7 @@ model Agent {
   description     String?  /// 智能体描述
   systemPrompt    String   @db.Text /// 系统提示词
   promptTemplateCode String? @map("prompt_template_code") /// 使用的提示词模板标识
-  skills          String   @db.Text /// 绑定的技能code列表(JSON数组)
+  skills          String   @db.Text /// 绑定的技能name列表(JSON数组)
   maxSteps        Int      @default(5) /// 最大执行步数
   status          Boolean  @default(true) /// 是否启用
 
@@ -230,7 +193,6 @@ model AiInvokeLog {
 /// 技能调用日志表 - 记录技能调用情况
 model SkillInvokeLog {
   id           BigInt  @id @default(0)
-  skillId BigInt   @map("skill_id") /// 技能ID
   skillCode    String   @map("skill_code") /// 技能标识
   agentLogId   String?  @map("agent_invoke_log_id") /// 关联Agent调用日志ID
   params       String?  @db.Text /// 调用参数(JSON)
@@ -246,10 +208,8 @@ model SkillInvokeLog {
 
   createdAt    DateTime @default(now())
 
-  skill        Skill @relation(fields: [skillId], references: [id])
   app          AppTenant? @relation(fields: [appCode], references: [code])
 
-  @@index([skillId, createdAt])
   @@index([skillCode, createdAt])
   @@index([uid, createdAt])
   @@index([appCode, createdAt])
@@ -330,7 +290,6 @@ model AppTenant {
 
   // ===== 关联 =====
   agents        Agent[]
-  skills        Skill[]
   kbInfos       KbInfo[]
   conversations Conversation[]
   promptTemplates PromptTemplate[]
@@ -941,4 +900,50 @@ model IntentRoutingLog {
   @@index([isDegraded, createdAt])
   @@index([appCode, createdAt])
   @@map("intent_routing_logs")
+}
+
+/// 技能表 - 存储技能元数据和完整描述符
+model Skill {
+  id              BigInt  @id @default(0)
+  name            String   @unique /// 技能名称（唯一标识）
+  description     String   /// 技能描述
+  source          String   /// 技能来源: filesystem / database / import
+  type            String?  /// 技能类型
+  appCode         String?  @map("app_code") /// 所属应用标识
+  isPublic        Boolean  @default(true) @map("is_public") /// 是否公开
+  hasReferences   Boolean  @default(false) @map("has_references") /// 是否有参考文档
+  hasScripts      Boolean  @default(false) @map("has_scripts") /// 是否有脚本
+  hasAssets       Boolean  @default(false) @map("has_assets") /// 是否有资源文件
+  instructions    String?  @db.Text /// 技能完整指令内容（L2层）
+  frontmatter     Json?    /// 序列化的frontmatter元数据
+  allowedTools    Json?    @default("[]") @map("allowed_tools") /// 允许使用的工具列表(JSON数组)
+  directoryPath   String?  @map("directory_path") /// 文件系统路径（如果来自文件）
+  version         String   @default("1.0.0") /// 技能版本
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  /// 关联
+  references      SkillReference[]
+
+  @@index([appCode])
+  @@index([name])
+  @@index([isPublic])
+  @@index([source])
+  @@map("skills")
+}
+
+/// 技能参考文档缓存表 - 缓存技能的参考文档内容
+model SkillReference {
+  id          BigInt  @id @default(0)
+  skillId     BigInt  @map("skill_id") /// 关联技能ID
+  filePath    String  /// 相对于技能目录的路径
+  content     String  @db.Text /// 缓存的文件内容
+  updatedAt   DateTime @updatedAt
+
+  /// 关联
+  skill       Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([skillId, filePath])
+  @@index([skillId])
+  @@map("skill_references")
 }

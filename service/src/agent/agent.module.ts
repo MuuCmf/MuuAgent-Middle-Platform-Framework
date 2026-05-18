@@ -1,6 +1,5 @@
 import { Module, OnModuleInit, Injectable } from '@nestjs/common';
 import { AgentService } from './agent.service';
-import { AgentKbService } from './agent-kb.service';
 import { AgentController, AgentAdminController } from './agent.controller';
 import { ModelRoutingModule } from "../model-routing/model-routing.module";
 import { McpServerModule } from '../mcp-server/mcp-server.module';
@@ -71,7 +70,6 @@ export class ToolRegistrar implements OnModuleInit {
   controllers: [AgentController, AgentAdminController],
   providers: [
     AgentService,
-    AgentKbService,
     ContextBuilder,
     ExecutionContext,
     ReasoningEngineFactory,
@@ -91,6 +89,6 @@ export class ToolRegistrar implements OnModuleInit {
     SkillRunScriptTool,
     ToolRegistrar,
   ],
-  exports: [AgentService, AgentKbService, ToolExecutor, ToolRegistry],
+  exports: [AgentService, ToolExecutor, ToolRegistry],
 })
 export class AgentModule {}
