@@ -1,28 +1,28 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">应用管理</h1>
-      <p class="page-description">管理多租户应用，配置资源权限和配额限制</p>
+      <h1 class="page-title">{{ $t('app.title') }}</h1>
+      <p class="page-description">{{ $t('app.description') }}</p>
     </div>
 
     <div class="help-tip">
-      <div class="help-tip-title">💡 应用管理说明</div>
-      <p>应用是AI中台的租户单元，每个应用拥有独立的API Key、配额限制和OAuth配置。支持创建、编辑、删除以及密钥重置等操作。</p>
+      <div class="help-tip-title">💡 {{ $t('app.managementTip') }}</div>
+      <p>{{ $t('app.managementDesc') }}</p>
     </div>
 
     <div class="card">
       <div class="card-title">
-        <span>应用列表</span>
+        <span>{{ $t('app.appList') }}</span>
         <el-button type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
-          新建应用
+          {{ $t('app.createApp') }}
         </el-button>
       </div>
 
       <div class="filter-section">
         <el-input
           v-model="searchForm.keyword"
-          placeholder="搜索应用名称/标识"
+          :placeholder="$t('app.searchAppNameOrCode')"
           clearable
           style="width: 220px"
           @clear="handleSearch"
@@ -30,16 +30,16 @@
         />
         <el-select
           v-model="searchForm.status"
-          placeholder="状态"
+          :placeholder="$t('app.status')"
           clearable
           style="width: 100px"
           @change="handleSearch"
         >
-          <el-option label="启用" value="true" />
-          <el-option label="禁用" value="false" />
+          <el-option :label="$t('app.enabled')" value="true" />
+          <el-option :label="$t('app.disabled')" value="false" />
         </el-select>
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-        <el-button @click="handleReset">重置</el-button>
+        <el-button type="primary" @click="handleSearch">{{ $t('common.query') }}</el-button>
+        <el-button @click="handleReset">{{ $t('common.reset') }}</el-button>
       </div>
 
       <el-table
@@ -48,9 +48,9 @@
         stripe
         style="width: 100%"
       >
-        <el-table-column prop="name" label="应用名称" min-width="150" />
-        <el-table-column prop="code" label="应用标识" min-width="120" />
-        <el-table-column label="API Key" min-width="200">
+        <el-table-column prop="name" :label="$t('app.appName')" min-width="150" />
+        <el-table-column prop="code" :label="$t('app.appCode')" min-width="120" />
+        <el-table-column :label="$t('app.apiKey')" min-width="200">
           <template #default="{ row }">
             <div class="key-cell">
               <span class="key-text">{{ row.apiKey }}</span>
@@ -65,46 +65,46 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="配额" min-width="120">
+        <el-table-column :label="$t('app.quota')" min-width="120">
           <template #default="{ row }">
             <div class="quota-cell">
-              <span>QPS: {{ row.qpsLimit }}</span>
-              <span>日限: {{ row.dailyLimit }}</span>
+              <span>{{ $t('app.qpsLimit') }}: {{ row.qpsLimit }}</span>
+              <span>{{ $t('app.dailyLimit') }}: {{ row.dailyLimit }}</span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="OAuth" width="80">
+        <el-table-column :label="$t('app.oauth')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.enableOAuth ? 'success' : 'info'" size="small">
-              {{ row.enableOAuth ? '已启用' : '未启用' }}
+              {{ row.enableOAuth ? $t('app.oauthEnabled') : $t('app.oauthDisabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="80">
+        <el-table-column :label="$t('app.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status ? 'success' : 'danger'" size="small">
-              {{ row.status ? '启用' : '禁用' }}
+              {{ row.status ? $t('app.enabled') : $t('app.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" width="180">
+        <el-table-column :label="$t('app.createdAt')" width="180">
           <template #default="{ row }">
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="230" fixed="right">
+        <el-table-column :label="$t('app.operation')" width="230" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="handleView(row)">
-              详情
+              {{ $t('app.detail') }}
             </el-button>
             <el-button link type="primary" size="small" @click="handleEdit(row)">
-              编辑
+              {{ $t('app.edit') }}
             </el-button>
             <el-button link type="warning" size="small" @click="handleResetSecret(row)">
-              重置密钥
+              {{ $t('app.resetSecret') }}
             </el-button>
             <el-button link type="danger" size="small" @click="handleDelete(row)">
-              删除
+              {{ $t('app.delete') }}
             </el-button>
           </template>
         </el-table-column>
@@ -142,6 +142,9 @@ import {
 } from '@element-plus/icons-vue'
 import { appApi, type App, type AppQuery } from '@/api/app'
 import AppEditDrawer from './components/AppEditDrawer.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const loading = ref(false)
@@ -184,7 +187,7 @@ const fetchApps = async () => {
     pagination.total = data.data.total
   } catch (error) {
     console.error('获取应用列表失败:', error)
-    ElMessage.error('获取应用列表失败')
+    ElMessage.error(t('app.getAppListFailed'))
   } finally {
     loading.value = false
   }
@@ -260,22 +263,22 @@ const handleView = (app: App) => {
 const handleResetSecret = async (app: App) => {
   try {
     await ElMessageBox.confirm(
-      '重置密钥后，旧密钥将立即失效，确定要重置吗？',
-      '重置密钥',
+      t('app.resetSecretConfirm'),
+      t('app.resetSecretTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
 
     const { data } = await appApi.resetSecret(app.id, false)
-    ElMessage.success('密钥重置成功')
+    ElMessage.success(t('app.resetSecretSuccess'))
     ElMessageBox.alert(
-      `新的Secret Key: ${data.data.secretKey}`,
-      '请保存新密钥',
+      `${t('app.newSecretKey')}: ${data.data.secretKey}`,
+      t('app.saveNewKey'),
       {
-        confirmButtonText: '我已保存',
+        confirmButtonText: t('app.saved'),
         type: 'warning',
       }
     )
@@ -283,7 +286,7 @@ const handleResetSecret = async (app: App) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('重置密钥失败:', error)
-      ElMessage.error('重置密钥失败')
+      ElMessage.error(t('app.resetSecretFailed'))
     }
   }
 }
@@ -295,22 +298,22 @@ const handleResetSecret = async (app: App) => {
 const handleDelete = async (app: App) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除应用 "${app.name}" 吗？此操作不可恢复。`,
-      '删除应用',
+      t('app.deleteConfirm'),
+      t('app.deleteTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'error',
       }
     )
 
     await appApi.delete(app.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('app.deleteSuccess'))
     fetchApps()
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除应用失败:', error)
-      ElMessage.error('删除应用失败')
+      ElMessage.error(t('app.deleteFailed'))
     }
   }
 }
@@ -328,7 +331,7 @@ const handleEditSuccess = () => {
  */
 const copyToClipboard = (text: string) => {
   navigator.clipboard.writeText(text)
-  ElMessage.success('已复制到剪贴板')
+  ElMessage.success(t('app.copiedToClipboard'))
 }
 
 /**

@@ -1,7 +1,7 @@
 <template>
   <el-drawer
     v-model="visible"
-    :title="mode === 'create' ? '新建应用' : '编辑应用'"
+    :title="mode === 'create' ? $t('app.createAppTitle') : $t('app.editAppTitle')"
     direction="rtl"
     size="600px"
     :before-close="handleClose"
@@ -13,23 +13,23 @@
       label-width="120px"
       label-position="top"
     >
-      <el-form-item label="应用名称" prop="name">
-        <el-input v-model="form.name" placeholder="请输入应用名称" />
+      <el-form-item :label="$t('app.appName')" prop="name">
+        <el-input v-model="form.name" :placeholder="$t('app.pleaseInputAppName')" />
       </el-form-item>
 
-      <el-form-item label="应用标识" prop="code">
+      <el-form-item :label="$t('app.appCode')" prop="code">
         <el-input
           v-model="form.code"
-          placeholder="请输入应用标识（唯一）"
+          :placeholder="$t('app.pleaseInputAppCode')"
           :disabled="mode === 'edit'"
         />
       </el-form-item>
 
-      <el-divider content-position="left">配额限制</el-divider>
+      <el-divider content-position="left">{{ $t('app.quotaLimit') }}</el-divider>
 
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="QPS限制" prop="qpsLimit">
+          <el-form-item :label="$t('app.qpsLimitLabel')" prop="qpsLimit">
             <el-input-number
               v-model="form.qpsLimit"
               :min="1"
@@ -39,7 +39,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="每日调用限制" prop="dailyLimit">
+          <el-form-item :label="$t('app.dailyCallLimit')" prop="dailyLimit">
             <el-input-number
               v-model="form.dailyLimit"
               :min="1"
@@ -50,7 +50,7 @@
         </el-col>
       </el-row>
 
-      <el-form-item label="Token配额（月）" prop="tokenLimit">
+      <el-form-item :label="$t('app.tokenQuotaMonth')" prop="tokenLimit">
         <el-input-number
           v-model="form.tokenLimit"
           :min="1"
@@ -59,33 +59,33 @@
         />
       </el-form-item>
 
-      <el-divider content-position="left">OAuth配置</el-divider>
+      <el-divider content-position="left">{{ $t('app.oauthConfig') }}</el-divider>
 
-      <el-form-item label="启用OAuth">
+      <el-form-item :label="$t('app.enableOAuth')">
         <el-switch v-model="form.enableOAuth" />
-        <div class="form-tip">启用后可绑定OAuth客户端实现第三方授权</div>
+        <div class="form-tip">{{ $t('app.enableOAuthTip') }}</div>
       </el-form-item>
 
-      <el-divider content-position="left">状态设置</el-divider>
+      <el-divider content-position="left">{{ $t('app.statusSetting') }}</el-divider>
 
-      <el-form-item label="启用状态">
+      <el-form-item :label="$t('app.enableStatus')">
         <el-switch v-model="form.status" />
       </el-form-item>
 
-      <el-form-item label="过期时间">
+      <el-form-item :label="$t('app.expireTime')">
         <el-date-picker
           v-model="form.expireAt"
           type="datetime"
-          placeholder="选择过期时间"
+          :placeholder="$t('app.selectExpireTime')"
           style="width: 100%"
         />
       </el-form-item>
     </el-form>
 
     <template #footer>
-      <el-button @click="handleClose">取消</el-button>
+      <el-button @click="handleClose">{{ $t('common.cancel') }}</el-button>
       <el-button type="primary" :loading="submitting" @click="handleSubmit">
-        {{ mode === 'create' ? '创建' : '保存' }}
+        {{ mode === 'create' ? $t('app.create') : $t('app.save') }}
       </el-button>
     </template>
   </el-drawer>
@@ -96,6 +96,9 @@ import { ref, reactive, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { appApi, type App, type AppForm } from '@/api/app'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
   modelValue: boolean
@@ -132,22 +135,22 @@ const form = reactive<AppForm>({
 
 const rules: FormRules = {
   name: [
-    { required: true, message: '请输入应用名称', trigger: 'blur' },
-    { max: 100, message: '应用名称不能超过100个字符', trigger: 'blur' },
+    { required: true, message: t('app.appNameRequired'), trigger: 'blur' },
+    { max: 100, message: t('app.appNameMaxLength'), trigger: 'blur' },
   ],
   code: [
-    { required: true, message: '请输入应用标识', trigger: 'blur' },
-    { max: 50, message: '应用标识不能超过50个字符', trigger: 'blur' },
-    { pattern: /^[a-zA-Z][a-zA-Z0-9-_]*$/, message: '应用标识必须以字母开头，只能包含字母、数字、中划线和下划线', trigger: 'blur' },
+    { required: true, message: t('app.appCodeRequired'), trigger: 'blur' },
+    { max: 50, message: t('app.appCodeMaxLength'), trigger: 'blur' },
+    { pattern: /^[a-zA-Z][a-zA-Z0-9-_]*$/, message: t('app.appCodePattern'), trigger: 'blur' },
   ],
   qpsLimit: [
-    { required: true, message: '请输入QPS限制', trigger: 'blur' },
+    { required: true, message: t('app.qpsLimitRequired'), trigger: 'blur' },
   ],
   dailyLimit: [
-    { required: true, message: '请输入每日调用限制', trigger: 'blur' },
+    { required: true, message: t('app.dailyLimitRequired'), trigger: 'blur' },
   ],
   tokenLimit: [
-    { required: true, message: '请输入Token配额', trigger: 'blur' },
+    { required: true, message: t('app.tokenLimitRequired'), trigger: 'blur' },
   ],
 }
 
@@ -204,17 +207,21 @@ const handleSubmit = async () => {
 
     if (props.mode === 'create') {
       await appApi.create(data)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('app.createAppSuccess'))
     } else if (props.app) {
       await appApi.update(props.app.id, data)
-      ElMessage.success('保存成功')
+      ElMessage.success(t('app.updateAppSuccess'))
     }
 
     emit('success')
     handleClose()
   } catch (error) {
     console.error('提交失败:', error)
-    ElMessage.error('操作失败')
+    if (props.mode === 'create') {
+      ElMessage.error(t('app.createAppFailed'))
+    } else {
+      ElMessage.error(t('app.updateAppFailed'))
+    }
   } finally {
     submitting.value = false
   }

@@ -4,10 +4,10 @@
       <div class="header-left">
         <el-button @click="handleBack" text class="back-btn">
           <el-icon><ArrowLeft /></el-icon>
-          返回列表
+          {{ $t('app.backToList') }}
         </el-button>
         <div class="title-group">
-          <h1 class="page-title">{{ app?.name || '应用详情' }}</h1>
+          <h1 class="page-title">{{ app?.name || $t('app.appDetail') }}</h1>
           <el-tag
             v-if="app"
             :type="app.status ? 'success' : 'danger'"
@@ -16,14 +16,14 @@
             effect="dark"
             round
           >
-            {{ app.status ? '启用中' : '已禁用' }}
+            {{ app.status ? $t('app.enabledStatus') : $t('app.disabledStatus') }}
           </el-tag>
         </div>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="handleEdit" class="edit-btn">
           <el-icon><Edit /></el-icon>
-          编辑应用
+          {{ $t('app.editApp') }}
         </el-button>
       </div>
     </div>
@@ -32,56 +32,56 @@
       <el-card class="detail-card" shadow="never">
         <template #header>
           <div class="card-header">
-            <span class="card-header__title">基本信息</span>
+            <span class="card-header__title">{{ $t('app.basicInfo') }}</span>
           </div>
         </template>
 
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="应用名称">
+          <el-descriptions-item :label="$t('app.appName')">
             {{ app.name }}
           </el-descriptions-item>
-          <el-descriptions-item label="应用标识">
+          <el-descriptions-item :label="$t('app.appCode')">
             <el-tag effect="plain" round>{{ app.code }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="OAuth状态">
+          <el-descriptions-item :label="$t('app.oauth') + $t('app.status')">
             <el-tag :type="app.enableOAuth ? 'success' : 'info'" size="small" effect="light" round>
-              {{ app.enableOAuth ? '已启用' : '未启用' }}
+              {{ app.enableOAuth ? $t('app.oauthEnabled') : $t('app.oauthDisabled') }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="API Key">
+          <el-descriptions-item :label="$t('app.apiKey')">
             <div class="key-value">
               <code>{{ app.apiKey }}</code>
               <el-button link type="primary" @click="copyToClipboard(app.apiKey)" class="copy-btn">
-                复制
+                {{ $t('app.copy') }}
               </el-button>
             </div>
           </el-descriptions-item>
-          <el-descriptions-item label="Secret Key">
+          <el-descriptions-item :label="$t('app.secretKey')">
             <div class="key-value">
               <code>{{ app.secretKey }}</code>
               <el-button link type="primary" @click="copyToClipboard(app.secretKey)" class="copy-btn">
-                复制
+                {{ $t('app.copy') }}
               </el-button>
             </div>
           </el-descriptions-item>
-          <el-descriptions-item label="过期时间">
+          <el-descriptions-item :label="$t('app.expireTime')">
             <span :class="{ 'text-warning': isExpiringSoon }">
-              {{ app.expireAt ? formatDate(app.expireAt) : '永不过期' }}
+              {{ app.expireAt ? formatDate(app.expireAt) : $t('app.neverExpire') }}
             </span>
           </el-descriptions-item>
-          <el-descriptions-item label="QPS限制">
+          <el-descriptions-item :label="$t('app.qpsLimitLabel')">
             {{ app.qpsLimit }}
           </el-descriptions-item>
-          <el-descriptions-item label="每日调用限制">
+          <el-descriptions-item :label="$t('app.dailyCallLimit')">
             {{ app.dailyLimit }}
           </el-descriptions-item>
-          <el-descriptions-item label="Token配额（月）">
+          <el-descriptions-item :label="$t('app.tokenQuotaMonth')">
             {{ app.tokenLimit }}
           </el-descriptions-item>
-          <el-descriptions-item label="创建时间">
+          <el-descriptions-item :label="$t('app.createdAt')">
             {{ formatDate(app.createdAt) }}
           </el-descriptions-item>
-          <el-descriptions-item label="更新时间">
+          <el-descriptions-item :label="$t('app.updateTime')">
             {{ formatDate(app.updatedAt) }}
           </el-descriptions-item>
         </el-descriptions>
@@ -95,7 +95,7 @@
             </div>
             <div class="stat-card__content">
               <span class="stat-card__value">{{ usage?.agentCount || 0 }}</span>
-              <span class="stat-card__label">智能体</span>
+              <span class="stat-card__label">{{ $t('app.agent') }}</span>
             </div>
           </div>
         </el-col>
@@ -106,7 +106,7 @@
             </div>
             <div class="stat-card__content">
               <span class="stat-card__value">{{ usage?.skillCount || 0 }}</span>
-              <span class="stat-card__label">技能</span>
+              <span class="stat-card__label">{{ $t('app.skill') }}</span>
             </div>
           </div>
         </el-col>
@@ -117,7 +117,7 @@
             </div>
             <div class="stat-card__content">
               <span class="stat-card__value">{{ usage?.kbCount || 0 }}</span>
-              <span class="stat-card__label">知识库</span>
+              <span class="stat-card__label">{{ $t('app.knowledgeBase') }}</span>
             </div>
           </div>
         </el-col>
@@ -127,7 +127,7 @@
         <el-col :span="12">
           <div class="metric-card" v-loading="usageLoading">
             <div class="metric-card__header">
-              <span class="metric-card__title">今日调用</span>
+              <span class="metric-card__title">{{ $t('app.todayCalls') }}</span>
               <el-icon class="metric-card__icon" :size="18"><TrendCharts /></el-icon>
             </div>
             <div class="metric-card__body">
@@ -142,14 +142,14 @@
               class="metric-card__progress"
             />
             <div class="metric-card__footer">
-              <span>本月累计 <strong>{{ usage?.monthCalls || 0 }}</strong> 次调用</span>
+              <span>{{ $t('app.monthTotal') }} <strong>{{ usage?.monthCalls || 0 }}</strong> {{ $t('app.times') }}</span>
             </div>
           </div>
         </el-col>
         <el-col :span="12">
           <div class="metric-card" v-loading="usageLoading">
             <div class="metric-card__header">
-              <span class="metric-card__title">本月 Token</span>
+              <span class="metric-card__title">{{ $t('app.monthToken') }}</span>
               <el-icon class="metric-card__icon" :size="18"><Coin /></el-icon>
             </div>
             <div class="metric-card__body">
@@ -164,7 +164,7 @@
               class="metric-card__progress"
             />
             <div class="metric-card__footer">
-              <span>今日已用 <strong>{{ usage?.todayTokens || 0 }}</strong> Token</span>
+              <span>{{ $t('app.todayUsed') }} <strong>{{ usage?.todayTokens || 0 }}</strong> Token</span>
             </div>
           </div>
         </el-col>
@@ -173,7 +173,7 @@
       <el-card class="detail-card" shadow="never">
         <template #header>
           <div class="card-header">
-            <span class="card-header__title">Token 用量详情</span>
+            <span class="card-header__title">{{ $t('app.tokenUsageDetail') }}</span>
           </div>
         </template>
 
@@ -181,18 +181,18 @@
           <el-row :gutter="24">
             <el-col :span="12">
               <div class="token-block">
-                <h4 class="token-block__title">今日</h4>
+                <h4 class="token-block__title">{{ $t('app.today') }}</h4>
                 <div class="token-block__stats">
                   <div class="token-stat">
-                    <span class="token-stat__label">总用量</span>
+                    <span class="token-stat__label">{{ $t('app.totalUsage') }}</span>
                     <span class="token-stat__value">{{ usage?.todayTokens || 0 }}</span>
                   </div>
                   <div class="token-stat token-stat--input">
-                    <span class="token-stat__label">输入</span>
+                    <span class="token-stat__label">{{ $t('app.input') }}</span>
                     <span class="token-stat__value">{{ usage?.todayInputTokens || 0 }}</span>
                   </div>
                   <div class="token-stat token-stat--output">
-                    <span class="token-stat__label">输出</span>
+                    <span class="token-stat__label">{{ $t('app.output') }}</span>
                     <span class="token-stat__value">{{ usage?.todayOutputTokens || 0 }}</span>
                   </div>
                 </div>
@@ -206,29 +206,29 @@
                 <div class="token-ratio-legend">
                   <span class="token-ratio-legend__item">
                     <span class="token-ratio-legend__dot token-ratio-legend__dot--input" />
-                    输入 {{ usage?.todayInputTokens || 0 }}
+                    {{ $t('app.input') }} {{ usage?.todayInputTokens || 0 }}
                   </span>
                   <span class="token-ratio-legend__item">
                     <span class="token-ratio-legend__dot token-ratio-legend__dot--output" />
-                    输出 {{ usage?.todayOutputTokens || 0 }}
+                    {{ $t('app.output') }} {{ usage?.todayOutputTokens || 0 }}
                   </span>
                 </div>
               </div>
             </el-col>
             <el-col :span="12">
               <div class="token-block">
-                <h4 class="token-block__title">本月</h4>
+                <h4 class="token-block__title">{{ $t('app.month') }}</h4>
                 <div class="token-block__stats">
                   <div class="token-stat">
-                    <span class="token-stat__label">总用量</span>
+                    <span class="token-stat__label">{{ $t('app.totalUsage') }}</span>
                     <span class="token-stat__value">{{ usage?.monthTokens || 0 }}</span>
                   </div>
                   <div class="token-stat token-stat--input">
-                    <span class="token-stat__label">输入</span>
+                    <span class="token-stat__label">{{ $t('app.input') }}</span>
                     <span class="token-stat__value">{{ usage?.monthInputTokens || 0 }}</span>
                   </div>
                   <div class="token-stat token-stat--output">
-                    <span class="token-stat__label">输出</span>
+                    <span class="token-stat__label">{{ $t('app.output') }}</span>
                     <span class="token-stat__value">{{ usage?.monthOutputTokens || 0 }}</span>
                   </div>
                 </div>
@@ -242,11 +242,11 @@
                 <div class="token-ratio-legend">
                   <span class="token-ratio-legend__item">
                     <span class="token-ratio-legend__dot token-ratio-legend__dot--input" />
-                    输入 {{ usage?.monthInputTokens || 0 }}
+                    {{ $t('app.input') }} {{ usage?.monthInputTokens || 0 }}
                   </span>
                   <span class="token-ratio-legend__item">
                     <span class="token-ratio-legend__dot token-ratio-legend__dot--output" />
-                    输出 {{ usage?.monthOutputTokens || 0 }}
+                    {{ $t('app.output') }} {{ usage?.monthOutputTokens || 0 }}
                   </span>
                 </div>
               </div>
@@ -258,9 +258,9 @@
       <el-card class="detail-card" shadow="never">
         <template #header>
           <div class="card-header">
-            <span class="card-header__title">OAuth 客户端</span>
+            <span class="card-header__title">{{ $t('app.oauthClient') }}</span>
             <el-tag v-if="!app.enableOAuth" type="warning" size="small" effect="light" round>
-              未启用OAuth
+              {{ $t('app.oauthNotEnabled') }}
             </el-tag>
           </div>
         </template>
@@ -286,6 +286,9 @@ import { ArrowLeft, Edit, Monitor, SetUp, Collection, TrendCharts, Coin } from '
 import { appApi, type App, type AppUsage } from '@/api/app'
 import AppEditDrawer from './components/AppEditDrawer.vue'
 import OAuthClientManager from './components/OAuthClientManager.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
@@ -344,7 +347,7 @@ const isExpiringSoon = computed(() => {
 const loadApp = async () => {
   const id = route.params.id as string
   if (!id) {
-    ElMessage.error('应用ID不存在')
+    ElMessage.error(t('app.appIdNotExist'))
     router.push('/apps')
     return
   }
@@ -355,7 +358,7 @@ const loadApp = async () => {
     app.value = data.data
   } catch (error) {
     console.error('获取应用详情失败:', error)
-    ElMessage.error('获取应用详情失败')
+    ElMessage.error(t('app.getAppDetailFailed'))
     router.push('/apps')
   } finally {
     loading.value = false
@@ -374,6 +377,7 @@ const loadUsage = async () => {
     usage.value = data.data
   } catch (error) {
     console.error('获取使用统计失败:', error)
+    ElMessage.error(t('app.getUsageFailed'))
   } finally {
     usageLoading.value = false
   }
@@ -406,7 +410,7 @@ const handleEditSuccess = () => {
  */
 const copyToClipboard = (text: string) => {
   navigator.clipboard.writeText(text)
-  ElMessage.success('已复制到剪贴板')
+  ElMessage.success(t('app.copiedToClipboard'))
 }
 
 /**

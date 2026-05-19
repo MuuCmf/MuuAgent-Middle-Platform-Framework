@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    :title="isEdit ? '编辑会话' : '新建会话'"
+    :title="isEdit ? $t('conversation.editConversation') : $t('conversation.createConversation')"
     width="600px"
     @close="handleClose"
   >
@@ -12,10 +12,10 @@
       label-width="100px"
       v-loading="loading"
     >
-      <el-form-item label="会话类型" prop="conversationType">
+      <el-form-item :label="$t('conversation.conversationType')" prop="conversationType">
         <el-select
           v-model="formData.conversationType"
-          placeholder="请选择会话类型"
+          :placeholder="$t('conversation.pleaseSelectConversationType')"
           :disabled="isEdit"
           style="width: 100%"
         >
@@ -28,25 +28,25 @@
         </el-select>
       </el-form-item>
 
-      <el-form-item label="目标ID" prop="targetId">
+      <el-form-item :label="$t('conversation.targetId')" prop="targetId">
         <el-input
           v-model="formData.targetId"
-          placeholder="请输入目标ID（智能体ID/模型代码/知识库ID）"
+          :placeholder="$t('conversation.pleaseInputTargetId')"
           :disabled="isEdit"
         />
       </el-form-item>
 
-      <el-form-item label="会话标题" prop="title">
+      <el-form-item :label="$t('conversation.conversationTitle')" prop="title">
         <el-input
           v-model="formData.title"
-          placeholder="请输入会话标题（可选）"
+          :placeholder="$t('conversation.pleaseInputConversationTitle')"
           maxlength="100"
           show-word-limit
         />
       </el-form-item>
 
-      <el-form-item label="会话状态" prop="status" v-if="isEdit">
-        <el-select v-model="formData.status" placeholder="请选择会话状态" style="width: 100%">
+      <el-form-item :label="$t('conversation.conversationStatus')" prop="status" v-if="isEdit">
+        <el-select v-model="formData.status" :placeholder="$t('conversation.pleaseSelectConversationStatus')" style="width: 100%">
           <el-option
             v-for="option in conversationStatusOptions"
             :key="option.value"
@@ -56,19 +56,19 @@
         </el-select>
       </el-form-item>
 
-      <el-form-item label="用户ID" prop="uid">
+      <el-form-item :label="$t('conversation.userId')" prop="uid">
         <el-input
           v-model="formData.uid"
-          placeholder="请输入用户ID（可选）"
+          :placeholder="$t('conversation.pleaseInputUserId')"
         />
       </el-form-item>
     </el-form>
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="handleClose">取消</el-button>
+        <el-button @click="handleClose">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" @click="handleSubmit" :loading="loading">
-          确定
+          {{ $t('common.confirm') }}
         </el-button>
       </div>
     </template>
@@ -87,17 +87,20 @@ import {
   CreateConversationParams,
   UpdateConversationParams,
 } from '@/api/conversation'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const conversationTypeOptions = [
-  { label: '智能体对话', value: 'AGENT' as const },
-  { label: '模型对话', value: 'MODEL' as const },
-  { label: '知识库对话', value: 'KB_RAG' as const },
+  { label: t('conversation.agentConversation'), value: 'AGENT' as const },
+  { label: t('conversation.modelConversation'), value: 'MODEL' as const },
+  { label: t('conversation.kbConversation'), value: 'KB_RAG' as const },
 ]
 
 const conversationStatusOptions = [
-  { label: '活跃', value: 'active' as const },
-  { label: '已归档', value: 'archived' as const },
-  { label: '已删除', value: 'deleted' as const },
+  { label: t('conversation.active'), value: 'active' as const },
+  { label: t('conversation.archived'), value: 'archived' as const },
+  { label: t('conversation.deleted'), value: 'deleted' as const },
 ]
 
 interface Props {
@@ -141,10 +144,10 @@ const formData = ref<{
 
 const rules: FormRules = {
   conversationType: [
-    { required: true, message: '请选择会话类型', trigger: 'change' },
+    { required: true, message: t('conversation.pleaseSelectConversationType'), trigger: 'change' },
   ],
   targetId: [
-    { required: true, message: '请输入目标ID', trigger: 'blur' },
+    { required: true, message: t('conversation.pleaseInputTargetId'), trigger: 'blur' },
   ],
 }
 
@@ -199,7 +202,7 @@ const handleSubmit = async () => {
         status: formData.value.status,
       }
       await conversationStore.updateConversation(props.conversation.id, updateData)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('conversation.updateSuccess'))
     } else {
       const createData: CreateConversationParams = {
         conversationType: formData.value.conversationType,
@@ -208,13 +211,13 @@ const handleSubmit = async () => {
         uid: formData.value.uid || undefined,
       }
       await conversationStore.createConversation(createData)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('conversation.createSuccess'))
     }
 
     emits('success')
     handleClose()
   } catch (error) {
-    ElMessage.error(isEdit.value ? '更新失败' : '创建失败')
+    ElMessage.error(isEdit.value ? t('conversation.updateFailed') : t('conversation.createFailed'))
   } finally {
     loading.value = false
   }

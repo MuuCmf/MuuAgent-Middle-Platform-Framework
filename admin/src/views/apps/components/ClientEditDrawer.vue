@@ -1,7 +1,7 @@
 <template>
   <el-drawer
     v-model="visible"
-    :title="isEdit ? '编辑客户端' : '创建客户端'"
+    :title="isEdit ? $t('app.editClient') : $t('app.createClient')"
     direction="rtl"
     size="600px"
     @close="handleClose"
@@ -13,11 +13,11 @@
       label-width="120px"
       style="padding: 20px;"
     >
-      <el-form-item label="客户端名称" prop="name">
-        <el-input v-model="formData.name" placeholder="请输入客户端名称" />
+      <el-form-item :label="$t('app.clientName')" prop="name">
+        <el-input v-model="formData.name" :placeholder="$t('app.pleaseInputClientName')" />
       </el-form-item>
 
-      <el-form-item label="回调地址" prop="redirectUris">
+      <el-form-item :label="$t('app.callbackUrl')" prop="redirectUris">
         <div style="width: 100%;">
           <div
             v-for="(_, index) in formData.redirectUris"
@@ -26,7 +26,7 @@
           >
             <el-input
               v-model="formData.redirectUris[index]"
-              placeholder="https://example.com/callback"
+              :placeholder="$t('app.pleaseInputCallbackUrl')"
               style="flex: 1;"
             />
             <el-button
@@ -37,12 +37,12 @@
             />
           </div>
           <el-button type="primary" :icon="Plus" @click="addRedirectUri">
-            添加回调地址
+            {{ $t('app.addCallbackUrl') }}
           </el-button>
         </div>
       </el-form-item>
 
-      <el-form-item label="权限范围" prop="scopes">
+      <el-form-item :label="$t('app.permissionScope')" prop="scopes">
         <div style="width: 100%;">
           <div
             v-for="group in scopeGroups"
@@ -68,26 +68,26 @@
         </div>
       </el-form-item>
 
-      <el-form-item label="授权类型" prop="grants">
+      <el-form-item :label="$t('app.authorizationType')" prop="grants">
         <el-checkbox-group v-model="formData.grants">
-          <el-checkbox label="authorization_code">授权码模式</el-checkbox>
-          <el-checkbox label="refresh_token">刷新令牌</el-checkbox>
+          <el-checkbox label="authorization_code">{{ $t('app.authorizationCodeMode') }}</el-checkbox>
+          <el-checkbox label="refresh_token">{{ $t('app.refreshToken') }}</el-checkbox>
         </el-checkbox-group>
       </el-form-item>
 
-      <el-form-item v-if="isEdit" label="状态" prop="status">
+      <el-form-item v-if="isEdit" :label="$t('app.clientStatus')" prop="status">
         <el-radio-group v-model="formData.status">
-          <el-radio :label="1">启用</el-radio>
-          <el-radio :label="0">禁用</el-radio>
+          <el-radio :label="1">{{ $t('app.enabled') }}</el-radio>
+          <el-radio :label="0">{{ $t('app.disabled') }}</el-radio>
         </el-radio-group>
       </el-form-item>
     </el-form>
 
     <template #footer>
       <div style="text-align: right;">
-        <el-button @click="handleClose">取消</el-button>
+        <el-button @click="handleClose">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" @click="handleSubmit" :loading="submitting">
-          {{ isEdit ? '保存' : '创建' }}
+          {{ isEdit ? $t('app.save') : $t('app.create') }}
         </el-button>
       </div>
     </template>
@@ -102,6 +102,9 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { oauthApi, type OAuthClient, type CreateClientDto, type UpdateClientDto } from '@/api/oauth'
 import { scopeApi } from '@/api/scope'
 import type { ScopeOption } from '@/constants/scope'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
   visible: boolean
@@ -138,16 +141,16 @@ const formData = ref<CreateClientDto & { status?: number }>({
 
 const rules: FormRules = {
   name: [
-    { required: true, message: '请输入客户端名称', trigger: 'blur' },
+    { required: true, message: t('app.pleaseInputClientName'), trigger: 'blur' },
   ],
   redirectUris: [
-    { required: true, message: '请至少添加一个回调地址', trigger: 'change' },
+    { required: true, message: t('app.atLeastOneCallbackUrl'), trigger: 'change' },
   ],
   scopes: [
-    { required: true, message: '请选择权限范围', trigger: 'change' },
+    { required: true, message: t('app.pleaseSelectPermissionScope'), trigger: 'change' },
   ],
   grants: [
-    { required: true, message: '请选择授权类型', trigger: 'change' },
+    { required: true, message: t('app.pleaseSelectAuthorizationType'), trigger: 'change' },
   ],
 }
 
@@ -181,7 +184,7 @@ const loadScopeData = async () => {
     }))
   } catch (error) {
     console.error('获取 scope 数据失败:', error)
-    ElMessage.error('获取权限数据失败，请刷新页面重试')
+    ElMessage.error(t('app.getPermissionDataFailed'))
   }
 }
 
@@ -246,7 +249,7 @@ const handleSubmit = async () => {
           status: formData.value.status,
         }
         await oauthApi.updateClient(props.client.id, updateData)
-        ElMessage.success('客户端更新成功')
+        ElMessage.success(t('app.clientUpdateSuccess'))
       } else {
         const createData: CreateClientDto = {
           name: formData.value.name,
@@ -258,10 +261,10 @@ const handleSubmit = async () => {
         const response = await oauthApi.createClient(createData)
         
         await ElMessageBox.alert(
-          `客户端ID：${response.data.data.clientId}\n客户端密钥：${response.data.data.clientSecret}`,
-          '创建成功，请妥善保管密钥',
+          `${t('app.clientId')}：${response.data.data.clientId}\n${t('app.clientSecret')}：${response.data.data.clientSecret}`,
+          t('app.createClientSuccess'),
           {
-            confirmButtonText: '确定',
+            confirmButtonText: t('common.confirm'),
             type: 'success',
           }
         )
@@ -270,7 +273,7 @@ const handleSubmit = async () => {
       emits('success')
       handleClose()
     } catch (error: any) {
-      ElMessage.error(error.response?.data?.message || '操作失败')
+      ElMessage.error(error.response?.data?.message || t('app.operationFailed'))
     } finally {
       submitting.value = false
     }

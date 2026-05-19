@@ -3,9 +3,13 @@
     <el-header class="layouts-header">
       <Logo :isCollapsed="isCollapsed" />
       <div class="header-actions">
+        <LocaleSwitch />
+        
+        <el-divider direction="vertical" />
+        
         <el-button @click="showHelp = true" class="help-btn" text>
           <el-icon><QuestionFilled /></el-icon>
-          使用帮助
+          {{ $t('layout.help') }}
         </el-button>
         
         <el-divider direction="vertical" />
@@ -16,7 +20,7 @@
               {{ userInfo?.nickname?.charAt(0) || userInfo?.username?.charAt(0) || 'A' }}
             </el-avatar>
             <div class="user-details">
-              <div class="user-name">{{ userInfo?.nickname || userInfo?.username || '管理员' }}</div>
+              <div class="user-name">{{ userInfo?.nickname || userInfo?.username || $t('layout.defaultRole') }}</div>
               <div class="user-role">{{ getRoleName(userInfo?.role) }}</div>
             </div>
             <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
@@ -25,15 +29,15 @@
             <el-dropdown-menu>
               <el-dropdown-item command="profile">
                 <el-icon><User /></el-icon>
-                个人信息
+                {{ $t('layout.profile') }}
               </el-dropdown-item>
               <el-dropdown-item command="password">
                 <el-icon><Lock /></el-icon>
-                修改密码
+                {{ $t('layout.changePassword') }}
               </el-dropdown-item>
               <el-dropdown-item divided command="logout">
                 <el-icon><SwitchButton /></el-icon>
-                退出登录
+                {{ $t('layout.logout') }}
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -67,7 +71,7 @@
             :index="getMenuIndex(r)"
           >
             <el-icon><component :is="r.meta?.icon" /></el-icon>
-            <template #title>{{ r.meta?.title }}</template>
+            <template #title>{{ r.meta?.title ? $t(r.meta.title as string) : '' }}</template>
           </el-menu-item>
         </el-menu>
       </el-aside>
@@ -80,77 +84,77 @@
       </el-main>
     </el-container>
 
-    <el-dialog v-model="showHelp" title="📖 使用帮助" width="700px">
+    <el-dialog v-model="showHelp" :title="$t('layout.help')" width="700px">
       <el-alert type="info" :closable="false" class="help-section">
         <template #title>
-          <strong>🚀 快速开始</strong>
+          <strong>🚀 {{ $t('layout.quickStart') }}</strong>
         </template>
         <ol class="help-list">
-          <li><strong>添加模型</strong>：在「模型管理」中添加你的AI模型（如Ollama本地模型）</li>
-          <li><strong>创建技能</strong>：在「技能管理」中定义智能体可以使用的工具</li>
-          <li><strong>创建智能体</strong>：在「智能体」中创建具有特定能力的AI助手</li>
+          <li>{{ $t('layout.quickStartDesc1') }}</li>
+          <li>{{ $t('layout.quickStartDesc2') }}</li>
+          <li>{{ $t('layout.quickStartDesc3') }}</li>
         </ol>
       </el-alert>
 
       <el-alert type="warning" :closable="false" class="help-section">
         <template #title>
-          <strong>🔧 Ollama本地模型配置</strong>
+          <strong>🔧 {{ $t('layout.ollamaConfig') }}</strong>
         </template>
         <ul class="help-list">
-          <li>API地址：<code>http://localhost:11434/api/chat</code></li>
-          <li>模型标识：<code>llama3</code>、<code>qwen2</code> 等</li>
-          <li>API密钥：留空</li>
+          <li>{{ $t('layout.ollamaApiAddress') }}：<code>http://localhost:11434/api/chat</code></li>
+          <li>{{ $t('layout.ollamaModelId') }}：<code>llama3</code>、<code>qwen2</code> 等</li>
+          <li>{{ $t('layout.ollamaApiKey') }}：{{ $t('layout.ollamaApiKeyNote') }}</li>
         </ul>
       </el-alert>
 
       <el-alert type="success" :closable="false" class="help-section">
         <template #title>
-          <strong>📡 API调用方式</strong>
+          <strong>📡 {{ $t('layout.apiUsage') }}</strong>
         </template>
-        <p>所有API请求需要在Header中携带API Key：</p>
+        <p>{{ $t('layout.apiUsageDesc') }}</p>
         <pre class="code-block">x-api-key: AI-SVC-2026-MCP-KEY-666</pre>
       </el-alert>
     </el-dialog>
 
-    <el-dialog v-model="showPasswordDialog" title="修改密码" width="500px">
+    <el-dialog v-model="showPasswordDialog" :title="$t('layout.changePassword')" width="500px">
       <el-form
         ref="passwordFormRef"
         :model="passwordForm"
         :rules="passwordRules"
         label-width="100px"
       >
-        <el-form-item label="原密码" prop="oldPassword">
+        <el-form-item :label="$t('layout.oldPassword')" prop="oldPassword">
           <el-input
             v-model="passwordForm.oldPassword"
             type="password"
-            placeholder="请输入原密码"
+            :placeholder="$t('layout.pleaseInputOldPassword')"
             show-password
           />
         </el-form-item>
         
-        <el-form-item label="新密码" prop="newPassword">
+        <el-form-item :label="$t('layout.newPassword')" prop="newPassword">
           <el-input
             v-model="passwordForm.newPassword"
             type="password"
-            placeholder="请输入新密码"
+            :placeholder="$t('layout.pleaseInputNewPassword')"
             show-password
           />
         </el-form-item>
         
-        <el-form-item label="确认密码" prop="confirmPassword">
+        <el-form-item :label="$t('layout.confirmPassword')" prop="confirmPassword">
           <el-input
             v-model="passwordForm.confirmPassword"
             type="password"
-            placeholder="请再次输入新密码"
+            :placeholder="$t('layout.pleaseInputConfirmPassword')"
             show-password
           />
         </el-form-item>
       </el-form>
       
       <template #footer>
-        <el-button @click="showPasswordDialog = false">取消</el-button>
+        <el-button @click="showPasswordDialog = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="passwordLoading" @click="handleChangePassword">
-          确定
+          {{ $t('common.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -164,11 +168,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { QuestionFilled, ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
 import Logo from './components/Logo.vue'
+import LocaleSwitch from '@/components/LocaleSwitch.vue'
 import { userApi, type AdminUser } from '@/api/user'
 import { clearCachedToken } from '@/utils/request'
+import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 
 const showHelp = ref(false)
 const showPasswordDialog = ref(false)
@@ -209,7 +216,7 @@ const passwordForm = reactive({
 
 const validateConfirmPassword = (_rule: any, value: any, callback: any) => {
   if (value !== passwordForm.newPassword) {
-    callback(new Error('两次输入的密码不一致'))
+    callback(new Error(t('layout.passwordMismatch')))
   } else {
     callback()
   }
@@ -217,25 +224,25 @@ const validateConfirmPassword = (_rule: any, value: any, callback: any) => {
 
 const passwordRules: FormRules = {
   oldPassword: [
-    { required: true, message: '请输入原密码', trigger: 'blur' }
+    { required: true, message: t('layout.pleaseInputOldPassword'), trigger: 'blur' }
   ],
   newPassword: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+    { required: true, message: t('layout.pleaseInputNewPassword'), trigger: 'blur' },
+    { min: 6, message: t('layout.passwordMinLength'), trigger: 'blur' }
   ],
   confirmPassword: [
-    { required: true, message: '请再次输入新密码', trigger: 'blur' },
+    { required: true, message: t('layout.pleaseInputConfirmPassword'), trigger: 'blur' },
     { validator: validateConfirmPassword, trigger: 'blur' }
   ]
 }
 
 const getRoleName = (role?: string) => {
   const roleMap: Record<string, string> = {
-    admin: '超级管理员',
-    ops: '运维管理员',
-    read: '只读用户'
+    admin: t('layout.roleAdmin'),
+    ops: t('layout.roleOps'),
+    read: t('layout.roleRead')
   }
-  return roleMap[role || ''] || '管理员'
+  return roleMap[role || ''] || t('layout.defaultRole')
 }
 
 const handleMenuSelect = (index: string) => {
@@ -249,7 +256,7 @@ const toggleSidebar = () => {
 const handleCommand = (command: string) => {
   switch (command) {
     case 'profile':
-      ElMessage.info('个人信息功能开发中')
+      ElMessage.info(t('layout.featureInDevelopment'))
       break
     case 'password':
       showPasswordDialog.value = true
@@ -272,7 +279,7 @@ const handleChangePassword = async () => {
           newPassword: passwordForm.newPassword
         })
         
-        ElMessage.success('密码修改成功，请重新登录')
+        ElMessage.success(t('layout.passwordChangeSuccess'))
         showPasswordDialog.value = false
         
         setTimeout(() => {
@@ -281,7 +288,7 @@ const handleChangePassword = async () => {
           router.push('/login')
         }, 1500)
       } catch (error) {
-        console.error('修改密码失败:', error)
+        console.error(t('layout.passwordChangeFailed'), error)
       } finally {
         passwordLoading.value = false
       }
@@ -292,18 +299,18 @@ const handleChangePassword = async () => {
 const handleLogout = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要退出登录吗？',
-      '提示',
+      t('layout.confirmLogout'),
+      t('common.tip'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
     
     userApi.logout()
     clearCachedToken()
-    ElMessage.success('退出成功')
+    ElMessage.success(t('layout.logoutSuccess'))
     router.push('/login')
   } catch (error) {
     // 用户取消

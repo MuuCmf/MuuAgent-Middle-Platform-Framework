@@ -4,7 +4,7 @@
       <el-tag size="small" :type="getTagType()">
         {{ getStepLabel() }}
       </el-tag>
-      <span class="step-number">Step {{ step.stepNumber }}</span>
+      <span class="step-number">{{ $t('reasoningStep.step') }} {{ step.stepNumber }}</span>
       <el-tag v-if="step.costMs" size="small" type="info">
         {{ step.costMs }}ms
       </el-tag>
@@ -19,7 +19,7 @@
       <div v-if="step.action" class="action">
         <div class="action-name">
           <el-icon><Connection /></el-icon>
-          <span>调用工具: {{ step.action }}</span>
+          <span>{{ $t('reasoningStep.callTool') }}: {{ step.action }}</span>
         </div>
         <div v-if="step.actionInput" class="action-input">
           <pre>{{ formatJson(step.actionInput) }}</pre>
@@ -37,6 +37,9 @@
 <script setup lang="ts">
 import { Cpu, Connection, View } from '@element-plus/icons-vue'
 import type { ReasoningStep } from '@/api/agent'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
   step: ReasoningStep
@@ -46,10 +49,10 @@ const props = defineProps<Props>()
 
 const getStepLabel = () => {
   const labels: Record<string, string> = {
-    thought: '思考',
-    action: '行动',
-    observation: '观察',
-    final_answer: '最终答案',
+    thought: t('reasoningStep.thought'),
+    action: t('reasoningStep.action'),
+    observation: t('reasoningStep.observation'),
+    final_answer: t('reasoningStep.finalAnswer'),
   }
   return labels[props.step.stepType] || props.step.stepType
 }

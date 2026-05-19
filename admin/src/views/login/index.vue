@@ -2,8 +2,8 @@
   <div class="login-container">
     <div class="login-box">
       <div class="login-header">
-        <h1>MuuAI中台 WEB管理端</h1>
-        <p>请登录您的账号</p>
+        <h1>{{ $t('user.platformTitle') }}</h1>
+        <p>{{ $t('user.loginPrompt') }}</p>
       </div>
       
       <el-form
@@ -16,7 +16,7 @@
         <el-form-item prop="username">
           <el-input
             v-model="loginForm.username"
-            placeholder="请输入账号"
+            :placeholder="$t('user.pleaseInputUsername')"
             prefix-icon="User"
             size="large"
           />
@@ -26,7 +26,7 @@
           <el-input
             v-model="loginForm.password"
             type="password"
-            placeholder="请输入密码"
+            :placeholder="$t('user.pleaseInputPassword')"
             prefix-icon="Lock"
             size="large"
             show-password
@@ -41,14 +41,14 @@
             class="login-button"
             @click="handleLogin"
           >
-            登录
+            {{ $t('user.login') }}
           </el-button>
         </el-form-item>
       </el-form>
       
       <div class="login-footer">
-        <p>默认账号: admin / admin123</p>
-        <p>登录后请立即修改密码</p>
+        <p>{{ $t('user.defaultAccount') }}</p>
+        <p>{{ $t('user.changePasswordPrompt') }}</p>
       </div>
     </div>
   </div>
@@ -60,6 +60,9 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { adminRequest, clearCachedToken } from '@/utils/request'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const loginFormRef = ref<FormInstance>()
@@ -72,11 +75,11 @@ const loginForm = reactive({
 
 const loginRules: FormRules = {
   username: [
-    { required: true, message: '请输入账号', trigger: 'blur' }
+    { required: true, message: t('user.pleaseInputUsername'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+    { required: true, message: t('user.pleaseInputPassword'), trigger: 'blur' },
+    { min: 6, message: t('user.passwordMinLength'), trigger: 'blur' }
   ]
 }
 
@@ -98,7 +101,7 @@ const handleLogin = async () => {
 
         clearCachedToken()
 
-        ElMessage.success('登录成功')
+        ElMessage.success(t('user.loginSuccess'))
         router.push('/')
       } catch (error) {
         console.error('登录失败:', error)

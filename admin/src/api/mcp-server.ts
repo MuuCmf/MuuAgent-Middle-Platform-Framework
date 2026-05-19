@@ -92,6 +92,19 @@ export interface QueryMcpServerRequest {
   enabled?: boolean
   appCode?: string
   healthStatus?: string
+  transport?: McpTransport
+  page?: number
+  pageSize?: number
+}
+
+/**
+ * 分页响应接口
+ */
+export interface PageResponse<T> {
+  list: T[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 /**
@@ -199,11 +212,11 @@ export interface ImportResult {
  */
 export const mcpServerApi = {
   /**
-   * 获取 MCP Server 列表
+   * 获取 MCP Server 列表（分页）
    * @param params 查询参数
-   * @returns {Promise<AxiosResponse>} MCP Server 列表
+   * @returns {Promise<AxiosResponse>} MCP Server 分页列表
    */
-  getList(params?: QueryMcpServerRequest): Promise<AxiosResponse<{ data: McpServer[] }>> {
+  getList(params?: QueryMcpServerRequest): Promise<AxiosResponse<{ data: PageResponse<McpServer> }>> {
     return adminRequest.get('api/admin/mcp-server', { params })
   },
 

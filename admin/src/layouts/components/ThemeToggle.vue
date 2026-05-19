@@ -2,8 +2,8 @@
   <div class="theme-toggle">
     <el-switch
       v-model="isDark"
-      active-text="暗色"
-      inactive-text="亮色"
+      :active-text="$t('layout.darkMode')"
+      :inactive-text="$t('layout.lightMode')"
       @change="handleThemeChange"
     />
   </div>

@@ -1,63 +1,63 @@
 <template>
-  <el-drawer :model-value="visible" :title="editingAgent ? '编辑智能体' : '创建智能体'" direction="rtl" size="600px"
+  <el-drawer :model-value="visible" :title="editingAgent ? $t('agent.editAgent') : $t('agent.createAgent')" direction="rtl" size="600px"
     class="agent-edit-drawer" @update:model-value="handleClose">
     <el-form :model="form" :rules="rules" label-width="100px" ref="formRef" class="agent-form">
       <div class="form-section">
-        <div class="section-title">基本信息</div>
+        <div class="section-title">{{ $t('agent.basicInfo') }}</div>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="名称" prop="name" required>
-              <el-input v-model="form.name" placeholder="如：天气助手" />
+            <el-form-item :label="$t('agent.agentName')" prop="name" required>
+              <el-input v-model="form.name" :placeholder="$t('agent.agentNamePlaceholder')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="标识" prop="code" required>
-              <el-input v-model="form.code" placeholder="如：weather_assistant" />
+            <el-form-item :label="$t('agent.agentCode')" prop="code" required>
+              <el-input v-model="form.code" :placeholder="$t('agent.agentCodePlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <el-form-item label="所属应用">
-          <AppSelector v-model="form.appCode" placeholder="选择应用" clearable />
+        <el-form-item :label="$t('agent.belongApp')">
+          <AppSelector v-model="form.appCode" :placeholder="$t('component.selectApp')" clearable />
         </el-form-item>
 
-        <el-form-item label="公开状态">
-          <el-switch v-model="form.isPublic" active-text="公开" inactive-text="私有" />
-          <div class="field-tip">公开的资源可被其他应用访问</div>
+        <el-form-item :label="$t('agent.publicStatus')">
+          <el-switch v-model="form.isPublic" :active-text="$t('agent.public')" :inactive-text="$t('agent.private')" />
+          <div class="field-tip">{{ $t('agent.publicTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="系统提示词" prop="systemPrompt" required>
-          <el-input v-model="form.systemPrompt" type="textarea" :rows="4" placeholder="定义智能体的角色和行为方式" />
+        <el-form-item :label="$t('agent.systemPrompt')" prop="systemPrompt" required>
+          <el-input v-model="form.systemPrompt" type="textarea" :rows="4" :placeholder="$t('agent.systemPromptPlaceholder')" />
         </el-form-item>
       </div>
 
       <div class="form-section">
-        <div class="section-title">模型参数配置</div>
-        <div class="section-desc">配置智能体调用模型时的参数，自定义参数优先级高于模板参数</div>
+        <div class="section-title">{{ $t('agent.modelParamsConfig') }}</div>
+        <div class="section-desc">{{ $t('agent.modelParamsDesc') }}</div>
 
         <div class="model-call-guide">
           <div class="guide-header">
             <el-icon><InfoFilled /></el-icon>
-            <span>模型调用机制</span>
+            <span>{{ $t('agent.modelCallMechanism') }}</span>
           </div>
           <div class="guide-content">
             <div class="guide-item">
-              <span class="guide-label">调用流程</span>
-              <span class="guide-value">用户输入 → 智能体获取 → 意图识别 → 模型路由调度 → 参数合并 → 模型推理 → 返回结果</span>
+              <span class="guide-label">{{ $t('agent.callFlow') }}</span>
+              <span class="guide-value">{{ $t('agent.callFlowDesc') }}</span>
             </div>
             <div class="guide-item">
-              <span class="guide-label">上下文管理</span>
-              <span class="guide-value">系统自动管理对话历史，根据上下文窗口参数截断超长对话</span>
+              <span class="guide-label">{{ $t('agent.contextManagement') }}</span>
+              <span class="guide-value">{{ $t('agent.contextManagementDesc') }}</span>
             </div>
           </div>
         </div>
 
-        <el-form-item label="模型模板">
-          <el-select v-model="form.modelTemplateCode" placeholder="选择模型模板" clearable class="w-full" @change="handleModelTemplateChange">
+        <el-form-item :label="$t('agent.modelTemplate')">
+          <el-select v-model="form.modelTemplateCode" :placeholder="$t('agent.selectModelTemplate')" clearable class="w-full" @change="handleModelTemplateChange">
             <el-option v-for="template in modelTemplates" :key="template.code" :label="template.name" :value="template.code">
               <div class="template-option">
                 <span>{{ template.name }}</span>
-                <el-tag size="small" type="info">{{ template.sceneTag || '通用' }}</el-tag>
+                <el-tag size="small" type="info">{{ template.sceneTag || $t('agent.general') }}</el-tag>
               </div>
             </el-option>
           </el-select>
@@ -66,44 +66,44 @@
         <div v-if="selectedModelTemplate" class="template-info-card">
           <div class="info-card-header">
             <el-icon><InfoFilled /></el-icon>
-            <span>模板参数预览</span>
+            <span>{{ $t('agent.templateParamsPreview') }}</span>
           </div>
           <div class="info-card-body">
             <div class="param-item">
-              <span class="param-label">温度</span>
+              <span class="param-label">{{ $t('agent.temperature') }}</span>
               <span class="param-value">{{ selectedModelTemplate.temperature }}</span>
             </div>
             <div class="param-item">
-              <span class="param-label">TopP</span>
+              <span class="param-label">{{ $t('agent.topP') }}</span>
               <span class="param-value">{{ selectedModelTemplate.topP }}</span>
             </div>
             <div class="param-item">
-              <span class="param-label">最大Token</span>
+              <span class="param-label">{{ $t('agent.maxTokens') }}</span>
               <span class="param-value">{{ selectedModelTemplate.maxTokens }}</span>
             </div>
             <div class="param-item">
-              <span class="param-label">上下文窗口</span>
+              <span class="param-label">{{ $t('agent.contextWindow') }}</span>
               <span class="param-value">{{ selectedModelTemplate.contextWindow }}</span>
             </div>
           </div>
         </div>
 
-        <el-form-item label="自定义参数">
-          <el-switch v-model="enableCustomParams" active-text="启用" inactive-text="禁用" />
+        <el-form-item :label="$t('agent.customParams')">
+          <el-switch v-model="enableCustomParams" :active-text="$t('agent.enable')" :inactive-text="$t('agent.disable')" />
         </el-form-item>
 
         <template v-if="enableCustomParams">
           <div class="preset-quick-select">
-            <span class="preset-label">快捷预设：</span>
+            <span class="preset-label">{{ $t('agent.quickPreset') }}</span>
             <el-button-group>
               <el-button size="small" :type="currentPreset === 'precise' ? 'primary' : 'default'" @click="applyPreset('precise')">
-                精确模式
+                {{ $t('agent.preciseMode') }}
               </el-button>
               <el-button size="small" :type="currentPreset === 'balanced' ? 'primary' : 'default'" @click="applyPreset('balanced')">
-                平衡模式
+                {{ $t('agent.balancedMode') }}
               </el-button>
               <el-button size="small" :type="currentPreset === 'creative' ? 'primary' : 'default'" @click="applyPreset('creative')">
-                创意模式
+                {{ $t('agent.creativeMode') }}
               </el-button>
             </el-button-group>
           </div>
@@ -111,7 +111,7 @@
           <div class="custom-params-card">
             <div class="param-config-item">
               <div class="param-header">
-                <span class="param-name">温度参数 (Temperature)</span>
+                <span class="param-name">{{ $t('agent.temperatureParam') }}</span>
                 <el-tag size="small" :type="getTemperatureTagType(customParams.temperature)">
                   {{ getTemperatureLabel(customParams.temperature) }}
                 </el-tag>
@@ -125,15 +125,15 @@
                 class="param-slider"
               />
               <div class="param-desc">
-                <span v-if="customParams.temperature < 0.3">精确输出，适合事实性问答</span>
-                <span v-else-if="customParams.temperature < 0.7">平衡输出，适合通用场景</span>
-                <span v-else>创意输出，适合创意写作</span>
+                <span v-if="customParams.temperature < 0.3">{{ $t('agent.preciseOutput') }}</span>
+                <span v-else-if="customParams.temperature < 0.7">{{ $t('agent.balancedOutput') }}</span>
+                <span v-else>{{ $t('agent.creativeOutput') }}</span>
               </div>
             </div>
 
             <div class="param-config-item">
               <div class="param-header">
-                <span class="param-name">核采样参数 (TopP)</span>
+                <span class="param-name">{{ $t('agent.topPParam') }}</span>
                 <el-tag size="small" type="info">{{ customParams.topP }}</el-tag>
               </div>
               <el-slider 
@@ -144,14 +144,14 @@
                 :marks="topPMarks"
                 class="param-slider"
               />
-              <div class="param-desc">控制输出多样性，值越大生成的文本越多样</div>
+              <div class="param-desc">{{ $t('agent.topPDesc') }}</div>
             </div>
 
             <el-row :gutter="16">
               <el-col :span="12">
                 <div class="param-config-item compact">
                   <div class="param-header">
-                    <span class="param-name">最大生成长度</span>
+                    <span class="param-name">{{ $t('agent.maxGenerationLength') }}</span>
                   </div>
                   <el-input-number 
                     v-model="customParams.maxTokens" 
@@ -161,13 +161,13 @@
                     class="w-full"
                     controls-position="right"
                   />
-                  <div class="param-desc">模型单次生成的最大Token数</div>
+                  <div class="param-desc">{{ $t('agent.maxGenerationLengthDesc') }}</div>
                 </div>
               </el-col>
               <el-col :span="12">
                 <div class="param-config-item compact">
                   <div class="param-header">
-                    <span class="param-name">上下文窗口</span>
+                    <span class="param-name">{{ $t('agent.contextWindow') }}</span>
                   </div>
                   <el-input-number 
                     v-model="customParams.contextWindow" 
@@ -177,7 +177,7 @@
                     class="w-full"
                     controls-position="right"
                   />
-                  <div class="param-desc">模型可处理的上下文长度</div>
+                  <div class="param-desc">{{ $t('agent.contextWindowDesc') }}</div>
                 </div>
               </el-col>
             </el-row>
@@ -186,17 +186,17 @@
           <div v-if="selectedModelTemplate" class="params-compare">
             <div class="compare-title">
               <el-icon><Warning /></el-icon>
-              <span>参数对比</span>
+              <span>{{ $t('agent.paramsCompare') }}</span>
             </div>
             <div class="compare-table">
               <div class="compare-row header">
-                <span class="compare-cell">参数</span>
-                <span class="compare-cell">模板值</span>
-                <span class="compare-cell">自定义值</span>
-                <span class="compare-cell">差异</span>
+                <span class="compare-cell">{{ $t('agent.parameter') }}</span>
+                <span class="compare-cell">{{ $t('agent.templateValue') }}</span>
+                <span class="compare-cell">{{ $t('agent.customValue') }}</span>
+                <span class="compare-cell">{{ $t('agent.difference') }}</span>
               </div>
               <div class="compare-row">
-                <span class="compare-cell">温度</span>
+                <span class="compare-cell">{{ $t('agent.temperature') }}</span>
                 <span class="compare-cell">{{ selectedModelTemplate.temperature }}</span>
                 <span class="compare-cell highlight">{{ customParams.temperature }}</span>
                 <span class="compare-cell" :class="getDiffClass(customParams.temperature - selectedModelTemplate.temperature)">
@@ -204,7 +204,7 @@
                 </span>
               </div>
               <div class="compare-row">
-                <span class="compare-cell">TopP</span>
+                <span class="compare-cell">{{ $t('agent.topP') }}</span>
                 <span class="compare-cell">{{ selectedModelTemplate.topP }}</span>
                 <span class="compare-cell highlight">{{ customParams.topP }}</span>
                 <span class="compare-cell" :class="getDiffClass(customParams.topP - selectedModelTemplate.topP)">
@@ -212,7 +212,7 @@
                 </span>
               </div>
               <div class="compare-row">
-                <span class="compare-cell">最大Token</span>
+                <span class="compare-cell">{{ $t('agent.maxTokens') }}</span>
                 <span class="compare-cell">{{ selectedModelTemplate.maxTokens }}</span>
                 <span class="compare-cell highlight">{{ customParams.maxTokens }}</span>
                 <span class="compare-cell" :class="getDiffClass(customParams.maxTokens - selectedModelTemplate.maxTokens)">
@@ -225,24 +225,24 @@
       </div>
 
       <div class="form-section">
-        <div class="section-title">推理配置</div>
-        <el-form-item label="推理模式">
-          <el-select v-model="form.reasoningMode" placeholder="请选择推理模式" class="w-full">
-            <el-option label="默认模式" value="NONE">
-              <span>默认模式</span>
-              <span class="option-desc">直接调用，响应快</span>
+        <div class="section-title">{{ $t('agent.reasoningConfig') }}</div>
+        <el-form-item :label="$t('agent.reasoningMode')">
+          <el-select v-model="form.reasoningMode" :placeholder="$t('agent.pleaseSelectReasoningMode')" class="w-full">
+            <el-option :label="$t('agent.defaultMode')" value="NONE">
+              <span>{{ $t('agent.defaultMode') }}</span>
+              <span class="option-desc">{{ $t('agent.defaultModeDesc') }}</span>
             </el-option>
-            <el-option label="ReAct模式" value="REACT">
-              <span>ReAct模式</span>
-              <span class="option-desc">思考-行动-观察</span>
+            <el-option :label="$t('agent.reactMode')" value="REACT">
+              <span>{{ $t('agent.reactMode') }}</span>
+              <span class="option-desc">{{ $t('agent.reactModeDesc') }}</span>
             </el-option>
-            <el-option label="Plan模式" value="PLAN">
-              <span>Plan模式</span>
-              <span class="option-desc">先规划再执行</span>
+            <el-option :label="$t('agent.planMode')" value="PLAN">
+              <span>{{ $t('agent.planMode') }}</span>
+              <span class="option-desc">{{ $t('agent.planModeDesc') }}</span>
             </el-option>
-            <el-option label="Reflect模式" value="REFLECT">
-              <span>Reflect模式</span>
-              <span class="option-desc">执行后反思优化</span>
+            <el-option :label="$t('agent.reflectMode')" value="REFLECT">
+              <span>{{ $t('agent.reflectMode') }}</span>
+              <span class="option-desc">{{ $t('agent.reflectModeDesc') }}</span>
             </el-option>
           </el-select>
           <div class="mode-tip" v-if="form.reasoningMode">
@@ -253,17 +253,17 @@
           </div>
         </el-form-item>
 
-        <el-form-item v-if="form.reasoningMode && form.reasoningMode !== 'NONE'" label="推理提示词">
+        <el-form-item v-if="form.reasoningMode && form.reasoningMode !== 'NONE'" :label="$t('agent.reasoningPrompt')">
           <div class="prompt-wrapper">
             <div class="prompt-mode-switch">
               <el-radio-group v-model="promptMode" size="small">
-                <el-radio-button value="template">使用模板</el-radio-button>
-                <el-radio-button value="custom">自定义输入</el-radio-button>
+                <el-radio-button value="template">{{ $t('agent.useTemplate') }}</el-radio-button>
+                <el-radio-button value="custom">{{ $t('agent.customInput') }}</el-radio-button>
               </el-radio-group>
             </div>
 
             <div v-if="promptMode === 'template'" class="template-selector">
-              <el-select v-model="selectedTemplateCode" placeholder="选择提示词模板" @change="handleTemplateChange"
+              <el-select v-model="selectedTemplateCode" :placeholder="$t('agent.selectPromptTemplate')" @change="handleTemplateChange"
                 class="w-full">
                 <el-option v-for="template in promptTemplates" :key="template.code" :label="template.name"
                   :value="template.code">
@@ -276,9 +276,9 @@
 
               <div v-if="selectedTemplate" class="template-preview">
                 <div class="preview-header">
-                  <span>模板预览</span>
+                  <span>{{ $t('agent.templatePreview') }}</span>
                   <el-button size="small" text @click="showTemplateDetail = true">
-                    查看详情
+                    {{ $t('agent.viewDetails') }}
                   </el-button>
                 </div>
                 <el-input :model-value="selectedTemplate.content" type="textarea" :rows="6" readonly />
@@ -286,16 +286,16 @@
             </div>
 
             <el-input v-else v-model="form.reasoningPrompt" type="textarea" :rows="4"
-              placeholder="可选：自定义推理提示词，留空使用默认模板" />
+              :placeholder="$t('agent.optionalCustomPrompt')" />
 
             <div class="prompt-help">
-              <div class="help-title">可用占位符：</div>
+              <div class="help-title">{{ $t('agent.availablePlaceholders') }}</div>
               <div class="help-items">
-                <span class="help-item"><code>{TOOLS}</code> 可用工具列表</span>
-                <span class="help-item"><code>{TOOL_NAMES}</code> 工具名称列表</span>
+                <span class="help-item"><code>{TOOLS}</code> {{ $t('agent.toolsPlaceholder') }}</span>
+                <span class="help-item"><code>{TOOL_NAMES}</code> {{ $t('agent.toolNamesPlaceholder') }}</span>
               </div>
               <el-collapse class="help-collapse">
-                <el-collapse-item title="查看示例模板">
+                <el-collapse-item :title="$t('agent.viewExampleTemplate')">
                   <pre class="example-code">你是一个智能助手，可以使用以下工具：
 {TOOLS}
 
@@ -313,22 +313,22 @@ Final Answer: 最终答案</pre>
       </div>
 
       <div class="form-section">
-        <div class="section-title">能力绑定</div>
-        <div class="section-desc">智能体的能力通过技能封装，技能可声明依赖知识库、MCP Server 等资源</div>
-        <el-form-item label="技能" prop="skills">
+        <div class="section-title">{{ $t('agent.capabilityBinding') }}</div>
+        <div class="section-desc">{{ $t('agent.capabilityBindingDesc') }}</div>
+        <el-form-item :label="$t('agent.bindSkills')" prop="skills">
           <div class="bind-wrapper">
             <el-button type="primary" plain @click="handleSelectSkills">
               <el-icon>
                 <Plus />
               </el-icon>
-              选择技能
+              {{ $t('agent.selectSkills') }}
             </el-button>
             <div class="bind-content">
               <div v-if="selectedSkillCodes.length === 0" class="empty-tip">
                 <el-icon>
                   <Warning />
                 </el-icon>
-                <span>暂未绑定技能</span>
+                <span>{{ $t('agent.noSkills') }}</span>
               </div>
               <div v-else class="tag-list">
                 <el-tag v-for="code in selectedSkillCodes" :key="code" closable @close="removeSkill(code)">
@@ -345,14 +345,14 @@ Final Answer: 最终答案</pre>
               <el-icon>
                 <Plus />
               </el-icon>
-              选择 MCP Server
+              {{ $t('agent.selectMcpServer') }}
             </el-button>
             <div class="bind-content">
               <div v-if="selectedMcpServerNames.length === 0" class="empty-tip">
                 <el-icon>
                   <Warning />
                 </el-icon>
-                <span>暂未绑定 MCP Server</span>
+                <span>{{ $t('agent.noMcpServer') }}</span>
               </div>
               <div v-else class="tag-list">
                 <el-tag v-for="name in selectedMcpServerNames" :key="name" closable @close="removeMcpServer(name)">
@@ -365,8 +365,8 @@ Final Answer: 最终答案</pre>
       </div>
 
       <div class="form-section">
-        <div class="section-title">知识库配置</div>
-        <div class="section-desc">绑定知识库并配置检索策略，检索时会合并使用此处绑定和技能声明的知识库</div>
+        <div class="section-title">{{ $t('agent.knowledgeBaseConfig') }}</div>
+        <div class="section-desc">{{ $t('agent.knowledgeBaseConfigDesc') }}</div>
         <KbRetrievalConfig
           v-model="form.kbRetrievalConfig"
           v-model:knowledgeBases="form.knowledgeBases"
@@ -374,57 +374,57 @@ Final Answer: 最终答案</pre>
       </div>
 
       <div class="form-section">
-        <div class="section-title">工作目录</div>
-        <div class="section-desc">允许智能体在用户选择的工作目录中进行文件操作</div>
+        <div class="section-title">{{ $t('agent.workspace') }}</div>
+        <div class="section-desc">{{ $t('agent.enableWorkspaceDesc') }}</div>
 
-        <el-form-item label="启用工作目录">
-          <el-switch v-model="form.workspaceConfig.enabled" active-text="启用" inactive-text="禁用" />
+        <el-form-item :label="$t('agent.enableWorkspace')">
+          <el-switch v-model="form.workspaceConfig.enabled" :active-text="$t('agent.enable')" :inactive-text="$t('agent.disable')" />
 
         </el-form-item>
 
         <template v-if="form.workspaceConfig.enabled">
-          <el-form-item label="允许的操作">
+          <el-form-item :label="$t('agent.allowedOperations')">
             <el-checkbox-group v-model="form.workspaceConfig.allowedOperations">
-              <el-checkbox value="read_file">读取文件</el-checkbox>
-              <el-checkbox value="read_dir">列出目录</el-checkbox>
-              <el-checkbox value="write_file">写入文件</el-checkbox>
-              <el-checkbox value="append_file">追加文件</el-checkbox>
-              <el-checkbox value="create_dir">创建目录</el-checkbox>
-              <el-checkbox value="delete_file">删除文件</el-checkbox>
+              <el-checkbox value="read_file">{{ $t('agent.readFile') }}</el-checkbox>
+              <el-checkbox value="read_dir">{{ $t('agent.readDir') }}</el-checkbox>
+              <el-checkbox value="write_file">{{ $t('agent.writeFile') }}</el-checkbox>
+              <el-checkbox value="append_file">{{ $t('agent.appendFile') }}</el-checkbox>
+              <el-checkbox value="create_dir">{{ $t('agent.createDir') }}</el-checkbox>
+              <el-checkbox value="delete_file">{{ $t('agent.deleteFile') }}</el-checkbox>
             </el-checkbox-group>
-            <div class="field-tip">留空表示允许全部操作</div>
+            <div class="field-tip">{{ $t('agent.allowedOperationsTip') }}</div>
           </el-form-item>
 
           <el-row :gutter="16">
             <el-col :span="12">
-              <el-form-item label="文件大小限制">
+              <el-form-item :label="$t('agent.fileSizeLimit')">
                 <el-input-number v-model="form.workspaceConfig.maxFileSize" :min="1" :max="10240" :step="100"
                   class="w-full" />
-                <div class="field-tip">默认 1024KB（1MB）</div>
+                <div class="field-tip">{{ $t('agent.fileSizeLimitTip') }}</div>
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="16">
-            <el-form-item label="禁止的文件后缀">
-              <el-input v-model="deniedExtensionsStr" placeholder=".exe,.bat,.sh"
+            <el-form-item :label="$t('agent.deniedExtensions')">
+              <el-input v-model="deniedExtensionsStr" :placeholder="$t('agent.deniedExtensionsPlaceholder')"
                 @change="handleDeniedExtensionsChange" />
-              <div class="field-tip">逗号分隔，默认：.exe,.bat,.sh,.cmd,.js,.vbs</div>
+              <div class="field-tip">{{ $t('agent.deniedExtensionsTip') }}</div>
             </el-form-item>
           </el-row>
         </template>
       </div>
 
       <div class="form-section">
-        <div class="section-title">高级设置</div>
+        <div class="section-title">{{ $t('agent.advancedSettings') }}</div>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="最大步数">
+            <el-form-item :label="$t('agent.maxSteps')">
               <el-input-number v-model="form.maxSteps" :min="1" :max="999" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="状态">
-              <el-switch v-model="form.status" active-text="启用" inactive-text="禁用" />
+            <el-form-item :label="$t('common.status')">
+              <el-switch v-model="form.status" :active-text="$t('common.enable')" :inactive-text="$t('common.disable')" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -433,8 +433,8 @@ Final Answer: 最终答案</pre>
 
     <template #footer>
       <div class="drawer-footer">
-        <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button @click="handleClose">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSave" :loading="saving">{{ $t('common.save') }}</el-button>
       </div>
     </template>
 
@@ -443,29 +443,58 @@ Final Answer: 最终答案</pre>
 
     <el-dialog
       v-model="mcpServerSelectDialogVisible"
-      title="选择 MCP Server"
-      width="500px"
+      :title="$t('agent.selectMcpServer')"
+      width="700px"
       :close-on-click-modal="false"
     >
-      <div class="mcp-server-list">
-        <div v-if="availableMcpServers.length === 0" class="empty-tip">
-          暂无可用的 MCP Server
-        </div>
-        <el-checkbox-group v-else v-model="selectedMcpServerNames">
-          <div v-for="server in availableMcpServers" :key="server.name" class="mcp-server-item">
-            <el-checkbox :value="server.name">
-              <div class="server-info">
-                <span class="server-name">{{ server.name }}</span>
-                <span v-if="server.description" class="server-desc">{{ server.description }}</span>
-              </div>
-            </el-checkbox>
-          </div>
-        </el-checkbox-group>
+      <div class="mcp-server-filter">
+        <el-input
+          v-model="mcpServerSearchForm.keyword"
+          :placeholder="$t('agent.searchName')"
+          clearable
+          style="width: 200px"
+          @input="handleMcpServerSearch"
+        />
+      </div>
+      <el-table
+        :data="availableMcpServers"
+        v-loading="mcpServerLoading"
+        @selection-change="handleMcpServerSelectionChange"
+        ref="mcpServerTableRef"
+        max-height="400"
+      >
+        <el-table-column type="selection" width="50" />
+        <el-table-column prop="name" :label="$t('common.name')" width="150" />
+        <el-table-column prop="displayName" :label="$t('agent.displayName')" width="150">
+          <template #default="{ row }">
+            {{ row.displayName || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="description" :label="$t('common.description')" show-overflow-tooltip />
+        <el-table-column :label="$t('common.status')" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.enabled ? 'success' : 'danger'" size="small">
+              {{ row.enabled ? $t('common.enable') : $t('common.disable') }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="mcpServerSearchForm.page"
+          v-model:page-size="mcpServerSearchForm.pageSize"
+          :page-sizes="[10, 20, 50]"
+          :total="mcpServerTotal"
+          layout="total, sizes, prev, pager, next"
+          small
+          @size-change="loadMcpServers"
+          @current-change="loadMcpServers"
+        />
       </div>
       <template #footer>
-        <el-button @click="mcpServerSelectDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleMcpServerSelect(selectedMcpServerNames); mcpServerSelectDialogVisible = false">
-          确定
+        <el-button @click="mcpServerSelectDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="confirmMcpServerSelection">
+          {{ $t('common.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -473,11 +502,14 @@ Final Answer: 最终答案</pre>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, reactive, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, InfoFilled, Warning } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { Agent, AgentForm, WorkspaceAgentConfig, KbRetrievalConfig as KbRetrievalConfigType } from '@/api/agent'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface InternalCustomModelParams {
   temperature: number
@@ -579,7 +611,16 @@ const selectedSkillCodes = ref<string[]>([])
 
 const mcpServerSelectDialogVisible = ref(false)
 const selectedMcpServerNames = ref<string[]>([])
-const availableMcpServers = ref<{ name: string; description?: string }[]>([])
+const availableMcpServers = ref<any[]>([])
+const mcpServerLoading = ref(false)
+const mcpServerTotal = ref(0)
+const mcpServerTableRef = ref()
+const tempSelectedMcpServers = ref<any[]>([])
+const mcpServerSearchForm = reactive({
+  keyword: '',
+  page: 1,
+  pageSize: 10,
+})
 
 const promptMode = ref<'template' | 'custom'>('template')
 
@@ -598,10 +639,10 @@ const customParams = ref<InternalCustomModelParams>({
 const currentPreset = ref<string>('')
 
 const temperatureMarks = {
-  0: '精确',
-  0.3: '标准',
-  0.7: '创意',
-  1: '随机'
+  0: t('agent.preciseMode'),
+  0.3: t('agent.balancedMode'),
+  0.7: t('agent.creativeMode'),
+  1: t('agent.creativeMode')
 }
 
 const topPMarks = {
@@ -632,10 +673,10 @@ const getTemperatureTagType = (value: number | undefined): string => {
 }
 
 const getTemperatureLabel = (value: number | undefined): string => {
-  if (value === undefined) return '未设置'
-  if (value < 0.3) return '精确'
-  if (value < 0.7) return '平衡'
-  return '创意'
+  if (value === undefined) return t('agent.disable')
+  if (value < 0.3) return t('agent.preciseMode')
+  if (value < 0.7) return t('agent.balancedMode')
+  return t('agent.creativeMode')
 }
 
 const getDiffClass = (diff: number): string => {
@@ -665,19 +706,19 @@ const showTemplateDetail = ref(false)
 
 const reasoningModeTip = computed(() => {
   const tips: Record<string, string> = {
-    NONE: '直接工具调用，适合简单任务，响应最快',
-    REACT: '思考-行动-观察循环，适合复杂推理场景',
-    PLAN: '先规划再执行，适合多步骤任务',
-    REFLECT: '执行后反思优化，适合需要质量保证的任务'
+    NONE: t('agent.defaultModeDesc'),
+    REACT: t('agent.reactModeDesc'),
+    PLAN: t('agent.planModeDesc'),
+    REFLECT: t('agent.reflectModeDesc')
   }
   const mode = form.value.reasoningMode
   return mode ? tips[mode] || '' : ''
 })
 
 const rules: FormRules = {
-  name: [{ required: true, message: '请输入智能体名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入智能体标识', trigger: 'blur' }],
-  systemPrompt: [{ required: true, message: '请输入系统提示词', trigger: 'blur' }]
+  name: [{ required: true, message: t('agent.pleaseInputAgentName'), trigger: 'blur' }],
+  code: [{ required: true, message: t('agent.pleaseInputAgentCode'), trigger: 'blur' }],
+  systemPrompt: [{ required: true, message: t('agent.pleaseInputSystemPrompt'), trigger: 'blur' }]
 }
 
 watch(() => props.visible, (newVal) => {
@@ -933,21 +974,51 @@ const removeSkill = (code: string) => {
 }
 
 const handleSelectMcpServers = async () => {
+  mcpServerSelectDialogVisible.value = true
+  await loadMcpServers()
+}
+
+const loadMcpServers = async () => {
+  mcpServerLoading.value = true
   try {
-    const { data } = await mcpServerApi.getList({ enabled: true })
-    availableMcpServers.value = data.data.map((s: any) => ({
-      name: s.name,
-      description: s.description,
-    }))
-    mcpServerSelectDialogVisible.value = true
+    const { data } = await mcpServerApi.getList({
+      enabled: true,
+      page: mcpServerSearchForm.page,
+      pageSize: mcpServerSearchForm.pageSize,
+    })
+    availableMcpServers.value = data.data.list || []
+    mcpServerTotal.value = data.data.total
+    
+    if (mcpServerTableRef.value && availableMcpServers.value.length > 0) {
+      nextTick(() => {
+        availableMcpServers.value.forEach(server => {
+          if (selectedMcpServerNames.value.includes(server.name)) {
+            mcpServerTableRef.value.toggleRowSelection(server, true)
+          }
+        })
+      })
+    }
   } catch (error) {
     ElMessage.error('获取 MCP Server 列表失败')
+  } finally {
+    mcpServerLoading.value = false
   }
 }
 
-const handleMcpServerSelect = (names: string[]) => {
+const handleMcpServerSearch = () => {
+  mcpServerSearchForm.page = 1
+  loadMcpServers()
+}
+
+const handleMcpServerSelectionChange = (selection: any[]) => {
+  tempSelectedMcpServers.value = selection
+}
+
+const confirmMcpServerSelection = () => {
+  const names = tempSelectedMcpServers.value.map(s => s.name)
   selectedMcpServerNames.value = names
   form.value.mcpServers = JSON.stringify(names)
+  mcpServerSelectDialogVisible.value = false
 }
 
 const removeMcpServer = (name: string) => {
@@ -1458,5 +1529,15 @@ const handleClose = () => {
 :deep(.el-slider__marks-text) {
   font-size: 11px;
   color: #909399;
+}
+
+.mcp-server-filter {
+  margin-bottom: 12px;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 </style>

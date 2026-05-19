@@ -7,6 +7,7 @@ import App from './App.vue'
 import router from './router'
 import './styles/index.scss'
 import { validateConfig, printConfig, appConfig } from './config'
+import i18n from './locales'
 
 // 验证配置
 if (!validateConfig()) {
@@ -28,5 +29,6 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 app.use(createPinia())
 app.use(router)
 app.use(ElementPlus)
+app.use(i18n)
 
 app.mount('#app')

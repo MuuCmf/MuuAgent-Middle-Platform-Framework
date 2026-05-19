@@ -1,14 +1,14 @@
 <template>
   <div class="reasoning-steps-viewer">
     <div class="header">
-      <h3>推理过程</h3>
+      <h3>{{ $t('reasoningViewer.reasoningProcess') }}</h3>
       <el-tag :type="getModeTagType(reasoningMode)">
         {{ getModeLabel(reasoningMode) }}
       </el-tag>
     </div>
 
     <div v-if="steps.length === 0" class="empty">
-      <el-empty description="暂无推理步骤" :image-size="60" />
+      <el-empty :description="$t('reasoningViewer.noReasoningSteps')" :image-size="60" />
     </div>
 
     <el-timeline v-else>
@@ -27,6 +27,9 @@
 <script setup lang="ts">
 import type { ReasoningStep } from '@/api/agent'
 import ReasoningStepCard from './ReasoningStepCard.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
   steps: ReasoningStep[]
@@ -37,12 +40,12 @@ defineProps<Props>()
 
 const getModeLabel = (mode: string) => {
   const labels: Record<string, string> = {
-    NONE: '默认模式',
-    REACT: 'ReAct模式',
-    PLAN: 'Plan模式',
-    REFLECT: 'Reflect模式',
+    NONE: t('reasoningViewer.defaultMode'),
+    REACT: t('reasoningViewer.reactMode'),
+    PLAN: t('reasoningViewer.planMode'),
+    REFLECT: t('reasoningViewer.reflectMode'),
   }
-  return labels[mode] || mode || '默认模式'
+  return labels[mode] || mode || t('reasoningViewer.defaultMode')
 }
 
 const getModeTagType = (mode: string) => {

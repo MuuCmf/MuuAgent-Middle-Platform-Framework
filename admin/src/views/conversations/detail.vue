@@ -4,10 +4,10 @@
       <div class="header-left">
         <el-button @click="handleBack" text class="back-btn">
           <el-icon><ArrowLeft /></el-icon>
-          返回列表
+          {{ $t('conversation.backToList') }}
         </el-button>
         <div class="title-group">
-          <h1 class="page-title">{{ conversation?.title || '未命名会话' }}</h1>
+          <h1 class="page-title">{{ conversation?.title || $t('conversation.unnamedConversation') }}</h1>
           <el-tag
             v-if="conversation"
             :type="getStatusTagType(conversation.status)"
@@ -23,11 +23,11 @@
       <div class="header-actions">
         <el-button type="primary" @click="handleEdit">
           <el-icon><Edit /></el-icon>
-          编辑
+          {{ $t('conversation.edit') }}
         </el-button>
         <el-button type="danger" @click="handleDelete">
           <el-icon><Delete /></el-icon>
-          删除
+          {{ $t('conversation.delete') }}
         </el-button>
       </div>
     </div>
@@ -36,35 +36,35 @@
       <el-card class="detail-card" shadow="never">
         <template #header>
           <div class="card-header">
-            <span class="card-header__title">基本信息</span>
+            <span class="card-header__title">{{ $t('conversation.basicInfo') }}</span>
           </div>
         </template>
 
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="会话ID">
+          <el-descriptions-item :label="$t('conversation.conversationId')">
             {{ conversation.id }}
           </el-descriptions-item>
-          <el-descriptions-item label="会话类型">
+          <el-descriptions-item :label="$t('conversation.conversationType')">
             <el-tag :type="getTypeTagType(conversation.conversationType)" size="small">
               {{ getTypeLabel(conversation.conversationType) }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="目标ID">
+          <el-descriptions-item :label="$t('conversation.targetId')">
             {{ conversation.targetId }}
           </el-descriptions-item>
-          <el-descriptions-item label="消息数量">
+          <el-descriptions-item :label="$t('conversation.messageCount')">
             {{ conversation.messageCount || 0 }}
           </el-descriptions-item>
-          <el-descriptions-item label="用户ID">
+          <el-descriptions-item :label="$t('conversation.userId')">
             {{ conversation.uid || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="创建时间">
+          <el-descriptions-item :label="$t('conversation.createdAt')">
             {{ formatDate(conversation.createdAt) }}
           </el-descriptions-item>
-          <el-descriptions-item label="更新时间">
+          <el-descriptions-item :label="$t('conversation.updatedAt')">
             {{ formatDate(conversation.updatedAt) }}
           </el-descriptions-item>
-          <el-descriptions-item label="最后消息时间">
+          <el-descriptions-item :label="$t('conversation.lastMessageTime')">
             {{ formatDate(conversation.lastMessageAt) }}
           </el-descriptions-item>
         </el-descriptions>
@@ -73,10 +73,10 @@
       <el-card class="detail-card" shadow="never">
         <template #header>
           <div class="card-header">
-            <span class="card-header__title">对话记录</span>
+            <span class="card-header__title">{{ $t('conversation.conversationRecords') }}</span>
             <el-button @click="handleGenerateTitle" :loading="generatingTitle" size="small">
               <el-icon><MagicStick /></el-icon>
-              生成标题
+              {{ $t('conversation.generateTitle') }}
             </el-button>
           </div>
         </template>
@@ -97,13 +97,13 @@
             <div class="message-content">
               <div class="content-text">{{ message.content }}</div>
               <div v-if="message.tokenCount" class="message-meta">
-                Token数: {{ message.tokenCount }}
+                {{ $t('conversation.tokenCount') }}: {{ message.tokenCount }}
               </div>
             </div>
           </div>
         </div>
 
-        <el-empty v-else description="暂无对话记录" />
+        <el-empty v-else :description="$t('conversation.noConversationRecords')" />
       </el-card>
     </template>
 
@@ -127,6 +127,9 @@ import {
 } from '@/api/conversation'
 import ConversationEditDialog from './components/ConversationEditDialog.vue'
 import { formatDate } from '@/utils/format'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
@@ -145,7 +148,7 @@ const loading = computed(() => conversationStore.loading)
 const fetchConversationDetail = async () => {
   const id = route.params.id as string
   if (!id) {
-    ElMessage.error('会话ID不存在')
+    ElMessage.error(t('conversation.conversationIdNotExist'))
     router.push('/conversations')
     return
   }
@@ -153,7 +156,7 @@ const fetchConversationDetail = async () => {
   try {
     await conversationStore.fetchConversationDetail(id, 100)
   } catch (error) {
-    ElMessage.error('获取会话详情失败')
+    ElMessage.error(t('conversation.getConversationDetailFailed'))
     router.push('/conversations')
   }
 }
@@ -180,21 +183,21 @@ const handleDelete = async () => {
 
   try {
     await ElMessageBox.confirm(
-      `确定要删除会话"${conversation.value.title || '未命名会话'}"吗？删除后将无法恢复。`,
-      '删除确认',
+      t('conversation.deleteConfirm', { title: conversation.value.title || t('conversation.unnamedConversation') }),
+      t('conversation.deleteTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
 
     await conversationStore.deleteConversation(conversation.value.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('conversation.deleteSuccess'))
     router.push('/conversations')
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error(t('conversation.deleteFailed'))
     }
   }
 }
@@ -208,9 +211,9 @@ const handleGenerateTitle = async () => {
   generatingTitle.value = true
   try {
     const title = await conversationStore.generateTitle(conversation.value.id)
-    ElMessage.success(`标题已生成: ${title}`)
+    ElMessage.success(t('conversation.titleGenerated', { title }))
   } catch (error) {
-    ElMessage.error('生成标题失败')
+    ElMessage.error(t('conversation.generateTitleFailed'))
   } finally {
     generatingTitle.value = false
   }
@@ -231,9 +234,9 @@ const handleEditSuccess = () => {
 const getTypeLabel = (type?: ConversationType) => {
   if (!type) return '-'
   const labels: Record<string, string> = {
-    [ConversationType.AGENT]: '智能体',
-    [ConversationType.MODEL]: '模型',
-    [ConversationType.KB_RAG]: '知识库',
+    [ConversationType.AGENT]: t('conversation.agent'),
+    [ConversationType.MODEL]: t('conversation.model'),
+    [ConversationType.KB_RAG]: t('conversation.knowledgeBase'),
   }
   return labels[type] || type
 }
@@ -261,9 +264,9 @@ const getTypeTagType = (type?: ConversationType) => {
 const getStatusLabel = (status?: ConversationStatus) => {
   if (!status) return '-'
   const labels: Record<string, string> = {
-    [ConversationStatus.ACTIVE]: '活跃',
-    [ConversationStatus.ARCHIVED]: '已归档',
-    [ConversationStatus.DELETED]: '已删除',
+    [ConversationStatus.ACTIVE]: t('conversation.active'),
+    [ConversationStatus.ARCHIVED]: t('conversation.archived'),
+    [ConversationStatus.DELETED]: t('conversation.deleted'),
   }
   return labels[status] || status
 }
@@ -290,10 +293,10 @@ const getStatusTagType = (status?: ConversationStatus) => {
  */
 const getRoleLabel = (role: string) => {
   const labels: Record<string, string> = {
-    user: '用户',
-    assistant: '助手',
-    system: '系统',
-    tool: '工具',
+    user: t('conversation.user'),
+    assistant: t('conversation.assistant'),
+    system: t('conversation.system'),
+    tool: t('conversation.tool'),
   }
   return labels[role] || role
 }

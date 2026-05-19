@@ -1,24 +1,24 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">会话管理</h1>
-      <p class="page-description">管理所有AI对话会话，包括智能体对话、模型对话和知识库对话</p>
+      <h1 class="page-title">{{ $t('conversation.title') }}</h1>
+      <p class="page-description">{{ $t('conversation.description') }}</p>
     </div>
 
     <div class="help-tip">
-      <div class="help-tip-title">💡 会话管理说明</div>
-      <p>会话是用户与AI进行对话的上下文容器，每个会话包含多轮对话消息。支持按类型、状态筛选，以及创建、编辑、删除等操作。</p>
+      <div class="help-tip-title">💡 {{ $t('conversation.managementTip') }}</div>
+      <p>{{ $t('conversation.managementDesc') }}</p>
     </div>
 
     <div class="card">
       <div class="card-title">
-        <span>会话列表</span>
+        <span>{{ $t('conversation.conversationList') }}</span>
       </div>
 
       <div class="filter-section">
         <el-select
           v-model="filters.conversationType"
-          placeholder="会话类型"
+          :placeholder="$t('conversation.conversationType')"
           clearable
           style="width: 150px"
           @change="handleFilterChange"
@@ -33,7 +33,7 @@
 
         <el-select
           v-model="filters.status"
-          placeholder="会话状态"
+          :placeholder="$t('conversation.conversationStatus')"
           clearable
           style="width: 120px"
           @change="handleFilterChange"
@@ -48,7 +48,7 @@
 
         <el-input
           v-model="searchKeyword"
-          placeholder="搜索会话标题"
+          :placeholder="$t('conversation.searchConversationTitle')"
           clearable
           style="width: 240px"
           @clear="handleSearch"
@@ -59,8 +59,8 @@
           </template>
         </el-input>
 
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-        <el-button @click="handleReset">重置</el-button>
+        <el-button type="primary" @click="handleSearch">{{ $t('common.query') }}</el-button>
+        <el-button @click="handleReset">{{ $t('common.reset') }}</el-button>
       </div>
 
       <el-table
@@ -70,16 +70,16 @@
         @row-click="handleRowClick"
         style="cursor: pointer"
       >
-        <el-table-column prop="title" label="标题" min-width="200">
+        <el-table-column prop="title" :label="$t('conversation.conversationTitleColumn')" min-width="200">
           <template #default="{ row }">
             <div style="display: flex; align-items: center; gap: 8px">
-              <span>{{ row.title || '未命名会话' }}</span>
-              <el-tag v-if="!row.title" type="info" size="small">未命名</el-tag>
+              <span>{{ row.title || $t('conversation.unnamedConversation') }}</span>
+              <el-tag v-if="!row.title" type="info" size="small">{{ $t('conversation.unnamed') }}</el-tag>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column prop="conversationType" label="类型" width="120">
+        <el-table-column prop="conversationType" :label="$t('conversation.conversationType')" width="120">
           <template #default="{ row }">
             <el-tag :type="getTypeTagType(row.conversationType)" size="small">
               {{ getTypeLabel(row.conversationType) }}
@@ -87,11 +87,11 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="targetId" label="目标ID" width="180" show-overflow-tooltip />
+        <el-table-column prop="targetId" :label="$t('conversation.targetId')" width="180" show-overflow-tooltip />
 
-        <el-table-column prop="messageCount" label="消息数" width="100" align="center" />
+        <el-table-column prop="messageCount" :label="$t('conversation.messageCount')" width="100" align="center" />
 
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" :label="$t('conversation.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusTagType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
@@ -99,19 +99,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="lastMessageAt" label="最后消息时间" width="180">
+        <el-table-column prop="lastMessageAt" :label="$t('conversation.lastMessageTime')" width="180">
           <template #default="{ row }">
             {{ formatDate(row.lastMessageAt) }}
           </template>
         </el-table-column>
 
-        <el-table-column prop="createdAt" label="创建时间" width="180">
+        <el-table-column prop="createdAt" :label="$t('conversation.createdAt')" width="180">
           <template #default="{ row }">
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column :label="$t('conversation.operation')" width="200" fixed="right">
           <template #default="{ row }">
             <el-button
               type="primary"
@@ -119,7 +119,7 @@
               size="small"
               @click.stop="handleViewDetail(row)"
             >
-              查看详情
+              {{ $t('conversation.viewDetail') }}
             </el-button>
             <el-button
               type="primary"
@@ -127,7 +127,7 @@
               size="small"
               @click.stop="handleEdit(row)"
             >
-              编辑
+              {{ $t('conversation.edit') }}
             </el-button>
             <el-button
               type="danger"
@@ -135,7 +135,7 @@
               size="small"
               @click.stop="handleDelete(row)"
             >
-              删除
+              {{ $t('conversation.delete') }}
             </el-button>
           </template>
         </el-table-column>
@@ -175,17 +175,20 @@ import {
 } from '@/api/conversation'
 import ConversationEditDialog from './components/ConversationEditDialog.vue'
 import { formatDate } from '@/utils/format'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const conversationTypeOptions = [
-  { label: '智能体对话', value: 'AGENT' as const },
-  { label: '模型对话', value: 'MODEL' as const },
-  { label: '知识库对话', value: 'KB_RAG' as const },
+  { label: t('conversation.agentConversation'), value: 'AGENT' as const },
+  { label: t('conversation.modelConversation'), value: 'MODEL' as const },
+  { label: t('conversation.kbConversation'), value: 'KB_RAG' as const },
 ]
 
 const conversationStatusOptions = [
-  { label: '活跃', value: 'active' as const },
-  { label: '已归档', value: 'archived' as const },
-  { label: '已删除', value: 'deleted' as const },
+  { label: t('conversation.active'), value: 'active' as const },
+  { label: t('conversation.archived'), value: 'archived' as const },
+  { label: t('conversation.deleted'), value: 'deleted' as const },
 ]
 
 const router = useRouter()
@@ -219,7 +222,7 @@ const fetchConversations = async () => {
       ...pagination.value,
     })
   } catch (error) {
-    ElMessage.error('获取会话列表失败')
+    ElMessage.error(t('conversation.getConversationListFailed'))
   }
 }
 
@@ -296,21 +299,21 @@ const handleEdit = (row: ConversationInterface) => {
 const handleDelete = async (row: ConversationInterface) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除会话"${row.title || '未命名会话'}"吗？删除后将无法恢复。`,
-      '删除确认',
+      t('conversation.deleteConfirm', { title: row.title || t('conversation.unnamedConversation') }),
+      t('conversation.deleteTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
 
     await conversationStore.deleteConversation(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('conversation.deleteSuccess'))
     fetchConversations()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error(t('conversation.deleteFailed'))
     }
   }
 }
@@ -329,9 +332,9 @@ const handleEditSuccess = () => {
  */
 const getTypeLabel = (type: ConversationType) => {
   const labels: Record<string, string> = {
-    [ConversationType.AGENT]: '智能体',
-    [ConversationType.MODEL]: '模型',
-    [ConversationType.KB_RAG]: '知识库',
+    [ConversationType.AGENT]: t('conversation.agent'),
+    [ConversationType.MODEL]: t('conversation.model'),
+    [ConversationType.KB_RAG]: t('conversation.knowledgeBase'),
   }
   return labels[type] || type
 }
@@ -357,9 +360,9 @@ const getTypeTagType = (type: ConversationType) => {
  */
 const getStatusLabel = (status: ConversationStatus) => {
   const labels: Record<string, string> = {
-    [ConversationStatus.ACTIVE]: '活跃',
-    [ConversationStatus.ARCHIVED]: '已归档',
-    [ConversationStatus.DELETED]: '已删除',
+    [ConversationStatus.ACTIVE]: t('conversation.active'),
+    [ConversationStatus.ARCHIVED]: t('conversation.archived'),
+    [ConversationStatus.DELETED]: t('conversation.deleted'),
   }
   return labels[status] || status
 }

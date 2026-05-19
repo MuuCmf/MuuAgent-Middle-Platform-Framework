@@ -2,7 +2,7 @@
   <div class="app-selector">
     <el-select
       v-model="selectedAppCode"
-      :placeholder="placeholder"
+      :placeholder="computedPlaceholder"
       :clearable="clearable"
       :disabled="disabled"
       :size="size"
@@ -29,6 +29,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { appApi, type App } from '@/api/app'
 import { useUserStore } from '@/stores/user'
+import { useI18n } from 'vue-i18n'
 
 /**
  * 组件属性
@@ -42,14 +43,18 @@ interface Props {
   width?: string
 }
 
+const { t } = useI18n()
+
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
-  placeholder: '选择应用',
+  placeholder: '',
   clearable: true,
   disabled: false,
   size: 'default',
   width: '200px',
 })
+
+const computedPlaceholder = computed(() => props.placeholder || t('component.selectApp'))
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
@@ -79,8 +84,8 @@ const loadAppList = async () => {
     const { data } = await appApi.getList({ pageSize: 100 })
     appList.value = data.data.list
   } catch (error) {
-    console.error('加载应用列表失败:', error)
-    ElMessage.error('加载应用列表失败')
+    console.error(t('component.loadAppListFailed'), error)
+    ElMessage.error(t('component.loadAppListFailed'))
   } finally {
     loading.value = false
   }

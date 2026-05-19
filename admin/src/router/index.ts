@@ -1,12 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import i18n from '@/locales'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/login/index.vue'),
-    meta: { title: '登录', requiresAuth: false }
+    meta: { title: 'route.login', requiresAuth: false }
   },
   {
     path: '/',
@@ -18,25 +19,25 @@ const routes: RouteRecordRaw[] = [
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/dashboard/index.vue'),
-        meta: { title: '仪表盘', icon: 'Odometer' }
+        meta: { title: 'route.dashboard', icon: 'Odometer' }
       },
       {
         path: 'apps',
         name: 'Apps',
-        meta: { title: '应用管理', icon: 'Grid' },
+        meta: { title: 'route.apps', icon: 'Grid' },
         redirect: { name: 'AppList' },
         children: [
           {
             path: 'list',
             name: 'AppList',
             component: () => import('@/views/apps/index.vue'),
-            meta: { title: '应用列表' }
+            meta: { title: 'route.appList' }
           },
           {
             path: 'detail/:id',
             name: 'AppDetail',
             component: () => import('@/views/apps/detail.vue'),
-            meta: { title: '应用详情' }
+            meta: { title: 'route.appDetail' }
           }
         ]
       },
@@ -44,49 +45,49 @@ const routes: RouteRecordRaw[] = [
         path: 'models',
         name: 'Models',
         component: () => import('@/views/models/index.vue'),
-        meta: { title: '模型配置', icon: 'Setting' }
+        meta: { title: 'route.models', icon: 'Setting' }
       },
       {
         path: 'model-routing',
         name: 'ModelRouting',
         component: () => import('@/views/model-routing/index.vue'),
-        meta: { title: '模型路由调度', icon: 'Connection' }
+        meta: { title: 'route.modelRouting', icon: 'Connection' }
       },
       {
         path: 'agents',
         name: 'Agents',
         component: () => import('@/views/agents/index.vue'),
-        meta: { title: '智能体', icon: 'User' }
+        meta: { title: 'route.agents', icon: 'User' }
       },
       {
         path: 'skills',
         name: 'Skills',
         component: () => import('@/views/skills/index.vue'),
-        meta: { title: '技能', icon: 'Tools' }
+        meta: { title: 'route.skills', icon: 'Tools' }
       },
       {
         path: 'mcp-server',
         name: 'McpServer',
         component: () => import('@/views/mcp-server/index.vue'),
-        meta: { title: 'MCP Server', icon: 'Connection' }
+        meta: { title: 'route.mcpServer', icon: 'Connection' }
       },
       {
         path: 'kb',
         name: 'Kb',
-        meta: { title: '知识库', icon: 'Collection' },
+        meta: { title: 'route.knowledge', icon: 'Collection' },
         redirect: 'kb/list',
         children: [
           {
             path: 'list',
             name: 'KbList',
             component: () => import('@/views/kb/KbList.vue'),
-            meta: { title: '知识库列表' }
+            meta: { title: 'route.kbList' }
           },
           {
             path: 'detail/:id',
             name: 'KbDetail',
             component: () => import('@/views/kb/KbDetail.vue'),
-            meta: { title: '知识库详情' }
+            meta: { title: 'route.kbDetail' }
           }
         ]
       },
@@ -94,37 +95,37 @@ const routes: RouteRecordRaw[] = [
         path: 'prompt-templates',
         name: 'PromptTemplates',
         component: () => import('@/views/prompt-templates/index.vue'),
-        meta: { title: 'Prompt模板', icon: 'Document' }
+        meta: { title: 'route.promptTemplates', icon: 'Document' }
       },
       {
         path: 'rate-limit',
         name: 'RateLimit',
         component: () => import('@/views/rate-limit/index.vue'),
-        meta: { title: '熔断限流', icon: 'Warning' }
+        meta: { title: 'route.rateLimit', icon: 'Warning' }
       },
       {
         path: 'cache',
         name: 'Cache',
         component: () => import('@/views/cache/index.vue'),
-        meta: { title: '缓存管理', icon: 'Coin' }
+        meta: { title: 'route.cache', icon: 'Coin' }
       },
       {
         path: 'conversations',
         name: 'Conversations',
-        meta: { title: '会话管理', icon: 'ChatLineSquare' },
+        meta: { title: 'route.conversations', icon: 'ChatLineSquare' },
         redirect: 'conversations/list',
         children: [
           {
             path: 'list',
             name: 'ConversationList',
             component: () => import('@/views/conversations/index.vue'),
-            meta: { title: '会话列表' }
+            meta: { title: 'route.conversationList' }
           },
           {
             path: 'detail/:id',
             name: 'ConversationDetail',
             component: () => import('@/views/conversations/detail.vue'),
-            meta: { title: '会话详情' }
+            meta: { title: 'route.conversationDetail' }
           }
         ]
       },
@@ -132,7 +133,7 @@ const routes: RouteRecordRaw[] = [
         path: 'logs',
         name: 'Logs',
         component: () => import('@/views/logs/index.vue'),
-        meta: { title: '调用日志', icon: 'Document' }
+        meta: { title: 'route.logs', icon: 'Document' }
       }
     ]
   }
@@ -145,6 +146,12 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('admin_token')
+  
+  // 设置页面标题
+  if (to.meta.title) {
+    const title = i18n.global.t(to.meta.title as string)
+    document.title = `${title} - MuuAI中台管理系统`
+  }
   
   if (to.meta.requiresAuth !== false && !token) {
     next('/login')

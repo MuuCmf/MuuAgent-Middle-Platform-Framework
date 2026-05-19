@@ -55,6 +55,17 @@
           <el-option label="不健康" value="unhealthy" />
           <el-option label="未知" value="unknown" />
         </el-select>
+        <el-select
+          v-model="searchForm.transport"
+          placeholder="传输协议"
+          clearable
+          style="width: 120px"
+          @change="handleSearch"
+        >
+          <el-option label="HTTP" value="http" />
+          <el-option label="SSE" value="sse" />
+          <el-option label="STDIO" value="stdio" />
+        </el-select>
         <el-button type="primary" @click="handleSearch">查询</el-button>
         <el-button @click="handleReset">重置</el-button>
       </div>
@@ -140,6 +151,18 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="searchForm.page"
+          v-model:page-size="searchForm.pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
+        />
+      </div>
     </div>
 
     <McpServerEditDrawer
@@ -221,13 +244,14 @@ import {
   Refresh,
   Upload,
 } from '@element-plus/icons-vue'
-import { mcpServerApi, type McpServer, type ImportResult } from '@/api/mcp-server'
+import { mcpServerApi, type McpServer, type McpTransport, type ImportResult } from '@/api/mcp-server'
 import { formatDate } from '@/utils/format'
 import McpServerEditDrawer from './components/McpServerEditDrawer.vue'
 
 const loading = ref(false)
 const healthCheckLoading = ref(false)
 const serverList = ref<McpServer[]>([])
+const total = ref(0)
 const editDrawerVisible = ref(false)
 const currentServer = ref<McpServer | null>(null)
 const editMode = ref<'create' | 'edit'>('create')
@@ -240,6 +264,9 @@ const importResult = ref<ImportResult | null>(null)
 const searchForm = reactive({
   enabled: undefined as boolean | undefined,
   healthStatus: undefined as string | undefined,
+  transport: undefined as McpTransport | undefined,
+  page: 1,
+  pageSize: 10,
 })
 
 const getHealthTagType = (status?: string): 'success' | 'danger' | 'info' => {
@@ -279,7 +306,8 @@ const fetchList = async () => {
   loading.value = true
   try {
     const { data } = await mcpServerApi.getList(searchForm)
-    serverList.value = data.data
+    serverList.value = data.data.list
+    total.value = data.data.total
   } catch (error) {
     console.error('获取 MCP Server 列表失败:', error)
     ElMessage.error('获取列表失败')
@@ -288,13 +316,27 @@ const fetchList = async () => {
   }
 }
 
+const handlePageChange = (page: number) => {
+  searchForm.page = page
+  fetchList()
+}
+
+const handleSizeChange = (size: number) => {
+  searchForm.pageSize = size
+  searchForm.page = 1
+  fetchList()
+}
+
 const handleSearch = () => {
+  searchForm.page = 1
   fetchList()
 }
 
 const handleReset = () => {
   searchForm.enabled = undefined
   searchForm.healthStatus = undefined
+  searchForm.transport = undefined
+  searchForm.page = 1
   fetchList()
 }
 
@@ -510,5 +552,11 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   margin-bottom: 20px;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
 }
 </style>

@@ -1,17 +1,17 @@
 <template>
   <div class="card">
     <div class="card-title">
-      模板列表
-      <el-tag type="info" size="small">{{ templates.length }} 个</el-tag>
+      {{ $t('model.templateList') }}
+      <el-tag type="info" size="small">{{ templates.length }} {{ $t('model.templateCount') }}</el-tag>
     </div>
 
     <div class="help-tip" style="margin-bottom: 20px;">
-      <div class="help-tip-title">💡 模板说明</div>
+      <div class="help-tip-title">💡 {{ $t('model.templateTip') }}</div>
       <ul>
-        <li><strong>温度参数</strong>：控制模型输出的随机性，值越低越精准，值越高越有创意</li>
-        <li><strong>核采样参数</strong>：控制模型输出的多样性，通常固定为0.7-0.9</li>
-        <li><strong>上下文窗口</strong>：模型可处理的最大输入token数</li>
-        <li><strong>最大生成长度</strong>：模型单次输出的最大token数</li>
+        <li><strong>{{ $t('model.temperatureDesc') }}</strong></li>
+        <li><strong>{{ $t('model.topPDesc') }}</strong></li>
+        <li><strong>{{ $t('model.contextWindowDesc') }}</strong></li>
+        <li><strong>{{ $t('model.maxTokensDesc') }}</strong></li>
       </ul>
     </div>
 
@@ -20,78 +20,78 @@
         <el-icon>
           <Plus />
         </el-icon>
-        新建模板
+        {{ $t('model.createTemplate') }}
       </el-button>
 
-      <el-select v-model="filterModelType" placeholder="模型类型" clearable style="width: 150px;" @change="loadTemplates">
+      <el-select v-model="filterModelType" :placeholder="$t('model.modelTypeFilter')" clearable style="width: 150px;" @change="loadTemplates">
         <el-option label="LLM" value="llm" />
-        <el-option label="向量模型" value="embedding" />
-        <el-option label="多模态" value="multimodal" />
+        <el-option :label="$t('model.embedding')" value="embedding" />
+        <el-option :label="$t('model.multimodal')" value="multimodal" />
       </el-select>
 
-      <el-select v-model="filterSceneTag" placeholder="场景标签" clearable style="width: 150px;" @change="loadTemplates">
-        <el-option label="客服问答" value="customer_service" />
-        <el-option label="创意文案" value="creative" />
-        <el-option label="向量生成" value="vector" />
-        <el-option label="多模态生成" value="multimodal" />
-        <el-option label="代码生成" value="code" />
+      <el-select v-model="filterSceneTag" :placeholder="$t('model.sceneTagFilter')" clearable style="width: 150px;" @change="loadTemplates">
+        <el-option :label="$t('model.customerService')" value="customer_service" />
+        <el-option :label="$t('model.creativeWriting')" value="creative" />
+        <el-option :label="$t('model.vectorGeneration')" value="vector" />
+        <el-option :label="$t('model.multimodalGeneration')" value="multimodal" />
+        <el-option :label="$t('model.codeGeneration')" value="code" />
       </el-select>
     </div>
 
     <el-table :data="templates" stripe v-loading="templatesLoading">
-      <el-table-column prop="name" label="模板名称" width="180" />
-      <el-table-column prop="code" label="标识" width="200">
+      <el-table-column prop="name" :label="$t('model.templateName')" width="180" />
+      <el-table-column prop="code" :label="$t('model.templateId')" width="200">
         <template #default="{ row }">
           <el-tag type="info">{{ row.code }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="modelType" label="模型类型" width="100">
+      <el-table-column prop="modelType" :label="$t('model.modelType')" width="100">
         <template #default="{ row }">
           <el-tag>{{ getModelTypeLabel(row.modelType) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="sceneTag" label="场景标签" width="120">
+      <el-table-column prop="sceneTag" :label="$t('model.sceneTagFilter')" width="120">
         <template #default="{ row }">
           <el-tag v-if="row.sceneTag" type="warning">{{ getSceneTagLabel(row.sceneTag) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="参数配置" width="280">
+      <el-table-column :label="$t('model.paramConfig')" width="280">
         <template #default="{ row }">
           <el-space wrap>
-            <el-tag size="small">温度: {{ row.temperature }}</el-tag>
+            <el-tag size="small">{{ $t('model.temperature') }}: {{ row.temperature }}</el-tag>
             <el-tag size="small">TopP: {{ row.topP }}</el-tag>
-            <el-tag size="small">窗口: {{ row.contextWindow }}</el-tag>
-            <el-tag size="small">最大: {{ row.maxTokens }}</el-tag>
+            <el-tag size="small">{{ $t('model.contextWindow') }}: {{ row.contextWindow }}</el-tag>
+            <el-tag size="small">{{ $t('model.maxTokens') }}: {{ row.maxTokens }}</el-tag>
           </el-space>
         </template>
       </el-table-column>
-      <el-table-column prop="isDefault" label="默认" width="80">
+      <el-table-column prop="isDefault" :label="$t('model.isDefault')" width="80">
         <template #default="{ row }">
-          <el-tag v-if="row.isDefault" type="success">默认</el-tag>
+          <el-tag v-if="row.isDefault" type="success">{{ $t('model.isDefault') }}</el-tag>
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="80">
+      <el-table-column prop="status" :label="$t('model.status')" width="80">
         <template #default="{ row }">
           <el-tag :type="row.status ? 'success' : 'danger'">
-            {{ row.status ? '启用' : '禁用' }}
+            {{ row.status ? $t('model.enabled') : $t('model.disabled') }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="280" fixed="right" align="right">
+      <el-table-column :label="$t('common.operation')" width="280" fixed="right" align="right">
         <template #default="{ row }">
-          <el-button size="small" @click="handleEditTemplate(row)">编辑</el-button>
-          <el-button size="small" type="warning" @click="handleCopyTemplate(row.id)">复制</el-button>
+          <el-button size="small" @click="handleEditTemplate(row)">{{ $t('common.edit') }}</el-button>
+          <el-button size="small" type="warning" @click="handleCopyTemplate(row.id)">{{ $t('model.copy') }}</el-button>
           <el-button size="small" type="success" @click="handleSetDefaultTemplate(row.id)" :disabled="row.isDefault">
-            设为默认
+            {{ $t('model.setDefault') }}
           </el-button>
-          <el-button size="small" type="danger" @click="handleDeleteTemplate(row.id)">删除</el-button>
+          <el-button size="small" type="danger" @click="handleDeleteTemplate(row.id)">{{ $t('common.delete') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
   </div>
 
-  <el-drawer v-model="templateDialogVisible" :title="editingTemplate ? '编辑模板' : '新建模板'" direction="rtl" size="600px"
+  <el-drawer v-model="templateDialogVisible" :title="editingTemplate ? $t('model.editTemplate') : $t('model.createTemplate')" direction="rtl" size="600px"
     class="template-drawer">
     <el-form :model="templateForm" label-width="100px" label-position="top">
       <div class="form-section">
@@ -99,14 +99,14 @@
           <el-icon>
             <Document />
           </el-icon>
-          基本信息
+          {{ $t('model.basicInfo') }}
         </div>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="模板名称" required>
-              <el-input v-model="templateForm.name" placeholder="如：客服问答模板、创意文案模板">
+            <el-form-item :label="$t('model.templateName')" required>
+              <el-input v-model="templateForm.name" :placeholder="$t('model.templateNamePlaceholder')">
                 <template #suffix>
-                  <el-tooltip content="模板的显示名称，便于识别和管理" placement="top">
+                  <el-tooltip :content="$t('model.templateNameTip')" placement="top">
                     <el-icon class="input-tip-icon">
                       <QuestionFilled />
                     </el-icon>
@@ -116,10 +116,10 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="模板标识" required>
-              <el-input v-model="templateForm.code" placeholder="如：customer-service-template">
+            <el-form-item :label="$t('model.templateId')" required>
+              <el-input v-model="templateForm.code" :placeholder="$t('model.templateIdPlaceholder')">
                 <template #suffix>
-                  <el-tooltip content="唯一标识符，用于API调用时指定模板，建议使用英文小写和连字符" placement="top">
+                  <el-tooltip :content="$t('model.templateIdTip')" placement="top">
                     <el-icon class="input-tip-icon">
                       <QuestionFilled />
                     </el-icon>
@@ -132,43 +132,43 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="模型类型" required>
-              <el-select v-model="templateForm.modelType" style="width: 100%;" placeholder="选择适配的模型类型">
-                <el-option label="LLM (大语言模型)" value="llm">
+            <el-form-item :label="$t('model.modelType')" required>
+              <el-select v-model="templateForm.modelType" style="width: 100%;" :placeholder="$t('model.modelTypeSelectTip')">
+                <el-option :label="$t('model.llm')" value="llm">
                   <div class="select-option-content">
-                    <span>LLM (大语言模型)</span>
-                    <span class="select-option-desc">适用于文本生成、对话问答等场景</span>
+                    <span>{{ $t('model.llm') }}</span>
+                    <span class="select-option-desc">{{ $t('model.llmDesc') }}</span>
                   </div>
                 </el-option>
-                <el-option label="Embedding (向量模型)" value="embedding">
+                <el-option :label="$t('model.embedding')" value="embedding">
                   <div class="select-option-content">
-                    <span>Embedding (向量模型)</span>
-                    <span class="select-option-desc">适用于文本向量化、语义检索等场景</span>
+                    <span>{{ $t('model.embedding') }}</span>
+                    <span class="select-option-desc">{{ $t('model.embeddingDesc') }}</span>
                   </div>
                 </el-option>
-                <el-option label="Multimodal (多模态)" value="multimodal">
+                <el-option :label="$t('model.multimodal')" value="multimodal">
                   <div class="select-option-content">
-                    <span>Multimodal (多模态)</span>
-                    <span class="select-option-desc">适用于图文理解、多模态生成等场景</span>
+                    <span>{{ $t('model.multimodal') }}</span>
+                    <span class="select-option-desc">{{ $t('model.multimodalDesc') }}</span>
                   </div>
                 </el-option>
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="场景标签">
-              <el-select v-model="templateForm.sceneTag" style="width: 100%;" clearable placeholder="选择业务场景">
-                <el-option label="客服问答 - 精准简洁输出" value="customer_service" />
-                <el-option label="创意文案 - 发散创意输出" value="creative" />
-                <el-option label="向量生成 - 一致性向量输出" value="vector" />
-                <el-option label="多模态生成 - 图文混合输出" value="multimodal" />
-                <el-option label="代码生成 - 规范代码输出" value="code" />
+            <el-form-item :label="$t('model.sceneTagFilter')">
+              <el-select v-model="templateForm.sceneTag" style="width: 100%;" clearable :placeholder="$t('model.sceneTagTip')">
+                <el-option :label="$t('model.customerServiceDesc')" value="customer_service" />
+                <el-option :label="$t('model.creativeWritingDesc')" value="creative" />
+                <el-option :label="$t('model.vectorGenerationDesc')" value="vector" />
+                <el-option :label="$t('model.multimodalGenerationDesc')" value="multimodal" />
+                <el-option :label="$t('model.codeGenerationDesc')" value="code" />
               </el-select>
               <div class="form-item-tip">
                 <el-icon>
                   <InfoFilled />
                 </el-icon>
-                场景标签用于业务场景自动匹配模板
+                {{ $t('model.sceneTagTip') }}
               </div>
             </el-form-item>
           </el-col>
@@ -180,12 +180,12 @@
           <el-icon>
             <Setting />
           </el-icon>
-          参数配置
+          {{ $t('model.paramConfig') }}
         </div>
 
         <div class="param-group">
           <div class="param-group-header">
-            <span class="param-group-label">温度参数 (Temperature)</span>
+            <span class="param-group-label">{{ $t('model.temperature') }} (Temperature)</span>
             <el-tag size="small" :type="getTemperatureTagType(templateForm.temperature)">
               {{ getTemperatureDesc(templateForm.temperature) }}
             </el-tag>
@@ -194,24 +194,24 @@
             <el-slider v-model="templateForm.temperature" :min="0" :max="1" :step="0.1" show-input
               :show-input-controls="false" />
             <div class="param-marks">
-              <span>0 (精准)</span>
-              <span>0.3 (平衡)</span>
-              <span>0.7 (创意)</span>
-              <span>1 (随机)</span>
+              <span>0 ({{ $t('model.preciseMode') }})</span>
+              <span>0.3 ({{ $t('model.balancedMode') }})</span>
+              <span>0.7 ({{ $t('model.creativeMode') }})</span>
+              <span>1 ({{ $t('model.divergentMode') }})</span>
             </div>
             <div class="param-tip">
               <el-icon>
                 <InfoFilled />
               </el-icon>
-              控制输出随机性。<strong>低值(0-0.3)</strong>适合客服、代码等需要精准答案的场景；<strong>高值(0.7-1)</strong>适合创意写作、头脑风暴等场景
+              {{ $t('model.temperatureTip') }}
             </div>
           </div>
         </div>
 
         <div class="param-group">
           <div class="param-group-header">
-            <span class="param-group-label">核采样参数 (Top-P)</span>
-            <el-tag size="small" type="info">通常固定 0.7-0.9</el-tag>
+            <span class="param-group-label">{{ $t('model.topP') }} (Top-P)</span>
+            <el-tag size="small" type="info">{{ $t('model.topPDesc') }}</el-tag>
           </div>
           <div class="param-group-content">
             <el-slider v-model="templateForm.topP" :min="0" :max="1" :step="0.05" show-input
@@ -219,14 +219,14 @@
             <div class="param-marks">
               <span>0</span>
               <span>0.5</span>
-              <span>0.7 (推荐)</span>
+              <span>0.7 ({{ $t('common.recommend') }})</span>
               <span>1</span>
             </div>
             <div class="param-tip">
               <el-icon>
                 <InfoFilled />
               </el-icon>
-              控制输出多样性，从累积概率达到P的候选词中采样。一般与温度参数二选一调整，<strong>推荐保持0.7-0.9</strong>
+              {{ $t('model.topPTip') }}
             </div>
           </div>
         </div>
@@ -234,8 +234,8 @@
         <el-form-item>
           <template #label>
             <span class="label-with-tip">
-              上下文窗口 (Context Window)
-              <el-tooltip content="模型可处理的最大输入Token数，包括系统提示、历史对话和用户输入" placement="top">
+              {{ $t('model.contextWindow') }} (Context Window)
+              <el-tooltip :content="$t('model.contextWindowTip')" placement="top">
                 <el-icon class="label-tip-icon">
                   <QuestionFilled />
                 </el-icon>
@@ -248,16 +248,15 @@
             <el-icon>
               <InfoFilled />
             </el-icon>
-            常用值：8192 (GPT-3.5)、32768 (GPT-4)、128000 (GPT-4-Turbo)
+            {{ $t('model.contextWindowExample') }}
           </div>
         </el-form-item>
-
 
         <el-form-item>
           <template #label>
             <span class="label-with-tip">
-              最大生成长度 (Max Tokens)
-              <el-tooltip content="模型单次输出的最大Token数，影响响应长度和成本" placement="top">
+              {{ $t('model.maxTokens') }} (Max Tokens)
+              <el-tooltip :content="$t('model.maxTokensTip')" placement="top">
                 <el-icon class="label-tip-icon">
                   <QuestionFilled />
                 </el-icon>
@@ -270,11 +269,9 @@
             <el-icon>
               <InfoFilled />
             </el-icon>
-            客服建议200-500，创意建议1000-2000，代码建议500-1000
+            {{ $t('model.maxTokensExample') }}
           </div>
         </el-form-item>
-
-
       </div>
 
       <div class="form-section">
@@ -282,46 +279,44 @@
           <el-icon>
             <EditPen />
           </el-icon>
-          描述与状态
+          {{ $t('model.templateDesc') }}
         </div>
-        <el-form-item label="模板描述">
+        <el-form-item :label="$t('model.templateDesc')">
           <el-input v-model="templateForm.description" type="textarea" :rows="2"
-            placeholder="描述模板的用途、适用场景、参数特点等，如：适用于企业客服场景，输出精准简洁，贴合标准答案" show-word-limit maxlength="500" />
+            :placeholder="$t('model.templateDescPlaceholder')" show-word-limit maxlength="500" />
         </el-form-item>
 
-        <el-form-item label="备注">
-          <el-input v-model="templateForm.remark" type="textarea" :rows="2" placeholder="其他补充说明，如适用的模型品牌、注意事项等"
+        <el-form-item :label="$t('model.remark')">
+          <el-input v-model="templateForm.remark" type="textarea" :rows="2" :placeholder="$t('model.remarkPlaceholder')"
             show-word-limit maxlength="500" />
         </el-form-item>
 
-
-        <el-form-item label="设为默认">
+        <el-form-item :label="$t('model.setDefault')">
           <el-switch v-model="templateForm.isDefault" />
           <div class="form-item-tip">
             <el-icon>
               <InfoFilled />
             </el-icon>
-            设为默认后，该模型类型将优先使用此模板
+            {{ $t('model.setDefaultDesc') }}
           </div>
         </el-form-item>
 
-        <el-form-item label="启用状态">
+        <el-form-item :label="$t('model.enableStatus')">
           <el-switch v-model="templateForm.status" />
           <div class="form-item-tip">
             <el-icon>
               <InfoFilled />
             </el-icon>
-            禁用后，该模板不会被系统调用
+            {{ $t('model.disableStatusDesc') }}
           </div>
         </el-form-item>
-
       </div>
     </el-form>
 
     <template #footer>
       <div class="drawer-footer">
-        <el-button @click="templateDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveTemplate">保存</el-button>
+        <el-button @click="templateDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSaveTemplate">{{ $t('common.save') }}</el-button>
       </div>
     </template>
   </el-drawer>
@@ -329,11 +324,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Document, Setting, EditPen, QuestionFilled, InfoFilled } from '@element-plus/icons-vue'
 import { modelTemplateApi } from '@/api/model-template'
 import type { ModelTemplate, ModelTemplateForm } from '@/api/model-template'
 
+const { t } = useI18n()
 const templates = ref<ModelTemplate[]>([])
 const templatesLoading = ref(false)
 const filterModelType = ref('')
@@ -385,8 +382,8 @@ const resetTemplateForm = () => {
 const getModelTypeLabel = (type: string): string => {
   const typeMap: Record<string, string> = {
     llm: 'LLM',
-    embedding: '向量模型',
-    multimodal: '多模态'
+    embedding: t('model.embedding'),
+    multimodal: t('model.multimodal')
   }
   return typeMap[type] || type
 }
@@ -398,11 +395,11 @@ const getModelTypeLabel = (type: string): string => {
  */
 const getSceneTagLabel = (tag: string): string => {
   const tagMap: Record<string, string> = {
-    customer_service: '客服问答',
-    creative: '创意文案',
-    vector: '向量生成',
-    multimodal: '多模态生成',
-    code: '代码生成'
+    customer_service: t('model.customerService'),
+    creative: t('model.creativeWriting'),
+    vector: t('model.vectorGeneration'),
+    multimodal: t('model.multimodalGeneration'),
+    code: t('model.codeGeneration')
   }
   return tagMap[tag] || tag
 }
@@ -413,10 +410,10 @@ const getSceneTagLabel = (tag: string): string => {
  * @returns 描述文本
  */
 const getTemperatureDesc = (temperature: number): string => {
-  if (temperature <= 0.2) return '精准模式'
-  if (temperature <= 0.4) return '平衡模式'
-  if (temperature <= 0.7) return '创意模式'
-  return '发散模式'
+  if (temperature <= 0.2) return t('model.preciseMode')
+  if (temperature <= 0.4) return t('model.balancedMode')
+  if (temperature <= 0.7) return t('model.creativeMode')
+  return t('model.divergentMode')
 }
 
 /**
@@ -445,7 +442,7 @@ const loadTemplates = async () => {
     templates.value = data.data.list || []
   } catch (error) {
     console.error('加载模板列表失败', error)
-    ElMessage.error('加载模板列表失败')
+    ElMessage.error(t('model.loadTemplateListFailed'))
   } finally {
     templatesLoading.value = false
   }
@@ -474,23 +471,23 @@ const handleEditTemplate = (template: ModelTemplate) => {
  */
 const handleSaveTemplate = async () => {
   if (!templateForm.value.name || !templateForm.value.code || !templateForm.value.modelType) {
-    ElMessage.warning('请填写必填项')
+    ElMessage.warning(t('model.pleaseFillRequired'))
     return
   }
 
   try {
     if (editingTemplate.value) {
       await modelTemplateApi.update(editingTemplate.value.id, templateForm.value)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('model.updateSuccess'))
     } else {
       await modelTemplateApi.create(templateForm.value)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('model.createSuccess'))
     }
     templateDialogVisible.value = false
     loadTemplates()
   } catch (error: any) {
     console.error('保存失败', error)
-    ElMessage.error(error.response?.data?.message || '保存失败')
+    ElMessage.error(error.response?.data?.message || t('model.updateFailed'))
   }
 }
 
@@ -500,16 +497,18 @@ const handleSaveTemplate = async () => {
  */
 const handleDeleteTemplate = async (id: string) => {
   try {
-    await ElMessageBox.confirm('确定删除该模板？', '提示', {
-      type: 'warning'
+    await ElMessageBox.confirm(t('model.deleteConfirm'), t('model.deleteTitle'), {
+      type: 'warning',
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel')
     })
     await modelTemplateApi.delete(id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('model.deleteSuccess'))
     loadTemplates()
   } catch (error: any) {
     if (error !== 'cancel') {
       console.error('删除失败', error)
-      ElMessage.error(error.response?.data?.message || '删除失败')
+      ElMessage.error(error.response?.data?.message || t('model.deleteFailed'))
     }
   }
 }
@@ -521,11 +520,11 @@ const handleDeleteTemplate = async (id: string) => {
 const handleCopyTemplate = async (id: string) => {
   try {
     await modelTemplateApi.copy(id)
-    ElMessage.success('复制成功')
+    ElMessage.success(t('model.copySuccess'))
     loadTemplates()
   } catch (error: any) {
     console.error('复制失败', error)
-    ElMessage.error(error.response?.data?.message || '复制失败')
+    ElMessage.error(error.response?.data?.message || t('model.copyFailed'))
   }
 }
 
@@ -536,11 +535,11 @@ const handleCopyTemplate = async (id: string) => {
 const handleSetDefaultTemplate = async (id: string) => {
   try {
     await modelTemplateApi.setDefault(id)
-    ElMessage.success('设置成功')
+    ElMessage.success(t('model.setDefaultSuccess'))
     loadTemplates()
   } catch (error: any) {
     console.error('设置失败', error)
-    ElMessage.error(error.response?.data?.message || '设置失败')
+    ElMessage.error(error.response?.data?.message || t('model.setDefaultFailed'))
   }
 }
 

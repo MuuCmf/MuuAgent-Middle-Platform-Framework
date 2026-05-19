@@ -249,6 +249,21 @@ export class QueryMcpServerDto {
   @IsEnum(['http', 'sse', 'stdio'])
   @IsOptional()
   transport?: McpTransport;
+
+  @ApiPropertyOptional({ description: '页码', default: 1 })
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsNumber()
+  @Min(1)
+  @IsOptional()
+  page?: number;
+
+  @ApiPropertyOptional({ description: '每页数量', default: 10 })
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsNumber()
+  @Min(1)
+  @Max(100)
+  @IsOptional()
+  pageSize?: number;
 }
 
 /**

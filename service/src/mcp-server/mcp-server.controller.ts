@@ -30,7 +30,7 @@ import {
   ImportMcpServersDto,
   ImportResultDto,
 } from './dto/mcp-server.dto';
-import { success } from '../common/response/api.response';
+import { success, page } from '../common/response/api.response';
 import { McpServer } from '@prisma/client';
 import { McpTransport } from './types/mcp-server.types';
 
@@ -108,23 +108,29 @@ export class McpServerController {
   }
 
   /**
-   * 获取 MCP Server 列表
+   * 获取 MCP Server 列表（分页）
    * @param query 查询参数
-   * @returns {Promise<ApiResponseClass>} MCP Server 列表
+   * @returns {Promise<ApiResponseClass>} MCP Server 分页列表
    */
   @Get()
-  @ApiOperation({ summary: '获取 MCP Server 列表' })
+  @ApiOperation({ summary: '获取 MCP Server 列表（分页）' })
   @ApiResponse({ status: 200, description: '获取成功' })
   @RequireScope(AdminScope.MCP_SERVER_READ)
-  async findAll(@Query() query: QueryMcpServerDto): Promise<{ data: McpServerResponseDto[] }> {
-    const servers = await this.repository.findAll({
-      enabled: query.enabled,
-      appCode: query.appCode,
-      healthStatus: query.healthStatus,
-      transport: query.transport,
+  async findAll(@Query() query: QueryMcpServerDto): Promise<{ data: { list: McpServerResponseDto[]; total: number; page: number; pageSize: number } }> {
+    const { page: pageNum = 1, pageSize = 10, ...filterParams } = query;
+
+    const result = await this.repository.findWithPagination({
+      ...filterParams,
+      page: pageNum,
+      pageSize,
     });
 
-    return success(servers.map(s => this.toResponseDto(s)));
+    return page(
+      result.list.map(s => this.toResponseDto(s)),
+      result.total,
+      result.page,
+      result.pageSize,
+    );
   }
 
   /**

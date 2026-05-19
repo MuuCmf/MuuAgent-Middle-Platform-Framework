@@ -57,6 +57,14 @@ export interface FindMcpServerParams {
 }
 
 /**
+ * 分页查询 MCP Server 参数
+ */
+export interface FindMcpServerPageParams extends FindMcpServerParams {
+  page?: number;
+  pageSize?: number;
+}
+
+/**
  * MCP Server 数据访问层
  * 提供 MCP Server 配置的 CRUD 操作
  */
@@ -146,6 +154,44 @@ export class McpServerRepository {
         createdAt: 'desc',
       },
     });
+  }
+
+  /**
+   * 分页查询 MCP Server
+   * @param params 分页查询参数
+   * @returns {Promise<{list: McpServer[]; total: number; page: number; pageSize: number}>} 分页结果
+   */
+  async findWithPagination(params?: FindMcpServerPageParams): Promise<{
+    list: McpServer[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    const page = params?.page || 1;
+    const pageSize = params?.pageSize || 10;
+    const skip = (page - 1) * pageSize;
+
+    const where = {
+      isDeleted: false,
+      ...(params?.enabled !== undefined && { enabled: params.enabled }),
+      ...(params?.appCode && { appCode: params.appCode }),
+      ...(params?.healthStatus && { healthStatus: params.healthStatus }),
+      ...(params?.transport && { transport: params.transport }),
+    };
+
+    const [list, total] = await Promise.all([
+      this.prisma.mcpServer.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+      this.prisma.mcpServer.count({ where }),
+    ]);
+
+    return { list, total, page, pageSize };
   }
 
   /**

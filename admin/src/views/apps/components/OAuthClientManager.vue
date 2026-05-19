@@ -1,10 +1,10 @@
 <template>
   <div class="oauth-client-manager">
     <div class="manager-header">
-      <h3>OAuth 客户端</h3>
+      <h3>{{ $t('app.oauthClientTitle') }}</h3>
       <el-button type="primary" size="small" @click="handleCreate">
         <el-icon><Plus /></el-icon>
-        创建客户端
+        {{ $t('app.createClientBtn') }}
       </el-button>
     </div>
 
@@ -14,7 +14,7 @@
       :closable="false"
       style="margin-bottom: 16px"
     >
-      当前应用未启用OAuth功能，请先在应用设置中启用OAuth
+      {{ $t('app.oauthNotEnabledTip') }}
     </el-alert>
 
     <el-table
@@ -23,8 +23,8 @@
       stripe
       size="small"
     >
-      <el-table-column prop="name" label="客户端名称" min-width="150" />
-      <el-table-column prop="clientId" label="客户端ID" min-width="200">
+      <el-table-column prop="name" :label="$t('app.clientName')" min-width="150" />
+      <el-table-column prop="clientId" :label="$t('app.clientId')" min-width="200">
         <template #default="{ row }">
           <div class="client-id-cell">
             <span class="client-id-text">{{ row.clientId }}</span>
@@ -34,7 +34,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="redirectUris" label="回调地址" min-width="200">
+      <el-table-column prop="redirectUris" :label="$t('app.callbackUrl')" min-width="200">
         <template #default="{ row }">
           <el-space wrap>
             <el-tag v-for="uri in row.redirectUris" :key="uri" size="small" type="info">
@@ -43,23 +43,23 @@
           </el-space>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="80">
+      <el-table-column prop="status" :label="$t('app.status')" width="80">
         <template #default="{ row }">
           <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
-            {{ row.status === 1 ? '启用' : '禁用' }}
+            {{ row.status === 1 ? $t('app.enabled') : $t('app.disabled') }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column :label="$t('app.operation')" width="180" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
-          <el-button link type="warning" size="small" @click="handleResetSecret(row)">重置密钥</el-button>
-          <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+          <el-button link type="primary" size="small" @click="handleEdit(row)">{{ $t('app.edit') }}</el-button>
+          <el-button link type="warning" size="small" @click="handleResetSecret(row)">{{ $t('app.resetSecret') }}</el-button>
+          <el-button link type="danger" size="small" @click="handleDelete(row)">{{ $t('app.delete') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-empty v-if="!loading && clients.length === 0" description="暂无OAuth客户端" />
+    <el-empty v-if="!loading && clients.length === 0" :description="$t('app.noOAuthClient')" />
 
     <ClientEditDrawer
       v-model:visible="editDrawerVisible"
@@ -77,6 +77,9 @@ import { Plus, CopyDocument } from '@element-plus/icons-vue'
 import { oauthApi, type OAuthClient } from '@/api/oauth'
 import type { App } from '@/api/app'
 import ClientEditDrawer from './ClientEditDrawer.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
   app: App | null
@@ -100,7 +103,7 @@ const loadClients = async () => {
     const response = await oauthApi.getClients(1, 100, undefined, props.app.code)
     clients.value = response.data.data.data
   } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || '加载客户端列表失败')
+    ElMessage.error(error.response?.data?.message || t('app.loadClientListFailed'))
   } finally {
     loading.value = false
   }
@@ -111,7 +114,7 @@ const loadClients = async () => {
  */
 const handleCreate = () => {
   if (!props.app?.enableOAuth) {
-    ElMessage.warning('请先在应用设置中启用OAuth功能')
+    ElMessage.warning(t('app.pleaseEnableOAuthFirst'))
     return
   }
   currentClient.value = null
@@ -134,23 +137,23 @@ const handleEdit = (client: OAuthClient) => {
 const handleResetSecret = async (client: OAuthClient) => {
   try {
     await ElMessageBox.confirm(
-      '重置密钥后，原密钥将立即失效，确定要重置吗？',
-      '警告',
+      t('app.resetSecretWarning'),
+      t('common.warning'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
 
     const response = await oauthApi.resetClientSecret(client.id)
-    ElMessage.success('密钥重置成功，请妥善保管新密钥')
+    ElMessage.success(t('app.clientResetSecretSuccess'))
     
     await ElMessageBox.alert(
-      `新的客户端密钥：${response.data.data.clientSecret}`,
-      '密钥重置成功',
+      `${t('app.newClientSecret')}：${response.data.data.clientSecret}`,
+      t('app.clientResetSecretSuccess'),
       {
-        confirmButtonText: '确定',
+        confirmButtonText: t('common.confirm'),
         type: 'success',
       }
     )
@@ -158,7 +161,7 @@ const handleResetSecret = async (client: OAuthClient) => {
     loadClients()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.message || '重置密钥失败')
+      ElMessage.error(error.response?.data?.message || t('app.clientResetSecretFailed'))
     }
   }
 }
@@ -170,21 +173,21 @@ const handleResetSecret = async (client: OAuthClient) => {
 const handleDelete = async (client: OAuthClient) => {
   try {
     await ElMessageBox.confirm(
-      '删除客户端后，所有相关令牌将失效，确定要删除吗？',
-      '警告',
+      t('app.deleteClientWarning'),
+      t('common.warning'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
 
     await oauthApi.deleteClient(client.id)
-    ElMessage.success('客户端已删除')
+    ElMessage.success(t('app.clientDeleted'))
     loadClients()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.message || '删除客户端失败')
+      ElMessage.error(error.response?.data?.message || t('app.deleteClientFailed'))
     }
   }
 }
@@ -195,7 +198,7 @@ const handleDelete = async (client: OAuthClient) => {
  */
 const copyToClipboard = (text: string) => {
   navigator.clipboard.writeText(text)
-  ElMessage.success('已复制到剪贴板')
+  ElMessage.success(t('app.copiedToClipboard'))
 }
 
 watch(() => props.app?.code, (newCode) => {

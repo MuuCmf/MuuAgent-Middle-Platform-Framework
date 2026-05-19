@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="选择技能"
+    :title="$t('skillSelect.selectSkill')"
     width="600px"
     :close-on-click-modal="false"
     @close="handleClose"
@@ -10,7 +10,7 @@
       <div class="search-box">
         <el-input
           v-model="searchKeyword"
-          placeholder="搜索技能名称"
+          :placeholder="$t('skillSelect.searchSkillName')"
           clearable
           prefix-icon="Search"
         />
@@ -18,9 +18,9 @@
 
       <div class="selected-skills" v-if="selectedSkills.length > 0">
         <div class="selected-header">
-          <span class="selected-title">已选择 ({{ selectedSkills.length }})</span>
+          <span class="selected-title">{{ $t('skillSelect.selected') }} ({{ selectedSkills.length }})</span>
           <el-button text type="primary" size="small" @click="clearSelection">
-            清空
+            {{ $t('skillSelect.clear') }}
           </el-button>
         </div>
         <div class="selected-tags">
@@ -38,7 +38,7 @@
 
       <div class="skill-list">
         <div v-if="filteredSkills.length === 0" class="empty-skills">
-          <el-empty description="暂无可用技能" :image-size="80" />
+          <el-empty :description="$t('skillSelect.noAvailableSkills')" :image-size="80" />
         </div>
         <div v-else class="skill-items">
           <div
@@ -68,9 +68,9 @@
 
     <template #footer>
       <div style="text-align: right;">
-        <el-button @click="handleClose">取消</el-button>
+        <el-button @click="handleClose">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" @click="handleConfirm">
-          确定 ({{ selectedSkills.length }})
+          {{ $t('skillSelect.confirm') }} ({{ selectedSkills.length }})
         </el-button>
       </div>
     </template>

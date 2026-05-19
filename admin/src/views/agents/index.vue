@@ -1,31 +1,31 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">智能体</h1>
-      <p class="page-description">创建和管理具有特定能力的AI助手</p>
+      <h1 class="page-title">{{ $t('agent.title') }}</h1>
+      <p class="page-description">{{ $t('agent.description') }}</p>
     </div>
 
     <div class="card">
       <div class="card-title">
-        <span>智能体列表</span>
-        <el-tag type="info" size="small">{{ agents.length }} 个</el-tag>
+        <span>{{ $t('agent.list') }}</span>
+        <el-tag type="info" size="small">{{ agents.length }} {{ $t('agent.count') }}</el-tag>
         <AppSelector
           v-model="filterAppCode"
-          placeholder="筛选应用"
+          :placeholder="$t('agent.filterApp')"
           style="margin-left: 16px;"
           @change="handleAppFilterChange"
         />
       </div>
 
       <div class="help-tip">
-        <div class="help-tip-title">💡 智能体说明</div>
+        <div class="help-tip-title">💡 {{ $t('agent.agentExplanation') }}</div>
         <ul>
-          <li><strong>智能体</strong>：具有特定能力的AI助手，可以自动调用技能完成任务</li>
-          <li><strong>系统提示词</strong>：定义智能体的角色和行为方式</li>
-          <li><strong>绑定技能</strong>：智能体可以调用的技能列表，技能封装了知识库、MCP等能力</li>
-          <li><strong>技能依赖</strong>：技能可声明依赖知识库、MCP Server等资源，自动加载</li>
-          <li><strong>最大执行步数</strong>：限制智能体最多执行多少步操作</li>
-          <li><strong>推理模式</strong>：支持NONE/REACT/PLAN/REFLECT多种推理策略</li>
+          <li>{{ $t('agent.agentDesc') }}</li>
+          <li>{{ $t('agent.systemPromptDesc') }}</li>
+          <li>{{ $t('agent.bindSkillsDesc') }}</li>
+          <li>{{ $t('agent.skillDependencyDesc') }}</li>
+          <li>{{ $t('agent.maxStepsDesc') }}</li>
+          <li>{{ $t('agent.reasoningModeDesc') }}</li>
         </ul>
       </div>
 
@@ -33,30 +33,30 @@
         <el-icon>
           <Plus />
         </el-icon>
-        创建智能体
+        {{ $t('agent.createAgent') }}
       </el-button>
 
       <el-table :data="agents" stripe v-loading="loading">
-        <el-table-column prop="name" label="名称" min-width="120" />
-        <el-table-column prop="code" label="标识" width="150">
+        <el-table-column prop="name" :label="$t('agent.agentName')" min-width="120" />
+        <el-table-column prop="code" :label="$t('agent.agentCode')" width="150">
           <template #default="{ row }">
             <el-tag type="info">{{ row.code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="appCode" label="所属应用" width="120">
+        <el-table-column prop="appCode" :label="$t('agent.belongApp')" width="120">
           <template #default="{ row }">
             <el-tag v-if="row.appCode" type="warning" size="small">{{ row.appCode }}</el-tag>
-            <span v-else style="color: #999">全局</span>
+            <span v-else style="color: #999">{{ $t('agent.global') }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="isPublic" label="公开状态" width="100">
+        <el-table-column prop="isPublic" :label="$t('agent.publicStatus')" width="100">
           <template #default="{ row }">
             <el-tag :type="row.isPublic ? 'success' : 'info'" size="small">
-              {{ row.isPublic ? '公开' : '私有' }}
+              {{ row.isPublic ? $t('agent.public') : $t('agent.private') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="skills" label="绑定技能" width="180">
+        <el-table-column prop="skills" :label="$t('agent.bindSkills')" width="180">
           <template #default="{ row }">
             <template v-if="parseJsonSafe(row.skills).length">
               <el-tag v-for="s in parseJsonSafe(row.skills).slice(0, 2)" :key="s" type="info" size="small"
@@ -67,37 +67,37 @@
                 +{{ parseJsonSafe(row.skills).length - 2 }}
               </el-tag>
             </template>
-            <span v-else style="color: #999">无</span>
+            <span v-else style="color: #999">{{ $t('agent.noSkills') }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="reasoningMode" label="推理模式" width="100">
+        <el-table-column prop="reasoningMode" :label="$t('agent.reasoningMode')" width="100">
           <template #default="{ row }">
             <el-tag :type="getReasoningTagType(row.reasoningMode)" size="small">
               {{ getReasoningLabel(row.reasoningMode) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="工作目录" width="90">
+        <el-table-column :label="$t('agent.workspace')" width="90">
           <template #default="{ row }">
             <el-tag
               :type="isWorkspaceEnabled(row) ? 'success' : 'info'"
               size="small"
             >
-              {{ isWorkspaceEnabled(row) ? '已启用' : '未启用' }}
+              {{ isWorkspaceEnabled(row) ? $t('agent.workspaceEnabled') : $t('agent.workspaceDisabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="80">
+        <el-table-column prop="status" :label="$t('common.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status ? 'success' : 'danger'" size="small">
-              {{ row.status ? '启用' : '禁用' }}
+              {{ row.status ? $t('common.enable') : $t('common.disable') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" align="right" fixed="right">
+        <el-table-column :label="$t('common.actions')" width="150" align="right" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
+            <el-button size="small" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
+            <el-button size="small" type="danger" @click="handleDelete(row.id)">{{ $t('common.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -116,7 +116,9 @@ import { useAgentStore, useSkillStore } from '@/stores'
 import type { Agent, AgentForm } from '@/api/agent'
 import AgentEditDrawer from './components/AgentEditDrawer.vue'
 import AppSelector from '@/components/AppSelector.vue'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const agentStore = useAgentStore()
 const skillStore = useSkillStore()
 
@@ -141,12 +143,12 @@ const parseJsonSafe = (str: string, defaultValue: any[] = []) => {
 
 const getReasoningLabel = (mode: string) => {
   const labels: Record<string, string> = {
-    NONE: '默认',
-    REACT: 'ReAct',
-    PLAN: 'Plan',
-    REFLECT: 'Reflect',
+    NONE: t('agent.defaultMode'),
+    REACT: t('agent.reactMode'),
+    PLAN: t('agent.planMode'),
+    REFLECT: t('agent.reflectMode'),
   }
-  return labels[mode] || '默认'
+  return labels[mode] || t('agent.defaultMode')
 }
 
 const getReasoningTagType = (mode: string) => {
@@ -199,13 +201,13 @@ const handleSave = async (data: AgentForm) => {
 
 const handleDelete = async (id: number) => {
   try {
-    await ElMessageBox.confirm('确定删除该智能体？', '提示', {
+    await ElMessageBox.confirm(t('agent.confirmDelete'), t('common.tip'), {
       type: 'warning'
     })
     await deleteAgent(id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('agent.deleteSuccess'))
   } catch (error) {
-    console.error('删除失败', error)
+    console.error(t('agent.deleteFailed'), error)
   }
 }
 

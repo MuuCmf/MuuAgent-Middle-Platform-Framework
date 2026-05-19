@@ -1,43 +1,43 @@
 <template>
   <div class="card">
     <div class="card-title">
-      模型列表
-      <el-tag type="info" size="small">{{ models.length }} 个</el-tag>
+      {{ $t('model.modelList') }}
+      <el-tag type="info" size="small">{{ models.length }} {{ $t('model.modelCount') }}</el-tag>
     </div>
 
     <div class="help-tip" style="margin-bottom: 20px;">
-      <div class="help-tip-title">💡 模型管理说明</div>
+      <div class="help-tip-title">💡 {{ $t('model.modelManagementTip') }}</div>
       <ul>
-        <li><strong>模型</strong>：AI服务的具体实例，如 GPT-4、Claude、本地 Ollama 模型等</li>
-        <li><strong>模型标识</strong>：唯一标识符，用于API调用时指定模型</li>
-        <li><strong>权重</strong>：负载均衡时的选择权重，权重越高被选中概率越大</li>
-        <li><strong>状态</strong>：启用/禁用，禁用的模型不参与调度</li>
+        <li><strong>{{ $t('model.modelManagementDesc') }}</strong></li>
+        <li><strong>{{ $t('model.modelIdDesc') }}</strong></li>
+        <li><strong>{{ $t('model.weightDesc') }}</strong></li>
+        <li><strong>{{ $t('model.statusDesc') }}</strong></li>
       </ul>
     </div>
 
     <el-button type="primary" @click="handleAddModel" style="margin-bottom: 16px;">
       <el-icon><Plus /></el-icon>
-      添加模型
+      {{ $t('model.addModel') }}
     </el-button>
 
     <el-table :data="models" stripe v-loading="modelsLoading">
-      <el-table-column prop="name" label="名称" />
-      <el-table-column prop="code" label="标识" width="180">
+      <el-table-column prop="name" :label="$t('model.modelName')" />
+      <el-table-column prop="code" :label="$t('model.modelId')" width="180">
         <template #default="{ row }">
           <el-tag type="info">{{ row.code }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="type" label="类型" width="120">
+      <el-table-column prop="type" :label="$t('model.modelType')" width="120">
         <template #default="{ row }">
           <el-tag>{{ row.type }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="category" label="分类" width="100">
+      <el-table-column prop="category" :label="$t('model.category')" width="100">
         <template #default="{ row }">
           <el-tag v-if="row.category" type="warning">{{ getCategoryLabel(row.category) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="tags" label="标签" width="200">
+      <el-table-column prop="tags" :label="$t('model.tags')" width="200">
         <template #default="{ row }">
           <el-space wrap>
             <el-tag v-for="tag in parseTags(row.tags)" :key="tag" size="small" type="success">
@@ -46,52 +46,52 @@
           </el-space>
         </template>
       </el-table-column>
-      <el-table-column prop="provider" label="提供商" width="120" />
-      <el-table-column prop="weight" label="权重" width="80" />
-      <el-table-column prop="status" label="状态" width="100">
+      <el-table-column prop="provider" :label="$t('model.provider')" width="120" />
+      <el-table-column prop="weight" :label="$t('model.weight')" width="80" />
+      <el-table-column prop="status" :label="$t('model.status')" width="100">
         <template #default="{ row }">
           <el-tag :type="row.status ? 'success' : 'danger'">
-            {{ row.status ? '启用' : '禁用' }}
+            {{ row.status ? $t('model.enabled') : $t('model.disabled') }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="kbUsageCount" label="知识库使用" width="120">
+      <el-table-column prop="kbUsageCount" :label="$t('model.kbUsage')" width="120">
         <template #default="{ row }">
           <el-tag v-if="row.kbUsageCount > 0" type="warning">
-            {{ row.kbUsageCount }} 个
+            {{ row.kbUsageCount }} {{ $t('model.modelCount') }}
           </el-tag>
-          <el-tag v-else type="info">未使用</el-tag>
+          <el-tag v-else type="info">{{ $t('model.unused') }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right" align="right">
+      <el-table-column :label="$t('common.operation')" width="140" fixed="right" align="right">
         <template #default="{ row }">
-          <el-button size="small" @click="handleEditModel(row)">编辑</el-button>
-          <el-button size="small" type="danger" @click="handleDeleteModel(row.id)">删除</el-button>
+          <el-button size="small" @click="handleEditModel(row)">{{ $t('common.edit') }}</el-button>
+          <el-button size="small" type="danger" @click="handleDeleteModel(row.id)">{{ $t('common.delete') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
   </div>
 
-  <el-dialog v-model="modelDialogVisible" :title="editingModel ? '编辑模型' : '添加模型'" width="600px">
+  <el-dialog v-model="modelDialogVisible" :title="editingModel ? $t('model.editModel') : $t('model.addModel')" width="600px">
     <el-form :model="modelForm" label-width="100px">
-      <el-form-item label="模型名称" required>
-        <el-input v-model="modelForm.name" placeholder="如：GPT-4、Claude-3" />
+      <el-form-item :label="$t('model.modelName')" required>
+        <el-input v-model="modelForm.name" :placeholder="$t('model.modelNamePlaceholder')" />
       </el-form-item>
 
       <el-row :gutter="16">
         <el-col :span="12">
-          <el-form-item label="模型标识" required>
-            <el-input v-model="modelForm.code" placeholder="如：gpt-4、claude-3-opus" />
+          <el-form-item :label="$t('model.modelId')" required>
+            <el-input v-model="modelForm.code" :placeholder="$t('model.modelTypePlaceholder')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="模型类型" required>
+          <el-form-item :label="$t('model.modelType')" required>
             <el-select v-model="modelForm.type" style="width: 100%;">
-              <el-option label="LLM (大语言模型)" value="llm" />
-              <el-option label="Embedding (向量模型)" value="embedding" />
-              <el-option label="TTS (语音合成)" value="tts" />
-              <el-option label="ASR (语音识别)" value="asr" />
-              <el-option label="Image (图像生成)" value="image" />
+              <el-option :label="$t('model.llm')" value="llm" />
+              <el-option :label="$t('model.embedding')" value="embedding" />
+              <el-option :label="$t('model.tts')" value="tts" />
+              <el-option :label="$t('model.asr')" value="asr" />
+              <el-option :label="$t('model.image')" value="image" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -99,103 +99,105 @@
 
       <el-row :gutter="16">
         <el-col :span="12">
-          <el-form-item label="提供商">
+          <el-form-item :label="$t('model.provider')">
             <el-select v-model="modelForm.provider" style="width: 100%;">
-              <el-option label="Ollama (本地)" value="ollama" />
-              <el-option label="OpenAI" value="openai" />
-              <el-option label="Azure OpenAI" value="azure" />
-              <el-option label="DeepSeek" value="deepseek" />
-              <el-option label="智谱AI" value="zhipu" />
-              <el-option label="阿里云通义" value="aliyun" />
-              <el-option label="腾讯混元" value="tencent" />
-              <el-option label="火山引擎" value="volcengine" />
-              <el-option label="自定义" value="custom" />
+              <el-option :label="$t('model.ollama')" value="ollama" />
+              <el-option :label="$t('model.openai')" value="openai" />
+              <el-option :label="$t('model.azure')" value="azure" />
+              <el-option :label="$t('model.deepseek')" value="deepseek" />
+              <el-option :label="$t('model.zhipu')" value="zhipu" />
+              <el-option :label="$t('model.aliyun')" value="aliyun" />
+              <el-option :label="$t('model.tencent')" value="tencent" />
+              <el-option :label="$t('model.volcengine')" value="volcengine" />
+              <el-option :label="$t('model.custom')" value="custom" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="权重">
+          <el-form-item :label="$t('model.weight')">
             <el-input-number v-model="modelForm.weight" :min="1" :max="100" style="width: 100%;" />
           </el-form-item>
         </el-col>
       </el-row>
 
-      <el-form-item label="API地址">
-        <el-input v-model="modelForm.endpoint" placeholder="如：https://api.openai.com/v1/chat/completions" />
+      <el-form-item :label="$t('model.endpoint')">
+        <el-input v-model="modelForm.endpoint" :placeholder="$t('model.endpointPlaceholder')" />
       </el-form-item>
 
-      <el-form-item label="API密钥">
+      <el-form-item :label="$t('model.apiKey')">
         <div class="api-key-wrapper">
           <el-input
             v-model="modelForm.apiKey"
             type="password"
             show-password
-            :placeholder="hasExistingApiKey ? '已设置，留空保留原值' : '留空则不传递'"
+            :placeholder="hasExistingApiKey ? $t('model.apiKeySet') : $t('model.apiKeyEmpty')"
             :disabled="clearApiKey"
           />
           <el-checkbox
             v-if="editingModel && hasExistingApiKey"
             v-model="clearApiKey"
-            label="清空 API Key"
+            :label="$t('model.clearApiKey')"
           />
         </div>
         <div class="form-tip" v-if="editingModel && hasExistingApiKey && !clearApiKey">
-          已保存 API Key，输入新值将覆盖
+          {{ $t('model.apiKeySaved') }}
         </div>
       </el-form-item>
 
       <el-row :gutter="16">
         <el-col :span="12">
-          <el-form-item label="模型分类">
-            <el-select v-model="modelForm.category" placeholder="请选择分类" style="width: 100%;" clearable>
-              <el-option label="通用" value="general" />
-              <el-option label="编程" value="code" />
-              <el-option label="数学" value="math" />
-              <el-option label="创意" value="creative" />
-              <el-option label="生图" value="image" />
-              <el-option label="语音合成" value="tts" />
-              <el-option label="语音识别" value="asr" />
+          <el-form-item :label="$t('model.category')">
+            <el-select v-model="modelForm.category" :placeholder="$t('model.modelTypePlaceholder')" style="width: 100%;" clearable>
+              <el-option :label="$t('model.general')" value="general" />
+              <el-option :label="$t('model.code')" value="code" />
+              <el-option :label="$t('model.math')" value="math" />
+              <el-option :label="$t('model.creative')" value="creative" />
+              <el-option :label="$t('model.imageGen')" value="image" />
+              <el-option :label="$t('model.voiceSynthesis')" value="tts" />
+              <el-option :label="$t('model.voiceRecognition')" value="asr" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="模型标签">
+          <el-form-item :label="$t('model.tags')">
             <el-select
               v-model="selectedTags"
               multiple
-              placeholder="请选择标签"
+              :placeholder="$t('model.modelTypePlaceholder')"
               style="width: 100%;"
               @change="handleTagsChange"
             >
-              <el-option label="对话" value="chat" />
-              <el-option label="推理" value="reasoning" />
-              <el-option label="绘图" value="drawing" />
-              <el-option label="向量" value="embedding" />
-              <el-option label="语音" value="voice" />
+              <el-option :label="$t('model.chat')" value="chat" />
+              <el-option :label="$t('model.reasoning')" value="reasoning" />
+              <el-option :label="$t('model.drawing')" value="drawing" />
+              <el-option :label="$t('model.vector')" value="embedding" />
+              <el-option :label="$t('model.voice')" value="voice" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
 
-      <el-form-item label="状态">
+      <el-form-item :label="$t('model.status')">
         <el-switch v-model="modelForm.status" />
       </el-form-item>
     </el-form>
 
     <template #footer>
-      <el-button @click="modelDialogVisible = false">取消</el-button>
-      <el-button type="primary" @click="handleSaveModel">保存</el-button>
+      <el-button @click="modelDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+      <el-button type="primary" @click="handleSaveModel">{{ $t('common.save') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useModelStore } from '@/stores/model'
 import type { Model, ModelForm } from '@/api/model'
 
+const { t } = useI18n()
 const modelStore = useModelStore()
 const models = computed(() => modelStore.models)
 const modelsLoading = computed(() => modelStore.loading)
@@ -264,11 +266,11 @@ const parseTags = (tags?: string): string[] => {
  */
 const getTagLabel = (tag: string): string => {
   const tagMap: Record<string, string> = {
-    chat: '对话',
-    reasoning: '推理',
-    drawing: '绘图',
-    embedding: '向量',
-    voice: '语音'
+    chat: t('model.chat'),
+    reasoning: t('model.reasoning'),
+    drawing: t('model.drawing'),
+    embedding: t('model.vector'),
+    voice: t('model.voice')
   }
   return tagMap[tag] || tag
 }
@@ -280,11 +282,11 @@ const getTagLabel = (tag: string): string => {
  */
 const getCategoryLabel = (category: string): string => {
   const categoryMap: Record<string, string> = {
-    general: '通用',
-    code: '编程',
-    math: '数学',
-    creative: '创意',
-    professional: '专业'
+    general: t('model.general'),
+    code: t('model.code'),
+    math: t('model.math'),
+    creative: t('model.creative'),
+    professional: t('model.creative')
   }
   return categoryMap[category] || category
 }
@@ -322,7 +324,7 @@ const handleEditModel = (model: Model) => {
  */
 const handleSaveModel = async () => {
   if (!modelForm.value.name || !modelForm.value.code) {
-    ElMessage.warning('请填写必填项')
+    ElMessage.warning(t('model.pleaseFillRequired'))
     return
   }
 
@@ -333,15 +335,15 @@ const handleSaveModel = async () => {
         apiKey: clearApiKey.value ? null : modelForm.value.apiKey || undefined
       }
       await updateModel(editingModel.value.id, updateData)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('model.updateSuccess'))
     } else {
       await createModel(modelForm.value)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('model.createSuccess'))
     }
     modelDialogVisible.value = false
   } catch (error: any) {
     console.error('保存失败', error)
-    ElMessage.error(error.response?.data?.message || '保存失败')
+    ElMessage.error(error.response?.data?.message || t('model.updateFailed'))
   }
 }
 
@@ -351,19 +353,19 @@ const handleSaveModel = async () => {
  */
 const handleDeleteModel = async (id: number) => {
   try {
-    await ElMessageBox.confirm('确定删除该模型？', '提示', {
+    await ElMessageBox.confirm(t('model.deleteConfirm'), t('model.deleteTitle'), {
       type: 'warning',
-      confirmButtonText: '确定',
-      cancelButtonText: '取消'
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel')
     })
 
     try {
       await deleteModel(id)
-      ElMessage.success('删除成功')
+      ElMessage.success(t('model.deleteSuccess'))
       await loadModels()
     } catch (error: any) {
       console.error('删除模型失败', error)
-      const errorMsg = error.response?.data?.message || error.message || '删除失败'
+      const errorMsg = error.response?.data?.message || error.message || t('model.deleteFailed')
       ElMessage.error(errorMsg)
     }
   } catch (error) {
