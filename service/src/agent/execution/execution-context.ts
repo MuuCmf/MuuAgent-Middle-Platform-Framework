@@ -1,5 +1,6 @@
 import { IsolationContext } from '../../common/services/base-isolated.service';
 import { ToolDefinition } from '../tools/abstract/tool.interface';
+import { KbRetrievalConfig, RetrievalResult } from '../types/kb-retrieval.types';
 import type { Model } from '@prisma/client';
 import type { ModelMessage } from 'ai';
 
@@ -24,6 +25,15 @@ export class ExecutionContext {
   clientIp: string;
   uid?: string;
   appCode?: string;
+
+  /** 知识库检索配置 */
+  kbRetrievalConfig: KbRetrievalConfig;
+
+  /** 自动检索结果（如果有） */
+  autoRetrievalResult?: RetrievalResult;
+
+  /** 解析后的知识库codes */
+  resolvedKbCodes: string[];
 
   startTime: number = Date.now();
 

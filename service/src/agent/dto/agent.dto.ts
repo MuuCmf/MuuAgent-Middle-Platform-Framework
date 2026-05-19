@@ -104,10 +104,21 @@ export class CreateAgentDto {
 
   // ===== 知识库检索配置 =====
 
-  @ApiPropertyOptional({ description: '知识库检索模式', default: 'tool', enum: ['tool'] })
+  @ApiPropertyOptional({
+    description: '绑定的知识库列表(JSON数组)',
+    example: '["product-docs", "api-reference"]',
+  })
   @IsString()
   @IsOptional()
-  kbRetrievalMode?: string;
+  knowledgeBases?: string;
+
+  @ApiPropertyOptional({
+    description: '知识库检索配置(JSON)',
+    example: '{"strategy":"HYBRID","autoRetrieval":{"enabled":true,"showSources":true,"trigger":"always"},"toolRetrieval":{"enabled":true,"allowSpecifyKb":true}}',
+  })
+  @IsString()
+  @IsOptional()
+  kbRetrievalConfig?: string;
 
   @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用)' })
   @IsString()
@@ -194,10 +205,21 @@ export class UpdateAgentDto {
 
   // ===== 知识库检索配置 =====
 
-  @ApiPropertyOptional({ description: '知识库检索模式', enum: ['tool'] })
+  @ApiPropertyOptional({
+    description: '绑定的知识库列表(JSON数组)',
+    example: '["product-docs", "api-reference"]',
+  })
   @IsString()
   @IsOptional()
-  kbRetrievalMode?: string;
+  knowledgeBases?: string;
+
+  @ApiPropertyOptional({
+    description: '知识库检索配置(JSON)',
+    example: '{"strategy":"HYBRID","autoRetrieval":{"enabled":true},"toolRetrieval":{"enabled":true}}',
+  })
+  @IsString()
+  @IsOptional()
+  kbRetrievalConfig?: string;
 
   @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用)' })
   @IsString()

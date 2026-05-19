@@ -365,6 +365,15 @@ Final Answer: 最终答案</pre>
       </div>
 
       <div class="form-section">
+        <div class="section-title">知识库配置</div>
+        <div class="section-desc">绑定知识库并配置检索策略，检索时会合并使用此处绑定和技能声明的知识库</div>
+        <KbRetrievalConfig
+          v-model="form.kbRetrievalConfig"
+          v-model:knowledgeBases="form.knowledgeBases"
+        />
+      </div>
+
+      <div class="form-section">
         <div class="section-title">工作目录</div>
         <div class="section-desc">允许智能体在用户选择的工作目录中进行文件操作</div>
 
@@ -468,13 +477,33 @@ import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, InfoFilled, Warning } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import type { Agent, AgentForm, WorkspaceAgentConfig } from '@/api/agent'
+import type { Agent, AgentForm, WorkspaceAgentConfig, KbRetrievalConfig as KbRetrievalConfigType } from '@/api/agent'
 
 interface InternalCustomModelParams {
   temperature: number
   topP: number
   maxTokens: number
   contextWindow: number
+}
+
+interface InternalAgentForm {
+  name: string
+  code: string
+  description?: string
+  systemPrompt: string
+  skills: string
+  mcpServers?: string
+  maxSteps: number
+  status: boolean
+  modelTemplateCode?: string
+  customModelParams?: string
+  reasoningMode?: string
+  reasoningPrompt?: string
+  workspaceConfig: WorkspaceAgentConfig
+  knowledgeBases: string
+  kbRetrievalConfig: KbRetrievalConfigType
+  appCode?: string
+  isPublic?: boolean
 }
 import type { StandardSkill } from '@/api/skill'
 import type { PromptTemplate } from '@/api/prompt-template'
@@ -483,6 +512,7 @@ import { promptTemplateApi } from '@/api/prompt-template'
 import { modelTemplateApi } from '@/api/model-template'
 import { mcpServerApi } from '@/api/mcp-server'
 import SkillSelectDialog from './SkillSelectDialog.vue'
+import KbRetrievalConfig from './KbRetrievalConfig.vue'
 import AppSelector from '@/components/AppSelector.vue'
 
 interface Props {
@@ -507,7 +537,7 @@ const emit = defineEmits<Emits>()
 const formRef = ref<FormInstance>()
 const saving = ref(false)
 
-const form = ref<AgentForm>({
+const form = ref<InternalAgentForm>({
   name: '',
   code: '',
   systemPrompt: '',
@@ -524,6 +554,19 @@ const form = ref<AgentForm>({
     allowedOperations: [],
     maxFileSize: 1024,
     deniedExtensions: ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs'],
+  },
+  knowledgeBases: '[]',
+  kbRetrievalConfig: {
+    strategy: 'HYBRID',
+    autoRetrieval: {
+      enabled: true,
+      showSources: true,
+      trigger: 'always',
+    },
+    toolRetrieval: {
+      enabled: true,
+      allowSpecifyKb: true,
+    },
   },
   appCode: '',
   isPublic: false,
@@ -654,6 +697,19 @@ watch(() => props.visible, (newVal) => {
           maxFileSize: 1024,
           deniedExtensions: ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs'],
         },
+        knowledgeBases: (editingAgent.value as any).knowledgeBases || '[]',
+        kbRetrievalConfig: {
+          strategy: 'HYBRID',
+          autoRetrieval: {
+            enabled: true,
+            showSources: true,
+            trigger: 'always',
+          },
+          toolRetrieval: {
+            enabled: true,
+            allowSpecifyKb: true,
+          },
+        },
       }
       selectedSkillCodes.value = parseJsonSafe(editingAgent.value.skills || '[]')
       selectedMcpServerNames.value = parseJsonSafe(editingAgent.value.mcpServers || '[]')
@@ -680,6 +736,33 @@ watch(() => props.visible, (newVal) => {
           deniedExtensions: defaultDenied,
         }
         deniedExtensionsStr.value = defaultDenied.join(',')
+      }
+
+      // 解析 kbRetrievalConfig
+      const rawKbConfig = (editingAgent.value as any).kbRetrievalConfig
+      if (rawKbConfig) {
+        try {
+          const kbConfig = typeof rawKbConfig === 'string' ? JSON.parse(rawKbConfig) : rawKbConfig
+          form.value.kbRetrievalConfig = {
+            strategy: kbConfig.strategy || 'HYBRID',
+            autoRetrieval: {
+              enabled: kbConfig.autoRetrieval?.enabled ?? true,
+              topN: kbConfig.autoRetrieval?.topN,
+              similarityThresh: kbConfig.autoRetrieval?.similarityThresh,
+              showSources: kbConfig.autoRetrieval?.showSources ?? true,
+              trigger: kbConfig.autoRetrieval?.trigger || 'always',
+              keywords: kbConfig.autoRetrieval?.keywords || [],
+            },
+            toolRetrieval: {
+              enabled: kbConfig.toolRetrieval?.enabled ?? true,
+              defaultTopN: kbConfig.toolRetrieval?.defaultTopN,
+              defaultSimilarityThresh: kbConfig.toolRetrieval?.defaultSimilarityThresh,
+              allowSpecifyKb: kbConfig.toolRetrieval?.allowSpecifyKb ?? true,
+            },
+          }
+        } catch (e) {
+          console.error('解析知识库检索配置失败', e)
+        }
       }
 
       if (editingAgent.value.reasoningPrompt) {
@@ -743,6 +826,19 @@ const resetForm = () => {
       allowedOperations: [],
       maxFileSize: 1024,
       deniedExtensions: ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs'],
+    },
+    knowledgeBases: '[]',
+    kbRetrievalConfig: {
+      strategy: 'HYBRID',
+      autoRetrieval: {
+        enabled: true,
+        showSources: true,
+        trigger: 'always',
+      },
+      toolRetrieval: {
+        enabled: true,
+        allowSpecifyKb: true,
+      },
     },
     appCode: '',
     isPublic: false,
@@ -882,9 +978,15 @@ const handleSave = async () => {
         form.value.customModelParams = ''
       }
 
+      // 构建提交数据
+      const submitData = {
+        ...form.value,
+        kbRetrievalConfig: JSON.stringify(form.value.kbRetrievalConfig),
+      }
+
       saving.value = true
       try {
-        await emit('save', form.value)
+        await emit('save', submitData)
         ElMessage.success(editingAgent.value ? '更新成功' : '创建成功')
         handleClose()
       } catch (error) {

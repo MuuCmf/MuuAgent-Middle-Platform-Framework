@@ -15,6 +15,42 @@ export interface CustomModelParams {
   contextWindow?: number
 }
 
+/**
+ * 知识库检索策略
+ */
+export type KbRetrievalStrategy = 'AUTO' | 'TOOL' | 'HYBRID' | 'DISABLED'
+
+/**
+ * 自动检索配置
+ */
+export interface AutoRetrievalConfig {
+  enabled: boolean
+  topN?: number
+  similarityThresh?: number
+  showSources?: boolean
+  trigger?: 'always' | 'first_message' | 'keyword'
+  keywords?: string[]
+}
+
+/**
+ * 工具检索配置
+ */
+export interface ToolRetrievalConfig {
+  enabled: boolean
+  defaultTopN?: number
+  defaultSimilarityThresh?: number
+  allowSpecifyKb?: boolean
+}
+
+/**
+ * 知识库检索配置
+ */
+export interface KbRetrievalConfig {
+  strategy: KbRetrievalStrategy
+  autoRetrieval?: AutoRetrievalConfig
+  toolRetrieval?: ToolRetrievalConfig
+}
+
 export interface Agent {
   id: number
   name: string
@@ -30,6 +66,8 @@ export interface Agent {
   reasoningMode?: string
   reasoningPrompt?: string
   workspaceConfig?: WorkspaceAgentConfig | string
+  knowledgeBases?: string
+  kbRetrievalConfig?: KbRetrievalConfig | string
   appCode?: string
   isPublic?: boolean
   createdAt: string
@@ -50,6 +88,8 @@ export interface AgentForm {
   reasoningMode?: string
   reasoningPrompt?: string
   workspaceConfig: WorkspaceAgentConfig
+  knowledgeBases?: string
+  kbRetrievalConfig?: string
   appCode?: string
   isPublic?: boolean
 }

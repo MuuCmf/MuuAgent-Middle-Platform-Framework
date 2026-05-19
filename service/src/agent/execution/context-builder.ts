@@ -11,6 +11,7 @@ import { ToolAssemblyBuilder } from './tool-assembly.builder';
 import { SystemPromptBuilder } from './system-prompt.builder';
 import { ModelParamsBuilder } from './model-params.builder';
 import { SkillKbService } from '../../skill/skill-kb.service';
+import { HybridRetrievalService } from '../hybrid-retrieval.service';
 import type { ModelMessage } from 'ai';
 import { ConversationType } from '../../conversation/dto/create-conversation.dto';
 
@@ -27,6 +28,7 @@ export class ContextBuilder {
     private readonly systemPrompt: SystemPromptBuilder,
     private readonly modelParams: ModelParamsBuilder,
     private readonly skillKbService: SkillKbService,
+    private readonly hybridRetrievalService: HybridRetrievalService,
   ) {}
 
   async build(
@@ -74,16 +76,57 @@ export class ContextBuilder {
     this.logger.debug(`Agent MCP Servers: ${JSON.stringify(agentMcpServers)}`);
     const resolution = await this.skillResolution.resolve(agentSkills, isoCtx, agentMcpServers);
     this.logger.debug(`Resolved MCP Servers: ${JSON.stringify(resolution.resolvedMcpServers)}`);
+
     const resolvedKbCodes = await this.skillKbService.resolveKbCodes(agentSkills, isoCtx);
-    const tools = await this.toolAssembly.buildTools(resolution, resolvedKbCodes, agent, !!dto.workspace);
-    const systemPrompt = this.systemPrompt.build(agent, tools);
+
+    const kbRetrievalConfig = this.hybridRetrievalService.parseConfig(agent);
+    this.logger.debug(`知识库检索策略: ${kbRetrievalConfig.strategy}`);
+
+    const shouldAutoRetrieve = this.hybridRetrievalService.shouldAutoRetrieve(
+      kbRetrievalConfig,
+      userMessage,
+      conversationHistory,
+    );
+
+    let autoRetrievalResult;
+    let finalSystemPrompt = this.systemPrompt.build(agent, []);
+
+    if (shouldAutoRetrieve && resolvedKbCodes.length > 0) {
+      this.logger.debug(`执行自动检索...`);
+      autoRetrievalResult = await this.hybridRetrievalService.executeAutoRetrieval(
+        agent.id,
+        userMessage,
+        finalSystemPrompt,
+        agentSkills,
+        kbRetrievalConfig,
+        isoCtx,
+      );
+
+      if (autoRetrievalResult.success && autoRetrievalResult.augmentedSystemPrompt) {
+        finalSystemPrompt = autoRetrievalResult.augmentedSystemPrompt;
+        this.logger.debug(`系统提示词已增强, 检索到${autoRetrievalResult.chunks.length}条内容`);
+      }
+    }
+
+    const enableToolRetrieval = this.hybridRetrievalService.shouldEnableToolRetrieval(kbRetrievalConfig);
+    const toolConfig = this.hybridRetrievalService.getToolRetrievalConfig(kbRetrievalConfig);
+
+    const tools = await this.toolAssembly.buildTools(
+      resolution,
+      resolvedKbCodes,
+      agent,
+      !!dto.workspace,
+      enableToolRetrieval,
+      toolConfig,
+    );
+
     const mergedParams = await this.modelParams.build(agent);
 
     const context = new ExecutionContext();
     context.agent = agent;
     context.model = model;
     context.userMessage = userMessage;
-    context.systemPrompt = systemPrompt;
+    context.systemPrompt = finalSystemPrompt;
     context.tools = tools;
     context.maxSteps = agent.maxSteps || 5;
     context.temperature = mergedParams.temperature!;
@@ -94,6 +137,9 @@ export class ContextBuilder {
     context.conversationId = String(conversation.id);
     context.isolationContext = isoCtx;
     context.uid = uid;
+    context.kbRetrievalConfig = kbRetrievalConfig;
+    context.autoRetrievalResult = autoRetrievalResult;
+    context.resolvedKbCodes = resolvedKbCodes;
 
     return context;
   }

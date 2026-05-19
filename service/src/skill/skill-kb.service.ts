@@ -79,6 +79,7 @@ export class SkillKbService {
 
   /**
    * 从智能体的技能配置中获取知识库列表
+   * 合并Agent直接绑定的知识库和技能声明的知识库依赖
    * @param agentId 智能体ID
    * @param isolationContext 隔离上下文
    * @returns 知识库code列表
@@ -86,36 +87,52 @@ export class SkillKbService {
   async getAgentKbCodes(agentId: string, isolationContext?: IsolationContext): Promise<string[]> {
     const agent = await this.prisma.agent.findUnique({
       where: { id: agentId as any },
-      select: { skills: true, appCode: true },
+      select: { skills: true, knowledgeBases: true, appCode: true },
     });
 
-    if (!agent || !agent.skills) {
+    if (!agent) {
       return [];
     }
 
-    const agentSkills = AgentSkills.fromJson(agent.skills);
-    if (agentSkills.isEmpty()) {
-      return [];
+    const allKbCodes = new Set<string>();
+
+    // 1. 解析Agent直接绑定的知识库
+    if (agent.knowledgeBases) {
+      try {
+        const directKbCodes: string[] = JSON.parse(agent.knowledgeBases);
+        directKbCodes.forEach(code => allKbCodes.add(code));
+      } catch (e) {
+        this.logger.warn(`解析Agent绑定的知识库失败: ${e}`);
+      }
     }
 
-    const context: IsolationContext = isolationContext || { appCode: agent.appCode || null, isSuperAdmin: false };
-    return this.resolveKbCodes(agentSkills, context);
+    // 2. 解析技能声明的知识库依赖
+    if (agent.skills) {
+      const agentSkills = AgentSkills.fromJson(agent.skills);
+      if (!agentSkills.isEmpty()) {
+        const context: IsolationContext = isolationContext || { appCode: agent.appCode || null, isSuperAdmin: false };
+        const skillKbCodes = await this.resolveKbCodes(agentSkills, context);
+        skillKbCodes.forEach(code => allKbCodes.add(code));
+      }
+    }
+
+    return Array.from(allKbCodes);
   }
 
   /**
    * 检索技能依赖的知识库
    * @param agentId 智能体ID
    * @param query 查询问题
-   * @param topK 每个知识库返回的条数
-   * @param similarityThreshold 相似度阈值
+   * @param topN 每个知识库返回的条数（可选，留空则使用知识库默认配置）
+   * @param similarityThresh 相似度阈值（可选，留空则使用知识库默认配置）
    * @param isolationContext 隔离上下文
    * @returns {Promise<KbRetrievalResult[]>} 检索结果
    */
   async retrieveFromAgentKbs(
     agentId: string,
     query: string,
-    topK: number = 5,
-    similarityThreshold: number = 0.7,
+    topN?: number,
+    similarityThresh?: number,
     isolationContext?: IsolationContext,
   ): Promise<KbRetrievalResult[]> {
     const startTime = Date.now();
@@ -123,11 +140,11 @@ export class SkillKbService {
     const kbCodes = await this.getAgentKbCodes(agentId, isolationContext);
 
     if (kbCodes.length === 0) {
-      this.logger.warn(`智能体 ${agentId} 绑定的技能未声明知识库依赖`);
+      this.logger.warn(`智能体 ${agentId} 未绑定任何知识库`);
       return [];
     }
 
-    this.logger.log(`智能体 ${agentId} 通过技能绑定了 ${kbCodes.length} 个知识库: ${kbCodes.join(', ')}`);
+    this.logger.log(`智能体 ${agentId} 绑定了 ${kbCodes.length} 个知识库: ${kbCodes.join(', ')}`);
 
     const kbs = await this.prisma.kbInfo.findMany({
       where: {
@@ -153,11 +170,19 @@ export class SkillKbService {
 
     for (const kb of kbs) {
       try {
+        const actualTopN = topN ?? kb.topN;
+        const actualSimilarityThresh = similarityThresh ?? kb.similarityThresh;
+        
+        this.logger.debug(
+          `知识库 ${kb.kbCode} 检索参数: topN=${actualTopN} (${topN !== undefined ? '智能体配置' : '知识库默认'}), ` +
+          `similarityThresh=${actualSimilarityThresh} (${similarityThresh !== undefined ? '智能体配置' : '知识库默认'})`
+        );
+
         const retrievalResult = await this.retrievalService.retrieval({
           kbId: kb.id as any,
           query,
-          topN: topK || kb.topN,
-          similarityThresh: similarityThreshold || kb.similarityThresh,
+          topN: actualTopN,
+          similarityThresh: actualSimilarityThresh,
         });
 
         if (retrievalResult && retrievalResult.items && retrievalResult.items.length > 0) {

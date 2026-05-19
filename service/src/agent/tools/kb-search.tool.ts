@@ -8,8 +8,8 @@ import { ToolDefinition } from './abstract/tool.interface';
  */
 export interface KbSearchToolConfig {
   enabled: boolean;
-  defaultTopK: number;
-  defaultSimilarityThreshold: number;
+  defaultTopN: number;
+  defaultSimilarityThresh: number;
   allowSpecifyKb: boolean;
 }
 
@@ -23,8 +23,8 @@ export class KbSearchTool {
 
   private defaultConfig: KbSearchToolConfig = {
     enabled: true,
-    defaultTopK: 5,
-    defaultSimilarityThreshold: 0.7,
+    defaultTopN: 5,
+    defaultSimilarityThresh: 0.7,
     allowSpecifyKb: true,
   };
 
@@ -39,13 +39,25 @@ export class KbSearchTool {
   async getToolDefinition(
     agentId: string,
     kbCodes: string[],
+    config?: {
+      defaultTopN?: number;
+      defaultSimilarityThresh?: number;
+      allowSpecifyKb?: boolean;
+    },
   ): Promise<ToolDefinition | null> {
     if (!kbCodes || kbCodes.length === 0) {
       return null;
     }
 
-    // 获取知识库信息用于描述
     const kbNames = await this.getKbNames(kbCodes);
+    const topN = config?.defaultTopN || this.defaultConfig.defaultTopN;
+    const similarityThresh = config?.defaultSimilarityThresh || this.defaultConfig.defaultSimilarityThresh;
+    const allowSpecifyKb = config?.allowSpecifyKb ?? this.defaultConfig.allowSpecifyKb;
+
+    let kbCodesDesc = '';
+    if (allowSpecifyKb) {
+      kbCodesDesc = `可用知识库: ${kbCodes.join(', ')}。不指定则检索所有绑定的知识库`;
+    }
 
     return {
       name: 'kb_search',
@@ -57,20 +69,21 @@ export class KbSearchTool {
             type: 'string',
             description: '检索查询语句，应该是一个清晰的问题或关键词',
           },
-          kb_codes: {
-            type: 'array',
-            items: { type: 'string' },
-            description: `可选，指定要检索的知识库代码列表。可用知识库: ${kbCodes.join(', ')}。不指定则检索所有绑定的知识库`,
-          },
+          ...(allowSpecifyKb ? {
+            kb_codes: {
+              type: 'array',
+              items: { type: 'string' },
+              description: `可选，指定要检索的知识库代码列表。${kbCodesDesc}`,
+            },
+          } : {}),
           top_k: {
             type: 'number',
-            description: `可选，返回的结果数量，默认${this.defaultConfig.defaultTopK}`,
+            description: `可选，返回的结果数量，默认${topN}`,
           },
           similarity_threshold: {
             type: 'number',
-            description: `可选，相似度阈值(0-1)，默认${this.defaultConfig.defaultSimilarityThreshold}`,
+            description: `可选，相似度阈值(0-1)，默认${similarityThresh}`,
           },
-
         },
         required: ['query'],
       },
@@ -106,8 +119,8 @@ export class KbSearchTool {
       };
     }
 
-    const topK = params.top_k || this.defaultConfig.defaultTopK;
-    const similarityThresh = params.similarity_threshold || this.defaultConfig.defaultSimilarityThreshold;
+    const topN = params.top_k || this.defaultConfig.defaultTopN;
+    const similarityThresh = params.similarity_threshold || this.defaultConfig.defaultSimilarityThresh;
 
     this.logger.log(`执行知识库检索: query="${params.query}", kb_codes=${targetKbCodes.join(',')}`);
 
@@ -126,7 +139,7 @@ export class KbSearchTool {
           const retrievalResult = await this.retrievalService.retrieval({
             kbId: kb.id as any,
             query: params.query,
-            topN: topK,
+            topN,
             similarityThresh,
           });
 

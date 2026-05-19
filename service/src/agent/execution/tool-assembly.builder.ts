@@ -23,19 +23,27 @@ export class ToolAssemblyBuilder {
     resolvedKbCodes: string[],
     agent: { id: any; workspaceConfig?: any },
     workspaceEnabled: boolean,
+    enableKbTool: boolean = true,
+    kbToolConfig?: {
+      defaultTopN: number;
+      defaultSimilarityThresh: number;
+      allowSpecifyKb: boolean;
+    },
   ): Promise<ToolDefinition[]> {
     const tools: ToolDefinition[] = [];
 
-    // MCP 工具
     this.logger.debug(`Building MCP tools for servers: ${JSON.stringify(resolution.resolvedMcpServers)}`);
     for (const serverName of resolution.resolvedMcpServers) {
       await this.addMcpTools(tools, serverName);
     }
     this.logger.debug(`Built ${tools.filter(t => t.type === 'mcp').length} MCP tools`);
 
-    // KB 搜索工具
-    if (resolvedKbCodes.length > 0) {
-      const kbTool = await this.kbSearchTool.getToolDefinition(agent.id, resolvedKbCodes);
+    if (enableKbTool && resolvedKbCodes.length > 0) {
+      const kbTool = await this.kbSearchTool.getToolDefinition(
+        agent.id,
+        resolvedKbCodes,
+        kbToolConfig,
+      );
       if (kbTool) {
         tools.push({
           name: kbTool.name,

@@ -39,6 +39,7 @@ import { ToolAssemblyBuilder } from './execution/tool-assembly.builder';
 import { SystemPromptBuilder } from './execution/system-prompt.builder';
 import { ModelParamsBuilder } from './execution/model-params.builder';
 import { ExecutionContext } from './execution/execution-context';
+import { HybridRetrievalService } from './hybrid-retrieval.service';
 
 import { ReasoningModule } from '../reasoning/reasoning.module';
 
@@ -67,6 +68,7 @@ import { ReasoningModule } from '../reasoning/reasoning.module';
     SystemPromptBuilder,
     ModelParamsBuilder,
     ExecutionContext,
+    HybridRetrievalService,
     ToolRegistry,
     ToolExecutor,
     KbSearchTool,
