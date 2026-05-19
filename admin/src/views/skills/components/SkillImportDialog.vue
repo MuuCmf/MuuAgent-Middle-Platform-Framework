@@ -37,7 +37,7 @@
       <el-divider />
 
       <el-form label-width="100px" size="default">
-        <el-form-item v-if="isSuperAdmin" label="目标应用">
+        <el-form-item label="目标应用">
           <AppSelector v-model="targetAppCode" placeholder="不选则为公开技能" style="width: 100%;" />
         </el-form-item>
         <el-form-item label="覆盖已有">
@@ -201,11 +201,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UploadFilled, Loading } from '@element-plus/icons-vue'
 import { type SecurityScanResult, type ImportResult } from '@/api/skill'
-import { useSkillStore, useUserStore } from '@/stores'
+import { useSkillStore } from '@/stores'
 import SkillMdPreview from './SkillMdPreview.vue'
 import AppSelector from '@/components/AppSelector.vue'
 import type { UploadFile } from 'element-plus'
@@ -222,10 +222,8 @@ interface Emits {
 defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const userStore = useUserStore()
 const skillStore = useSkillStore()
 
-const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 const targetAppCode = ref('')
 const overwrite = ref(false)
 

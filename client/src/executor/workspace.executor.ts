@@ -108,7 +108,7 @@ export class WorkspaceExecutor {
   }
 
   private async readFile(args: ReadFileArgs): Promise<string> {
-    const { parentDir, name, handle } = await this.resolvePath(args.path)
+    const { handle } = await this.resolvePath(args.path)
     if (!handle || handle.kind !== 'file') {
       throw new Error(`文件不存在: ${args.path}`)
     }

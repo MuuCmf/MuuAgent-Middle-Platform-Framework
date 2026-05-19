@@ -134,6 +134,8 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
 export async function streamRequest(params: StreamRequestParams): Promise<void> {
   const { url, body, callbacks } = params
 
+  console.log('[SSE] Initiating stream request to:', url)
+
   // 防止 onComplete 被调用多次
   const state: StreamState = { completed: false }
 

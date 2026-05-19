@@ -36,7 +36,6 @@
       <div class="card-title">
         <span>标准技能</span>
         <AppSelector
-          v-if="isSuperAdmin"
           v-model="filterAppCode"
           placeholder="筛选应用"
           style="margin-left: 16px;"
@@ -174,21 +173,21 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh, RefreshRight, Upload, Delete } from '@element-plus/icons-vue'
-import { useSkillStore, useUserStore } from '@/stores'
+import { useSkillStore } from '@/stores'
 import { skillApi } from '@/api/skill'
 import SkillImportDialog from './components/SkillImportDialog.vue'
 import SkillMdPreview from './components/SkillMdPreview.vue'
 import AppSelector from '@/components/AppSelector.vue'
 
 const skillStore = useSkillStore()
-const userStore = useUserStore()
 
-const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 const filterAppCode = ref('')
-const { scanning, syncing, skillStats, loadStandardSkills, scanSkills, refreshIndex, syncToDatabase, invalidateSkillCache, confirmClearAllCache, loadSkillStats } = skillStore
+const { scanning, syncing, loadStandardSkills, scanSkills, refreshIndex, syncToDatabase, invalidateSkillCache, confirmClearAllCache, loadSkillStats } = skillStore
 
 // 计算属性：标准技能列表
 const standardSkills = computed(() => skillStore.standardSkills)
+// 计算属性：技能统计信息
+const skillStats = computed(() => skillStore.skillStats)
 
 const importDialogVisible = ref(false)
 const previewDialogVisible = ref(false)

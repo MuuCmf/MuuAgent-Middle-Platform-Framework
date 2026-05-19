@@ -65,7 +65,7 @@ export const agentApi = {
     onReasoningStep?: (step: ReasoningStep) => void,
     onWorkspaceToolCall?: (payload: WorkspaceToolCallPayload) => void,
   ): Promise<void> {
-    const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+    const baseURL = window.location.origin
     const url = `${baseURL}${API_ENDPOINTS.agents}/chat/stream`
 
     await streamRequest({

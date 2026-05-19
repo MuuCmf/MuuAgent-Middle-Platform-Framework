@@ -37,7 +37,7 @@
           </el-select>
         </el-form-item>
 
-        <el-row :gutter="16" v-if="isSuperAdmin">
+        <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="所属应用">
               <AppSelector
@@ -225,7 +225,6 @@ import { ElMessage } from 'element-plus'
 import { Plus, Delete, QuestionFilled } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { promptTemplateApi, type PromptTemplate, type PromptTemplateForm } from '@/api/prompt-template'
-import { useUserStore } from '@/stores/user'
 import AppSelector from '@/components/AppSelector.vue'
 
 interface Props {
@@ -241,11 +240,8 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const saving = ref(false)
-
-const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 
 const form = reactive<PromptTemplateForm>({
   name: '',

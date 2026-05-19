@@ -1,17 +1,5 @@
 import { ref, computed } from 'vue'
 
-interface WorkspaceFileEntry {
-  name: string
-  kind: 'file' | 'directory'
-}
-
-interface WorkspaceState {
-  dirHandle: FileSystemDirectoryHandle | null
-  dirName: string | null
-  treeSummary: string | null
-  isActive: boolean
-}
-
 export function useWorkspace() {
   const dirHandle = ref<FileSystemDirectoryHandle | null>(null)
   const dirName = ref<string | null>(null)

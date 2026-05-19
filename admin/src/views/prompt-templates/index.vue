@@ -10,7 +10,6 @@
         <span>模板列表</span>
         <el-tag type="info" size="small">{{ total }} 个</el-tag>
         <AppSelector
-          v-if="isSuperAdmin"
           v-model="filterAppCode"
           placeholder="筛选应用"
           style="margin-left: 16px;"
@@ -89,7 +88,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="appCode" label="所属应用" width="100" v-if="isSuperAdmin">
+        <el-table-column prop="appCode" label="所属应用" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.appCode" type="warning" size="small">{{ row.appCode }}</el-tag>
             <span v-else style="color: #999">全局</span>
@@ -153,21 +152,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { promptTemplateApi, type PromptTemplate } from '@/api/prompt-template'
-import { useUserStore } from '@/stores/user'
 import PromptTemplateEditDrawer from './components/PromptTemplateEditDrawer.vue'
 import AppSelector from '@/components/AppSelector.vue'
 
-const userStore = useUserStore()
 const loading = ref(false)
 const templates = ref<PromptTemplate[]>([])
 const drawerVisible = ref(false)
 const editingTemplate = ref<PromptTemplate | null>(null)
 
-const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 const filterAppCode = ref('')
 
 const filters = reactive({

@@ -7,7 +7,7 @@
       <el-form-item label="知识库标识" prop="kbCode">
         <el-input v-model="formData.kbCode" placeholder="请输入知识库标识" :disabled="isEdit" />
       </el-form-item>
-      <el-row :gutter="16" v-if="isSuperAdmin">
+      <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="所属应用">
             <AppSelector
@@ -85,13 +85,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, computed } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { kbApi, modelApi } from '@/api'
 import type { KbInfo } from '@/api/kb'
 import type { Model } from '@/api/model'
 import type { FormInstance, FormRules } from 'element-plus'
-import { useUserStore } from '@/stores/user'
 import AppSelector from '@/components/AppSelector.vue'
 
 const props = defineProps<{
@@ -104,13 +103,10 @@ const emit = defineEmits<{
   (e: 'success'): void
 }>()
 
-const userStore = useUserStore()
 const submitting = ref(false)
 const formRef = ref<FormInstance>()
 const embeddingModels = ref<Model[]>([])
 const dialogVisibleLocal = ref(false)
-
-const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 
 const isEdit = ref(false)
 const currentKbId = ref('')

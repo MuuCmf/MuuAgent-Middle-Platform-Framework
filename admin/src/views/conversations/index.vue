@@ -166,7 +166,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Search } from '@element-plus/icons-vue'
 import { useConversationStore } from '@/stores/conversation'
 import {
   ConversationType,
@@ -262,14 +262,6 @@ const handlePageChange = () => {
 const handlePageSizeChange = () => {
   pagination.value.page = 1
   fetchConversations()
-}
-
-/**
- * 新建会话
- */
-const handleCreate = () => {
-  editingConversation.value = null
-  editDialogVisible.value = true
 }
 
 /**

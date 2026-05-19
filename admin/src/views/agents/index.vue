@@ -10,7 +10,6 @@
         <span>智能体列表</span>
         <el-tag type="info" size="small">{{ agents.length }} 个</el-tag>
         <AppSelector
-          v-if="isSuperAdmin"
           v-model="filterAppCode"
           placeholder="筛选应用"
           style="margin-left: 16px;"
@@ -44,7 +43,7 @@
             <el-tag type="info">{{ row.code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="appCode" label="所属应用" width="120" v-if="isSuperAdmin">
+        <el-table-column prop="appCode" label="所属应用" width="120">
           <template #default="{ row }">
             <el-tag v-if="row.appCode" type="warning" size="small">{{ row.appCode }}</el-tag>
             <span v-else style="color: #999">全局</span>
@@ -113,14 +112,13 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { useAgentStore, useSkillStore, useUserStore } from '@/stores'
+import { useAgentStore, useSkillStore } from '@/stores'
 import type { Agent, AgentForm } from '@/api/agent'
 import AgentEditDrawer from './components/AgentEditDrawer.vue'
 import AppSelector from '@/components/AppSelector.vue'
 
 const agentStore = useAgentStore()
 const skillStore = useSkillStore()
-const userStore = useUserStore()
 
 const agents = computed(() => agentStore.agents)
 const loading = computed(() => agentStore.loading)
@@ -128,7 +126,6 @@ const { loadAgents, createAgent, updateAgent, deleteAgent } = agentStore
 const skills = computed(() => skillStore.standardSkills)
 const { loadStandardSkills } = skillStore
 
-const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 const filterAppCode = ref('')
 const drawerVisible = ref(false)
 const editingAgent = ref<Agent | null>(null)

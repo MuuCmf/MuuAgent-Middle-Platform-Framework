@@ -59,15 +59,17 @@ async function bootstrap(): Promise<void> {
     }
 
     // ======================
-    // 用户端：其他所有 → 返回 client/index.html
+    // 客户端：其他所有 → 返回 client/index.html
     // ======================
-    //return res.sendFile(join(__dirname, '..', 'public', 'client', 'index.html'));
+    if (!req.path.startsWith('/client')) {
+      return res.sendFile(join(__dirname, '..', 'public', 'client', 'index.html'));
+    }
 
     // 根路径返回欢迎信息
     if (req.path === '/') {
       return res.json({
         name: 'MuuAI-Middle-Platform',
-        description: 'AI模型管理 + MCP调度网关 + Skill + Agent + RAG知识库 智能中台',
+        description: 'AI模型管理 + 智能调度 + Skill + Agent + RAG知识库 智能中台',
         version: '1.0.0',
         endpoints: {
           api: '/api',
@@ -87,7 +89,7 @@ async function bootstrap(): Promise<void> {
   // 配置Swagger API文档
   const config = new DocumentBuilder()
     .setTitle('MuuAI-Middle-Platform')
-    .setDescription('AI模型管理 + MCP调度网关 + Skill + Agent 智能中台')
+    .setDescription('AI模型管理 + 智能调度 + Skill + Agent 智能中台')
     .setVersion('1.0.0')
     .addBearerAuth()
     .addApiKey({ type: 'apiKey', name: 'x-api-key', in: 'header' }, 'api-key')

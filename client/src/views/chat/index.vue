@@ -337,10 +337,6 @@ const handleRagChat = async (query: string) => {
           // 前端处理 [THINKING] 和 [ANSWER] 标记
           const msg = chatStore.messages[assistantIndex]
           
-          // 检测标记位置
-          const thinkingIndex = msg.content.indexOf('[THINKING]')
-          const answerIndex = msg.content.indexOf('[ANSWER]')
-          
           // 如果还没有检测到标记，先追加内容
           msg.content += content
           

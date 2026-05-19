@@ -46,7 +46,7 @@ export const aiApi = {
     onComplete: () => void,
     onConversationId?: (conversationId: string) => void
   ): Promise<void> {
-    const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+    const baseURL = window.location.origin || ''
     const url = `${baseURL}${API_ENDPOINTS.chat}`
 
     await streamRequest({

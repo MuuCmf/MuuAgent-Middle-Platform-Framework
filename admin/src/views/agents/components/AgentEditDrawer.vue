@@ -428,7 +428,6 @@ import type { PromptTemplate } from '@/api/prompt-template'
 import type { ModelTemplate } from '@/api/model-template'
 import { promptTemplateApi } from '@/api/prompt-template'
 import { modelTemplateApi } from '@/api/model-template'
-import { useUserStore } from '@/stores/user'
 import SkillSelectDialog from './SkillSelectDialog.vue'
 import AppSelector from '@/components/AppSelector.vue'
 
@@ -451,11 +450,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const saving = ref(false)
-
-const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 
 const form = ref<AgentForm>({
   name: '',
