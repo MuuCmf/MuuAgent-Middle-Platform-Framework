@@ -17,17 +17,38 @@ export class SkillResolutionBuilder {
     private readonly skillRegistry: SkillRegistry,
   ) {}
 
-  async resolve(agentSkills: AgentSkills, isolationContext: IsolationContext): Promise<SkillResolutionResult> {
+  async resolve(
+    agentSkills: AgentSkills,
+    isolationContext: IsolationContext,
+    agentMcpServers?: string[],
+  ): Promise<SkillResolutionResult> {
     const skillNames = agentSkills.toArray();
     const boundSkills = await this.resolveSkillsWithDependencies(skillNames, isolationContext);
     const availableSkillNames = boundSkills.map(s => s.metadata.name).join(', ') || '无';
 
     const resolvedMcpServers = new Set<string>();
+    const hasAgentMcpServers = agentMcpServers && agentMcpServers.length > 0;
 
-    for (const skill of boundSkills) {
-      if (skill.frontmatter?.requires?.mcpServers) {
-        for (const serverName of skill.frontmatter.requires.mcpServers) {
-          resolvedMcpServers.add(serverName);
+    if (hasAgentMcpServers) {
+      for (const serverName of agentMcpServers) {
+        resolvedMcpServers.add(serverName);
+      }
+
+      for (const skill of boundSkills) {
+        const required = skill.frontmatter?.requires?.mcpServers || [];
+        const missing = required.filter(s => !resolvedMcpServers.has(s));
+        if (missing.length > 0) {
+          this.logger.warn(
+            `技能 "${skill.metadata.name}" 需要 MCP Server [${missing.join(', ')}]，但 Agent 未绑定，将跳过该技能`,
+          );
+        }
+      }
+    } else {
+      for (const skill of boundSkills) {
+        if (skill.frontmatter?.requires?.mcpServers) {
+          for (const serverName of skill.frontmatter.requires.mcpServers) {
+            resolvedMcpServers.add(serverName);
+          }
         }
       }
     }

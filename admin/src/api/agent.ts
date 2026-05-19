@@ -22,6 +22,7 @@ export interface Agent {
   description?: string
   systemPrompt: string
   skills: string
+  mcpServers?: string
   maxSteps: number
   status: boolean
   modelTemplateCode?: string
@@ -41,6 +42,7 @@ export interface AgentForm {
   description?: string
   systemPrompt: string
   skills: string
+  mcpServers?: string
   maxSteps: number
   status: boolean
   modelTemplateCode?: string

@@ -38,6 +38,7 @@ export class AgentService {
       description: dto.description,
       systemPrompt: dto.systemPrompt,
       skills: dto.skills || '[]',
+      mcpServers: dto.mcpServers || '[]',
       maxSteps: dto.maxSteps ?? 5,
       status: dto.status ?? true,
       modelTemplateCode: dto.modelTemplateCode,

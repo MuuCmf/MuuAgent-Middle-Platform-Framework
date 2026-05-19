@@ -338,6 +338,30 @@ Final Answer: 最终答案</pre>
             </div>
           </div>
         </el-form-item>
+
+        <el-form-item label="MCP Server" prop="mcpServers">
+          <div class="bind-wrapper">
+            <el-button type="primary" plain @click="handleSelectMcpServers">
+              <el-icon>
+                <Plus />
+              </el-icon>
+              选择 MCP Server
+            </el-button>
+            <div class="bind-content">
+              <div v-if="selectedMcpServerNames.length === 0" class="empty-tip">
+                <el-icon>
+                  <Warning />
+                </el-icon>
+                <span>暂未绑定 MCP Server</span>
+              </div>
+              <div v-else class="tag-list">
+                <el-tag v-for="name in selectedMcpServerNames" :key="name" closable @close="removeMcpServer(name)">
+                  {{ name }}
+                </el-tag>
+              </div>
+            </div>
+          </div>
+        </el-form-item>
       </div>
 
       <div class="form-section">
@@ -407,6 +431,35 @@ Final Answer: 最终答案</pre>
 
     <SkillSelectDialog v-model="skillSelectDialogVisible" :skills="availableSkills" :selected-codes="selectedSkillCodes"
       @confirm="handleSkillSelect" />
+
+    <el-dialog
+      v-model="mcpServerSelectDialogVisible"
+      title="选择 MCP Server"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <div class="mcp-server-list">
+        <div v-if="availableMcpServers.length === 0" class="empty-tip">
+          暂无可用的 MCP Server
+        </div>
+        <el-checkbox-group v-else v-model="selectedMcpServerNames">
+          <div v-for="server in availableMcpServers" :key="server.name" class="mcp-server-item">
+            <el-checkbox :value="server.name">
+              <div class="server-info">
+                <span class="server-name">{{ server.name }}</span>
+                <span v-if="server.description" class="server-desc">{{ server.description }}</span>
+              </div>
+            </el-checkbox>
+          </div>
+        </el-checkbox-group>
+      </div>
+      <template #footer>
+        <el-button @click="mcpServerSelectDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleMcpServerSelect(selectedMcpServerNames); mcpServerSelectDialogVisible = false">
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
   </el-drawer>
 </template>
 
@@ -428,6 +481,7 @@ import type { PromptTemplate } from '@/api/prompt-template'
 import type { ModelTemplate } from '@/api/model-template'
 import { promptTemplateApi } from '@/api/prompt-template'
 import { modelTemplateApi } from '@/api/model-template'
+import { mcpServerApi } from '@/api/mcp-server'
 import SkillSelectDialog from './SkillSelectDialog.vue'
 import AppSelector from '@/components/AppSelector.vue'
 
@@ -458,6 +512,7 @@ const form = ref<AgentForm>({
   code: '',
   systemPrompt: '',
   skills: '[]',
+  mcpServers: '[]',
   maxSteps: 5,
   status: true,
   modelTemplateCode: '',
@@ -478,6 +533,10 @@ const editingAgent = computed(() => props.agent)
 
 const skillSelectDialogVisible = ref(false)
 const selectedSkillCodes = ref<string[]>([])
+
+const mcpServerSelectDialogVisible = ref(false)
+const selectedMcpServerNames = ref<string[]>([])
+const availableMcpServers = ref<{ name: string; description?: string }[]>([])
 
 const promptMode = ref<'template' | 'custom'>('template')
 
@@ -586,6 +645,7 @@ watch(() => props.visible, (newVal) => {
         skills: Array.isArray(editingAgent.value.skills)
           ? JSON.stringify(editingAgent.value.skills)
           : editingAgent.value.skills,
+        mcpServers: editingAgent.value.mcpServers || '[]',
         appCode: editingAgent.value.appCode || '',
         isPublic: editingAgent.value.isPublic ?? false,
         workspaceConfig: {
@@ -596,6 +656,7 @@ watch(() => props.visible, (newVal) => {
         },
       }
       selectedSkillCodes.value = parseJsonSafe(editingAgent.value.skills || '[]')
+      selectedMcpServerNames.value = parseJsonSafe(editingAgent.value.mcpServers || '[]')
 
       // 解析 workspaceConfig
       const rawConfig = editingAgent.value.workspaceConfig
@@ -772,6 +833,32 @@ const removeSkill = (code: string) => {
   if (index > -1) {
     selectedSkillCodes.value.splice(index, 1)
     form.value.skills = JSON.stringify(selectedSkillCodes.value)
+  }
+}
+
+const handleSelectMcpServers = async () => {
+  try {
+    const { data } = await mcpServerApi.getList({ enabled: true })
+    availableMcpServers.value = data.data.map((s: any) => ({
+      name: s.name,
+      description: s.description,
+    }))
+    mcpServerSelectDialogVisible.value = true
+  } catch (error) {
+    ElMessage.error('获取 MCP Server 列表失败')
+  }
+}
+
+const handleMcpServerSelect = (names: string[]) => {
+  selectedMcpServerNames.value = names
+  form.value.mcpServers = JSON.stringify(names)
+}
+
+const removeMcpServer = (name: string) => {
+  const index = selectedMcpServerNames.value.indexOf(name)
+  if (index > -1) {
+    selectedMcpServerNames.value.splice(index, 1)
+    form.value.mcpServers = JSON.stringify(selectedMcpServerNames.value)
   }
 }
 
@@ -1003,6 +1090,40 @@ const handleClose = () => {
   background: #fafafa;
   border: 1px solid #e4e7ed;
   border-radius: 4px;
+}
+
+.mcp-server-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.mcp-server-item {
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #409eff;
+    background: #f5f7fa;
+  }
+}
+
+.server-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.server-name {
+  font-weight: 500;
+  color: #303133;
+}
+
+.server-desc {
+  font-size: 12px;
+  color: #909399;
 }
 
 .field-tip {

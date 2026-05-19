@@ -70,7 +70,10 @@ export class ContextBuilder {
 
     const isoCtx: IsolationContext = isolationContext || { appCode: agent.appCode || null, isSuperAdmin: false };
     const agentSkills = AgentSkills.fromJson(agent.skills);
-    const resolution = await this.skillResolution.resolve(agentSkills, isoCtx);
+    const agentMcpServers = agent.mcpServers ? JSON.parse(agent.mcpServers) : [];
+    this.logger.debug(`Agent MCP Servers: ${JSON.stringify(agentMcpServers)}`);
+    const resolution = await this.skillResolution.resolve(agentSkills, isoCtx, agentMcpServers);
+    this.logger.debug(`Resolved MCP Servers: ${JSON.stringify(resolution.resolvedMcpServers)}`);
     const resolvedKbCodes = await this.skillKbService.resolveKbCodes(agentSkills, isoCtx);
     const tools = await this.toolAssembly.buildTools(resolution, resolvedKbCodes, agent, !!dto.workspace);
     const systemPrompt = this.systemPrompt.build(agent, tools);

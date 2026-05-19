@@ -138,7 +138,7 @@ export class PrismaService extends PrismaClient {
             if (!data.id || data.id === 0 || data.id === BigInt(0) || data.id === '') {
               const snowflakeId = generateId();
               data.id = BigInt(snowflakeId);
-              this.logger.debug(`为 ${model} 生成雪花 ID: ${snowflakeId}`);
+              //this.logger.debug(`为 ${model} 生成雪花 ID: ${snowflakeId}`);
             }
             this.convertStringToBigInt(data, model);
           }
@@ -148,7 +148,7 @@ export class PrismaService extends PrismaClient {
               if (!item.id || item.id === 0 || item.id === BigInt(0) || item.id === '') {
                 const snowflakeId = generateId();
                 item.id = BigInt(snowflakeId);
-                this.logger.debug(`为 ${model} 生成雪花 ID: ${snowflakeId}`);
+                //this.logger.debug(`为 ${model} 生成雪花 ID: ${snowflakeId}`);
               }
               this.convertStringToBigInt(item, model);
             });
@@ -162,7 +162,7 @@ export class PrismaService extends PrismaClient {
             if (!data.id || data.id === 0 || data.id === BigInt(0) || data.id === '') {
               const snowflakeId = generateId();
               data.id = BigInt(snowflakeId);
-              this.logger.debug(`为 ${model} (upsert create) 生成雪花 ID: ${snowflakeId}`);
+              //this.logger.debug(`为 ${model} (upsert create) 生成雪花 ID: ${snowflakeId}`);
             }
             this.convertStringToBigInt(data, model);
           }

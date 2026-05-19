@@ -27,9 +27,11 @@ export class ToolAssemblyBuilder {
     const tools: ToolDefinition[] = [];
 
     // MCP 工具
+    this.logger.debug(`Building MCP tools for servers: ${JSON.stringify(resolution.resolvedMcpServers)}`);
     for (const serverName of resolution.resolvedMcpServers) {
       await this.addMcpTools(tools, serverName);
     }
+    this.logger.debug(`Built ${tools.filter(t => t.type === 'mcp').length} MCP tools`);
 
     // KB 搜索工具
     if (resolvedKbCodes.length > 0) {
@@ -115,7 +117,11 @@ export class ToolAssemblyBuilder {
 
     try {
       const toolsResult = await this.mcpServerService.discoverTools({
+        transport: serverConfig.transport,
         url: serverConfig.url,
+        command: serverConfig.command,
+        args: serverConfig.args,
+        env: serverConfig.env,
         apiKey: serverConfig.apiKey,
         timeout: serverConfig.timeout || 30000,
       });

@@ -13,6 +13,7 @@ import {
   Max,
   ValidateIf,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { McpTransport } from '../types/mcp-server.types';
 
 /**
@@ -225,6 +226,11 @@ export class UpdateMcpServerDto {
  */
 export class QueryMcpServerDto {
   @ApiPropertyOptional({ description: '是否启用' })
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return undefined;
+  })
   @IsBoolean()
   @IsOptional()
   enabled?: boolean;
