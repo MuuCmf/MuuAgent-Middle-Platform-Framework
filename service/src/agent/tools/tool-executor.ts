@@ -1,13 +1,6 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { ToolRegistry } from './tool-registry';
-import { McpServerService } from '../../mcp-server/mcp-server.service';
-import { McpServerRegistry } from '../../mcp-server/mcp-server-registry';
-import { KbSearchTool } from './kb-search.tool';
-import { BuiltinExecutor } from '../../skill/executors/builtin.executor';
-import { WORKSPACE_TOOL_NAMES } from '../../workspace/workspace-tool.definitions';
-import { IsolationContext } from '../../common/services/base-isolated.service';
+import { Injectable, Logger, OnModuleDestroy, Inject } from '@nestjs/common';
 import { ToolCall, ToolExecutionResult, ToolExecutionContext } from './abstract/tool.interface';
-import { SkillKbService } from '../../skill/skill-kb.service';
+import { IToolDispatcher, TOOL_DISPATCHERS } from './tool-dispatchers';
 import { LruCache, CacheStats } from './utils/lru-cache';
 
 /**
@@ -40,13 +33,10 @@ const DEFAULT_CACHE_CONFIG: ToolCacheConfig = {
 
 /**
  * 工具执行器
- * 
- * 负责执行各类工具调用，支持：
- * - 注册工具
- * - MCP工具
- * - 知识库搜索
- * - 内置技能
- * 
+ *
+ * 使用责任链模式将工具调用分发给对应的 IToolDispatcher。
+ * 新增工具类型只需添加一个 Dispatcher，无需修改本类。
+ *
  * 特性：
  * - LRU缓存机制
  * - 缓存命中率监控
@@ -56,21 +46,14 @@ const DEFAULT_CACHE_CONFIG: ToolCacheConfig = {
 @Injectable()
 export class ToolExecutor implements OnModuleDestroy {
   private readonly logger = new Logger(ToolExecutor.name);
-  
+
   /** LRU缓存实例 */
   private readonly cache: LruCache<string, unknown>;
-  
+
   /** 缓存配置 */
   private readonly cacheConfig: ToolCacheConfig;
 
-  constructor(
-    private readonly toolRegistry: ToolRegistry,
-    private readonly mcpServerService: McpServerService,
-    private readonly mcpServerRegistry: McpServerRegistry,
-    private readonly kbSearchTool: KbSearchTool,
-    private readonly builtinExecutor: BuiltinExecutor,
-    private readonly skillKbService: SkillKbService,
-  ) {
+  constructor(@Inject(TOOL_DISPATCHERS) private readonly dispatchers: IToolDispatcher[]) {
     this.cacheConfig = { ...DEFAULT_CACHE_CONFIG };
     this.cache = new LruCache<string, unknown>({
       maxSize: this.cacheConfig.maxSize,
@@ -109,7 +92,7 @@ export class ToolExecutor implements OnModuleDestroy {
       if (this.shouldUseCache(name)) {
         const cacheKey = this.buildCacheKey(name, args);
         const cachedResult = this.cache.get(cacheKey);
-        
+
         if (cachedResult !== undefined) {
           this.logger.log(`[ToolExecutor] 使用缓存结果: ${name}`);
           return {
@@ -122,7 +105,7 @@ export class ToolExecutor implements OnModuleDestroy {
           };
         }
 
-        const result = await this.executeTool(name, args, context);
+        const result = await this.dispatch(name, args, context);
         this.cache.set(cacheKey, result);
 
         const costMs = Date.now() - startTime;
@@ -138,7 +121,7 @@ export class ToolExecutor implements OnModuleDestroy {
         };
       }
 
-      const result = await this.executeTool(name, args, context);
+      const result = await this.dispatch(name, args, context);
       const costMs = Date.now() - startTime;
       this.logger.log(`[ToolExecutor] 工具执行成功(无缓存): ${name}, 耗时: ${costMs}ms`);
 
@@ -226,105 +209,19 @@ export class ToolExecutor implements OnModuleDestroy {
   }
 
   /**
-   * 执行工具
+   * 遍历 dispatcher 链执行工具
    */
-  private async executeTool(
+  private async dispatch(
     name: string,
     args: Record<string, unknown>,
     context: ToolExecutionContext,
   ): Promise<unknown> {
-    const registeredTool = this.toolRegistry.get(name);
-    if (registeredTool) {
-      return registeredTool.execute(args, context);
+    for (const d of this.dispatchers) {
+      if (d.canHandle(name)) {
+        return d.execute(name, args, context);
+      }
     }
-
-    if (name.startsWith('mcp__')) {
-      return await this.executeMcpTool(name, args, context);
-    }
-
-    if (name === 'kb_search') {
-      return await this.executeKbSearch(args, context);
-    }
-
-    if (WORKSPACE_TOOL_NAMES.has(name)) {
-      throw new Error(`工作目录工具 "${name}" 需要在客户端执行，不应在服务端直接调用`);
-    }
-
-    if (this.builtinExecutor.hasFunction(name)) {
-      return await this.executeBuiltinTool(name, args);
-    }
-
     throw new Error(`未知工具: ${name}`);
-  }
-
-  /**
-   * 执行MCP工具
-   */
-  private async executeMcpTool(
-    name: string,
-    args: Record<string, unknown>,
-    context: ToolExecutionContext,
-  ): Promise<unknown> {
-    const parts = name.split('__');
-    if (parts.length < 3) {
-      throw new Error(`Invalid MCP tool name format: ${name}. Expected: mcp__serverName__toolName`);
-    }
-    
-    const serverName = parts[1];
-    const toolName = parts.slice(2).join('__');
-
-    const serverConfig = await this.mcpServerRegistry.getServer(serverName);
-
-    if (!serverConfig) {
-      throw new Error(`MCP server not found in registry: ${serverName}`);
-    }
-
-    return await this.mcpServerService.callToolByName(serverName, toolName, args);
-  }
-
-  /**
-   * 执行知识库搜索
-   */
-  private async executeKbSearch(
-    args: Record<string, unknown>,
-    context: ToolExecutionContext,
-  ): Promise<unknown> {
-    const isolationCtx = this.getIsolationContext(context);
-    const kbCodes = await this.skillKbService.getAgentKbCodes(context.agent.id.toString(), isolationCtx);
-    
-    return await this.kbSearchTool.execute(context.agent.id, kbCodes, {
-      query: args.query as string,
-      kb_codes: args.kb_codes as string[] | undefined,
-      top_k: args.top_k as number | undefined,
-      similarity_threshold: args.similarity_threshold as number | undefined,
-    });
-  }
-
-  /**
-   * 执行内置工具
-   */
-  private async executeBuiltinTool(
-    name: string,
-    args: Record<string, unknown>,
-  ): Promise<unknown> {
-    const result = await this.builtinExecutor.execute(name, args);
-    if (!result.success) {
-      throw new Error(result.error || `内置工具 ${name} 执行失败`);
-    }
-    return result.data;
-  }
-
-  /**
-   * 获取隔离上下文
-   */
-  private getIsolationContext(context: ToolExecutionContext): IsolationContext {
-    if (context.isolationContext) {
-      return context.isolationContext;
-    }
-    return {
-      appCode: context.agent.appCode || null,
-      isSuperAdmin: false,
-    };
   }
 
   /**
@@ -341,7 +238,6 @@ export class ToolExecutor implements OnModuleDestroy {
 
   /**
    * 构建缓存键
-   * 使用稳定的键生成方式
    */
   private buildCacheKey(toolName: string, args: Record<string, unknown>): string {
     const sortedArgs = this.sortObjectKeys(args);
@@ -362,11 +258,11 @@ export class ToolExecutor implements OnModuleDestroy {
 
     const sorted: Record<string, unknown> = {};
     const keys = Object.keys(obj as Record<string, unknown>).sort();
-    
+
     for (const key of keys) {
       sorted[key] = this.sortObjectKeys((obj as Record<string, unknown>)[key]);
     }
-    
+
     return sorted;
   }
 

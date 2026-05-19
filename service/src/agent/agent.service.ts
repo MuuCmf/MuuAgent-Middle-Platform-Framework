@@ -2,7 +2,8 @@ import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from
 import { PrismaService } from '../common/prisma/prisma.service';
 import { IsolationService, IsolationContext } from '../common/services/base-isolated.service';
 import { ContextBuilder } from './execution/context-builder';
-import { ReasoningEngineFactory } from './reasoning/reasoning-engine.factory';
+import { ReasoningEngineFactory } from '../reasoning/reasoning.factory';
+import { ReasoningMode } from '../reasoning/types';
 import { ConversationService } from '../conversation/conversation.service';
 import {
   CreateAgentDto,
@@ -10,7 +11,6 @@ import {
   AgentChatDto,
   QueryAgentDto,
 } from './dto/agent.dto';
-import { ReasoningMode } from './react/react.types';
 import { StreamEmitter, StreamEventType } from '../stream';
 
 @Injectable()

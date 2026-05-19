@@ -167,7 +167,7 @@ export class SandboxExecutor {
     try {
       new Function(code);
     } catch (error) {
-      errors.push(`语法错误: ${error.message}`);
+      errors.push(`语法错误: ${error}`);
     }
 
     if (code.includes('while(true)') || code.includes('while (true)')) {

@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ReasoningMode } from '../react/react.types';
-import { IReasoningEngine } from './reasoning-engine.interface';
+import { ReasoningMode, IReasoningEngine } from './types';
 import { NoneReasoningEngine } from './none.engine';
 import { ReactReasoningEngine } from './react.engine';
 import { PlanReasoningEngine } from './plan.engine';

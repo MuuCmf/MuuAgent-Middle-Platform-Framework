@@ -21,7 +21,7 @@ import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { AdminScope } from '../common/constants/scope.constants';
 import { RequireScope } from '../common/decorators/scope.decorator';
-import { extractIsolationContext, IsolationContext } from '../common/services/base-isolated.service';
+import { extractIsolationContext } from '../common/services/base-isolated.service';
 import { QueryStandardSkillDto, ValidateSkillMdDto } from './dto/skill.dto';
 import { success } from '../common/response/api.response';
 import { Request } from 'express';
@@ -145,7 +145,7 @@ export class SkillController {
       throw new BadRequestException('请上传技能文件');
     }
     const context = extractIsolationContext(req);
-    const files = await this.extractZipFiles(file.buffer);
+    const files = await this.skillImporter.extractZipFiles(file.buffer);
     const result = await this.skillImporter.importFromFiles(
       files,
       {
@@ -155,10 +155,9 @@ export class SkillController {
       },
       context,
     );
-    
-    // 导入后清除所有缓存
-    this.skillRegistry.clearAllCache();
-    
+
+    await this.skillRegistry.clearAllCache();
+
     return success(result);
   }
 
@@ -189,34 +188,26 @@ export class SkillController {
   @Delete('cache/:name')
   @ApiOperation({ summary: '清除指定技能的缓存' })
   @RequireScope(AdminScope.SKILL_WRITE)
-  async invalidateSkillCache(@Param('name') name: string) {
+  invalidateSkillCache(@Param('name') name: string) {
     this.skillRegistry.invalidateCache(name);
     return success(null, `技能 "${name}" 的缓存已清除`);
   }
 
-  /**
-   * 清除所有技能缓存
-   * DELETE /admin/skill/cache
-   */
   @Delete('cache')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '清除所有技能缓存' })
   @RequireScope(AdminScope.SKILL_WRITE)
   async clearAllCache() {
-    this.skillRegistry.clearAllCache();
+    await this.skillRegistry.clearAllCache();
     return success(null, '所有技能缓存已清除');
   }
 
-  /**
-   * 手动同步技能到数据库
-   * POST /admin/skill/sync
-   */
   @Post('sync')
   @ApiOperation({ summary: '手动同步技能到数据库' })
   @RequireScope(AdminScope.SKILL_WRITE)
   async syncToDatabase() {
     const synced = await this.skillRegistry.syncToDatabase();
-    this.skillRegistry.clearAllCache();
+    await this.skillRegistry.clearAllCache();
     return success({ synced }, `已同步 ${synced} 个技能到数据库`);
   }
 
@@ -267,43 +258,4 @@ export class SkillController {
     }
   }
 
-  // ============================================================
-  // 工具方法
-  // ============================================================
-
-  /**
-   * 从 zip buffer 提取文件映射（含 ZIP 炸弹防护）
-   */
-  private async extractZipFiles(buffer: Buffer): Promise<Map<string, string>> {
-    const AdmZip = await import('adm-zip');
-    const zip = new AdmZip.default(buffer);
-    const files = new Map<string, string>();
-    const entries = zip.getEntries();
-
-    const MAX_FILES = 100;
-    const MAX_UNCOMPRESSED_SIZE = 5 * 1024 * 1024;
-    let totalUncompressedSize = 0;
-
-    for (const entry of entries) {
-      if (entry.isDirectory) continue;
-      const parts = entry.entryName.replace(/\\/g, '/').split('/');
-      if (parts.some(p => p.startsWith('.') || p === '__MACOSX')) continue;
-
-      if (files.size >= MAX_FILES) {
-        throw new BadRequestException(`压缩包包含过多文件（超过 ${MAX_FILES} 个），可能存在 ZIP 炸弹攻击`);
-      }
-
-      const data = entry.getData();
-      totalUncompressedSize += data.length;
-      if (totalUncompressedSize > MAX_UNCOMPRESSED_SIZE) {
-        throw new BadRequestException(
-          `解压后总大小超过限制 ${MAX_UNCOMPRESSED_SIZE / 1024 / 1024}MB，可能存在 ZIP 炸弹攻击`,
-        );
-      }
-
-      files.set(entry.entryName, data.toString('utf-8'));
-    }
-
-    return files;
-  }
 }

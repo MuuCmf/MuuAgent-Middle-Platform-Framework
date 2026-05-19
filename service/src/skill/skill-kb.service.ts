@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RetrievalService } from '../retrieval/retrieval.service';
-import { AiService } from '../ai/ai.service';
 import { SkillRegistry } from './skill-registry';
 import { IsolationContext } from '../common/services/base-isolated.service';
+import { AgentSkills } from '../agent/types/agent-skills';
 
 /**
  * 知识库检索结果
@@ -49,15 +49,39 @@ export class SkillKbService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly retrievalService: RetrievalService,
-    private readonly aiService: AiService,
     private readonly skillRegistry: SkillRegistry,
   ) {}
 
   /**
-   * 从技能依赖中获取知识库列表
+   * 从技能名称列表中解析知识库 codes（唯一入口）
+   * 替代 ContextBuilder 和 ToolExecutor 中的重复解析逻辑
+   * @param agentSkills 类型化的技能列表
+   * @param isolationContext 隔离上下文
+   * @returns 知识库 code 列表
+   */
+  async resolveKbCodes(agentSkills: AgentSkills, isolationContext?: IsolationContext): Promise<string[]> {
+    const skillNames = agentSkills.toArray();
+    if (skillNames.length === 0) return [];
+
+    const kbCodes = new Set<string>();
+
+    for (const skillName of skillNames) {
+      const skill = await this.skillRegistry.resolve(skillName, isolationContext || { appCode: null, isSuperAdmin: false });
+      if (skill?.frontmatter?.requires?.knowledgeBases) {
+        for (const kbCode of skill.frontmatter.requires.knowledgeBases) {
+          kbCodes.add(kbCode);
+        }
+      }
+    }
+
+    return Array.from(kbCodes);
+  }
+
+  /**
+   * 从智能体的技能配置中获取知识库列表
    * @param agentId 智能体ID
    * @param isolationContext 隔离上下文
-   * @returns {Promise<string[]>} 知识库code列表
+   * @returns 知识库code列表
    */
   async getAgentKbCodes(agentId: string, isolationContext?: IsolationContext): Promise<string[]> {
     const agent = await this.prisma.agent.findUnique({
@@ -69,24 +93,13 @@ export class SkillKbService {
       return [];
     }
 
-    const skillNames: string[] = JSON.parse(agent.skills);
-    if (skillNames.length === 0) {
+    const agentSkills = AgentSkills.fromJson(agent.skills);
+    if (agentSkills.isEmpty()) {
       return [];
     }
 
     const context: IsolationContext = isolationContext || { appCode: agent.appCode || null, isSuperAdmin: false };
-    const kbCodes = new Set<string>();
-
-    for (const skillName of skillNames) {
-      const skill = await this.skillRegistry.resolve(skillName, context);
-      if (skill?.frontmatter?.requires?.knowledgeBases) {
-        for (const kbCode of skill.frontmatter.requires.knowledgeBases) {
-          kbCodes.add(kbCode);
-        }
-      }
-    }
-
-    return Array.from(kbCodes);
+    return this.resolveKbCodes(agentSkills, context);
   }
 
   /**

@@ -11,15 +11,6 @@ export interface SkillRequires {
 }
 
 /**
- * 技能版本配置
- */
-export interface SkillVersion {
-  version: string;
-  title?: string;
-  changelog?: string;
-}
-
-/**
  * SKILL.md Frontmatter 字段定义
  */
 export interface SkillFrontmatter {
@@ -31,7 +22,6 @@ export interface SkillFrontmatter {
   metadata?: Record<string, string>;
   allowedTools?: string;
   requires?: SkillRequires;
-  versions?: SkillVersion[];
 }
 
 /**

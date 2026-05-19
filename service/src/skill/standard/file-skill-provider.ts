@@ -3,6 +3,8 @@ import { SkillScanner, SkillIndexEntry } from './skill-scanner';
 import { SkillMdParser } from './skill-md-parser';
 import { ISkillProvider, SkillMetadata, SkillDescriptor } from '../skill-registry';
 import { IsolationContext } from '../../common/services/base-isolated.service';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 /**
  * 文件系统技能数据提供者
@@ -79,8 +81,6 @@ export class FileSkillProvider implements ISkillProvider {
       throw new Error(`技能 ${skillName} 不存在`);
     }
 
-    const fs = await import('fs/promises');
-    const path = await import('path');
     const fullPath = path.join(entry.directoryPath, 'references', referencePath);
 
     // 防目录穿越
@@ -107,8 +107,6 @@ export class FileSkillProvider implements ISkillProvider {
     const entry = this.scanner.findByName(skillName);
     if (!entry || !entry.hasReferences) return [];
 
-    const fs = await import('fs/promises');
-    const path = await import('path');
     const refDir = path.join(entry.directoryPath, 'references');
 
     try {

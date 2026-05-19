@@ -5,6 +5,12 @@ import { IsolationContext } from '../common/services/base-isolated.service';
 import * as path from 'path';
 
 /**
+ * ZIP 炸弹防护常量
+ */
+const ZIP_BOMB_MAX_FILES = 100;
+const ZIP_BOMB_MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
+/**
  * 导入选项
  */
 export interface ImportOptions {
@@ -99,6 +105,40 @@ export class SkillImporter {
     private readonly parser: SkillMdParser,
     private readonly validator: SkillMdValidator,
   ) {}
+
+  /**
+   * 从 zip buffer 提取文件映射（含 ZIP 炸弹防护）
+   */
+  async extractZipFiles(buffer: Buffer): Promise<Map<string, string>> {
+    const AdmZip = await import('adm-zip');
+    const zip = new AdmZip.default(buffer);
+    const files = new Map<string, string>();
+    const entries = zip.getEntries();
+
+    let totalUncompressedSize = 0;
+
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
+      const parts = entry.entryName.replace(/\\/g, '/').split('/');
+      if (parts.some(p => p.startsWith('.') || p === '__MACOSX')) continue;
+
+      if (files.size >= ZIP_BOMB_MAX_FILES) {
+        throw new BadRequestException(`压缩包包含过多文件（超过 ${ZIP_BOMB_MAX_FILES} 个），可能存在 ZIP 炸弹攻击`);
+      }
+
+      const data = entry.getData();
+      totalUncompressedSize += data.length;
+      if (totalUncompressedSize > ZIP_BOMB_MAX_SIZE) {
+        throw new BadRequestException(
+          `解压后总大小超过限制 ${ZIP_BOMB_MAX_SIZE / 1024 / 1024}MB，可能存在 ZIP 炸弹攻击`,
+        );
+      }
+
+      files.set(entry.entryName, data.toString('utf-8'));
+    }
+
+    return files;
+  }
 
   /**
    * 从文件映射导入标准技能到文件系统

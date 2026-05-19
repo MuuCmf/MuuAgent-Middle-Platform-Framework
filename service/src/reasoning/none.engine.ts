@@ -1,27 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { ReasoningMode } from '../react/react.types';
-import { ReasoningResult } from './reasoning-engine.interface';
-import { ExecutionContext } from '../execution/execution-context';
-import { StreamEmitter } from '../../stream';
-import { AiService } from '../../ai/ai.service';
-import { ConversationService } from '../../conversation/conversation.service';
-import { ToolExecutor } from '../tools/tool-executor';
-import { PrismaService } from '../../common/prisma/prisma.service';
-import { WorkspaceToolHandler } from '../../workspace/workspace-tool.handler';
-import { BaseReasoningEngine, ToolCallInfo } from './reasoning-engine.base';
+import { ReasoningMode, ReasoningResult } from './types';
+import { ExecutionContext } from '../agent/execution/execution-context';
+import { StreamEmitter } from '../stream';
+import { AiService } from '../ai/ai.service';
+import { ConversationService } from '../conversation/conversation.service';
+import { ToolExecutor } from '../agent/tools/tool-executor';
+import { PrismaService } from '../common/prisma/prisma.service';
+import { WorkspaceToolHandler } from '../workspace/workspace-tool.handler';
+import { BaseReasoningEngine, ToolCallInfo } from './base.engine';
 import type { ModelMessage } from 'ai';
 
-/**
- * 无推理引擎
- * 
- * 直接调用AI模型，不进行推理循环。
- * 适用于简单的问答场景，支持单次工具调用。
- */
 @Injectable()
 export class NoneReasoningEngine extends BaseReasoningEngine {
   readonly mode = ReasoningMode.NONE;
 
-  /** 流式模式下最大工具调用次数 */
   private readonly maxToolCalls = 3;
 
   constructor(
@@ -34,10 +26,6 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
     super(aiService, conversationService, toolExecutor, prisma, workspaceToolHandler);
   }
 
-  /**
-   * 同步执行
-   * 直接调用AI，返回结果
-   */
   async executeSync(context: ExecutionContext): Promise<ReasoningResult> {
     const messages = this.buildMessages(context);
     const { tools, nameMap } = this.adaptTools(context);
@@ -46,16 +34,16 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
 
     try {
       const result = await this.aiService.generateText({
-          model: context.model,
-          system: context.systemPrompt,
-          messages,
-          tools,
-          temperature: context.temperature,
-          clientIp: context.clientIp,
-          userAgent: 'agent-service',
-          uid: context.uid,
-          appCode: context.appCode,
-        });
+        model: context.model,
+        system: context.systemPrompt,
+        messages,
+        tools,
+        temperature: context.temperature,
+        clientIp: context.clientIp,
+        userAgent: 'agent-service',
+        uid: context.uid,
+        appCode: context.appCode,
+      });
 
       await this.saveAssistantMessage(context, result.text);
       await this.generateTitleIfNeeded(context);
@@ -74,10 +62,6 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
     }
   }
 
-  /**
-   * 流式执行
-   * 支持工具调用和递归处理
-   */
   async executeStream(context: ExecutionContext, emitter: StreamEmitter): Promise<void> {
     const messages = this.buildMessages(context);
     const { tools, nameMap } = this.adaptTools(context);
@@ -87,10 +71,6 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
     await this.executeStreamInternal(context, messages, emitter, tools, nameMap, 0);
   }
 
-  /**
-   * 流式执行内部方法
-   * 递归处理工具调用
-   */
   private async executeStreamInternal(
     context: ExecutionContext,
     currentMessages: ModelMessage[],
@@ -128,13 +108,7 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
 
             if (rawCall) {
               await this.handleToolCallInStream(
-                context,
-                currentMessages,
-                emitter,
-                tools,
-                nameMap,
-                toolCallCount,
-                rawCall,
+                context, currentMessages, emitter, tools, nameMap, toolCallCount, rawCall,
               );
               return;
             }
@@ -151,9 +125,6 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
     }
   }
 
-  /**
-   * 处理流式模式下的工具调用
-   */
   private async handleToolCallInStream(
     context: ExecutionContext,
     currentMessages: ModelMessage[],
@@ -200,9 +171,6 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
     }
   }
 
-  /**
-   * 处理流式完成
-   */
   private async handleStreamFinish(
     context: ExecutionContext,
     emitter: StreamEmitter,
