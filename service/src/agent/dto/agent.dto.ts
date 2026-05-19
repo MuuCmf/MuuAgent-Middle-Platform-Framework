@@ -39,12 +39,12 @@ export class CreateAgentDto {
   @ApiProperty({ description: '智能体名称', example: '助手' })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @ApiProperty({ description: '智能体唯一标识', example: 'assistant' })
   @IsString()
   @IsNotEmpty()
-  code: string;
+  code!: string;
 
   @ApiPropertyOptional({ description: '智能体描述' })
   @IsString()
@@ -54,7 +54,7 @@ export class CreateAgentDto {
   @ApiProperty({ description: '系统提示词' })
   @IsString()
   @IsNotEmpty()
-  systemPrompt: string;
+  systemPrompt!: string;
 
   @ApiPropertyOptional({ description: '绑定的技能code列表(JSON数组)', example: '["weather-skill","database-skill"]' })
   @IsString()
@@ -64,7 +64,7 @@ export class CreateAgentDto {
   @ApiPropertyOptional({ description: '最大执行步数', default: 5 })
   @IsNumber()
   @Min(1)
-  @Max(20)
+  @Max(200)
   @IsOptional()
   maxSteps?: number;
 
@@ -149,7 +149,7 @@ export class UpdateAgentDto {
   @ApiPropertyOptional({ description: '最大执行步数' })
   @IsNumber()
   @Min(1)
-  @Max(20)
+  @Max(200)
   @IsOptional()
   maxSteps?: number;
 
@@ -214,12 +214,12 @@ export class AgentChatDto {
   @ApiProperty({ description: '智能体ID或标识' })
   @IsString()
   @IsNotEmpty()
-  agentId: string;
+  agentId!: string;
 
   @ApiProperty({ description: '用户消息' })
   @IsString()
   @IsNotEmpty()
-  message: string;
+  message!: string;
 
   @ApiPropertyOptional({ description: '会话ID(用于多轮对话)' })
   @IsString()

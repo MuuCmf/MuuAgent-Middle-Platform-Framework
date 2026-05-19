@@ -386,7 +386,7 @@ Final Answer: 最终答案</pre>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="最大步数">
-              <el-input-number v-model="form.maxSteps" :min="1" :max="20" class="w-full" />
+              <el-input-number v-model="form.maxSteps" :min="1" :max="999" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -775,6 +775,7 @@ const removeSkill = (code: string) => {
   }
 }
 
+// 保存前端验证和数据处理
 const handleSave = async () => {
   if (!formRef.value) return
 
@@ -800,6 +801,7 @@ const handleSave = async () => {
         ElMessage.success(editingAgent.value ? '更新成功' : '创建成功')
         handleClose()
       } catch (error) {
+        ElMessage.error('保存失败')
         console.error('保存失败', error)
       } finally {
         saving.value = false

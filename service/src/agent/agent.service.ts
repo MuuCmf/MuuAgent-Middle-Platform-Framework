@@ -25,6 +25,12 @@ export class AgentService {
     private conversationService: ConversationService,
   ) {}
 
+  /**
+   * 创建智能体
+   * @param dto 创建智能体DTO
+   * @param context 
+   * @returns 
+   */
   async create(dto: CreateAgentDto, context?: IsolationContext) {
     const data = this.isolationService.buildCreateData({
       name: dto.name,
