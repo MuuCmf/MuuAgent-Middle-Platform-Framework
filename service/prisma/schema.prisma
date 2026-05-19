@@ -223,7 +223,7 @@ model AgentInvokeLog {
   conversationId String? @map("conversation_id") /// 会话ID
   userMessage  String   @map("user_message") @db.Text /// 用户消息
   agentResponse String? @map("agent_response") @db.Text /// 智能体回复
-  steps        String?  @db.Text /// 执行步骤(JSON)
+  steps        String?  @db.LongText /// 执行步骤(JSON)
   totalCostMs  Int      @map("total_cost_ms") /// 总耗时(毫秒)
   success      Boolean  /// 是否成功
   errorMessage String?  @map("error_message") @db.Text /// 错误信息
