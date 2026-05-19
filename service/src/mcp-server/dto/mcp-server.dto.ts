@@ -7,10 +7,13 @@ import {
   IsBoolean,
   IsNumber,
   IsUrl,
+  IsEnum,
   Matches,
   Min,
   Max,
+  ValidateIf,
 } from 'class-validator';
+import { McpTransport } from '../types/mcp-server.types';
 
 /**
  * MCP Server配置DTO
@@ -21,10 +24,30 @@ export class McpServerConfigDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ description: 'MCP Server HTTP端点地址', example: 'http://localhost:8081/mcp' })
+  @ApiPropertyOptional({ description: '传输协议', enum: ['http', 'sse', 'stdio'], default: 'http' })
+  @IsEnum(['http', 'sse', 'stdio'])
+  @IsOptional()
+  transport?: McpTransport;
+
+  @ApiPropertyOptional({ description: 'HTTP/SSE端点地址', example: 'http://localhost:8081/mcp' })
   @IsString()
-  @IsNotEmpty()
-  url: string;
+  @IsOptional()
+  url?: string;
+
+  @ApiPropertyOptional({ description: 'stdio命令（如 npx, uvx, python）' })
+  @IsString()
+  @IsOptional()
+  command?: string;
+
+  @ApiPropertyOptional({ description: 'stdio参数', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  args?: string[];
+
+  @ApiPropertyOptional({ description: '环境变量' })
+  @IsOptional()
+  env?: Record<string, string>;
 
   @ApiPropertyOptional({ description: 'API密钥' })
   @IsString()
@@ -70,9 +93,33 @@ export class CreateMcpServerDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ description: 'MCP Server HTTP端点地址', example: 'http://localhost:8081/mcp' })
+  @ApiPropertyOptional({ description: '传输协议', enum: ['http', 'sse', 'stdio'], default: 'http' })
+  @IsEnum(['http', 'sse', 'stdio'])
+  @IsOptional()
+  transport?: McpTransport;
+
+  @ApiPropertyOptional({ description: 'HTTP/SSE端点地址（http/sse协议必填）', example: 'http://localhost:8081/mcp' })
+  @ValidateIf((o) => o.transport === 'http' || o.transport === 'sse' || !o.transport)
   @IsUrl({ protocols: ['http', 'https'], require_tld: false })
-  url: string;
+  @IsOptional()
+  url?: string;
+
+  @ApiPropertyOptional({ description: 'stdio命令（stdio协议必填，如 npx, uvx, python）' })
+  @ValidateIf((o) => o.transport === 'stdio')
+  @IsString()
+  @IsNotEmpty({ message: 'stdio协议需要提供命令' })
+  @IsOptional()
+  command?: string;
+
+  @ApiPropertyOptional({ description: 'stdio参数（JSON数组）', type: [String], example: ['-y', '@modelcontextprotocol/server-filesystem', '/path'] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  args?: string[];
+
+  @ApiPropertyOptional({ description: '环境变量（JSON对象）', example: { GITHUB_TOKEN: 'ghp_xxx' } })
+  @IsOptional()
+  env?: Record<string, string>;
 
   @ApiPropertyOptional({ description: 'API密钥' })
   @IsString()
@@ -121,10 +168,30 @@ export class UpdateMcpServerDto {
   @IsOptional()
   description?: string;
 
-  @ApiPropertyOptional({ description: 'MCP Server HTTP端点地址' })
+  @ApiPropertyOptional({ description: '传输协议', enum: ['http', 'sse', 'stdio'] })
+  @IsEnum(['http', 'sse', 'stdio'])
+  @IsOptional()
+  transport?: McpTransport;
+
+  @ApiPropertyOptional({ description: 'HTTP/SSE端点地址' })
   @IsUrl({ protocols: ['http', 'https'], require_tld: false })
   @IsOptional()
   url?: string;
+
+  @ApiPropertyOptional({ description: 'stdio命令' })
+  @IsString()
+  @IsOptional()
+  command?: string;
+
+  @ApiPropertyOptional({ description: 'stdio参数', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  args?: string[];
+
+  @ApiPropertyOptional({ description: '环境变量' })
+  @IsOptional()
+  env?: Record<string, string>;
 
   @ApiPropertyOptional({ description: 'API密钥（传null清空，传空字符串不更新）' })
   @IsOptional()
@@ -171,23 +238,48 @@ export class QueryMcpServerDto {
   @IsString()
   @IsOptional()
   healthStatus?: string;
+
+  @ApiPropertyOptional({ description: '传输协议', enum: ['http', 'sse', 'stdio'] })
+  @IsEnum(['http', 'sse', 'stdio'])
+  @IsOptional()
+  transport?: McpTransport;
 }
 
 /**
  * 发现工具请求DTO
  */
 export class DiscoverToolsDto {
-  @ApiPropertyOptional({ description: 'MCP Server ID（用于获取已保存的 API Key）' })
+  @ApiPropertyOptional({ description: 'MCP Server ID（用于获取已保存的配置）' })
   @IsString()
   @IsOptional()
   serverId?: string;
 
-  @ApiProperty({ description: 'MCP Server HTTP端点地址', example: 'http://localhost:8081/mcp' })
-  @IsString()
-  @IsNotEmpty()
-  url: string;
+  @ApiPropertyOptional({ description: '传输协议', enum: ['http', 'sse', 'stdio'], default: 'http' })
+  @IsEnum(['http', 'sse', 'stdio'])
+  @IsOptional()
+  transport?: McpTransport;
 
-  @ApiPropertyOptional({ description: 'API密钥（留空则使用已保存的密钥）' })
+  @ApiPropertyOptional({ description: 'HTTP/SSE端点地址' })
+  @IsString()
+  @IsOptional()
+  url?: string;
+
+  @ApiPropertyOptional({ description: 'stdio命令' })
+  @IsString()
+  @IsOptional()
+  command?: string;
+
+  @ApiPropertyOptional({ description: 'stdio参数', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  args?: string[];
+
+  @ApiPropertyOptional({ description: '环境变量' })
+  @IsOptional()
+  env?: Record<string, string>;
+
+  @ApiPropertyOptional({ description: 'API密钥' })
   @IsString()
   @IsOptional()
   apiKey?: string;
@@ -202,17 +294,37 @@ export class DiscoverToolsDto {
  * 测试连接请求DTO
  */
 export class TestConnectionDto {
-  @ApiPropertyOptional({ description: 'MCP Server ID（用于获取已保存的 API Key）' })
+  @ApiPropertyOptional({ description: 'MCP Server ID（用于获取已保存的配置）' })
   @IsString()
   @IsOptional()
   serverId?: string;
 
-  @ApiProperty({ description: 'MCP Server HTTP端点地址', example: 'http://localhost:8081/mcp' })
-  @IsString()
-  @IsNotEmpty()
-  url: string;
+  @ApiPropertyOptional({ description: '传输协议', enum: ['http', 'sse', 'stdio'], default: 'http' })
+  @IsEnum(['http', 'sse', 'stdio'])
+  @IsOptional()
+  transport?: McpTransport;
 
-  @ApiPropertyOptional({ description: 'API密钥（留空则使用已保存的密钥）' })
+  @ApiPropertyOptional({ description: 'HTTP/SSE端点地址' })
+  @IsString()
+  @IsOptional()
+  url?: string;
+
+  @ApiPropertyOptional({ description: 'stdio命令' })
+  @IsString()
+  @IsOptional()
+  command?: string;
+
+  @ApiPropertyOptional({ description: 'stdio参数', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  args?: string[];
+
+  @ApiPropertyOptional({ description: '环境变量' })
+  @IsOptional()
+  env?: Record<string, string>;
+
+  @ApiPropertyOptional({ description: 'API密钥' })
   @IsString()
   @IsOptional()
   apiKey?: string;
@@ -268,8 +380,20 @@ export class McpServerResponseDto {
   @ApiPropertyOptional({ description: '描述' })
   description?: string;
 
-  @ApiProperty({ description: 'HTTP端点地址' })
-  url: string;
+  @ApiProperty({ description: '传输协议', enum: ['http', 'sse', 'stdio'] })
+  transport: McpTransport;
+
+  @ApiPropertyOptional({ description: 'HTTP/SSE端点地址' })
+  url?: string;
+
+  @ApiPropertyOptional({ description: 'stdio命令' })
+  command?: string;
+
+  @ApiPropertyOptional({ description: 'stdio参数', type: [String] })
+  args?: string[];
+
+  @ApiPropertyOptional({ description: '环境变量' })
+  env?: Record<string, string>;
 
   @ApiProperty({ description: '是否已设置 API Key' })
   hasApiKey: boolean;
@@ -300,4 +424,73 @@ export class McpServerResponseDto {
 
   @ApiProperty({ description: '更新时间' })
   updatedAt: Date;
+}
+
+/**
+ * Claude Desktop MCP Server 配置项
+ */
+export interface ClaudeMcpServerConfig {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  transport?: string;
+}
+
+/**
+ * Claude Desktop 配置格式
+ */
+export class ImportMcpServersDto {
+  @ApiProperty({
+    description: 'Claude Desktop 配置格式 JSON',
+    example: {
+      mcpServers: {
+        filesystem: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem', '/path/to/dir'],
+        },
+        github: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-github'],
+          env: { GITHUB_TOKEN: 'ghp_xxx' },
+        },
+      },
+    },
+  })
+  @IsOptional()
+  mcpServers?: Record<string, ClaudeMcpServerConfig>;
+}
+
+/**
+ * 导入结果项
+ */
+export class ImportResultItemDto {
+  @ApiProperty({ description: '服务器名称' })
+  name: string;
+
+  @ApiProperty({ description: '是否成功' })
+  success: boolean;
+
+  @ApiPropertyOptional({ description: '错误信息' })
+  error?: string;
+
+  @ApiPropertyOptional({ description: '创建的服务器信息' })
+  server?: McpServerResponseDto;
+}
+
+/**
+ * 导入结果 DTO
+ */
+export class ImportResultDto {
+  @ApiProperty({ description: '总数' })
+  total: number;
+
+  @ApiProperty({ description: '成功数' })
+  success: number;
+
+  @ApiProperty({ description: '失败数' })
+  failed: number;
+
+  @ApiProperty({ description: '导入结果列表', type: [ImportResultItemDto] })
+  results: ImportResultItemDto[];
 }

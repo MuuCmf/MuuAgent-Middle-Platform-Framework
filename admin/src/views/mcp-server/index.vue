@@ -22,6 +22,10 @@
             <el-icon><Refresh /></el-icon>
             刷新缓存
           </el-button>
+          <el-button @click="handleImport">
+            <el-icon><Upload /></el-icon>
+            导入配置
+          </el-button>
           <el-button type="primary" @click="handleCreate">
             <el-icon><Plus /></el-icon>
             新建 Server
@@ -67,7 +71,23 @@
             {{ row.displayName || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="url" label="URL" min-width="200" show-overflow-tooltip />
+        <el-table-column label="协议" width="80">
+          <template #default="{ row }">
+            <el-tag :type="getTransportTagType(row.transport)" size="small">
+              {{ row.transport?.toUpperCase() || 'HTTP' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="连接信息" min-width="200">
+          <template #default="{ row }">
+            <template v-if="row.transport === 'stdio'">
+              <span class="connection-info">{{ row.command }} {{ (row.args || []).join(' ') }}</span>
+            </template>
+            <template v-else>
+              <span class="connection-info">{{ row.url || '-' }}</span>
+            </template>
+          </template>
+        </el-table-column>
         <el-table-column label="工具" width="80">
           <template #default="{ row }">
             <el-tag v-if="row.tools?.length" type="info" size="small">
@@ -103,7 +123,7 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right" align="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="handleTestConnection(row)">
               测试
@@ -128,6 +148,67 @@
       :mode="editMode"
       @success="handleEditSuccess"
     />
+
+    <el-dialog
+      v-model="importDialogVisible"
+      title="导入 MCP Server 配置"
+      width="600px"
+    >
+      <div class="import-tip">
+        <p>支持 Claude Desktop 配置格式，直接粘贴 JSON 即可导入：</p>
+        <pre class="import-example">{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_TOKEN": "ghp_xxx" }
+    }
+  }
+}</pre>
+      </div>
+      <el-input
+        v-model="importJsonText"
+        type="textarea"
+        :rows="12"
+        placeholder="粘贴 Claude Desktop 配置 JSON..."
+      />
+      <template #footer>
+        <el-button @click="importDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleImportSubmit" :loading="importLoading">
+          导入
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="importResultVisible"
+      title="导入结果"
+      width="500px"
+    >
+      <div class="import-result-summary">
+        <el-tag type="info">总数: {{ importResult?.total || 0 }}</el-tag>
+        <el-tag type="success">成功: {{ importResult?.success || 0 }}</el-tag>
+        <el-tag type="danger">失败: {{ importResult?.failed || 0 }}</el-tag>
+      </div>
+      <el-table :data="importResult?.results || []" max-height="300">
+        <el-table-column prop="name" label="名称" width="150" />
+        <el-table-column label="状态" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.success ? 'success' : 'danger'" size="small">
+              {{ row.success ? '成功' : '失败' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="error" label="错误信息" show-overflow-tooltip />
+      </el-table>
+      <template #footer>
+        <el-button type="primary" @click="importResultVisible = false">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -138,8 +219,9 @@ import {
   Plus,
   Monitor,
   Refresh,
+  Upload,
 } from '@element-plus/icons-vue'
-import { mcpServerApi, type McpServer } from '@/api/mcp-server'
+import { mcpServerApi, type McpServer, type ImportResult } from '@/api/mcp-server'
 import { formatDate } from '@/utils/format'
 import McpServerEditDrawer from './components/McpServerEditDrawer.vue'
 
@@ -149,6 +231,11 @@ const serverList = ref<McpServer[]>([])
 const editDrawerVisible = ref(false)
 const currentServer = ref<McpServer | null>(null)
 const editMode = ref<'create' | 'edit'>('create')
+const importDialogVisible = ref(false)
+const importJsonText = ref('')
+const importLoading = ref(false)
+const importResultVisible = ref(false)
+const importResult = ref<ImportResult | null>(null)
 
 const searchForm = reactive({
   enabled: undefined as boolean | undefined,
@@ -163,6 +250,17 @@ const getHealthTagType = (status?: string): 'success' | 'danger' | 'info' => {
       return 'danger'
     default:
       return 'info'
+  }
+}
+
+const getTransportTagType = (transport?: string): 'primary' | 'success' | 'warning' => {
+  switch (transport) {
+    case 'stdio':
+      return 'warning'
+    case 'sse':
+      return 'success'
+    default:
+      return 'primary'
   }
 }
 
@@ -214,6 +312,42 @@ const handleEdit = (row: McpServer) => {
 
 const handleEditSuccess = () => {
   fetchList()
+}
+
+const handleImport = () => {
+  importJsonText.value = ''
+  importDialogVisible.value = true
+}
+
+const handleImportSubmit = async () => {
+  if (!importJsonText.value.trim()) {
+    ElMessage.warning('请粘贴配置 JSON')
+    return
+  }
+
+  try {
+    const parsed = JSON.parse(importJsonText.value)
+    if (!parsed.mcpServers || typeof parsed.mcpServers !== 'object') {
+      ElMessage.error('JSON 格式错误：需要包含 mcpServers 字段')
+      return
+    }
+
+    importLoading.value = true
+    const { data } = await mcpServerApi.importServers(parsed)
+    importResult.value = data.data
+    importDialogVisible.value = false
+    importResultVisible.value = true
+    fetchList()
+
+    if (data.data.success > 0) {
+      ElMessage.success(`成功导入 ${data.data.success} 个 MCP Server`)
+    }
+  } catch (error) {
+    console.error('导入失败:', error)
+    ElMessage.error('JSON 解析失败，请检查格式')
+  } finally {
+    importLoading.value = false
+  }
 }
 
 const handleTestConnection = async (row: McpServer) => {
@@ -299,8 +433,11 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-
-
+.connection-info {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+}
 
 .help-tip {
   background: var(--el-color-primary-light-9);
@@ -308,6 +445,31 @@ onMounted(() => {
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 20px;
+}
+
+.import-tip {
+  margin-bottom: 16px;
+
+  p {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+  }
+
+  .import-example {
+    background: var(--el-fill-color-light);
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 12px;
+    overflow-x: auto;
+    margin: 0;
+  }
+}
+
+.import-result-summary {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .help-tip-title {

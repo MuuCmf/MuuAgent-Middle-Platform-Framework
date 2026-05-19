@@ -27,9 +27,12 @@ import {
   TestConnectionDto,
   McpServerResponseDto,
   ToolDescriptionDto,
+  ImportMcpServersDto,
+  ImportResultDto,
 } from './dto/mcp-server.dto';
 import { success } from '../common/response/api.response';
 import { McpServer } from '@prisma/client';
+import { McpTransport } from './types/mcp-server.types';
 
 /**
  * MCP Server控制器
@@ -71,7 +74,11 @@ export class McpServerController {
       name: dto.name,
       displayName: dto.displayName,
       description: dto.description,
+      transport: dto.transport,
       url: dto.url,
+      command: dto.command,
+      args: dto.args,
+      env: dto.env,
       apiKey: dto.apiKey,
       timeout: dto.timeout,
       enabled: dto.enabled,
@@ -83,6 +90,21 @@ export class McpServerController {
     await this.registry.refresh();
 
     return success(this.toResponseDto(server));
+  }
+
+  /**
+   * 导入 MCP Server（支持 Claude Desktop 配置格式）
+   * @param dto 导入请求DTO
+   * @returns {Promise<ImportResultDto>} 导入结果
+   */
+  @Post('import')
+  @ApiOperation({ summary: '导入 MCP Server（支持 Claude Desktop 配置格式）' })
+  @ApiResponse({ status: 200, description: '导入完成' })
+  @RequireScope(AdminScope.MCP_SERVER_WRITE)
+  async importServers(@Body() dto: ImportMcpServersDto): Promise<{ data: ImportResultDto }> {
+    const result = await this.importMcpServers(dto);
+    await this.registry.refresh();
+    return success(result);
   }
 
   /**
@@ -99,6 +121,7 @@ export class McpServerController {
       enabled: query.enabled,
       appCode: query.appCode,
       healthStatus: query.healthStatus,
+      transport: query.transport,
     });
 
     return success(servers.map(s => this.toResponseDto(s)));
@@ -146,7 +169,11 @@ export class McpServerController {
     const server = await this.repository.update(id, {
       displayName: dto.displayName,
       description: dto.description,
+      transport: dto.transport,
       url: dto.url,
+      command: dto.command,
+      args: dto.args,
+      env: dto.env,
       apiKey: dto.apiKey,
       timeout: dto.timeout,
       enabled: dto.enabled,
@@ -289,7 +316,11 @@ export class McpServerController {
       name: server.name,
       displayName: server.displayName || undefined,
       description: server.description || undefined,
-      url: server.url,
+      transport: (server.transport as McpTransport) || 'http',
+      url: server.url || undefined,
+      command: server.command || undefined,
+      args: this.repository.parseArgs(server),
+      env: this.repository.parseEnv(server),
       hasApiKey: !!server.apiKey,
       timeout: server.timeout,
       enabled: server.enabled,
@@ -300,6 +331,72 @@ export class McpServerController {
       appCode: server.appCode || undefined,
       createdAt: server.createdAt,
       updatedAt: server.updatedAt,
+    };
+  }
+
+  /**
+   * 导入 MCP Servers（支持 Claude Desktop 配置格式）
+   * @param dto 导入请求DTO
+   * @returns {Promise<ImportResultDto>} 导入结果
+   */
+  private async importMcpServers(dto: ImportMcpServersDto): Promise<ImportResultDto> {
+    const results: ImportResultDto['results'] = [];
+    let successCount = 0;
+    let failedCount = 0;
+
+    const mcpServers = dto.mcpServers || {};
+
+    for (const [name, config] of Object.entries(mcpServers)) {
+      try {
+        const exists = await this.repository.existsByName(name);
+        if (exists) {
+          results.push({
+            name,
+            success: false,
+            error: `MCP Server "${name}" 已存在`,
+          });
+          failedCount++;
+          continue;
+        }
+
+        let transport: McpTransport = 'stdio';
+        if (config.transport === 'http' || config.transport === 'sse') {
+          transport = config.transport;
+        } else if (config.url) {
+          transport = 'http';
+        }
+
+        const server = await this.repository.create({
+          name,
+          transport,
+          url: config.url,
+          command: config.command,
+          args: config.args,
+          env: config.env,
+          enabled: true,
+        });
+
+        results.push({
+          name,
+          success: true,
+          server: this.toResponseDto(server),
+        });
+        successCount++;
+      } catch (error) {
+        results.push({
+          name,
+          success: false,
+          error: (error as Error).message,
+        });
+        failedCount++;
+      }
+    }
+
+    return {
+      total: Object.keys(mcpServers).length,
+      success: successCount,
+      failed: failedCount,
+      results,
     };
   }
 }

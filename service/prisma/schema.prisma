@@ -557,8 +557,18 @@ model McpServer {
   name            String    @unique /// 服务器名称（唯一标识）
   displayName     String?   @map("display_name") /// 显示名称
   description     String?   @db.Text /// 描述
-  url             String    /// HTTP 端点地址
+  
+  // ===== 传输协议配置 =====
+  transport       String    @default("http") @map("transport") /// 传输协议: http | sse | stdio
+  url             String?   /// HTTP/SSE 端点地址（http/sse 协议）
+  command         String?   @map("command") /// stdio 命令（stdio 协议，如 npx, uvx, python）
+  args            String?   @db.Text @map("args") /// stdio 参数（JSON 数组）
+  env             String?   @db.Text @map("env") /// 环境变量（JSON 对象）
+  
+  // ===== 认证配置 =====
   apiKey          String?   @map("api_key") @db.Text /// API 密钥（加密存储）
+  
+  // ===== 其他配置 =====
   timeout         Int       @default(30000) /// 超时时间（毫秒）
   enabled         Boolean   @default(true) /// 是否启用
   tools           String?   @db.Text /// 允许的工具列表（JSON 数组）
@@ -584,6 +594,7 @@ model McpServer {
   @@index([appCode])
   @@index([enabled])
   @@index([healthStatus])
+  @@index([transport])
   @@map("mcp_servers")
 }
 

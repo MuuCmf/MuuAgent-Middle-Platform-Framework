@@ -41,7 +41,15 @@ export class McpToolExecutor implements IExecutor {
       }
 
       const result = await this.mcpClient.callTool(
-        { url: serverConfig.url, apiKey: serverConfig.apiKey, timeout: serverConfig.timeout },
+        {
+          transport: serverConfig.transport,
+          url: serverConfig.url,
+          command: serverConfig.command,
+          args: serverConfig.args,
+          env: serverConfig.env,
+          apiKey: serverConfig.apiKey,
+          timeout: serverConfig.timeout,
+        },
         toolName,
         (args.parameters as Record<string, unknown>) || {},
       );

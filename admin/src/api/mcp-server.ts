@@ -2,11 +2,20 @@ import { adminRequest } from '@/utils/request'
 import type { AxiosResponse } from 'axios'
 
 /**
+ * MCP 传输协议类型
+ */
+export type McpTransport = 'http' | 'sse' | 'stdio'
+
+/**
  * MCP Server 配置接口
  */
 export interface McpServerConfig {
   name: string
-  url: string
+  transport?: McpTransport
+  url?: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
   apiKey?: string
   tools?: string[]
   timeout?: number
@@ -21,7 +30,11 @@ export interface McpServer {
   name: string
   displayName?: string
   description?: string
-  url: string
+  transport: McpTransport
+  url?: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
   hasApiKey: boolean
   timeout: number
   enabled: boolean
@@ -41,7 +54,11 @@ export interface CreateMcpServerRequest {
   name: string
   displayName?: string
   description?: string
-  url: string
+  transport?: McpTransport
+  url?: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
   apiKey?: string
   timeout?: number
   enabled?: boolean
@@ -56,7 +73,11 @@ export interface CreateMcpServerRequest {
 export interface UpdateMcpServerRequest {
   displayName?: string
   description?: string
+  transport?: McpTransport
   url?: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
   apiKey?: string | null
   timeout?: number
   enabled?: boolean
@@ -89,7 +110,11 @@ export interface ToolDescription {
  */
 export interface DiscoverToolsRequest {
   serverId?: string
-  url: string
+  transport?: McpTransport
+  url?: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
   apiKey?: string
   timeout?: number
 }
@@ -99,7 +124,11 @@ export interface DiscoverToolsRequest {
  */
 export interface TestConnectionRequest {
   serverId?: string
-  url: string
+  transport?: McpTransport
+  url?: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
   apiKey?: string
   toolName?: string
   params?: Record<string, unknown>
@@ -125,6 +154,44 @@ export interface TestConnectionResponse {
 export interface HealthCheckResult {
   healthy: boolean
   latency: number
+}
+
+/**
+ * Claude Desktop MCP Server 配置项
+ */
+export interface ClaudeMcpServerConfig {
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  transport?: string
+}
+
+/**
+ * 导入 MCP Server 请求接口
+ */
+export interface ImportMcpServersRequest {
+  mcpServers: Record<string, ClaudeMcpServerConfig>
+}
+
+/**
+ * 导入结果项接口
+ */
+export interface ImportResultItem {
+  name: string
+  success: boolean
+  error?: string
+  server?: McpServer
+}
+
+/**
+ * 导入结果接口
+ */
+export interface ImportResult {
+  total: number
+  success: number
+  failed: number
+  results: ImportResultItem[]
 }
 
 /**
@@ -227,5 +294,14 @@ export const mcpServerApi = {
    */
   refreshCache(): Promise<AxiosResponse<{ data: { message: string } }>> {
     return adminRequest.post('api/admin/mcp-server/refresh-cache')
+  },
+
+  /**
+   * 导入 MCP Server（支持 Claude Desktop 配置格式）
+   * @param data 导入请求
+   * @returns {Promise<AxiosResponse>} 导入结果
+   */
+  importServers(data: ImportMcpServersRequest): Promise<AxiosResponse<{ data: ImportResult }>> {
+    return adminRequest.post('api/admin/mcp-server/import', data)
   }
 }

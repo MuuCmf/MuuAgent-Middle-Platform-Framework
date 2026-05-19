@@ -2,15 +2,9 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-
-/**
- * MCP客户端配置接口
- */
-interface McpClientConfig {
-  url: string;
-  apiKey?: string;
-  timeout?: number;
-}
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { ChildProcess } from 'child_process';
+import { McpClientConfig, StdioProcess, McpTransport } from './types/mcp-server.types';
 
 /**
  * MCP工具定义接口
@@ -24,16 +18,21 @@ interface McpTool {
 /**
  * MCP客户端服务
  * 使用官方 @modelcontextprotocol/sdk 实现与 MCP Server 的通信
- * 支持 Streamable HTTP 和 SSE 协议
+ * 支持 Streamable HTTP、SSE 和 stdio 三种协议
  */
 @Injectable()
 export class McpClientService implements OnModuleDestroy {
   private readonly logger = new Logger(McpClientService.name);
 
   /**
-   * MCP 客户端缓存（按 URL 分组）
+   * MCP 客户端缓存（按配置 Key 分组）
    */
   private clients = new Map<string, Client>();
+
+  /**
+   * stdio 进程管理缓存
+   */
+  private stdioProcesses = new Map<string, StdioProcess>();
 
   /**
    * 模块销毁时清理资源
@@ -48,6 +47,22 @@ export class McpClientService implements OnModuleDestroy {
       }
     }
     this.clients.clear();
+
+    for (const [key, { process }] of this.stdioProcesses) {
+      try {
+        process.kill('SIGTERM');
+        setTimeout(() => {
+          if (!process.killed) {
+            process.kill('SIGKILL');
+          }
+        }, 3000);
+        this.logger.debug(`终止 stdio 进程: ${key}`);
+      } catch (error) {
+        this.logger.warn(`终止 stdio 进程失败: ${(error as Error).message}`);
+      }
+    }
+    this.stdioProcesses.clear();
+
     this.logger.log('MCP 客户端资源已清理');
   }
 
@@ -57,7 +72,10 @@ export class McpClientService implements OnModuleDestroy {
    * @returns {string} 缓存 Key
    */
   private getCacheKey(config: McpClientConfig): string {
-    return `${config.url}:${config.apiKey || 'none'}`;
+    if (config.transport === 'stdio') {
+      return `stdio:${config.command}:${JSON.stringify(config.args || [])}`;
+    }
+    return `${config.transport}:${config.url}:${config.apiKey || 'none'}`;
   }
 
   /**
@@ -104,28 +122,14 @@ export class McpClientService implements OnModuleDestroy {
    * @returns {URL} 构建后的 URL
    */
   private buildSseUrl(config: McpClientConfig): URL {
-    let url = config.url;
-
-    if (!this.isSseEndpoint(url)) {
-      const urlObj = new URL(url);
-      const pathParts = urlObj.pathname.split('/');
-      const lastPart = pathParts[pathParts.length - 1];
-
-      if (lastPart === 'mcp') {
-        pathParts[pathParts.length - 1] = 'sse';
-        urlObj.pathname = pathParts.join('/');
-      } else {
-        urlObj.pathname = urlObj.pathname.replace(/\/mcp$/, '/sse');
-        if (urlObj.pathname === url) {
-          urlObj.pathname = urlObj.pathname + '/sse';
-        }
-      }
-      url = urlObj.toString();
-    }
-
+    let url = config.url!;
     const urlObj = new URL(url);
 
-    if (config.apiKey && !this.hasAuthInUrl(config.url)) {
+    if (!urlObj.pathname.endsWith('/sse') && !urlObj.pathname.endsWith('/sse/')) {
+      urlObj.pathname = urlObj.pathname.replace(/\/$/, '') + '/sse';
+    }
+
+    if (config.apiKey && !this.hasAuthInUrl(config.url!)) {
       urlObj.searchParams.set('Authorization', config.apiKey);
     }
 
@@ -133,12 +137,76 @@ export class McpClientService implements OnModuleDestroy {
   }
 
   /**
-   * 构建 Streamable HTTP URL
+   * 创建 stdio 传输
    * @param config MCP 配置
-   * @returns {URL} 构建后的 URL
+   * @param key 缓存 Key
+   * @returns {Promise<StdioClientTransport>} stdio 传输实例
    */
-  private buildStreamableHttpUrl(config: McpClientConfig): URL {
-    return new URL(config.url);
+  private async createStdioTransport(
+    config: McpClientConfig,
+    key: string,
+  ): Promise<StdioClientTransport> {
+    if (!config.command) {
+      throw new Error('stdio 协议需要提供 command');
+    }
+
+    this.logger.debug(
+      `启动 stdio 进程: ${config.command} ${(config.args || []).join(' ')}`,
+    );
+
+    const mergedEnv: Record<string, string> = {};
+    Object.entries({ ...process.env, ...config.env }).forEach(([k, v]) => {
+      if (v !== undefined) {
+        mergedEnv[k] = v;
+      }
+    });
+
+    const transport = new StdioClientTransport({
+      command: config.command,
+      args: config.args || [],
+      env: mergedEnv,
+    });
+
+    this.stdioProcesses.set(key, {
+      process: null as unknown as ChildProcess,
+      client: null,
+      lastUsed: Date.now(),
+    });
+
+    return transport;
+  }
+
+  /**
+   * 创建 SSE 传输
+   * @param config MCP 配置
+   * @returns {SSEClientTransport} SSE 传输实例
+   */
+  private createSseTransport(config: McpClientConfig): SSEClientTransport {
+    const sseUrl = this.buildSseUrl(config);
+    this.logger.debug(`使用 SSE 传输: ${sseUrl.toString()}`);
+    this.logger.debug(`API Key: ${config.apiKey ? '已提供' : '未提供'}`);
+    return new SSEClientTransport(sseUrl);
+  }
+
+  /**
+   * 创建 Streamable HTTP 传输
+   * @param config MCP 配置
+   * @returns {StreamableHTTPClientTransport} HTTP 传输实例
+   */
+  private createHttpTransport(config: McpClientConfig): StreamableHTTPClientTransport {
+    const httpUrl = new URL(config.url!);
+    this.logger.debug(`使用 Streamable HTTP 传输: ${httpUrl.toString()}`);
+
+    const headers: Record<string, string> = {};
+    if (config.apiKey && !this.hasAuthInUrl(config.url!)) {
+      headers['Authorization'] = `Bearer ${config.apiKey}`;
+    }
+
+    return new StreamableHTTPClientTransport(httpUrl, {
+      requestInit: {
+        headers,
+      },
+    });
   }
 
   /**
@@ -168,43 +236,56 @@ export class McpClientService implements OnModuleDestroy {
       },
     );
 
-    const isSse = this.isSseEndpoint(config.url);
-
     try {
-      if (isSse) {
-        const sseUrl = this.buildSseUrl(config);
-        this.logger.debug(`使用 SSE 传输: ${sseUrl.toString()}`);
-        this.logger.debug(`API Key: ${config.apiKey ? '已提供' : '未提供'}`);
+      let transport;
+      let actualTransport = config.transport || 'http';
 
-        const transport = new SSEClientTransport(sseUrl);
-
-        await client.connect(transport);
-        this.logger.log(`MCP 客户端连接成功 (SSE): ${config.url}`);
-      } else {
-        const httpUrl = this.buildStreamableHttpUrl(config);
-        this.logger.debug(`使用 Streamable HTTP 传输: ${httpUrl.toString()}`);
-
-        const headers: Record<string, string> = {};
-        if (config.apiKey && !this.hasAuthInUrl(config.url)) {
-          headers['Authorization'] = `Bearer ${config.apiKey}`;
-        }
-
-        const transport = new StreamableHTTPClientTransport(httpUrl, {
-          requestInit: {
-            headers,
-          },
-        });
-
-        await client.connect(transport);
-        this.logger.log(`MCP 客户端连接成功 (Streamable HTTP): ${config.url}`);
+      if (actualTransport === 'http' && config.url && this.isSseEndpoint(config.url)) {
+        actualTransport = 'sse';
+        this.logger.debug(`自动检测到 SSE 端点，切换为 SSE 协议`);
       }
 
+      switch (actualTransport) {
+        case 'stdio':
+          transport = await this.createStdioTransport(config, key);
+          break;
+        case 'sse':
+          transport = this.createSseTransport(config);
+          break;
+        case 'http':
+        default:
+          if (!config.url) {
+            throw new Error('HTTP/SSE 协议需要提供 URL');
+          }
+          transport = this.createHttpTransport(config);
+          break;
+      }
+
+      await client.connect(transport);
       this.clients.set(key, client);
+
+      const stdioProcess = this.stdioProcesses.get(key);
+      if (stdioProcess) {
+        stdioProcess.client = client;
+      }
+
+      this.logger.log(`MCP 客户端连接成功 (${actualTransport})`);
 
       return client;
     } catch (error) {
       const err = error as Error;
       this.logger.error(`MCP 客户端连接失败: ${err.message}`);
+
+      const stdioProcess = this.stdioProcesses.get(key);
+      if (stdioProcess) {
+        try {
+          stdioProcess.process.kill('SIGTERM');
+        } catch (e) {
+          // ignore
+        }
+        this.stdioProcesses.delete(key);
+      }
+
       throw error;
     }
   }
@@ -318,27 +399,31 @@ export class McpClientService implements OnModuleDestroy {
 
   /**
    * 清除客户端缓存
-   * @param url 可选，指定 URL 则只清除该 URL 的缓存
+   * @param key 可选，指定缓存 Key 则只清除该缓存
    */
-  async clearCache(url?: string): Promise<void> {
-    if (url) {
-      const keysToDelete = Array.from(this.clients.keys()).filter(k =>
-        k.startsWith(url),
-      );
-
-      for (const key of keysToDelete) {
-        const client = this.clients.get(key);
-        if (client) {
-          try {
-            await client.close();
-          } catch (error) {
-            this.logger.warn(`关闭客户端失败: ${(error as Error).message}`);
-          }
+  async clearCache(key?: string): Promise<void> {
+    if (key) {
+      const client = this.clients.get(key);
+      if (client) {
+        try {
+          await client.close();
+        } catch (error) {
+          this.logger.warn(`关闭客户端失败: ${(error as Error).message}`);
         }
         this.clients.delete(key);
       }
 
-      this.logger.debug(`清除了 ${keysToDelete.length} 个客户端缓存`);
+      const stdioProcess = this.stdioProcesses.get(key);
+      if (stdioProcess) {
+        try {
+          stdioProcess.process.kill('SIGTERM');
+        } catch (error) {
+          this.logger.warn(`终止 stdio 进程失败: ${(error as Error).message}`);
+        }
+        this.stdioProcesses.delete(key);
+      }
+
+      this.logger.debug(`清除了缓存: ${key}`);
     } else {
       for (const client of this.clients.values()) {
         try {
@@ -348,7 +433,33 @@ export class McpClientService implements OnModuleDestroy {
         }
       }
       this.clients.clear();
+
+      for (const { process } of this.stdioProcesses.values()) {
+        try {
+          process.kill('SIGTERM');
+        } catch (error) {
+          this.logger.warn(`终止 stdio 进程失败: ${(error as Error).message}`);
+        }
+      }
+      this.stdioProcesses.clear();
+
       this.logger.debug('清除了所有客户端缓存');
     }
+  }
+
+  /**
+   * 获取当前活跃的 stdio 进程数量
+   * @returns {number} 进程数量
+   */
+  getActiveStdioProcessCount(): number {
+    return this.stdioProcesses.size;
+  }
+
+  /**
+   * 获取当前缓存的客户端数量
+   * @returns {number} 客户端数量
+   */
+  getCachedClientCount(): number {
+    return this.clients.size;
   }
 }

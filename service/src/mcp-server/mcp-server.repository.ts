@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { McpServer } from '@prisma/client';
+import { McpTransport } from './types/mcp-server.types';
 
 /**
  * 创建 MCP Server 参数
@@ -9,7 +10,11 @@ export interface CreateMcpServerParams {
   name: string;
   displayName?: string;
   description?: string;
-  url: string;
+  transport?: McpTransport;
+  url?: string;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
   apiKey?: string;
   timeout?: number;
   enabled?: boolean;
@@ -25,7 +30,11 @@ export interface CreateMcpServerParams {
 export interface UpdateMcpServerParams {
   displayName?: string;
   description?: string;
+  transport?: McpTransport;
   url?: string;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
   apiKey?: string | null;
   timeout?: number;
   enabled?: boolean;
@@ -44,6 +53,7 @@ export interface FindMcpServerParams {
   enabled?: boolean;
   appCode?: string;
   healthStatus?: string;
+  transport?: McpTransport;
 }
 
 /**
@@ -71,7 +81,11 @@ export class McpServerRepository {
         name: params.name,
         displayName: params.displayName,
         description: params.description,
+        transport: params.transport || 'http',
         url: params.url,
+        command: params.command,
+        args: params.args ? JSON.stringify(params.args) : null,
+        env: params.env ? JSON.stringify(params.env) : null,
         apiKey: params.apiKey,
         timeout: params.timeout || 30000,
         enabled: params.enabled ?? true,
@@ -126,6 +140,7 @@ export class McpServerRepository {
         ...(params?.enabled !== undefined && { enabled: params.enabled }),
         ...(params?.appCode && { appCode: params.appCode }),
         ...(params?.healthStatus && { healthStatus: params.healthStatus }),
+        ...(params?.transport && { transport: params.transport }),
       },
       orderBy: {
         createdAt: 'desc',
@@ -155,7 +170,11 @@ export class McpServerRepository {
 
     if (params.displayName !== undefined) updateData.displayName = params.displayName;
     if (params.description !== undefined) updateData.description = params.description;
+    if (params.transport !== undefined) updateData.transport = params.transport;
     if (params.url !== undefined) updateData.url = params.url;
+    if (params.command !== undefined) updateData.command = params.command;
+    if (params.args !== undefined) updateData.args = JSON.stringify(params.args);
+    if (params.env !== undefined) updateData.env = JSON.stringify(params.env);
     if (params.apiKey !== undefined && params.apiKey !== '') {
       updateData.apiKey = params.apiKey;
     } else if (params.apiKey === null) {
@@ -273,6 +292,34 @@ export class McpServerRepository {
     if (!server.metadata) return {};
     try {
       return JSON.parse(server.metadata as string);
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * 解析 args 字段
+   * @param server MCP Server 记录
+   * @returns {string[]} 参数列表
+   */
+  parseArgs(server: McpServer): string[] {
+    if (!server.args) return [];
+    try {
+      return JSON.parse(server.args);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * 解析 env 字段
+   * @param server MCP Server 记录
+   * @returns {Record<string, string>} 环境变量对象
+   */
+  parseEnv(server: McpServer): Record<string, string> {
+    if (!server.env) return {};
+    try {
+      return JSON.parse(server.env);
     } catch {
       return {};
     }

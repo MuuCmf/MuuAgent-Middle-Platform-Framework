@@ -44,13 +44,17 @@ export class McpServerService {
    * @returns {Promise<ToolDescriptionDto[]>} 工具描述列表
    */
   async discoverTools(dto: DiscoverToolsDto): Promise<ToolDescriptionDto[]> {
-    this.logger.log(`开始发现工具: ${dto.url}`);
+    this.logger.log(`开始发现工具: ${dto.url || dto.command}`);
 
     try {
       const apiKey = await this.getApiKey(dto.serverId, dto.apiKey);
 
       const tools = await this.mcpClientService.listTools({
+        transport: dto.transport,
         url: dto.url,
+        command: dto.command,
+        args: dto.args,
+        env: dto.env,
         apiKey,
         timeout: dto.timeout || 30000,
       });
@@ -80,7 +84,11 @@ export class McpServerService {
     }
 
     const tools = await this.discoverTools({
+      transport: config.transport,
       url: config.url,
+      command: config.command,
+      args: config.args,
+      env: config.env,
       apiKey: config.apiKey,
       timeout: config.timeout,
     });
@@ -98,18 +106,24 @@ export class McpServerService {
    * @returns {Promise<{success: boolean; message: string; result?: unknown}>} 测试结果
    */
   async testConnection(dto: TestConnectionDto): Promise<{ success: boolean; message: string; result?: unknown }> {
-    this.logger.log(`测试连接: ${dto.url}`);
+    this.logger.log(`测试连接: ${dto.url || dto.command}`);
 
     try {
       const apiKey = await this.getApiKey(dto.serverId, dto.apiKey);
 
+      const config = {
+        transport: dto.transport,
+        url: dto.url,
+        command: dto.command,
+        args: dto.args,
+        env: dto.env,
+        apiKey,
+        timeout: dto.timeout || 30000,
+      };
+
       if (dto.toolName) {
         const result = await this.mcpClientService.callTool(
-          {
-            url: dto.url,
-            apiKey,
-            timeout: dto.timeout || 30000,
-          },
+          config,
           dto.toolName,
           dto.params || {},
         );
@@ -120,11 +134,7 @@ export class McpServerService {
           result,
         };
       } else {
-        const tools = await this.mcpClientService.listTools({
-          url: dto.url,
-          apiKey,
-          timeout: dto.timeout || 30000,
-        });
+        const tools = await this.mcpClientService.listTools(config);
 
         return {
           success: true,
@@ -161,7 +171,11 @@ export class McpServerService {
     }
 
     const result = await this.mcpClientService.healthCheck({
+      transport: config.transport,
       url: config.url,
+      command: config.command,
+      args: config.args,
+      env: config.env,
       apiKey: config.apiKey,
       timeout: config.timeout,
     });
@@ -187,7 +201,11 @@ export class McpServerService {
     const results = await Promise.allSettled(
       enabledConfigs.map(config =>
         this.discoverTools({
+          transport: config.transport,
           url: config.url,
+          command: config.command,
+          args: config.args,
+          env: config.env,
           apiKey: config.apiKey,
           timeout: config.timeout || 30000,
         }).then(tools => this.filterTools(tools, config.tools || [], config.name)),
@@ -223,7 +241,11 @@ export class McpServerService {
     const results = await Promise.allSettled(
       configs.map(async config => {
         const tools = await this.discoverTools({
+          transport: config.transport,
           url: config.url,
+          command: config.command,
+          args: config.args,
+          env: config.env,
           apiKey: config.apiKey,
           timeout: config.timeout,
         });
@@ -328,7 +350,11 @@ export class McpServerService {
 
     return this.mcpClientService.callTool(
       {
+        transport: config.transport,
         url: config.url,
+        command: config.command,
+        args: config.args,
+        env: config.env,
         apiKey: config.apiKey,
         timeout: config.timeout || 30000,
       },
@@ -362,7 +388,11 @@ export class McpServerService {
 
     return this.mcpClientService.callTool(
       {
+        transport: config.transport,
         url: config.url,
+        command: config.command,
+        args: config.args,
+        env: config.env,
         apiKey: config.apiKey,
         timeout: config.timeout,
       },
@@ -383,7 +413,11 @@ export class McpServerService {
     await Promise.all(
       configs.map(async config => {
         const result = await this.mcpClientService.healthCheck({
+          transport: config.transport,
           url: config.url,
+          command: config.command,
+          args: config.args,
+          env: config.env,
           apiKey: config.apiKey,
           timeout: 5000,
         });

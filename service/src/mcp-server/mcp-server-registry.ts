@@ -3,24 +3,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { McpServerRepository } from './mcp-server.repository';
 import { IsolationContext } from '../common/services/base-isolated.service';
 import { McpServer } from '@prisma/client';
+import { McpServerRuntimeConfig, McpTransport, validateMcpServerConfig } from './types/mcp-server.types';
 
 /**
  * MCP Server 配置（运行时使用）
  */
-export interface McpServerConfig {
-  id: string;
-  name: string;
-  displayName?: string;
-  description?: string;
-  url: string;
-  apiKey?: string;
-  timeout: number;
-  enabled: boolean;
-  tools: string[];
-  metadata: Record<string, unknown>;
-  appCode?: string;
-  healthStatus?: string;
-}
+export interface McpServerConfig extends McpServerRuntimeConfig {}
 
 /**
  * 缓存项
@@ -208,7 +196,11 @@ export class McpServerRegistry implements OnModuleInit {
       server = await this.repository.update(existing.id, {
         displayName: config.displayName,
         description: config.description,
+        transport: config.transport,
         url: config.url,
+        command: config.command,
+        args: config.args,
+        env: config.env,
         apiKey: config.apiKey,
         timeout: config.timeout,
         enabled: config.enabled,
@@ -223,7 +215,11 @@ export class McpServerRegistry implements OnModuleInit {
         name: config.name,
         displayName: config.displayName,
         description: config.description,
+        transport: config.transport,
         url: config.url,
+        command: config.command,
+        args: config.args,
+        env: config.env,
         apiKey: config.apiKey,
         timeout: config.timeout,
         enabled: config.enabled,
@@ -294,14 +290,11 @@ export class McpServerRegistry implements OnModuleInit {
       throw new Error('MCP Server 名称不能为空');
     }
 
-    if (!config.url) {
-      throw new Error('MCP Server URL 不能为空');
-    }
+    const transport = config.transport || 'http';
+    const validation = validateMcpServerConfig(transport, config.url, config.command);
 
-    try {
-      new URL(config.url);
-    } catch {
-      throw new Error(`MCP Server URL 格式无效: ${config.url}`);
+    if (!validation.valid) {
+      throw new Error(validation.errors.join('; '));
     }
   }
 
@@ -316,7 +309,11 @@ export class McpServerRegistry implements OnModuleInit {
       name: server.name,
       displayName: server.displayName || undefined,
       description: server.description || undefined,
-      url: server.url,
+      transport: (server.transport as McpTransport) || 'http',
+      url: server.url || undefined,
+      command: server.command || undefined,
+      args: this.repository.parseArgs(server),
+      env: this.repository.parseEnv(server),
       apiKey: server.apiKey || undefined,
       timeout: server.timeout,
       enabled: server.enabled,
