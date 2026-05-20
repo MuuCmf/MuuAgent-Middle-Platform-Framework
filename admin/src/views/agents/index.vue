@@ -101,7 +101,6 @@ import { Plus } from '@element-plus/icons-vue'
 import { useAgentStore, useSkillStore } from '@/stores'
 import type { Agent, AgentForm } from '@/api/agent'
 import AgentEditDrawer from './components/AgentEditDrawer.vue'
-import AppSelector from '@/components/AppSelector.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -114,7 +113,6 @@ const { loadAgents, createAgent, updateAgent, deleteAgent } = agentStore
 const skills = computed(() => skillStore.standardSkills)
 const { loadStandardSkills } = skillStore
 
-const filterAppCode = ref('')
 const drawerVisible = ref(false)
 const editingAgent = ref<Agent | null>(null)
 
@@ -156,10 +154,6 @@ const isWorkspaceEnabled = (agent: Agent) => {
   } catch {
     return false
   }
-}
-
-const handleAppFilterChange = () => {
-  loadAgents()
 }
 
 const handleAdd = () => {

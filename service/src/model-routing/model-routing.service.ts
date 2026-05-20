@@ -1,8 +1,7 @@
-import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { ModelService } from '../model/model.service';
-import { IntentClassifierService } from '../intent/intent.service';
-import { IntentRoutingLogService } from '../intent/routing-log/routing-log.service';
+import { Injectable, HttpException, HttpStatus, Logger } from "@nestjs/common";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { ModelService } from "../model/model.service";
+import { IntentRoutingLogService } from "../intent/routing-log/routing-log.service";
 import {
   CreateModelRoutingStrategyDto,
   UpdateModelRoutingStrategyDto,
@@ -10,8 +9,8 @@ import {
   UpdateModelRoutingRuleDto,
   StrategyType,
   CircuitStatus,
-} from './dto/model-routing.dto';
-import { Model } from '@prisma/client';
+} from "./dto/model-routing.dto";
+import { Model } from "@prisma/client";
 
 /**
  * 模型路由调度核心服务
@@ -33,7 +32,6 @@ export class ModelRoutingService {
   constructor(
     private prisma: PrismaService,
     private modelService: ModelService,
-    private intentClassifier: IntentClassifierService,
     private routingLogService: IntentRoutingLogService,
   ) {}
 
@@ -68,7 +66,7 @@ export class ModelRoutingService {
       where: { modelType },
     });
     if (!strategy) {
-      throw new HttpException('策略不存在', HttpStatus.NOT_FOUND);
+      throw new HttpException("策略不存在", HttpStatus.NOT_FOUND);
     }
 
     return this.prisma.modelRoutingStrategy.update({
@@ -119,7 +117,7 @@ export class ModelRoutingService {
    */
   async getAllStrategies() {
     return this.prisma.modelRoutingStrategy.findMany({
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -144,7 +142,10 @@ export class ModelRoutingService {
    * @param dto 规则DTO
    * @returns {Promise<Object>} 创建或更新后的规则
    */
-  async upsertRule(modelId: string, dto: CreateModelRoutingRuleDto | UpdateModelRoutingRuleDto) {
+  async upsertRule(
+    modelId: string,
+    dto: CreateModelRoutingRuleDto | UpdateModelRoutingRuleDto,
+  ) {
     const existingRule = await this.prisma.modelRoutingRule.findFirst({
       where: { modelId: modelId as any },
     });
@@ -179,7 +180,7 @@ export class ModelRoutingService {
       where: { modelId: modelId as any },
     });
     if (!rule) {
-      return this.createRule({ modelId : modelId as any, ...dto });
+      return this.createRule({ modelId: modelId as any, ...dto });
     }
 
     return this.prisma.modelRoutingRule.update({
@@ -199,7 +200,7 @@ export class ModelRoutingService {
     });
 
     if (!rule) {
-      rule = await this.createRule({ modelId : modelId as any });
+      rule = await this.createRule({ modelId: modelId as any });
     }
 
     return rule;
@@ -216,18 +217,20 @@ export class ModelRoutingService {
     const models = await this.modelService.getAvailableModels(modelType);
 
     if (!models.length) {
-      this.routingLogService.log({
-        userMessage: '',
-        detectedIntent: modelType,
-        confidence: 1.0,
-        source: 'auto',
-        modelType,
-        isDegraded: false,
-        costMs: Date.now() - startTime,
-        success: false,
-        errorMessage: '无可用模型',
-      }).catch(() => {});
-      throw new HttpException('无可用模型', HttpStatus.SERVICE_UNAVAILABLE);
+      this.routingLogService
+        .log({
+          userMessage: "",
+          detectedIntent: modelType,
+          confidence: 1.0,
+          source: "auto",
+          modelType,
+          isDegraded: false,
+          costMs: Date.now() - startTime,
+          success: false,
+          errorMessage: "无可用模型",
+        })
+        .catch(() => {});
+      throw new HttpException("无可用模型", HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     // 过滤掉熔断的模型
@@ -243,23 +246,29 @@ export class ModelRoutingService {
       // 所有模型都熔断，尝试使用降级模型
       if (strategy.fallbackModelId) {
         try {
-          const fallbackModel = await this.modelService.findOne(strategy.fallbackModelId);
-          this.routingLogService.log({
-            userMessage: '',
-            detectedIntent: modelType,
-            confidence: 1.0,
-            source: 'auto',
-            selectedModelId: Number(fallbackModel.id),
-            selectedModelCode: fallbackModel.code,
-            modelType,
-            isDegraded: true,
-            degradeReason: '所有模型熔断，使用降级模型',
-            costMs: Date.now() - startTime,
-            success: true,
-          }).catch(() => {});
+          const fallbackModel = await this.modelService.findOne(
+            strategy.fallbackModelId,
+          );
+          this.routingLogService
+            .log({
+              userMessage: "",
+              detectedIntent: modelType,
+              confidence: 1.0,
+              source: "auto",
+              selectedModelId: Number(fallbackModel.id),
+              selectedModelCode: fallbackModel.code,
+              modelType,
+              isDegraded: true,
+              degradeReason: "所有模型熔断，使用降级模型",
+              costMs: Date.now() - startTime,
+              success: true,
+            })
+            .catch(() => {});
           return fallbackModel;
         } catch {
-          this.logger.warn(`降级模型 ${strategy.fallbackModelId} 不可用，尝试兜底模型`);
+          this.logger.warn(
+            `降级模型 ${strategy.fallbackModelId} 不可用，尝试兜底模型`,
+          );
         }
       }
 
@@ -267,35 +276,39 @@ export class ModelRoutingService {
       if (models.length > 0) {
         const fallbackModel = models[0];
         this.logger.warn(`所有模型熔断，使用兜底模型: ${fallbackModel.code}`);
-        this.routingLogService.log({
-          userMessage: '',
-          detectedIntent: modelType,
-          confidence: 1.0,
-          source: 'auto',
-          selectedModelId: Number(fallbackModel.id),
-          selectedModelCode: fallbackModel.code,
-          modelType,
-          isDegraded: true,
-          degradeReason: '所有模型熔断，使用兜底模型',
-          costMs: Date.now() - startTime,
-          success: true,
-        }).catch(() => {});
+        this.routingLogService
+          .log({
+            userMessage: "",
+            detectedIntent: modelType,
+            confidence: 1.0,
+            source: "auto",
+            selectedModelId: Number(fallbackModel.id),
+            selectedModelCode: fallbackModel.code,
+            modelType,
+            isDegraded: true,
+            degradeReason: "所有模型熔断，使用兜底模型",
+            costMs: Date.now() - startTime,
+            success: true,
+          })
+          .catch(() => {});
         return fallbackModel;
       }
 
-      this.routingLogService.log({
-        userMessage: '',
-        detectedIntent: modelType,
-        confidence: 1.0,
-        source: 'auto',
-        modelType,
-        isDegraded: true,
-        degradeReason: '所有模型不可用',
-        costMs: Date.now() - startTime,
-        success: false,
-        errorMessage: '所有模型不可用',
-      }).catch(() => {});
-      throw new HttpException('所有模型不可用', HttpStatus.SERVICE_UNAVAILABLE);
+      this.routingLogService
+        .log({
+          userMessage: "",
+          detectedIntent: modelType,
+          confidence: 1.0,
+          source: "auto",
+          modelType,
+          isDegraded: true,
+          degradeReason: "所有模型不可用",
+          costMs: Date.now() - startTime,
+          success: false,
+          errorMessage: "所有模型不可用",
+        })
+        .catch(() => {});
+      throw new HttpException("所有模型不可用", HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     // 根据策略选择模型
@@ -318,20 +331,24 @@ export class ModelRoutingService {
     }
 
     // 记录路由日志
-    this.routingLogService.log({
-      userMessage: '',
-      detectedIntent: modelType,
-      confidence: 1.0,
-      source: 'auto',
-      selectedModelId: Number(selectedModel.id),
-      selectedModelCode: selectedModel.code,
-      modelType,
-      isDegraded: false,
-      costMs: Date.now() - startTime,
-      success: true,
-    }).catch(() => {});
+    this.routingLogService
+      .log({
+        userMessage: "",
+        detectedIntent: modelType,
+        confidence: 1.0,
+        source: "auto",
+        selectedModelId: Number(selectedModel.id),
+        selectedModelCode: selectedModel.code,
+        modelType,
+        isDegraded: false,
+        costMs: Date.now() - startTime,
+        success: true,
+      })
+      .catch(() => {});
 
-    this.logger.log(`模型调度: modelType=${modelType}, selected=${selectedModel.code}`);
+    this.logger.log(
+      `模型调度: modelType=${modelType}, selected=${selectedModel.code}`,
+    );
     return selectedModel;
   }
 
@@ -399,18 +416,20 @@ export class ModelRoutingService {
         const model = await this.modelService.findByCode(specifiedModelCode);
         if (this.modelSupportsIntent(model, intent, modelType)) {
           // 记录路由日志
-          this.routingLogService.log({
-            userMessage: '',
-            detectedIntent: intent,
-            confidence: 1.0,
-            source: 'specified',
-            selectedModelId: Number(model.id),
-            selectedModelCode: model.code,
-            modelType,
-            isDegraded: false,
-            costMs: Date.now() - startTime,
-            success: true,
-          }).catch(() => {});
+          this.routingLogService
+            .log({
+              userMessage: "",
+              detectedIntent: intent,
+              confidence: 1.0,
+              source: "specified",
+              selectedModelId: Number(model.id),
+              selectedModelCode: model.code,
+              modelType,
+              isDegraded: false,
+              costMs: Date.now() - startTime,
+              success: true,
+            })
+            .catch(() => {});
           return model;
         }
         isDegraded = true;
@@ -429,19 +448,21 @@ export class ModelRoutingService {
 
     if (!models.length) {
       // 记录失败日志
-      this.routingLogService.log({
-        userMessage: '',
-        detectedIntent: intent,
-        confidence: 1.0,
-        source: 'auto',
-        modelType,
-        isDegraded,
-        degradeReason: degradeReason || '无可用模型',
-        costMs: Date.now() - startTime,
-        success: false,
-        errorMessage: '无可用模型',
-      }).catch(() => {});
-      throw new HttpException('无可用模型', HttpStatus.SERVICE_UNAVAILABLE);
+      this.routingLogService
+        .log({
+          userMessage: "",
+          detectedIntent: intent,
+          confidence: 1.0,
+          source: "auto",
+          modelType,
+          isDegraded,
+          degradeReason: degradeReason || "无可用模型",
+          costMs: Date.now() - startTime,
+          success: false,
+          errorMessage: "无可用模型",
+        })
+        .catch(() => {});
+      throw new HttpException("无可用模型", HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     // 3. 按意图筛选模型
@@ -460,23 +481,29 @@ export class ModelRoutingService {
       // 所有模型都熔断，尝试使用降级模型
       if (strategy.fallbackModelId) {
         try {
-          const fallbackModel = await this.modelService.findOne(strategy.fallbackModelId);
-          this.routingLogService.log({
-            userMessage: '',
-            detectedIntent: intent,
-            confidence: 1.0,
-            source: 'auto',
-            selectedModelId: Number(fallbackModel.id),
-            selectedModelCode: fallbackModel.code,
-            modelType,
-            isDegraded: true,
-            degradeReason: '所有模型熔断，使用降级模型',
-            costMs: Date.now() - startTime,
-            success: true,
-          }).catch(() => {});
+          const fallbackModel = await this.modelService.findOne(
+            strategy.fallbackModelId,
+          );
+          this.routingLogService
+            .log({
+              userMessage: "",
+              detectedIntent: intent,
+              confidence: 1.0,
+              source: "auto",
+              selectedModelId: Number(fallbackModel.id),
+              selectedModelCode: fallbackModel.code,
+              modelType,
+              isDegraded: true,
+              degradeReason: "所有模型熔断，使用降级模型",
+              costMs: Date.now() - startTime,
+              success: true,
+            })
+            .catch(() => {});
           return fallbackModel;
         } catch {
-          this.logger.warn(`降级模型 ${strategy.fallbackModelId} 不可用，尝试兜底模型`);
+          this.logger.warn(
+            `降级模型 ${strategy.fallbackModelId} 不可用，尝试兜底模型`,
+          );
         }
       }
 
@@ -484,35 +511,39 @@ export class ModelRoutingService {
       if (models.length > 0) {
         const fallbackModel = models[0];
         this.logger.warn(`所有模型熔断，使用兜底模型: ${fallbackModel.code}`);
-        this.routingLogService.log({
-          userMessage: '',
-          detectedIntent: intent,
-          confidence: 1.0,
-          source: 'auto',
-          selectedModelId: Number(fallbackModel.id),
-          selectedModelCode: fallbackModel.code,
-          modelType,
-          isDegraded: true,
-          degradeReason: '所有模型熔断，使用兜底模型',
-          costMs: Date.now() - startTime,
-          success: true,
-        }).catch(() => {});
+        this.routingLogService
+          .log({
+            userMessage: "",
+            detectedIntent: intent,
+            confidence: 1.0,
+            source: "auto",
+            selectedModelId: Number(fallbackModel.id),
+            selectedModelCode: fallbackModel.code,
+            modelType,
+            isDegraded: true,
+            degradeReason: "所有模型熔断，使用兜底模型",
+            costMs: Date.now() - startTime,
+            success: true,
+          })
+          .catch(() => {});
         return fallbackModel;
       }
 
-      this.routingLogService.log({
-        userMessage: '',
-        detectedIntent: intent,
-        confidence: 1.0,
-        source: 'auto',
-        modelType,
-        isDegraded: true,
-        degradeReason: '所有模型不可用',
-        costMs: Date.now() - startTime,
-        success: false,
-        errorMessage: '所有模型不可用',
-      }).catch(() => {});
-      throw new HttpException('所有模型不可用', HttpStatus.SERVICE_UNAVAILABLE);
+      this.routingLogService
+        .log({
+          userMessage: "",
+          detectedIntent: intent,
+          confidence: 1.0,
+          source: "auto",
+          modelType,
+          isDegraded: true,
+          degradeReason: "所有模型不可用",
+          costMs: Date.now() - startTime,
+          success: false,
+          errorMessage: "所有模型不可用",
+        })
+        .catch(() => {});
+      throw new HttpException("所有模型不可用", HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     // 5. 按策略选择模型
@@ -539,21 +570,25 @@ export class ModelRoutingService {
       degradeReason = `${degradeReason}，自动调度切换至 ${selectedModel.code}`;
     }
 
-    this.routingLogService.log({
-      userMessage: '',
-      detectedIntent: intent,
-      confidence: 1.0,
-      source: 'auto',
-      selectedModelId: Number(selectedModel.id),
-      selectedModelCode: selectedModel.code,
-      modelType,
-      isDegraded,
-      degradeReason,
-      costMs: Date.now() - startTime,
-      success: true,
-    }).catch(() => {});
+    this.routingLogService
+      .log({
+        userMessage: "",
+        detectedIntent: intent,
+        confidence: 1.0,
+        source: "auto",
+        selectedModelId: Number(selectedModel.id),
+        selectedModelCode: selectedModel.code,
+        modelType,
+        isDegraded,
+        degradeReason,
+        costMs: Date.now() - startTime,
+        success: true,
+      })
+      .catch(() => {});
 
-    this.logger.log(`意图调度: intent=${intent}, modelType=${modelType}, selected=${selectedModel.code}`);
+    this.logger.log(
+      `意图调度: intent=${intent}, modelType=${modelType}, selected=${selectedModel.code}`,
+    );
     return selectedModel;
   }
 
@@ -564,16 +599,20 @@ export class ModelRoutingService {
    * @param modelType 模型技术类型
    * @returns {boolean} 是否支持
    */
-  modelSupportsIntent(model: Model, intent: string, modelType: string): boolean {
+  modelSupportsIntent(
+    model: Model,
+    intent: string,
+    modelType: string,
+  ): boolean {
     // image/tts/asr/embedding 类型：意图必须与模型类型匹配
-    if (['image', 'tts', 'asr', 'embedding'].includes(intent)) {
+    if (["image", "tts", "asr", "embedding"].includes(intent)) {
       return model.type === intent;
     }
 
     // llm/multimodal 类型：检查 category 匹配
-    if (modelType === 'llm' || modelType === 'multimodal') {
+    if (modelType === "llm" || modelType === "multimodal") {
       // general 分类的模型支持所有意图
-      if (!model.category || model.category === 'general') return true;
+      if (!model.category || model.category === "general") return true;
       // 精确匹配
       return model.category === intent;
     }
@@ -590,14 +629,14 @@ export class ModelRoutingService {
    */
   filterByIntent(models: Model[], intent: string, modelType: string): Model[] {
     // image/tts/asr 等特殊类型不需要按 category 筛选，直接返回
-    if (['image', 'tts', 'asr', 'embedding'].includes(modelType)) {
+    if (["image", "tts", "asr", "embedding"].includes(modelType)) {
       return models;
     }
 
     // LLM 类型按 category 筛选
-    if (modelType === 'llm' || modelType === 'multimodal') {
-      const filtered = models.filter(m =>
-        !m.category || m.category === 'general' || m.category === intent,
+    if (modelType === "llm" || modelType === "multimodal") {
+      const filtered = models.filter(
+        (m) => !m.category || m.category === "general" || m.category === intent,
       );
 
       // 如果没有精确匹配，回退到所有模型
@@ -645,7 +684,7 @@ export class ModelRoutingService {
         }
         return true;
       }
-      throw new HttpException('模型熔断中', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new HttpException("模型熔断中", HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     return true;
@@ -675,7 +714,10 @@ export class ModelRoutingService {
       updateData.errorCount = errorCount;
 
       // 检查是否需要熔断
-      if (strategy?.enableCircuit && errorCount >= (strategy.circuitThreshold || 5)) {
+      if (
+        strategy?.enableCircuit &&
+        errorCount >= (strategy.circuitThreshold || 5)
+      ) {
         updateData.circuitStatus = CircuitStatus.OPEN;
         updateData.circuitOpenTime = new Date();
         this.logger.warn(`模型 ${modelId} 触发熔断，错误次数: ${errorCount}`);
@@ -732,7 +774,7 @@ export class ModelRoutingService {
     });
 
     if (result.count === 0) {
-      throw new HttpException('模型并发数已满', HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException("模型并发数已满", HttpStatus.TOO_MANY_REQUESTS);
     }
 
     return true;
@@ -804,7 +846,7 @@ export class ModelRoutingService {
     });
 
     if (!rule) {
-      throw new HttpException('规则不存在', HttpStatus.NOT_FOUND);
+      throw new HttpException("规则不存在", HttpStatus.NOT_FOUND);
     }
 
     return this.prisma.modelRoutingRule.delete({
@@ -818,7 +860,7 @@ export class ModelRoutingService {
    */
   async getAllModelStatus() {
     const models = await this.prisma.model.findMany();
-    const modelIds = models.map(m => m.id);
+    const modelIds = models.map((m) => m.id);
 
     // 批量获取所有路由规则
     const allRules = await this.prisma.modelRoutingRule.findMany({
@@ -830,7 +872,7 @@ export class ModelRoutingService {
     }
 
     // 按模型类型获取策略
-    const modelTypes = [...new Set(models.map(m => m.type))];
+    const modelTypes = [...new Set(models.map((m) => m.type))];
     const allStrategies = await this.prisma.modelRoutingStrategy.findMany({
       where: { modelType: { in: modelTypes } },
     });
@@ -844,7 +886,7 @@ export class ModelRoutingService {
 
     // 批量获取最近60秒统计数据
     const successStats = await this.prisma.aiInvokeLog.groupBy({
-      by: ['modelId'],
+      by: ["modelId"],
       where: {
         modelId: { in: modelIds as any },
         success: true,
@@ -854,7 +896,7 @@ export class ModelRoutingService {
     });
 
     const failureStats = await this.prisma.aiInvokeLog.groupBy({
-      by: ['modelId'],
+      by: ["modelId"],
       where: {
         modelId: { in: modelIds as any },
         success: false,
@@ -886,7 +928,9 @@ export class ModelRoutingService {
       // 计算下次重试时间（仅在熔断开启状态）
       let nextRetryTime: string | undefined;
       if (rule?.circuitStatus === CircuitStatus.OPEN && rule?.circuitOpenTime) {
-        const retryTime = new Date(rule.circuitOpenTime.getTime() + circuitTimeout);
+        const retryTime = new Date(
+          rule.circuitOpenTime.getTime() + circuitTimeout,
+        );
         if (retryTime > new Date()) {
           nextRetryTime = retryTime.toISOString();
         }
@@ -897,7 +941,7 @@ export class ModelRoutingService {
         modelCode: model.code,
         modelName: model.name,
         status: model.status,
-        circuitStatus: rule?.circuitStatus || 'closed',
+        circuitStatus: rule?.circuitStatus || "closed",
         errorCount: rule?.errorCount || 0,
         currentConcurrent: rule?.currentConcurrent || 0,
         maxConcurrent: rule?.maxConcurrent || 5,

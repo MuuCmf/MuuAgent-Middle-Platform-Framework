@@ -163,7 +163,6 @@ import { useSkillStore } from '@/stores'
 import { skillApi } from '@/api/skill'
 import SkillImportDialog from './components/SkillImportDialog.vue'
 import SkillMdPreview from './components/SkillMdPreview.vue'
-import AppSelector from '@/components/AppSelector.vue'
 
 const skillStore = useSkillStore()
 
@@ -178,11 +177,6 @@ const skillStats = computed(() => skillStore.skillStats)
 const importDialogVisible = ref(false)
 const previewDialogVisible = ref(false)
 const previewSkillData = ref<{ frontmatter: Record<string, unknown>; body: string; rawContent: string } | null>(null)
-
-// 处理应用筛选变化
-const handleAppFilterChange = () => {
-  loadStandardSkills(filterAppCode.value)
-}
 
 // 处理扫描点击事件
 const handleScan = async () => {

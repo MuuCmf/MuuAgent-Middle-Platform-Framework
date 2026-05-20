@@ -176,7 +176,6 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { logApi, type AgentLog } from '@/api/log'
 import type { ReasoningStep } from '@/api/agent'
-import { el } from 'element-plus/es/locale/index.mjs'
 
 const loading = ref(false)
 const logs = ref<AgentLog[]>([])

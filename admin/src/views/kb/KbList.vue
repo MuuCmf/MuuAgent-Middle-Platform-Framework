@@ -145,7 +145,6 @@ import { Plus, Search, FolderOpened, View, Edit, Delete } from '@element-plus/ic
 import { kbApi } from '@/api'
 import type { KbInfo } from '@/api/kb'
 import KbEditDialog from './components/KbEditDialog.vue'
-import AppSelector from '@/components/AppSelector.vue'
 
 const router = useRouter()
 
@@ -156,7 +155,6 @@ const currentPage = ref(1)
 const pageSize = ref(12)
 const searchKeyword = ref('')
 const statusFilter = ref<boolean | ''>('')
-const filterAppCode = ref('')
 
 const dialogVisible = ref(false)
 const editData = ref<KbInfo | null>(null)
@@ -180,11 +178,6 @@ const fetchKbList = async () => {
 }
 
 const handleSearch = () => {
-  currentPage.value = 1
-  fetchKbList()
-}
-
-const handleAppFilterChange = () => {
   currentPage.value = 1
   fetchKbList()
 }

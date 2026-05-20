@@ -126,14 +126,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { promptTemplateApi, type PromptTemplate } from '@/api/prompt-template'
 import PromptTemplateEditDrawer from './components/PromptTemplateEditDrawer.vue'
-import AppSelector from '@/components/AppSelector.vue'
 
 const loading = ref(false)
 const templates = ref<PromptTemplate[]>([])
 const drawerVisible = ref(false)
 const editingTemplate = ref<PromptTemplate | null>(null)
-
-const filterAppCode = ref('')
 
 const filters = reactive({
   category: '',
@@ -163,11 +160,6 @@ const fetchTemplates = async () => {
 }
 
 const handleFilter = () => {
-  page.value = 1
-  fetchTemplates()
-}
-
-const handleAppFilterChange = () => {
   page.value = 1
   fetchTemplates()
 }
