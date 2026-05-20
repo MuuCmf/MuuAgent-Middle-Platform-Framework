@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ToolRegistry } from '../tools/tool-registry';
 import { McpServerService } from '../../mcp-server/mcp-server.service';
 import { McpServerRegistry } from '../../mcp-server/mcp-server-registry';
-import { KbSearchTool } from '../tools/kb-search.tool';
+import { KbSearchTool } from '../tools/builtin/kb-search.tool';
 import { ToolDefinition } from '../tools/abstract/tool.interface';
 import { WORKSPACE_TOOLS } from '../../workspace/workspace-tool.definitions';
 import { SkillResolutionResult } from './skill-resolution.builder';
@@ -39,19 +39,11 @@ export class ToolAssemblyBuilder {
     this.logger.debug(`Built ${tools.filter(t => t.type === 'mcp').length} MCP tools`);
 
     if (enableKbTool && resolvedKbCodes.length > 0) {
-      const kbTool = await this.kbSearchTool.getToolDefinition(
-        agent.id,
-        resolvedKbCodes,
-        kbToolConfig,
-      );
-      if (kbTool) {
-        tools.push({
-          name: kbTool.name,
-          description: kbTool.description,
-          parameters: kbTool.parameters,
-          type: 'kb' as const,
-        });
-      }
+      const kbDef = this.kbSearchTool.definition;
+      tools.push({
+        ...kbDef,
+        description: `${kbDef.description} 可用知识库代码: ${resolvedKbCodes.join(', ')}`,
+      });
     }
 
     // 注册工具（use_skill, run_script, run_code 等）

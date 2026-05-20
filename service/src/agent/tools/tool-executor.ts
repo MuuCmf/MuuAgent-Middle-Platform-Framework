@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, Inject } from '@nestjs/common';
 import { ToolCall, ToolExecutionResult, ToolExecutionContext } from './abstract/tool.interface';
-import { IToolDispatcher, TOOL_DISPATCHERS } from './tool-dispatchers';
+import { IToolDispatcher, TOOL_DISPATCHERS } from './dispatchers';
 import { LruCache, CacheStats } from './utils/lru-cache';
 
 /**

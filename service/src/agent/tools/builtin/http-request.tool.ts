@@ -1,6 +1,8 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import axios from 'axios';
-import { IAgentTool, ToolDefinition, ToolExecutionContext } from './abstract/tool.interface';
+import { BaseTool } from '../abstract/base-tool';
+import { ToolDefinition, ToolExecutionContext } from '../abstract/tool.interface';
+import { AgentTool } from '../decorators';
 
 export interface HttpRequestResult {
   status: number;
@@ -11,19 +13,17 @@ export interface HttpRequestResult {
   error?: string;
 }
 
-@Injectable()
-export class HttpRequestTool implements IAgentTool {
-  private readonly logger = new Logger(HttpRequestTool.name);
-
+/**
+ * HTTP 请求工具
+ * 用于发起 HTTP 请求，调用外部 API、发送 webhook、获取远程数据等
+ */
+@AgentTool({
+  name: 'http_request',
+  enabled: true,
+  category: 'builtin',
+})
+export class HttpRequestTool extends BaseTool {
   readonly name = 'http_request';
-
-  private readonly blockedHosts = [
-    'localhost', '127.0.0.1', '0.0.0.0', '::1',
-    '169.254.', '10.', '172.16.', '172.17.', '172.18.',
-    '172.19.', '172.20.', '172.21.', '172.22.', '172.23.',
-    '172.24.', '172.25.', '172.26.', '172.27.', '172.28.',
-    '172.29.', '172.30.', '172.31.', '192.168.',
-  ];
 
   readonly definition: ToolDefinition = {
     name: 'http_request',
@@ -33,9 +33,16 @@ export class HttpRequestTool implements IAgentTool {
     parameters: {
       type: 'object',
       properties: {
-        method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'], description: 'HTTP 方法' },
+        method: {
+          type: 'string',
+          enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'],
+          description: 'HTTP 方法',
+        },
         url: { type: 'string', description: '完整的请求 URL（含协议）' },
-        headers: { type: 'object', description: '请求头，如 {"Authorization": "Bearer xxx", "Content-Type": "application/json"}' },
+        headers: {
+          type: 'object',
+          description: '请求头，如 {"Authorization": "Bearer xxx", "Content-Type": "application/json"}',
+        },
         query: { type: 'object', description: 'URL 查询参数（GET 请求时自动拼接）' },
         body: { description: '请求体（POST/PUT/PATCH 时使用）。可以是 JSON 对象或字符串' },
         timeout: { type: 'number', description: '超时时间（毫秒），默认 30000' },
@@ -45,16 +52,40 @@ export class HttpRequestTool implements IAgentTool {
     type: 'builtin',
   };
 
-  constructor() {}
+  private readonly blockedHosts = [
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    '::1',
+    '169.254.',
+    '10.',
+    '172.16.',
+    '172.17.',
+    '172.18.',
+    '172.19.',
+    '172.20.',
+    '172.21.',
+    '172.22.',
+    '172.23.',
+    '172.24.',
+    '172.25.',
+    '172.26.',
+    '172.27.',
+    '172.28.',
+    '172.29.',
+    '172.30.',
+    '172.31.',
+    '192.168.',
+  ];
 
   async execute(args: Record<string, unknown>, _context: ToolExecutionContext): Promise<unknown> {
     const startTime = Date.now();
-    const method = args.method as string;
-    const url = args.url as string;
-    const headers = args.headers as Record<string, string> | undefined;
-    const query = args.query as Record<string, string> | undefined;
-    const body = args.body as unknown;
-    const timeout = args.timeout as number | undefined;
+    const method = this.getArg<string>(args, 'method');
+    const url = this.getArg<string>(args, 'url');
+    const headers = this.getArg<Record<string, string>>(args, 'headers');
+    const query = this.getArg<Record<string, string>>(args, 'query');
+    const body = args.body;
+    const timeout = this.getArg<number>(args, 'timeout', 30000);
 
     this.validateUrl(url);
 
@@ -65,7 +96,7 @@ export class HttpRequestTool implements IAgentTool {
         headers,
         params: query,
         data: body,
-        timeout: timeout || 30000,
+        timeout,
         maxRedirects: 5,
         maxContentLength: 1024 * 1024,
         maxBodyLength: 1024 * 1024,
@@ -90,10 +121,17 @@ export class HttpRequestTool implements IAgentTool {
           error: error.message,
         };
       }
-      throw new HttpException(`HTTP 请求失败: ${(error as Error).message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        `HTTP 请求失败: ${(error as Error).message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
+  /**
+   * 验证 URL 是否为允许访问的地址
+   * @param url 请求 URL
+   */
   private validateUrl(url: string): void {
     let hostname: string;
     try {
@@ -109,6 +147,12 @@ export class HttpRequestTool implements IAgentTool {
     }
   }
 
+  /**
+   * 截断过大的响应数据
+   * @param data 响应数据
+   * @param maxSize 最大尺寸
+   * @returns 处理后的数据
+   */
   private truncateIfNeeded(data: unknown, maxSize = 100 * 1024): unknown {
     const str = typeof data === 'string' ? data : JSON.stringify(data);
     if (str.length > maxSize) {

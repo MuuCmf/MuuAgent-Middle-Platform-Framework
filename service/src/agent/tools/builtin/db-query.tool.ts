@@ -1,8 +1,10 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
-import { ConnectionPoolManager } from '../../skill/database/connection-pool.manager';
-import { SqlValidator } from '../../skill/database/sql-validator';
-import { IAgentTool, ToolDefinition, ToolExecutionContext } from './abstract/tool.interface';
+import { BaseTool } from '../abstract/base-tool';
+import { ToolDefinition, ToolExecutionContext } from '../abstract/tool.interface';
+import { AgentTool } from '../decorators';
+import { ConnectionPoolManager } from '../../../skill/database/connection-pool.manager';
+import { SqlValidator } from '../../../skill/database/sql-validator';
 
 export interface DbQueryResult {
   rows: unknown[];
@@ -11,10 +13,16 @@ export interface DbQueryResult {
   duration: number;
 }
 
-@Injectable()
-export class DbQueryTool implements IAgentTool {
-  private readonly logger = new Logger(DbQueryTool.name);
-
+/**
+ * 数据库查询工具
+ * 执行只读数据库查询（仅允许 SELECT/SHOW/DESCRIBE/EXPLAIN）
+ */
+@AgentTool({
+  name: 'db_query',
+  enabled: true,
+  category: 'builtin',
+})
+export class DbQueryTool extends BaseTool {
   readonly name = 'db_query';
 
   readonly definition: ToolDefinition = {
@@ -28,9 +36,15 @@ export class DbQueryTool implements IAgentTool {
         host: { type: 'string', description: '数据库主机地址' },
         port: { type: 'number', description: '数据库端口，默认 3306' },
         user: { type: 'string', description: '数据库用户名' },
-        password: { type: 'string', description: '数据库密码。支持 {{ENV:VAR_NAME}} 引用环境变量' },
+        password: {
+          type: 'string',
+          description: '数据库密码。支持 {{ENV:VAR_NAME}} 引用环境变量',
+        },
         database: { type: 'string', description: '数据库名称' },
-        sql: { type: 'string', description: 'SQL 查询语句（仅允许 SELECT/SHOW/DESCRIBE/EXPLAIN）。使用 :paramName 引用参数' },
+        sql: {
+          type: 'string',
+          description: 'SQL 查询语句（仅允许 SELECT/SHOW/DESCRIBE/EXPLAIN）。使用 :paramName 引用参数',
+        },
         params: { type: 'object', description: 'SQL 参数键值对，键名对应 SQL 中的 :paramName' },
         max_rows: { type: 'number', description: '最大返回行数，默认 100，上限 1000' },
         timeout: { type: 'number', description: '超时（毫秒），默认 10000' },
@@ -43,19 +57,21 @@ export class DbQueryTool implements IAgentTool {
   constructor(
     private readonly poolManager: ConnectionPoolManager,
     private readonly sqlValidator: SqlValidator,
-  ) {}
+  ) {
+    super();
+  }
 
   async execute(args: Record<string, unknown>, _context: ToolExecutionContext): Promise<unknown> {
     const startTime = Date.now();
-    const host = args.host as string;
-    const port = args.port as number | undefined;
-    const user = args.user as string;
-    const password = args.password as string;
-    const database = args.database as string;
-    const sql = args.sql as string;
-    const params = args.params as Record<string, unknown> | undefined;
-    const max_rows = args.max_rows as number | undefined;
-    const timeout = args.timeout as number | undefined;
+    const host = this.getArg<string>(args, 'host');
+    const port = this.getArg<number>(args, 'port', 3306);
+    const user = this.getArg<string>(args, 'user');
+    const password = this.getArg<string>(args, 'password');
+    const database = this.getArg<string>(args, 'database');
+    const sql = this.getArg<string>(args, 'sql');
+    const params = this.getArg<Record<string, unknown>>(args, 'params', {});
+    const maxRows = Math.min(this.getArg<number>(args, 'max_rows', 100), 1000);
+    const timeout = this.getArg<number>(args, 'timeout', 10000);
 
     const validation = this.sqlValidator.validate(sql, true);
     if (!validation.valid) {
@@ -69,23 +85,22 @@ export class DbQueryTool implements IAgentTool {
     }
 
     const resolvedPassword = this.resolveEnvVars(password);
-    const maxRows = Math.min(max_rows || 100, 1000);
 
     const pool = this.poolManager.getPool('mysql', {
       host,
-      port: port || 3306,
+      port,
       user,
       password: resolvedPassword,
       database,
     });
 
-    const { sql: parameterizedSql, values } = this.convertNamedParams(sql, params || {});
+    const { sql: parameterizedSql, values } = this.convertNamedParams(sql, params);
     const finalSql = parameterizedSql.toUpperCase().includes('LIMIT')
       ? parameterizedSql
       : `${parameterizedSql.trim().replace(/;+\s*$/, '')} LIMIT ${maxRows}`;
 
     try {
-      const [rows] = await this.queryWithTimeout(pool, finalSql, values, timeout || 10000);
+      const [rows] = await this.queryWithTimeout(pool, finalSql, values, timeout);
       const rowArray = rows as unknown[];
       const costMs = Date.now() - startTime;
 
@@ -107,7 +122,16 @@ export class DbQueryTool implements IAgentTool {
     }
   }
 
-  private convertNamedParams(sql: string, params: Record<string, unknown>): { sql: string; values: unknown[] } {
+  /**
+   * 转换命名参数为位置参数
+   * @param sql SQL 语句
+   * @param params 参数对象
+   * @returns 转换后的 SQL 和参数数组
+   */
+  private convertNamedParams(
+    sql: string,
+    params: Record<string, unknown>,
+  ): { sql: string; values: unknown[] } {
     const values: unknown[] = [];
     const converted = sql.replace(/:(\w+)/g, (_match, paramName) => {
       if (!(paramName in params)) {
@@ -119,14 +143,33 @@ export class DbQueryTool implements IAgentTool {
     return { sql: converted, values };
   }
 
-  private async queryWithTimeout(pool: mysql.Pool, sql: string, values: unknown[], timeoutMs: number): Promise<[mysql.QueryResult, mysql.FieldPacket[]]> {
+  /**
+   * 带超时的查询
+   * @param pool 连接池
+   * @param sql SQL 语句
+   * @param values 参数值
+   * @param timeoutMs 超时时间
+   */
+  private async queryWithTimeout(
+    pool: mysql.Pool,
+    sql: string,
+    values: unknown[],
+    timeoutMs: number,
+  ): Promise<[mysql.QueryResult, mysql.FieldPacket[]]> {
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error(`数据库查询超时 (${timeoutMs}ms)`)), timeoutMs);
     });
     const queryPromise = pool.query(sql, values);
-    return Promise.race([queryPromise, timeoutPromise]) as Promise<[mysql.QueryResult, mysql.FieldPacket[]]>;
+    return Promise.race([queryPromise, timeoutPromise]) as Promise<
+      [mysql.QueryResult, mysql.FieldPacket[]]
+    >;
   }
 
+  /**
+   * 解析环境变量引用
+   * @param value 包含环境变量引用的字符串
+   * @returns 解析后的字符串
+   */
   private resolveEnvVars(value: string): string {
     return value.replace(/\{\{ENV:(\w+)\}\}/g, (_match, varName) => {
       const envValue = process.env[varName];

@@ -1,23 +1,41 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
-import { IAgentTool, ToolDefinition, ToolExecutionContext } from '../abstract/tool.interface';
+import { HttpException, HttpStatus } from '@nestjs/common';
+import { BaseTool } from '../abstract/base-tool';
+import { ToolDefinition, ToolExecutionContext } from '../abstract/tool.interface';
+import { AgentTool } from '../decorators';
 import { SkillRegistry } from '../../../skill/skill-registry';
 import { ScriptRunner, ScriptResult } from '../../../skill/standard/script-runner';
 
-@Injectable()
-export class RunScriptTool implements IAgentTool {
-  private readonly logger = new Logger(RunScriptTool.name);
-
+/**
+ * 脚本执行工具
+ * 执行技能预置的脚本（位于技能目录 scripts/ 中）
+ */
+@AgentTool({
+  name: 'run_script',
+  enabled: true,
+  category: 'skill-meta',
+})
+export class RunScriptTool extends BaseTool {
   readonly name = 'run_script';
 
   readonly definition: ToolDefinition = {
     name: 'run_script',
-    description: '执行技能预置的脚本（位于技能目录 scripts/ 中）。使用前必须先通过 use_skill 加载技能指令。支持的脚本类型: .js / .py / .sh。',
+    description:
+      '执行技能预置的脚本（位于技能目录 scripts/ 中）。使用前必须先通过 use_skill 加载技能指令。支持的脚本类型: .js / .py / .sh。',
     parameters: {
       type: 'object',
       properties: {
-        skill_name: { type: 'string', description: '技能名称。必须已通过 use_skill 加载' },
-        script: { type: 'string', description: '脚本路径（相对于技能 scripts/ 目录），如 "extract.py" 或 "process_data.js"' },
-        args: { type: 'object', description: '传递给脚本的参数。JS 通过 params 变量接收；Python/Bash 通过 stdin JSON 接收' },
+        skill_name: {
+          type: 'string',
+          description: '技能名称。必须已通过 use_skill 加载',
+        },
+        script: {
+          type: 'string',
+          description: '脚本路径（相对于技能 scripts/ 目录），如 "extract.py" 或 "process_data.js"',
+        },
+        args: {
+          type: 'object',
+          description: '传递给脚本的参数。JS 通过 params 变量接收；Python/Bash 通过 stdin JSON 接收',
+        },
         timeout: { type: 'number', description: '超时（毫秒），默认 30000' },
       },
       required: ['skill_name', 'script'],
@@ -28,13 +46,15 @@ export class RunScriptTool implements IAgentTool {
   constructor(
     private readonly skillRegistry: SkillRegistry,
     private readonly scriptRunner: ScriptRunner,
-  ) {}
+  ) {
+    super();
+  }
 
   async execute(args: Record<string, unknown>, _context: ToolExecutionContext): Promise<unknown> {
-    const skillName = args.skill_name as string;
-    const script = args.script as string;
-    const scriptArgs = args.args as Record<string, string> | undefined;
-    const timeout = args.timeout as number | undefined;
+    const skillName = this.getArg<string>(args, 'skill_name');
+    const script = this.getArg<string>(args, 'script');
+    const scriptArgs = this.getArg<Record<string, string>>(args, 'args', {});
+    const timeout = this.getArg<number>(args, 'timeout');
 
     if (!skillName) {
       throw new Error('缺少 skill_name 参数');
@@ -65,7 +85,7 @@ export class RunScriptTool implements IAgentTool {
     const result: ScriptResult = await this.scriptRunner.run(
       skillDir,
       `scripts/${normalizedScript}`,
-      scriptArgs || {},
+      scriptArgs,
       { timeout },
     );
 
