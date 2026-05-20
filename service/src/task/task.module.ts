@@ -7,6 +7,8 @@ import { DocumentProcessor } from './processors/document.processor';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { VectorModule } from '../vector/vector.module';
 import { AiModule } from '../ai/ai.module';
+import { RetrievalModule } from '../retrieval/retrieval.module';
+import { CacheService } from '../cache/cache.service';
 
 /**
  * 任务队列模块
@@ -31,9 +33,10 @@ import { AiModule } from '../ai/ai.module';
     PrismaModule,
     VectorModule,
     AiModule,
+    RetrievalModule,
   ],
   controllers: [TaskAdminController],
-  providers: [TaskService, DocumentProcessor],
+  providers: [TaskService, DocumentProcessor, CacheService],
   exports: [TaskService],
 })
 export class TaskModule {}

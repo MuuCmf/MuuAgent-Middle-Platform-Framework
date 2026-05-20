@@ -5,6 +5,8 @@ import { UpdateKbDto } from './dto/update-kb.dto';
 import { QueryKbListDto } from './dto/query-kb-list.dto';
 import { DeleteKbDto } from './dto/delete-kb.dto';
 import { IsolationService, IsolationContext } from '../common/services/base-isolated.service';
+import { CacheService } from '../cache/cache.service';
+import { RetrievalService } from '../retrieval/retrieval.service';
 
 /**
  * 知识库管理服务
@@ -19,6 +21,8 @@ export class KbService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly isolationService: IsolationService,
+    private readonly cacheService: CacheService,
+    private readonly retrievalService: RetrievalService,
   ) {}
 
   /**
@@ -263,6 +267,16 @@ export class KbService {
       data: updateData,
     });
 
+    // 知识库配置变更（阈值、topN、检索方式等）后清除缓存
+    this.cacheService.clearKbCache(dto.kbId).catch(err =>
+      console.warn(`清除知识库 ${dto.kbId} 缓存失败:`, err),
+    );
+
+    // 异步预热：用历史高频查询 + 新配置回填缓存
+    this.retrievalService.warmupKbCache(dto.kbId).catch(err =>
+      console.warn(`预热知识库 ${dto.kbId} 缓存失败:`, err),
+    );
+
     return true;
   }
 
@@ -289,6 +303,16 @@ export class KbService {
         updatedBy: dto.uid,
       },
     });
+
+    // 知识库删除后清除所有相关缓存
+    this.cacheService.clearKbCache(dto.kbId).catch(err =>
+      console.warn(`清除知识库 ${dto.kbId} 缓存失败:`, err),
+    );
+
+    // 异步预热：用历史高频查询回填缓存（基于删除后的文档集）
+    this.retrievalService.warmupKbCache(dto.kbId).catch(err =>
+      console.warn(`预热知识库 ${dto.kbId} 缓存失败:`, err),
+    );
 
     return true;
   }

@@ -5,6 +5,8 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { VectorService } from '../../vector/vector.service';
 import { AiService } from '../../ai/ai.service';
 import { FileService } from '../../file/file.service';
+import { CacheService } from '../../cache/cache.service';
+import { RetrievalService } from '../../retrieval/retrieval.service';
 import * as iconv from 'iconv-lite';
 
 /**
@@ -27,6 +29,8 @@ export class DocumentProcessor {
     private readonly vectorService: VectorService,
     private readonly aiService: AiService,
     private readonly fileService: FileService,
+    private readonly cacheService: CacheService,
+    private readonly retrievalService: RetrievalService,
   ) {}
 
   /**
@@ -122,6 +126,16 @@ export class DocumentProcessor {
         data: { status: 1 },
       });
 
+      // 文档处理完成后清除知识库检索缓存
+      this.cacheService.clearKbCache(kbId).catch(err =>
+        this.logger.warn(`清除知识库 ${kbId} 缓存失败:`, err),
+      );
+
+      // 异步预热：用历史高频查询回填缓存
+      this.retrievalService.warmupKbCache(kbId).catch(err =>
+        this.logger.warn(`预热知识库 ${kbId} 缓存失败:`, err),
+      );
+
       this.logger.log(`文档处理完成: ${docId}, 切片数: ${chunks.length}`);
     } catch (error) {
       this.logger.error(`文档处理失败 ${docId}:`, error);
@@ -129,6 +143,12 @@ export class DocumentProcessor {
         where: { id: docId as any },
         data: { status: 2 },
       });
+
+      // 文档处理失败也可能已写入部分数据，清除缓存
+      this.cacheService.clearKbCache(kbId).catch(err =>
+        this.logger.warn(`清除知识库 ${kbId} 缓存失败:`, err),
+      );
+
       throw error;
     }
   }
@@ -240,7 +260,7 @@ export class DocumentProcessor {
         this.logger.warn('Embedding服务不可用，使用随机向量');
         return Array(1536).fill(0).map(() => Math.random() * 2 - 1);
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn('Embedding生成失败，使用随机向量:', error.message);
       return Array(1536).fill(0).map(() => Math.random() * 2 - 1);
     }

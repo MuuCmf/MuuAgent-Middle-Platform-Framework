@@ -5,6 +5,16 @@
       <p class="page-description">管理 Agent Skills 标准格式技能，实现三层缓存架构</p>
     </div>
 
+    <div class="help-tip">
+      <div class="help-tip-title">技能管理说明</div>
+      <ul>
+        <li><strong>三层缓存架构</strong>：L1元数据(Redis 30分钟) → L2描述符(内存 5分钟) → L3参考文档(Redis 1小时)</li>
+        <li><strong>数据来源</strong>：Database优先查询，文件系统作为回源</li>
+        <li><strong>同步机制</strong>：扫描文件系统后自动同步到数据库，清除缓存生效</li>
+        <li><strong>Agent Skills V1.0</strong>：所有技能以 SKILL.md + scripts/ + references/ 目录结构存储</li>
+      </ul>
+    </div>
+
     <!-- 缓存统计信息 -->
     <div class="card" v-if="skillStats?.cacheConfig">
       <div class="card-title">缓存架构</div>
@@ -33,51 +43,37 @@
     </div>
 
     <div class="card">
-      <div class="card-title">
-        <span>标准技能</span>
-        <AppSelector
-          v-model="filterAppCode"
-          placeholder="筛选应用"
-          style="margin-left: 16px;"
-          @change="handleAppFilterChange"
-        />
-      </div>
-
-      <div class="help-tip">
-        <div class="help-tip-title">技能管理说明</div>
-        <ul>
-          <li><strong>三层缓存架构</strong>：L1元数据(Redis 30分钟) → L2描述符(内存 5分钟) → L3参考文档(Redis 1小时)</li>
-          <li><strong>数据来源</strong>：Database优先查询，文件系统作为回源</li>
-          <li><strong>同步机制</strong>：扫描文件系统后自动同步到数据库，清除缓存生效</li>
-          <li><strong>Agent Skills V1.0</strong>：所有技能以 SKILL.md + scripts/ + references/ 目录结构存储</li>
-        </ul>
-      </div>
-
       <div class="filesystem-header">
-        <span class="filesystem-tip">
-          已加载技能数量
-          <el-tag type="success" size="small" style="margin-left: 8px;">{{ standardSkills.length }}</el-tag>
-        </span>
         <el-space>
+          <el-button type="primary" @click="importDialogVisible = true">
+            <el-icon>
+              <Upload />
+            </el-icon>
+            导入技能
+          </el-button>
           <el-button @click="handleSync" :loading="syncing">
-            <el-icon><Refresh /></el-icon>
+            <el-icon>
+              <Refresh />
+            </el-icon>
             同步数据库
           </el-button>
           <el-button @click="handleScan" :loading="scanning">
-            <el-icon><Refresh /></el-icon>
+            <el-icon>
+              <Refresh />
+            </el-icon>
             扫描
           </el-button>
           <el-button @click="handleRefreshIndex">
-            <el-icon><RefreshRight /></el-icon>
+            <el-icon>
+              <RefreshRight />
+            </el-icon>
             刷新索引
           </el-button>
           <el-button @click="handleClearCache">
-            <el-icon><Delete /></el-icon>
+            <el-icon>
+              <Delete />
+            </el-icon>
             清除缓存
-          </el-button>
-          <el-button type="primary" @click="importDialogVisible = true">
-            <el-icon><Upload /></el-icon>
-            导入技能
           </el-button>
         </el-space>
       </div>
@@ -149,20 +145,10 @@
     <SkillImportDialog v-model:visible="importDialogVisible" @imported="handleImported" />
 
     <!-- SKILL.md 预览抽屉 -->
-    <el-drawer
-      v-model="previewDialogVisible"
-      title="SKILL.md 预览"
-      direction="rtl"
-      size="50%"
-      :destroy-on-close="true"
-    >
+    <el-drawer v-model="previewDialogVisible" title="SKILL.md 预览" direction="rtl" size="50%" :destroy-on-close="true">
       <div class="preview-drawer-content">
-        <SkillMdPreview
-          v-if="previewSkillData"
-          :frontmatter="previewSkillData.frontmatter"
-          :body="previewSkillData.body"
-          :raw-content="previewSkillData.rawContent"
-        />
+        <SkillMdPreview v-if="previewSkillData" :frontmatter="previewSkillData.frontmatter"
+          :body="previewSkillData.body" :raw-content="previewSkillData.rawContent" />
         <el-empty v-else description="加载中..." />
       </div>
     </el-drawer>

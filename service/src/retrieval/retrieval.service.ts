@@ -83,7 +83,7 @@ export class RetrievalService {
   }
 
   /**
-   * 向量检索
+   * 向量检索（带缓存击穿保护）
    * @param dto 检索参数
    * @param context 隔离上下文
    * @returns {Promise<any>} 检索结果
@@ -103,197 +103,120 @@ export class RetrievalService {
 
     const topN = dto.topN || kb.topN;
     const similarityThresh = dto.similarityThresh || kb.similarityThresh;
-    
-    // 调试日志：检查知识库配置
+
     console.log(`[Retrieval] 知识库ID: ${dto.kbId}, 阈值: ${similarityThresh}, topN: ${topN}`);
-    
-    // 检查文档状态
+
     const docCount = await this.prisma.kbDocument.count({
       where: { kbId: dto.kbId as any, isDeleted: false, status: 3 },
     });
     console.log(`[Retrieval] 已完成的文档数: ${docCount}`);
-    
-    // 检查切片数量
+
     const chunkCount = await this.prisma.kbChunk.count({
       where: { kbId: dto.kbId as any, status: 1 },
     });
     console.log(`[Retrieval] 已向量化的切片数: ${chunkCount}`);
 
-    // 尝试从缓存获取结果
-    const cachedResult = await this.cacheService.getRetrievalCache(
-      dto.kbId,
-      dto.query,
-      topN,
-      similarityThresh,
+    // 预查缓存用于标记 cacheHit
+    const preCached = await this.cacheService.getRetrievalCache(
+      dto.kbId, dto.query, topN, similarityThresh,
     );
 
-    if (cachedResult) {
-      const costTime = Date.now() - startTime;
-      await this.prisma.kbRetrievalLog.create({
-        data: {
-          kbId: dto.kbId as any,
-          uid: dto.uid,
-          query: dto.query,
-          topN,
-          similarityThresh,
-          retrievalCount: cachedResult.total,
-          results: this.formatResultsForLog(cachedResult.list),
-          costTime,
-          requestId,
-          appCode: context?.appCode || kb.appCode,
-        },
-      });
-      return { ...cachedResult, costTime, cacheHit: true };
-    }
-
-    // 根据知识库配置选择检索方式
+    // 使用 getOrSet 防止缓存击穿：并发相同查询只有一个执行检索
+    const cacheKey = this.cacheService.getRetrievalCacheKey(dto.kbId, dto.query, topN, similarityThresh);
     const retrievalMethod = kb.retrievalMethod || 'vector';
-    console.log(`[Retrieval] 知识库检索方式: ${retrievalMethod}`);
 
-    // 如果配置为BM25，则直接使用BM25检索，无需生成向量
+    const { list, total, method } = await this.cacheService.getOrSet(
+      cacheKey,
+      () => this.doRetrieval(dto.kbId, dto.query, topN, similarityThresh, retrievalMethod),
+      3600000,
+    );
+
+    const cacheHit = !!preCached;
+    const costTime = Date.now() - startTime;
+
+    await this.prisma.kbRetrievalLog.create({
+      data: {
+        kbId: dto.kbId as any,
+        uid: dto.uid,
+        query: dto.query,
+        topN,
+        similarityThresh,
+        retrievalCount: total,
+        results: this.formatResultsForLog(list),
+        costTime,
+        requestId,
+        appCode: context?.appCode || kb.appCode,
+      },
+    });
+
+    return { list, total, costTime, cacheHit, method };
+  }
+
+  /**
+   * 执行实际检索（不含缓存逻辑），供 getOrSet 的 factory 调用
+   */
+  private async doRetrieval(
+    kbId: string,
+    query: string,
+    topN: number,
+    similarityThresh: number,
+    retrievalMethod: string,
+  ): Promise<{ list: RetrievalItem[]; total: number; method: string }> {
     if (retrievalMethod === 'bm25') {
       console.log(`[Retrieval] 使用配置的BM25检索模式`);
-      const bm25Results = await this.bm25Search(dto.kbId, dto.query, topN, similarityThresh);
-
-      const costTime = Date.now() - startTime;
-
-      await this.prisma.kbRetrievalLog.create({
-        data: {
-          kbId: dto.kbId as any,
-          uid: dto.uid,
-          query: dto.query,
-          topN,
-          similarityThresh,
-          retrievalCount: bm25Results.length,
-          results: this.formatResultsForLog(bm25Results),
-          costTime,
-          requestId,
-          appCode: context?.appCode || kb.appCode,
-        },
-      });
-
-      return {
-        list: bm25Results,
-        total: bm25Results.length,
-        costTime,
-        cacheHit: false,
-        method: 'bm25',
-      };
+      const bm25Results = await this.bm25Search(kbId, query, topN, similarityThresh);
+      return { list: bm25Results, total: bm25Results.length, method: 'bm25' };
     }
 
-    // 使用向量库进行检索（添加错误处理）
+    // 向量检索 + BM25 fallback
     let vectorResults: any[] = [];
     let vectorSearchFailed = false;
     let isRandomVector = false;
 
     try {
-      // 生成查询向量（仅在向量检索模式下）
-      const queryVector = await this.generateEmbedding(dto.query);
+      const queryVector = await this.generateEmbedding(query);
       isRandomVector = this.isRandomVector(queryVector);
-      
-      vectorResults = await this.vectorService.searchSimilar(
-        queryVector,
-        topN * 2, // 多取一些结果用于过滤
-        dto.kbId,
-      );
-    } catch (error) {
-      console.log('向量检索异常:', error.data);
+      vectorResults = await this.vectorService.searchSimilar(queryVector, topN * 2, kbId);
+    } catch (error: any) {
       console.error(`向量检索失败: ${error.message}`);
       vectorSearchFailed = true;
     }
 
-    // 当向量检索失败或使用随机向量时，使用BM25作为fallback
     if (vectorSearchFailed || isRandomVector || vectorResults.length === 0) {
       console.log(`[Retrieval] 使用BM25检索作为fallback (vectorSearchFailed=${vectorSearchFailed}, isRandomVector=${isRandomVector})`);
-
-      const bm25Results = await this.bm25Search(dto.kbId, dto.query, topN, similarityThresh);
-
-      const costTime = Date.now() - startTime;
-
-      await this.prisma.kbRetrievalLog.create({
-        data: {
-          kbId: dto.kbId as any,
-          uid: dto.uid,
-          query: dto.query,
-          topN,
-          similarityThresh,
-          retrievalCount: bm25Results.length,
-          results: this.formatResultsForLog(bm25Results),
-          costTime,
-          requestId,
-          appCode: context?.appCode || kb.appCode,
-        },
-      });
-
-      return {
-        list: bm25Results,
-        total: bm25Results.length,
-        costTime,
-        cacheHit: false,
-        method: 'bm25',
-      };
+      const bm25Results = await this.bm25Search(kbId, query, topN, similarityThresh);
+      return { list: bm25Results, total: bm25Results.length, method: 'bm25' };
     }
 
-    // 按相似度阈值过滤（向量检索使用自适应阈值）
     const sortedVectorResults = [...vectorResults].sort((a, b) => b.score - a.score);
     const topVectorResults = sortedVectorResults.slice(0, topN);
-    
-    // 如果最高相似度低于0.5，说明向量质量较差，使用BM25作为fallback
+
     let filteredResults: any[];
     if (topVectorResults.length > 0 && topVectorResults[0].score < 0.5) {
       console.log(`[Retrieval] 向量相似度较低(${topVectorResults[0].score.toFixed(4)}), 使用BM25作为fallback`);
-      filteredResults = []; // 置空以触发fallback
+      filteredResults = [];
     } else {
       filteredResults = topVectorResults.filter((result) => result.score >= similarityThresh);
     }
-    
-    // 调试日志：检查检索结果
+
     console.log(`[Retrieval] Qdrant返回原始结果数: ${vectorResults.length}`);
     console.log(`[Retrieval] 阈值过滤后结果数: ${filteredResults.length}`);
     if (vectorResults.length > 0) {
       console.log(`[Retrieval] 最高相似度: ${vectorResults[0]?.score?.toFixed(4)}, 最低相似度: ${vectorResults[vectorResults.length - 1]?.score?.toFixed(4)}`);
     }
 
-    // 如果向量检索过滤后结果为空，使用BM25作为fallback
     if (filteredResults.length === 0) {
       console.log(`[Retrieval] 向量检索结果为空，使用BM25作为fallback`);
-
-      const bm25Results = await this.bm25Search(dto.kbId, dto.query, topN, similarityThresh);
-
-      const costTime = Date.now() - startTime;
-
-      await this.prisma.kbRetrievalLog.create({
-        data: {
-          kbId: dto.kbId as any,
-          uid: dto.uid,
-          query: dto.query,
-          topN,
-          similarityThresh,
-          retrievalCount: bm25Results.length,
-          results: this.formatResultsForLog(bm25Results),
-          costTime,
-          requestId,
-          appCode: context?.appCode || kb.appCode,
-        },
-      });
-
-      return {
-        list: bm25Results,
-        total: bm25Results.length,
-        costTime,
-        cacheHit: false,
-        method: 'bm25',
-      };
+      const bm25Results = await this.bm25Search(kbId, query, topN, similarityThresh);
+      return { list: bm25Results, total: bm25Results.length, method: 'bm25' };
     }
 
-    // 获取文档名称信息
     const results: RetrievalItem[] = await Promise.all(
       filteredResults.map(async (result) => {
         const doc = await this.prisma.kbDocument.findUnique({
           where: { id: result.payload.doc_id },
           include: { file: { select: { fileName: true } } },
         });
-
         return {
           chunkId: result.id,
           content: result.payload.content,
@@ -305,43 +228,59 @@ export class RetrievalService {
       }),
     );
 
-    // 按相似度排序并取topN
     results.sort((a, b) => b.score - a.score);
     const finalResults = results.slice(0, topN);
+    return { list: finalResults, total: finalResults.length, method: 'vector' };
+  }
 
-    const costTime = Date.now() - startTime;
-
-    // 将结果存入缓存
-    await this.cacheService.setRetrievalCache(
-      dto.kbId,
-      dto.query,
-      topN,
-      similarityThresh,
-      { list: finalResults, total: finalResults.length },
-      3600000, // 1小时缓存
-    );
-
-    await this.prisma.kbRetrievalLog.create({
-      data: {
-        kbId: dto.kbId as any,
-        uid: dto.uid,
-        query: dto.query,
-        topN,
-        similarityThresh,
-        retrievalCount: finalResults.length,
-        results: this.formatResultsForLog(finalResults),
-        costTime,
-        requestId,
-        appCode: context?.appCode || kb.appCode,
-      },
+  /**
+   * 缓存预热：提取历史高频查询并回填检索缓存
+   *
+   * 在清空缓存后调用，从 kbRetrievalLog 中提取最近 7 天 top-20 高频查询，
+   * 重新执行检索并写入缓存，使后续真实请求可直接命中。
+   *
+   * @param kbId 知识库ID
+   */
+  async warmupKbCache(kbId: string): Promise<void> {
+    const kb = await this.prisma.kbInfo.findFirst({
+      where: { id: kbId as any, isDeleted: false, status: true },
     });
+    if (!kb) return;
 
-    return {
-      list: finalResults,
-      total: finalResults.length,
-      costTime,
-      cacheHit: false,
-    };
+    const topN = kb.topN;
+    const similarityThresh = kb.similarityThresh;
+    const retrievalMethod = kb.retrievalMethod || 'vector';
+
+    // 提取最近 7 天 top-20 高频查询
+    const logs = await this.prisma.$queryRaw<Array<{ query: string; cnt: bigint }>>`
+      SELECT query, COUNT(*) as cnt
+      FROM kb_retrieval_log
+      WHERE kb_id = ${kbId}
+        AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+      GROUP BY query
+      ORDER BY cnt DESC
+      LIMIT 20
+    `;
+
+    if (!logs || logs.length === 0) {
+      console.log(`[CacheWarmup] 知识库 ${kbId} 无历史查询记录，跳过预热`);
+      return;
+    }
+
+    console.log(`[CacheWarmup] 开始预热知识库 ${kbId}，共 ${logs.length} 个历史高频查询`);
+
+    let warmed = 0;
+    for (const log of logs) {
+      try {
+        const result = await this.doRetrieval(kbId, log.query, topN, similarityThresh, retrievalMethod);
+        await this.cacheService.setRetrievalCache(kbId, log.query, topN, similarityThresh, result, 3600000);
+        warmed++;
+      } catch (err: any) {
+        console.warn(`[CacheWarmup] 预热查询失败 (${kbId}): ${log.query}`, err.message);
+      }
+    }
+
+    console.log(`[CacheWarmup] 知识库 ${kbId} 预热完成 (${warmed}/${logs.length})`);
   }
 
   /**
@@ -415,7 +354,7 @@ export class RetrievalService {
           console.log(`[RAG] 向量检索降级到BM25`);
           retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error(`[RAG] 向量检索失败: ${error.message}`);
         retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
       }
@@ -784,7 +723,7 @@ export class RetrievalService {
         console.warn('Embedding服务不可用，使用随机向量');
         return Array(1536).fill(0).map(() => Math.random() * 2 - 1);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.warn('Embedding生成失败，使用随机向量:', error.message);
       return Array(1536).fill(0).map(() => Math.random() * 2 - 1);
     }
@@ -884,7 +823,7 @@ ${context}
       }
 
       return '抱歉，未能获取到回答。';
-    } catch (error) {
+    } catch (error: any) {
       console.error('LLM调用失败:', error.message);
       return '抱歉，回答生成失败，请稍后重试。';
     }

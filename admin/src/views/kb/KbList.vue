@@ -5,30 +5,26 @@
       <p class="page-description">创建和管理知识库，为智能体提供知识检索能力</p>
     </div>
 
-    <div class="card">
-      <div class="card-title">
-        <span>知识库列表</span>
-        <el-tag type="info" size="small">{{ total }} 个</el-tag>
-        <AppSelector
-          v-model="filterAppCode"
-          placeholder="筛选应用"
-          style="margin-left: 16px;"
-          @change="handleAppFilterChange"
-        />
-      </div>
+    <div class="help-tip">
+      <div class="help-tip-title">💡 知识库说明</div>
+      <ul>
+        <li><strong>知识库</strong>：存储文档数据，支持向量检索，为智能体提供知识支持</li>
+        <li><strong>向量模型</strong>：将文本转换为向量表示，用于语义相似度计算</li>
+        <li><strong>切片大小</strong>：文档切分的块大小，影响检索精度和效率</li>
+        <li><strong>相似度阈值</strong>：检索结果的最低相似度要求，范围 0-1</li>
+        <li><strong>召回条数</strong>：每次检索返回的最大文档片段数量</li>
+      </ul>
+    </div>
 
-      <div class="help-tip">
-        <div class="help-tip-title">💡 知识库说明</div>
-        <ul>
-          <li><strong>知识库</strong>：存储文档数据，支持向量检索，为智能体提供知识支持</li>
-          <li><strong>向量模型</strong>：将文本转换为向量表示，用于语义相似度计算</li>
-          <li><strong>切片大小</strong>：文档切分的块大小，影响检索精度和效率</li>
-          <li><strong>相似度阈值</strong>：检索结果的最低相似度要求，范围 0-1</li>
-          <li><strong>召回条数</strong>：每次检索返回的最大文档片段数量</li>
-        </ul>
-      </div>
+    <div class="card">
 
       <div class="filters">
+        <el-button type="primary" @click="handleCreate">
+          <el-icon>
+            <Plus />
+          </el-icon>
+          创建知识库
+        </el-button>
         <el-input v-model="searchKeyword" placeholder="搜索知识库名称或标识" style="width: 300px;" @keyup.enter="handleSearch">
           <template #prefix>
             <el-icon>
@@ -47,12 +43,7 @@
           </el-icon>
           搜索
         </el-button>
-        <el-button type="primary" @click="handleCreate">
-          <el-icon>
-            <Plus />
-          </el-icon>
-          创建知识库
-        </el-button>
+
       </div>
 
       <div class="kb-grid" v-loading="loading">

@@ -45,10 +45,6 @@
   </el-row>
 
   <div class="card">
-    <div class="card-title">
-      {{ $t('routingLog.title') }}
-      <el-tag type="info" size="small">{{ routingLogTotal }} {{ $t('routingLog.items') }}</el-tag>
-    </div>
 
     <div style="margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
       <el-select v-model="routingLogFilterIntent" :placeholder="$t('routingLog.intentType')" clearable style="width: 140px;" @change="loadRoutingLogAll">
@@ -90,7 +86,6 @@
     </div>
 
     <el-table :data="routingLogList" stripe v-loading="routingLogLoading">
-      <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="detectedIntent" :label="$t('routingLog.detectedIntent')" width="120">
         <template #default="{ row }">
           <el-tag :type="getRoutingLogIntentTagType(row.detectedIntent)">
@@ -149,7 +144,7 @@
           {{ formatRoutingLogTime(row.createdAt) }}
         </template>
       </el-table-column>
-      <el-table-column :label="$t('common.actions')" width="80" align="right" fixed="right">
+      <el-table-column :label="$t('common.actions')" width="80" align="center" fixed="right">
         <template #default="{ row }">
           <el-button size="small" text type="primary" @click="handleViewRoutingLogDetail(row)">{{ $t('routingLog.detail') }}</el-button>
         </template>

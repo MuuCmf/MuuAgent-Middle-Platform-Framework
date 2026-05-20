@@ -5,30 +5,19 @@
       <p class="page-description">{{ $t('agent.description') }}</p>
     </div>
 
+    <div class="help-tip">
+      <div class="help-tip-title">💡 {{ $t('agent.agentExplanation') }}</div>
+      <ul>
+        <li>{{ $t('agent.agentDesc') }}</li>
+        <li>{{ $t('agent.systemPromptDesc') }}</li>
+        <li>{{ $t('agent.bindSkillsDesc') }}</li>
+        <li>{{ $t('agent.skillDependencyDesc') }}</li>
+        <li>{{ $t('agent.maxStepsDesc') }}</li>
+        <li>{{ $t('agent.reasoningModeDesc') }}</li>
+      </ul>
+    </div>
+
     <div class="card">
-      <div class="card-title">
-        <span>{{ $t('agent.list') }}</span>
-        <el-tag type="info" size="small">{{ agents.length }} {{ $t('agent.count') }}</el-tag>
-        <AppSelector
-          v-model="filterAppCode"
-          :placeholder="$t('agent.filterApp')"
-          style="margin-left: 16px;"
-          @change="handleAppFilterChange"
-        />
-      </div>
-
-      <div class="help-tip">
-        <div class="help-tip-title">💡 {{ $t('agent.agentExplanation') }}</div>
-        <ul>
-          <li>{{ $t('agent.agentDesc') }}</li>
-          <li>{{ $t('agent.systemPromptDesc') }}</li>
-          <li>{{ $t('agent.bindSkillsDesc') }}</li>
-          <li>{{ $t('agent.skillDependencyDesc') }}</li>
-          <li>{{ $t('agent.maxStepsDesc') }}</li>
-          <li>{{ $t('agent.reasoningModeDesc') }}</li>
-        </ul>
-      </div>
-
       <el-button type="primary" @click="handleAdd" style="margin-bottom: 16px;">
         <el-icon>
           <Plus />
@@ -79,10 +68,7 @@
         </el-table-column>
         <el-table-column :label="$t('agent.workspace')" width="90">
           <template #default="{ row }">
-            <el-tag
-              :type="isWorkspaceEnabled(row) ? 'success' : 'info'"
-              size="small"
-            >
+            <el-tag :type="isWorkspaceEnabled(row) ? 'success' : 'info'" size="small">
               {{ isWorkspaceEnabled(row) ? $t('agent.workspaceEnabled') : $t('agent.workspaceDisabled') }}
             </el-tag>
           </template>

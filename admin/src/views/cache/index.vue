@@ -1,237 +1,236 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">工具缓存管理</h1>
-      <p class="page-description">监控和管理工具执行缓存，提升系统响应速度</p>
+      <div>
+        <h1 class="page-title">缓存监控</h1>
+        <p class="page-description">覆盖工具执行、技能、MCP、意图分类四层缓存体系</p>
+      </div>
+      <el-button @click="refreshAll" :loading="loading">
+        <el-icon><Refresh /></el-icon>
+        刷新
+      </el-button>
     </div>
 
-    <div class="help-tip">
-      <div class="help-tip-title">💡 缓存说明</div>
-      <ul>
-        <li><strong>LRU缓存</strong>：最近最少使用淘汰策略，自动清理不常用的缓存项</li>
-        <li><strong>TTL过期</strong>：缓存项自动过期，默认60秒，可配置</li>
-        <li><strong>命中率</strong>：缓存命中次数 / 总请求次数，越高表示缓存效果越好</li>
-        <li><strong>淘汰次数</strong>：因容量限制被淘汰的缓存项数量</li>
-      </ul>
+    <!-- 1. 工具执行缓存 -->
+    <div class="card">
+      <div class="section-head">
+        <span class="badge" style="background: #667eea;">工具</span>
+        <span class="section-title">工具执行缓存</span>
+        <span class="section-meta">Memory (LRU)</span>
+        <span class="section-meta">TTL {{ (config.defaultTtl / 1000).toFixed(0) }}s</span>
+        <span class="section-meta">容量 {{ config.maxSize }}</span>
+        <el-tag v-if="!config.enabled" type="danger" size="small">已禁用</el-tag>
+        <span class="section-meta" style="margin-left: auto;">
+          排除：
+          <el-tag v-for="t in config.excludeTools" :key="t" size="small" type="info" style="margin-left: 4px;">{{ t }}</el-tag>
+        </span>
+      </div>
+
+      <el-row :gutter="12">
+        <el-col :span="4">
+          <div class="metric">
+            <div class="metric-value">{{ stats.size }} / {{ stats.maxSize }}</div>
+            <div class="metric-label">缓存项 / 上限</div>
+          </div>
+        </el-col>
+        <el-col :span="4">
+          <div class="metric">
+            <div class="metric-value" :style="{ color: hitColor(stats.hitRate) }">{{ fmtPercent(stats.hitRate) }}</div>
+            <div class="metric-label">命中率</div>
+          </div>
+        </el-col>
+        <el-col :span="4">
+          <div class="metric">
+            <div class="metric-value">{{ stats.hits.toLocaleString() }} / {{ stats.misses.toLocaleString() }}</div>
+            <div class="metric-label">命中 / 未命中</div>
+          </div>
+        </el-col>
+        <el-col :span="4">
+          <div class="metric">
+            <div class="metric-value">{{ stats.evictions }} / {{ stats.expirations }}</div>
+            <div class="metric-label">淘汰 / 过期</div>
+          </div>
+        </el-col>
+        <el-col :span="4">
+          <div class="metric">
+            <div class="metric-value">{{ stats.totalRequests.toLocaleString() }}</div>
+            <div class="metric-label">总请求数</div>
+          </div>
+        </el-col>
+        <el-col :span="4">
+          <div class="metric">
+            <div class="metric-value">{{ fmtMemory(stats.estimatedMemoryUsage) }}</div>
+            <div class="metric-label">内存估算</div>
+          </div>
+        </el-col>
+      </el-row>
+
+      <el-divider style="margin: 12px 0;" />
+      <div class="section-actions">
+        <span style="font-size: 12px; color: #909399; margin-right: 8px;">{{ autoRefreshHint }}</span>
+        <el-button size="small" @click="handleCleanupExpired" :loading="cleanupLoading">
+          清理过期
+        </el-button>
+        <el-button size="small" type="danger" @click="handleClearCache" :loading="clearLoading">
+          清空工具缓存
+        </el-button>
+      </div>
     </div>
 
-    <el-row :gutter="16">
-      <el-col :span="6">
-        <div class="stat-card">
-          <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-            <el-icon size="24"><Coin /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.size }} / {{ stats.maxSize }}</div>
-            <div class="stat-label">缓存项数量</div>
-          </div>
-        </div>
-      </el-col>
-      <el-col :span="6">
-        <div class="stat-card">
-          <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-            <el-icon size="24"><TrendCharts /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ formatPercent(stats.hitRate) }}</div>
-            <div class="stat-label">缓存命中率</div>
-          </div>
-        </div>
-      </el-col>
-      <el-col :span="6">
-        <div class="stat-card">
-          <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-            <el-icon size="24"><Refresh /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.totalRequests.toLocaleString() }}</div>
-            <div class="stat-label">总请求数</div>
-          </div>
-        </div>
-      </el-col>
-      <el-col :span="6">
-        <div class="stat-card">
-          <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
-            <el-icon size="24"><Cpu /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ formatMemory(stats.estimatedMemoryUsage) }}</div>
-            <div class="stat-label">内存使用估算</div>
-          </div>
-        </div>
-      </el-col>
-    </el-row>
+    <!-- 2. 技能缓存 -->
+    <div class="card">
+      <div class="section-head">
+        <span class="badge" style="background: #e6a23c;">技能</span>
+        <span class="section-title">技能缓存</span>
+        <span class="section-meta">Redis + Memory (L1 / L2 / L3)</span>
+        <span class="section-meta" style="margin-left: auto;">
+          <el-tag size="small">L1 {{ fmtDuration(overview?.skillCache.config?.L1_TTL) }}</el-tag>
+          <el-tag size="small" type="warning" style="margin-left: 4px;">L2 {{ fmtDuration(overview?.skillCache.config?.L2_TTL) }}</el-tag>
+          <el-tag size="small" type="info" style="margin-left: 4px;">L3 {{ fmtDuration(overview?.skillCache.config?.L3_TTL) }}</el-tag>
+        </span>
+      </div>
 
-    <el-tabs v-model="activeTab" class="config-tabs">
-      <el-tab-pane label="缓存统计" name="stats">
-        <div class="card">
-          <div class="card-title">
-            统计详情
-            <el-button size="small" @click="loadStats" style="margin-left: auto;">
-              <el-icon><Refresh /></el-icon>
-              刷新
-            </el-button>
+      <el-row :gutter="12">
+        <el-col :span="6">
+          <div class="metric">
+            <div class="metric-value" :style="{ color: hitColor(overview?.skillCache.l2HitRate ?? 0) }">{{ fmtPercent(overview?.skillCache.l2HitRate ?? 0) }}</div>
+            <div class="metric-label">L2 内存命中率</div>
           </div>
-
-          <el-descriptions :column="3" border>
-            <el-descriptions-item label="命中次数">
-              <el-tag type="success">{{ stats.hits.toLocaleString() }}</el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="未命中次数">
-              <el-tag type="warning">{{ stats.misses.toLocaleString() }}</el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="命中率">
-              <el-progress 
-                :percentage="stats.hitRate * 100" 
-                :format="() => formatPercent(stats.hitRate)"
-                :color="getHitRateColor(stats.hitRate)"
-              />
-            </el-descriptions-item>
-            <el-descriptions-item label="淘汰次数">
-              <el-tag type="info">{{ stats.evictions }}</el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="过期清理次数">
-              <el-tag type="info">{{ stats.expirations }}</el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="平均访问次数">
-              {{ stats.avgAccessCount.toFixed(2) }}
-            </el-descriptions-item>
-          </el-descriptions>
-        </div>
-
-        <div class="card" style="margin-top: 16px;">
-          <div class="card-title">缓存操作</div>
-          
-          <el-space>
-            <el-button type="primary" @click="handleCleanupExpired" :loading="cleanupLoading">
-              <el-icon><Delete /></el-icon>
-              清理过期缓存
-            </el-button>
-            <el-button type="danger" @click="handleClearCache" :loading="clearLoading">
-              <el-icon><Close /></el-icon>
-              清空全部缓存
-            </el-button>
-          </el-space>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane label="缓存配置" name="config">
-        <div class="card">
-          <div class="card-title">
-            当前配置
-            <el-button size="small" @click="loadConfig" style="margin-left: auto;">
-              <el-icon><Refresh /></el-icon>
-              刷新
-            </el-button>
+        </el-col>
+        <el-col :span="6">
+          <div class="metric">
+            <div class="metric-value">{{ overview?.skillCache.l2MemKeys ?? '-' }}</div>
+            <div class="metric-label">L2 内存条目</div>
           </div>
-
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="缓存状态">
-              <el-tag :type="config.enabled ? 'success' : 'danger'">
-                {{ config.enabled ? '已启用' : '已禁用' }}
-              </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="最大缓存项数量">
-              {{ config.maxSize }}
-            </el-descriptions-item>
-            <el-descriptions-item label="默认TTL">
-              {{ (config.defaultTtl / 1000).toFixed(1) }} 秒
-            </el-descriptions-item>
-            <el-descriptions-item label="不缓存的工具">
-              <template v-if="config.excludeTools.length">
-                <el-tag 
-                  v-for="tool in config.excludeTools" 
-                  :key="tool" 
-                  type="warning" 
-                  size="small"
-                  style="margin-right: 4px;"
-                >
-                  {{ tool }}
-                </el-tag>
-              </template>
-              <span v-else style="color: #999;">无</span>
-            </el-descriptions-item>
-          </el-descriptions>
-
-          <div class="help-tip" style="margin-top: 16px;">
-            <div class="help-tip-title">📝 配置说明</div>
-            <ul>
-              <li><strong>最大缓存项数量</strong>：缓存最多保存的条目数，超出时使用LRU淘汰</li>
-              <li><strong>默认TTL</strong>：缓存项的默认过期时间，过期后自动清理</li>
-              <li><strong>不缓存的工具</strong>：这些工具的执行结果不会被缓存，适用于结果经常变化的工具</li>
-            </ul>
+        </el-col>
+        <el-col :span="6">
+          <div class="metric">
+            <div class="metric-value">{{ (overview?.skillCache.l2Hits ?? 0).toLocaleString() }} / {{ (overview?.skillCache.l2Misses ?? 0).toLocaleString() }}</div>
+            <div class="metric-label">L2 命中 / 未命中</div>
           </div>
-        </div>
-      </el-tab-pane>
-    </el-tabs>
+        </el-col>
+        <el-col :span="6">
+          <div class="metric">
+            <div class="metric-value">{{ overview?.skillCache.l2Evictions ?? '-' }} / {{ overview?.skillCache.trackedRedisL2 ?? '-' }}</div>
+            <div class="metric-label">L2 淘汰 / Redis键</div>
+          </div>
+        </el-col>
+      </el-row>
+      <el-row :gutter="12" style="margin-top: 8px;">
+        <el-col :span="6">
+          <div class="metric">
+            <div class="metric-value">{{ overview?.skillCache.trackedRedisL1 ?? '-' }}</div>
+            <div class="metric-label">Redis L1 元数据键</div>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="metric">
+            <div class="metric-value">{{ overview?.skillCache.trackedRedisL2 ?? '-' }}</div>
+            <div class="metric-label">Redis L2 描述符键</div>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="metric">
+            <div class="metric-value">{{ overview?.skillCache.trackedRedisL3 ?? '-' }}</div>
+            <div class="metric-label">Redis L3 文档键</div>
+          </div>
+        </el-col>
+      </el-row>
+    </div>
+
+    <!-- 3. MCP Server 缓存 -->
+    <div class="card">
+      <div class="section-head">
+        <span class="badge" style="background: #67c23a;">MCP</span>
+        <span class="section-title">MCP Server 注册表</span>
+        <span class="section-meta">Memory (Map)</span>
+        <span class="section-meta">TTL {{ fmtDuration(overview?.mcpServer.ttlMs) }}</span>
+      </div>
+      <el-row :gutter="12">
+        <el-col :span="6">
+          <div class="metric">
+            <div class="metric-value">{{ overview?.mcpServer.keys ?? '-' }}</div>
+            <div class="metric-label">缓存条目</div>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="metric">
+            <div class="metric-value" :class="{ 'metric-warn': (overview?.mcpServer.expiredCount ?? 0) > 0 }">{{ overview?.mcpServer.expiredCount ?? '0' }}</div>
+            <div class="metric-label">已过期</div>
+          </div>
+        </el-col>
+      </el-row>
+    </div>
+
+    <!-- 4. 意图分类缓存 -->
+    <div class="card">
+      <div class="section-head">
+        <span class="badge" style="background: #909399;">意图</span>
+        <span class="section-title">意图分类缓存</span>
+        <span class="section-meta">MySQL (intentCache)</span>
+      </div>
+      <el-row :gutter="12">
+        <el-col :span="6">
+          <div class="metric">
+            <div class="metric-value">{{ (overview?.intentCache.keys ?? 0).toLocaleString() }}</div>
+            <div class="metric-label">持久化记录数</div>
+          </div>
+        </el-col>
+      </el-row>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Coin, TrendCharts, Refresh, Cpu, Delete, Close } from '@element-plus/icons-vue'
-import { agentApi, type ToolCacheStats, type ToolCacheConfig } from '@/api/agent'
+import { Refresh } from '@element-plus/icons-vue'
+import { agentApi, type ToolCacheStats, type ToolCacheConfig, type CacheOverview } from '@/api/agent'
 
-const activeTab = ref('stats')
-
-const stats = ref<ToolCacheStats>({
-  size: 0,
-  maxSize: 500,
-  hits: 0,
-  misses: 0,
-  hitRate: 0,
-  evictions: 0,
-  expirations: 0,
-  totalRequests: 0,
-  avgAccessCount: 0,
-  estimatedMemoryUsage: 0,
-})
-
-const config = ref<ToolCacheConfig>({
-  maxSize: 500,
-  defaultTtl: 60000,
-  enabled: true,
-  excludeTools: [],
-})
-
+const loading = ref(false)
+const overview = ref<CacheOverview | null>(null)
 const cleanupLoading = ref(false)
 const clearLoading = ref(false)
 
-let refreshTimer: NodeJS.Timeout | null = null
+const stats = ref<ToolCacheStats>({ size: 0, maxSize: 500, hits: 0, misses: 0, hitRate: 0, evictions: 0, expirations: 0, totalRequests: 0, avgAccessCount: 0, estimatedMemoryUsage: 0 })
+const config = ref<ToolCacheConfig>({ maxSize: 500, defaultTtl: 60000, enabled: true, excludeTools: [] })
 
-const formatPercent = (value: number): string => {
-  return (value * 100).toFixed(1) + '%'
+let timer: NodeJS.Timeout | null = null
+
+const autoRefreshHint = computed(() => '每 10 秒自动刷新')
+
+// ---- formatters ----
+const fmtPercent = (v: number) => v != null ? (v * 100).toFixed(1) + '%' : '-'
+const fmtMemory = (b: number) => { if (!b) return '0 B'; if (b < 1024) return b + ' B'; if (b < 1048576) return (b / 1024).toFixed(1) + ' KB'; return (b / 1048576).toFixed(2) + ' MB' }
+const fmtDuration = (ms?: number) => { if (!ms) return '-'; if (ms < 60000) return (ms / 1000).toFixed(0) + 's'; if (ms < 3600000) return (ms / 60000).toFixed(0) + 'min'; return (ms / 3600000).toFixed(1) + 'h' }
+const hitColor = (r: number) => { if (!r) return '#909399'; if (r >= 0.7) return '#67c23a'; if (r >= 0.4) return '#e6a23c'; return '#f56c6c' }
+
+// ---- data ----
+const refreshAll = async () => {
+  loading.value = true
+  await Promise.all([loadOverview(), loadStats(), loadConfig()])
+  loading.value = false
 }
 
-const formatMemory = (bytes: number): string => {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
-}
-
-const getHitRateColor = (rate: number): string => {
-  if (rate >= 0.7) return '#67c23a'
-  if (rate >= 0.4) return '#e6a23c'
-  return '#f56c6c'
+const loadOverview = async () => {
+  try {
+    const { data } = await agentApi.getCacheOverview()
+    overview.value = data.data
+  } catch { /* ignore */ }
 }
 
 const loadStats = async () => {
   try {
     const { data } = await agentApi.getCacheStats()
     stats.value = data.data
-  } catch (error) {
-    console.error('加载缓存统计失败', error)
-  }
+  } catch { /* ignore */ }
 }
 
 const loadConfig = async () => {
   try {
     const { data } = await agentApi.getCacheConfig()
     config.value = data.data
-  } catch (error) {
-    console.error('加载缓存配置失败', error)
-  }
+  } catch { /* ignore */ }
 }
 
 const handleCleanupExpired = async () => {
@@ -239,9 +238,9 @@ const handleCleanupExpired = async () => {
     cleanupLoading.value = true
     const { data } = await agentApi.cleanupExpiredCache()
     ElMessage.success(`已清理 ${data.data.cleanedCount} 个过期缓存项`)
-    loadStats()
-  } catch (error) {
-    ElMessage.error('清理过期缓存失败')
+    await loadStats()
+  } catch {
+    ElMessage.error('清理失败')
   } finally {
     cleanupLoading.value = false
   }
@@ -249,90 +248,76 @@ const handleCleanupExpired = async () => {
 
 const handleClearCache = async () => {
   try {
-    await ElMessageBox.confirm(
-      '确定要清空所有缓存吗？这可能会暂时影响系统性能。',
-      '警告',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    )
-
+    await ElMessageBox.confirm('确定要清空工具执行缓存吗？', '警告', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
     clearLoading.value = true
     await agentApi.clearCache()
-    ElMessage.success('缓存已清空')
-    loadStats()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('清空缓存失败')
-    }
+    ElMessage.success('已清空')
+    await Promise.all([loadStats(), loadOverview()])
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('清空失败')
   } finally {
     clearLoading.value = false
   }
 }
 
 onMounted(() => {
-  loadStats()
-  loadConfig()
-  
-  refreshTimer = setInterval(() => {
-    loadStats()
-  }, 10000)
+  refreshAll()
+  timer = setInterval(() => { loadOverview(); loadStats() }, 10000)
 })
 
-onUnmounted(() => {
-  if (refreshTimer) {
-    clearInterval(refreshTimer)
-  }
-})
+onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <style lang="scss" scoped>
-.stat-card {
+.page-header {
   display: flex;
-  align-items: center;
-  padding: 20px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-
-  .stat-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    margin-right: 16px;
-  }
-
-  .stat-content {
-    flex: 1;
-
-    .stat-value {
-      font-size: 24px;
-      font-weight: 600;
-      color: #303133;
-    }
-
-    .stat-label {
-      font-size: 14px;
-      color: #909399;
-      margin-top: 4px;
-    }
-  }
-}
-
-.config-tabs {
-  margin-top: 16px;
-}
-
-.card-title {
-  display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   margin-bottom: 16px;
-  font-weight: 600;
 }
+.page-title { font-size: 20px; font-weight: 600; color: #303133; margin: 0 0 4px 0; }
+.page-description { font-size: 13px; color: #909399; margin: 0; }
+
+// ---- section header ----
+.section-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 22px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.section-title { font-size: 15px; font-weight: 600; color: #303133; }
+.section-meta { font-size: 12px; color: #909399; }
+
+// ---- metrics ----
+.metric {
+  padding: 10px 14px;
+  background: #fafbfc;
+  border-radius: 6px;
+  text-align: center;
+}
+.metric-value { font-size: 17px; font-weight: 600; color: #303133; line-height: 1.4; }
+.metric-label { font-size: 12px; color: #909399; margin-top: 2px; }
+.metric-warn { color: #e6a23c !important; }
+
+// ---- actions ----
+.section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.card { margin-bottom: 12px; }
 </style>

@@ -33,11 +33,6 @@
   </el-row>
 
   <div class="card">
-    <div class="card-title">
-      {{ $t('intentCache.list') }}
-      <el-tag type="info" size="small">{{ cacheTotal }} {{ $t('intentCache.items') }}</el-tag>
-    </div>
-
     <div style="margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
       <el-select v-model="cacheFilterIntent" :placeholder="$t('intentCache.intentType')" clearable style="width: 140px;" @change="loadCacheAll">
         <el-option v-for="item in intentOptions" :key="item.value" :label="item.label" :value="item.value" />
@@ -64,7 +59,6 @@
     </div>
 
     <el-table :data="cacheList" stripe v-loading="cacheLoading">
-      <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="intent" :label="$t('intentCache.intentType')" width="140">
         <template #default="{ row }">
           <el-tag :type="getCacheIntentTagType(row.intent)">{{ getIntentLabel(row.intent) }}</el-tag>

@@ -12,6 +12,8 @@ import { VectorService } from '../vector/vector.service';
 import { TaskService } from '../task/task.service';
 import { FileService } from '../file/file.service';
 import { BusinessType } from '../file/interfaces/file.interface';
+import { CacheService } from '../cache/cache.service';
+import { RetrievalService } from '../retrieval/retrieval.service';
 
 /**
  * 文档管理服务
@@ -32,6 +34,8 @@ export class DocumentService {
     private readonly vectorService: VectorService,
     private readonly taskService: TaskService,
     private readonly fileService: FileService,
+    private readonly cacheService: CacheService,
+    private readonly retrievalService: RetrievalService,
   ) {}
 
   /**
@@ -90,6 +94,11 @@ export class DocumentService {
       dto.kbId as any,
       uploadResult.fileId as any,
       kb,
+    );
+
+    // 文档上传后清除知识库检索缓存
+    this.cacheService.clearKbCache(dto.kbId).catch(err =>
+      this.logger.warn(`清除知识库 ${dto.kbId} 缓存失败:`, err),
     );
 
     return {
@@ -195,6 +204,11 @@ export class DocumentService {
 
     await this.taskService.addBatchDocumentProcessTask(tasks);
 
+    // 批量上传后清除知识库检索缓存
+    this.cacheService.clearKbCache(dto.kbId).catch(err =>
+      this.logger.warn(`清除知识库 ${dto.kbId} 缓存失败:`, err),
+    );
+
     return results;
   }
 
@@ -289,6 +303,16 @@ export class DocumentService {
     if (doc.fileId) {
       await this.fileService.delete(doc.fileId as any);
     }
+
+    // 文档删除后清除知识库检索缓存
+    this.cacheService.clearKbCache(dto.kbId).catch(err =>
+      this.logger.warn(`清除知识库 ${dto.kbId} 缓存失败:`, err),
+    );
+
+    // 异步预热：用历史高频查询回填缓存
+    this.retrievalService.warmupKbCache(dto.kbId).catch(err =>
+      this.logger.warn(`预热知识库 ${dto.kbId} 缓存失败:`, err),
+    );
 
     return true;
   }

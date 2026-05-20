@@ -157,6 +157,49 @@ export interface ToolCacheConfig {
   excludeTools: string[]
 }
 
+/**
+ * 全局缓存概览
+ */
+export interface CacheOverview {
+  toolExecutor: {
+    backend: string
+    keys: number
+    maxSize: number
+    hitRate: number
+    hits: number
+    misses: number
+    evictions: number
+    expirations: number
+  }
+  skillCache: {
+    backend: string
+    l2MemKeys: number
+    l2HitRate: number
+    l2Hits: number
+    l2Misses: number
+    l2Evictions: number
+    trackedRedisL1: number
+    trackedRedisL2: number
+    trackedRedisL3: number
+    config: {
+      L1_TTL: number
+      L2_TTL: number
+      L3_TTL: number
+      L2_MAX_SIZE: number
+    }
+  }
+  mcpServer: {
+    backend: string
+    keys: number
+    ttlMs: number
+    expiredCount: number
+  }
+  intentCache: {
+    backend: string
+    keys: number
+  }
+}
+
 export const agentApi = {
   getList(): Promise<AxiosResponse<{ data: AgentListResponse }>> {
     return adminRequest.get('api/admin/agent')
@@ -200,5 +243,12 @@ export const agentApi = {
    */
   cleanupExpiredCache(): Promise<AxiosResponse<{ data: { cleanedCount: number } }>> {
     return adminRequest.post('api/admin/agent/cache/cleanup')
+  },
+
+  /**
+   * 获取全局缓存概览（聚合工具/技能/MCP/意图缓存）
+   */
+  getCacheOverview(): Promise<AxiosResponse<{ data: CacheOverview }>> {
+    return adminRequest.get('api/admin/agent/cache/overview')
   }
 }

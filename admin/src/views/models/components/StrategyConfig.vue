@@ -16,9 +16,6 @@
     </ul>
   </div>
   <div class="card">
-    <div class="card-title">
-      {{ $t('strategyConfig.title') }}
-    </div>
     <div style="margin-bottom: 16px;">
       <el-button type="primary" @click="handleAddStrategy">
         <el-icon>

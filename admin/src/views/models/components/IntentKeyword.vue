@@ -10,11 +10,6 @@
   </div>
 
   <div class="card">
-    <div class="card-title">
-      {{ $t('intentKeyword.list') }}
-      <el-tag type="info" size="small">{{ keywordTotal }} {{ $t('intentKeyword.items') }}</el-tag>
-    </div>
-
     <div style="margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
       <el-button type="primary" @click="handleAddKeyword">
         <el-icon><Plus /></el-icon>
@@ -48,7 +43,6 @@
     </div>
 
     <el-table :data="keywordList" stripe v-loading="keywordLoading">
-      <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="intent" :label="$t('intentKeyword.intentType')" width="140">
         <template #default="{ row }">
           <el-tag :type="getKeywordIntentTagType(row.intent)">{{ getIntentLabel(row.intent) }}</el-tag>
@@ -66,8 +60,6 @@
           <el-switch
             :model-value="row.status"
             @change="(val: boolean) => handleToggleKeywordStatus(row.id, val)"
-            :active-text="$t('intentKeyword.enabled')"
-            :inactive-text="$t('intentKeyword.disabled')"
           />
         </template>
       </el-table-column>

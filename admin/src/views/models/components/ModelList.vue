@@ -1,22 +1,19 @@
 <template>
+  <div class="help-tip" style="margin-bottom: 20px;">
+    <div class="help-tip-title">💡 {{ $t('model.modelManagementTip') }}</div>
+    <ul>
+      <li><strong>{{ $t('model.modelManagementDesc') }}</strong></li>
+      <li><strong>{{ $t('model.modelIdDesc') }}</strong></li>
+      <li><strong>{{ $t('model.weightDesc') }}</strong></li>
+      <li><strong>{{ $t('model.statusDesc') }}</strong></li>
+    </ul>
+  </div>
   <div class="card">
-    <div class="card-title">
-      {{ $t('model.modelList') }}
-      <el-tag type="info" size="small">{{ models.length }} {{ $t('model.modelCount') }}</el-tag>
-    </div>
-
-    <div class="help-tip" style="margin-bottom: 20px;">
-      <div class="help-tip-title">💡 {{ $t('model.modelManagementTip') }}</div>
-      <ul>
-        <li><strong>{{ $t('model.modelManagementDesc') }}</strong></li>
-        <li><strong>{{ $t('model.modelIdDesc') }}</strong></li>
-        <li><strong>{{ $t('model.weightDesc') }}</strong></li>
-        <li><strong>{{ $t('model.statusDesc') }}</strong></li>
-      </ul>
-    </div>
 
     <el-button type="primary" @click="handleAddModel" style="margin-bottom: 16px;">
-      <el-icon><Plus /></el-icon>
+      <el-icon>
+        <Plus />
+      </el-icon>
       {{ $t('model.addModel') }}
     </el-button>
 
@@ -72,7 +69,8 @@
     </el-table>
   </div>
 
-  <el-dialog v-model="modelDialogVisible" :title="editingModel ? $t('model.editModel') : $t('model.addModel')" width="600px">
+  <el-dialog v-model="modelDialogVisible" :title="editingModel ? $t('model.editModel') : $t('model.addModel')"
+    width="600px">
     <el-form :model="modelForm" label-width="100px">
       <el-form-item :label="$t('model.modelName')" required>
         <el-input v-model="modelForm.name" :placeholder="$t('model.modelNamePlaceholder')" />
@@ -126,18 +124,11 @@
 
       <el-form-item :label="$t('model.apiKey')">
         <div class="api-key-wrapper">
-          <el-input
-            v-model="modelForm.apiKey"
-            type="password"
-            show-password
+          <el-input v-model="modelForm.apiKey" type="password" show-password
             :placeholder="hasExistingApiKey ? $t('model.apiKeySet') : $t('model.apiKeyEmpty')"
-            :disabled="clearApiKey"
-          />
-          <el-checkbox
-            v-if="editingModel && hasExistingApiKey"
-            v-model="clearApiKey"
-            :label="$t('model.clearApiKey')"
-          />
+            :disabled="clearApiKey" />
+          <el-checkbox v-if="editingModel && hasExistingApiKey" v-model="clearApiKey"
+            :label="$t('model.clearApiKey')" />
         </div>
         <div class="form-tip" v-if="editingModel && hasExistingApiKey && !clearApiKey">
           {{ $t('model.apiKeySaved') }}
@@ -147,7 +138,8 @@
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item :label="$t('model.category')">
-            <el-select v-model="modelForm.category" :placeholder="$t('model.modelTypePlaceholder')" style="width: 100%;" clearable>
+            <el-select v-model="modelForm.category" :placeholder="$t('model.modelTypePlaceholder')" style="width: 100%;"
+              clearable>
               <el-option :label="$t('model.general')" value="general" />
               <el-option :label="$t('model.code')" value="code" />
               <el-option :label="$t('model.math')" value="math" />
@@ -160,13 +152,8 @@
         </el-col>
         <el-col :span="12">
           <el-form-item :label="$t('model.tags')">
-            <el-select
-              v-model="selectedTags"
-              multiple
-              :placeholder="$t('model.modelTypePlaceholder')"
-              style="width: 100%;"
-              @change="handleTagsChange"
-            >
+            <el-select v-model="selectedTags" multiple :placeholder="$t('model.modelTypePlaceholder')"
+              style="width: 100%;" @change="handleTagsChange">
               <el-option :label="$t('model.chat')" value="chat" />
               <el-option :label="$t('model.reasoning')" value="reasoning" />
               <el-option :label="$t('model.drawing')" value="drawing" />

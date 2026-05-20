@@ -12,7 +12,6 @@
 
     <div class="card">
       <div class="card-title">
-        <span>{{ $t('app.appList') }}</span>
         <el-button type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
           {{ $t('app.createApp') }}

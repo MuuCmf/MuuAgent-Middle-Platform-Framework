@@ -15,6 +15,9 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { AgentService } from "./agent.service";
 import { ToolExecutor } from "./tools/tool-executor";
+import { SkillCacheManager } from "../skill/skill-cache-manager";
+import { McpServerRegistry } from "../mcp-server/mcp-server-registry";
+import { PrismaService } from "../common/prisma/prisma.service";
 import { CombinedAuthGuard } from "../common/guards/combined-auth.guard";
 import { ScopeGuard } from "../common/guards/scope.guard";
 import { AdminScope } from "../common/constants/scope.constants";
@@ -43,6 +46,9 @@ export class AgentAdminController {
   constructor(
     private readonly agentService: AgentService,
     private readonly toolExecutor: ToolExecutor,
+    private readonly skillCacheManager: SkillCacheManager,
+    private readonly mcpServerRegistry: McpServerRegistry,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Post()
@@ -125,6 +131,51 @@ export class AgentAdminController {
   cleanupExpiredCache() {
     const count = this.toolExecutor.cleanupExpiredCache();
     return success({ cleanedCount: count }, `已清理 ${count} 个过期缓存项`);
+  }
+
+  @Get("cache/overview")
+  @ApiOperation({ summary: "获取全局缓存概览" })
+  @RequireScope(AdminScope.AGENT_READ)
+  async getCacheOverview() {
+    const toolStats = this.toolExecutor.getCacheStats();
+    const skillStats = this.skillCacheManager.getStats();
+    const mcpStats = this.mcpServerRegistry.getStats();
+    const intentCount = await this.prisma.intentCache.count();
+
+    return success({
+      toolExecutor: {
+        backend: "Memory (LRU)",
+        keys: toolStats.size,
+        maxSize: toolStats.maxSize,
+        hitRate: toolStats.hitRate,
+        hits: toolStats.hits,
+        misses: toolStats.misses,
+        evictions: toolStats.evictions,
+        expirations: toolStats.expirations,
+      },
+      skillCache: {
+        backend: "Redis + Memory (L1/L2/L3)",
+        l2MemKeys: skillStats.l2CacheSize,
+        l2HitRate: skillStats.l2HitRate,
+        l2Hits: skillStats.l2Hits,
+        l2Misses: skillStats.l2Misses,
+        l2Evictions: skillStats.l2Evictions,
+        trackedRedisL1: skillStats.trackedL1Keys,
+        trackedRedisL2: skillStats.trackedL2Keys,
+        trackedRedisL3: skillStats.trackedL3Keys,
+        config: skillStats.cacheConfig,
+      },
+      mcpServer: {
+        backend: "Memory (Map)",
+        keys: mcpStats.size,
+        ttlMs: mcpStats.ttlMs,
+        expiredCount: mcpStats.expiredCount,
+      },
+      intentCache: {
+        backend: "MySQL (intentCache)",
+        keys: intentCount,
+      },
+    });
   }
 }
 

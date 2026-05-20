@@ -5,43 +5,29 @@
       <p class="page-description">管理智能体和 RAG 问答的提示词模板</p>
     </div>
 
+    <div class="help-tip">
+      <div class="help-tip-title">💡 模板管理说明</div>
+      <ul>
+        <li><strong>模板标识</strong>：模板的唯一标识符，用于在代码中引用模板</li>
+        <li><strong>分类</strong>：模板的应用场景，如 agent、rag、react、skill 等</li>
+        <li><strong>变量</strong>：模板中可替换的变量，使用 <span v-pre>{{变量名}}</span> 格式</li>
+        <li><strong>版本</strong>：模板支持版本管理，每次更新都会创建新版本</li>
+        <li><strong>默认模板</strong>：每个分类可以有一个默认模板，智能体会自动使用</li>
+      </ul>
+    </div>
+
     <div class="card">
-      <div class="card-title">
-        <span>模板列表</span>
-        <el-tag type="info" size="small">{{ total }} 个</el-tag>
-        <AppSelector
-          v-model="filterAppCode"
-          placeholder="筛选应用"
-          style="margin-left: 16px;"
-          @change="handleAppFilterChange"
-        />
-      </div>
-
-      <div class="help-tip">
-        <div class="help-tip-title">💡 模板管理说明</div>
-        <ul>
-          <li><strong>模板标识</strong>：模板的唯一标识符，用于在代码中引用模板</li>
-          <li><strong>分类</strong>：模板的应用场景，如 agent、rag、react、skill 等</li>
-          <li><strong>变量</strong>：模板中可替换的变量，使用 <span v-pre>{{变量名}}</span> 格式</li>
-          <li><strong>版本</strong>：模板支持版本管理，每次更新都会创建新版本</li>
-          <li><strong>默认模板</strong>：每个分类可以有一个默认模板，智能体会自动使用</li>
-        </ul>
-      </div>
-
       <div class="toolbar">
         <el-button type="primary" @click="handleAdd">
-          <el-icon><Plus /></el-icon>
+          <el-icon>
+            <Plus />
+          </el-icon>
           添加模板
         </el-button>
 
         <div class="filters">
-          <el-select
-            v-model="filters.category"
-            placeholder="选择分类"
-            clearable
-            @change="handleFilter"
-            style="width: 150px; margin-right: 12px;"
-          >
+          <el-select v-model="filters.category" placeholder="选择分类" clearable @change="handleFilter"
+            style="width: 150px; margin-right: 12px;">
             <el-option label="Agent" value="agent" />
             <el-option label="RAG" value="rag" />
             <el-option label="ReAct" value="react" />
@@ -49,26 +35,18 @@
             <el-option label="自定义" value="custom" />
           </el-select>
 
-          <el-select
-            v-model="filters.status"
-            placeholder="选择状态"
-            clearable
-            @change="handleFilter"
-            style="width: 120px; margin-right: 12px;"
-          >
+          <el-select v-model="filters.status" placeholder="选择状态" clearable @change="handleFilter"
+            style="width: 120px; margin-right: 12px;">
             <el-option label="启用" :value="true" />
             <el-option label="禁用" :value="false" />
           </el-select>
 
-          <el-input
-            v-model="filters.keyword"
-            placeholder="搜索模板名称或标识"
-            clearable
-            @change="handleFilter"
-            style="width: 250px;"
-          >
+          <el-input v-model="filters.keyword" placeholder="搜索模板名称或标识" clearable @change="handleFilter"
+            style="width: 250px;">
             <template #prefix>
-              <el-icon><Search /></el-icon>
+              <el-icon>
+                <Search />
+              </el-icon>
             </template>
           </el-input>
         </div>
@@ -133,21 +111,12 @@
       </el-table>
 
       <div class="pagination">
-        <el-pagination
-          v-model:current-page="page"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-        />
+        <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]"
+          :total="total" layout="total, sizes, prev, pager, next, jumper" />
       </div>
     </div>
 
-    <PromptTemplateEditDrawer
-      v-model:visible="drawerVisible"
-      :template="editingTemplate"
-      @save="handleSave"
-    />
+    <PromptTemplateEditDrawer v-model:visible="drawerVisible" :template="editingTemplate" @save="handleSave" />
   </div>
 </template>
 
@@ -277,8 +246,6 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-
-
 .toolbar {
   display: flex;
   justify-content: space-between;
@@ -319,6 +286,7 @@ onMounted(() => {
 }
 
 .view-dialog-content {
+
   .view-content,
   .view-variables {
     margin-top: 16px;

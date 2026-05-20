@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CacheService } from '../cache/cache.service';
 import { SkillMetadata, SkillDescriptor } from './skill-registry';
+import { LruCache } from '../agent/tools/utils/lru-cache';
 
 /**
  * 缓存配置
@@ -35,8 +36,12 @@ const CacheKeys = {
 export class SkillCacheManager {
   private readonly logger = new Logger(SkillCacheManager.name);
 
-  /** L2 内存缓存（LRU） */
-  private readonly l2Cache = new Map<string, { descriptor: SkillDescriptor; timestamp: number }>();
+  /** L2 内存缓存（LRU，O(1) 淘汰） */
+  private readonly l2Cache = new LruCache<string, SkillDescriptor>({
+    maxSize: CACHE_CONFIG.L2_MAX_SIZE,
+    defaultTtl: CACHE_CONFIG.L2_TTL,
+    enableStats: true,
+  });
 
   /** 追踪已写入 Redis 的 L1 键 */
   private trackedL1Keys = new Set<string>();
@@ -71,31 +76,24 @@ export class SkillCacheManager {
   // ================================================================
 
   getL2Descriptor(name: string): SkillDescriptor | null {
-    const entry = this.l2Cache.get(name);
-    if (!entry) return null;
-    if (Date.now() - entry.timestamp > CACHE_CONFIG.L2_TTL) {
-      this.l2Cache.delete(name);
-      return null;
-    }
-    return entry.descriptor;
+    return this.l2Cache.get(name) ?? null;
   }
 
   async getL2DescriptorFromRedis(name: string): Promise<SkillDescriptor | null> {
     const key = CacheKeys.l2Descriptor(name);
-    const cached = await this.cacheService.get(key);
+    const cached = await this.cacheService.get<SkillDescriptor>(key);
     if (cached) {
-      // 回填内存缓存
-      this.setL2Descriptor(name, cached);
+      this.l2Cache.set(name, cached);
     }
     return cached ?? null;
   }
 
   setL2Descriptor(name: string, descriptor: SkillDescriptor): void {
-    this.addToL2Cache(name, descriptor);
+    this.l2Cache.set(name, descriptor);
   }
 
   async setL2DescriptorWithRedis(name: string, descriptor: SkillDescriptor): Promise<void> {
-    this.addToL2Cache(name, descriptor);
+    this.l2Cache.set(name, descriptor);
     const key = CacheKeys.l2Descriptor(name);
     this.trackedL2Keys.add(key);
     await this.cacheService.set(key, descriptor, CACHE_CONFIG.L2_TTL);
@@ -164,33 +162,17 @@ export class SkillCacheManager {
   // ================================================================
 
   getStats() {
+    const l2Stats = this.l2Cache.getStats();
     return {
-      l2CacheSize: this.l2Cache.size,
+      l2CacheSize: l2Stats.size,
+      l2HitRate: l2Stats.hitRate,
+      l2Hits: l2Stats.hits,
+      l2Misses: l2Stats.misses,
+      l2Evictions: l2Stats.evictions,
       trackedL1Keys: this.trackedL1Keys.size,
       trackedL2Keys: this.trackedL2Keys.size,
       trackedL3Keys: this.trackedL3Keys.size,
       cacheConfig: CACHE_CONFIG,
     };
-  }
-
-  // ================================================================
-  // 内部 LRU
-  // ================================================================
-
-  private addToL2Cache(name: string, descriptor: SkillDescriptor): void {
-    if (this.l2Cache.size >= CACHE_CONFIG.L2_MAX_SIZE) {
-      let oldestKey: string | null = null;
-      let oldestTime = Infinity;
-      for (const [key, entry] of this.l2Cache) {
-        if (entry.timestamp < oldestTime) {
-          oldestTime = entry.timestamp;
-          oldestKey = key;
-        }
-      }
-      if (oldestKey) {
-        this.l2Cache.delete(oldestKey);
-      }
-    }
-    this.l2Cache.set(name, { descriptor, timestamp: Date.now() });
   }
 }

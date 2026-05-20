@@ -15,9 +15,6 @@
     </ul>
   </div>
   <div class="card">
-    <div class="card-title">
-      {{ $t('modelStatus.title') }}
-    </div>
     <el-table :data="modelStatus" stripe v-loading="statusLoading">
       <el-table-column :label="$t('modelStatus.model')">
         <template #default="{ row }">

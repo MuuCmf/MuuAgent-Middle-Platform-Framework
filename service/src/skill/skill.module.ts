@@ -70,6 +70,7 @@ import { CacheModule } from '../cache/cache.module';
     SkillScanner,
     SkillImporter,
     SkillKbService,
+    SkillCacheManager,
     DatabaseSkillProvider,
   ],
 })

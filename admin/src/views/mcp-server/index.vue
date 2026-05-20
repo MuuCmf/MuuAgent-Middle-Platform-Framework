@@ -12,56 +12,47 @@
 
     <div class="card">
       <div class="card-title">
-        <span>MCP Server 列表</span>
         <div class="card-actions">
+          <el-button type="primary" @click="handleCreate">
+            <el-icon>
+              <Plus />
+            </el-icon>
+            新建 Server
+          </el-button>
           <el-button @click="handleHealthCheckAll" :loading="healthCheckLoading">
-            <el-icon><Monitor /></el-icon>
+            <el-icon>
+              <Monitor />
+            </el-icon>
             健康检查
           </el-button>
           <el-button @click="handleRefreshCache">
-            <el-icon><Refresh /></el-icon>
+            <el-icon>
+              <Refresh />
+            </el-icon>
             刷新缓存
           </el-button>
           <el-button @click="handleImport">
-            <el-icon><Upload /></el-icon>
+            <el-icon>
+              <Upload />
+            </el-icon>
             导入配置
-          </el-button>
-          <el-button type="primary" @click="handleCreate">
-            <el-icon><Plus /></el-icon>
-            新建 Server
           </el-button>
         </div>
       </div>
 
       <div class="filter-section">
-        <el-select
-          v-model="searchForm.enabled"
-          placeholder="状态"
-          clearable
-          style="width: 120px"
-          @change="handleSearch"
-        >
+        <el-select v-model="searchForm.enabled" placeholder="状态" clearable style="width: 120px" @change="handleSearch">
           <el-option label="启用" :value="true" />
           <el-option label="禁用" :value="false" />
         </el-select>
-        <el-select
-          v-model="searchForm.healthStatus"
-          placeholder="健康状态"
-          clearable
-          style="width: 120px"
-          @change="handleSearch"
-        >
+        <el-select v-model="searchForm.healthStatus" placeholder="健康状态" clearable style="width: 120px"
+          @change="handleSearch">
           <el-option label="健康" value="healthy" />
           <el-option label="不健康" value="unhealthy" />
           <el-option label="未知" value="unknown" />
         </el-select>
-        <el-select
-          v-model="searchForm.transport"
-          placeholder="传输协议"
-          clearable
-          style="width: 120px"
-          @change="handleSearch"
-        >
+        <el-select v-model="searchForm.transport" placeholder="传输协议" clearable style="width: 120px"
+          @change="handleSearch">
           <el-option label="HTTP" value="http" />
           <el-option label="SSE" value="sse" />
           <el-option label="STDIO" value="stdio" />
@@ -70,12 +61,7 @@
         <el-button @click="handleReset">重置</el-button>
       </div>
 
-      <el-table
-        v-loading="loading"
-        :data="serverList"
-        stripe
-        style="width: 100%"
-      >
+      <el-table v-loading="loading" :data="serverList" stripe style="width: 100%">
         <el-table-column prop="name" label="名称" min-width="120" />
         <el-table-column prop="displayName" label="显示名称" min-width="120">
           <template #default="{ row }">
@@ -109,10 +95,7 @@
         </el-table-column>
         <el-table-column label="健康状态" width="100">
           <template #default="{ row }">
-            <el-tag
-              :type="getHealthTagType(row.healthStatus)"
-              size="small"
-            >
+            <el-tag :type="getHealthTagType(row.healthStatus)" size="small">
               {{ getHealthLabel(row.healthStatus) }}
             </el-tag>
           </template>
@@ -153,52 +136,33 @@
       </el-table>
 
       <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="searchForm.page"
-          v-model:page-size="searchForm.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handlePageChange"
-        />
+        <el-pagination v-model:current-page="searchForm.page" v-model:page-size="searchForm.pageSize"
+          :page-sizes="[10, 20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange" @current-change="handlePageChange" />
       </div>
     </div>
 
-    <McpServerEditDrawer
-      v-model="editDrawerVisible"
-      :server="currentServer"
-      :mode="editMode"
-      @success="handleEditSuccess"
-    />
+    <McpServerEditDrawer v-model="editDrawerVisible" :server="currentServer" :mode="editMode"
+      @success="handleEditSuccess" />
 
-    <el-dialog
-      v-model="importDialogVisible"
-      title="导入 MCP Server 配置"
-      width="600px"
-    >
+    <el-dialog v-model="importDialogVisible" title="导入 MCP Server 配置" width="600px">
       <div class="import-tip">
         <p>支持 Claude Desktop 配置格式，直接粘贴 JSON 即可导入：</p>
         <pre class="import-example">{
-  "mcpServers": {
-    "filesystem": {
+      "mcpServers": {
+      "filesystem": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
-    },
-    "github": {
+      },
+      "github": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": { "GITHUB_TOKEN": "ghp_xxx" }
-    }
-  }
-}</pre>
+      }
+      }
+      }</pre>
       </div>
-      <el-input
-        v-model="importJsonText"
-        type="textarea"
-        :rows="12"
-        placeholder="粘贴 Claude Desktop 配置 JSON..."
-      />
+      <el-input v-model="importJsonText" type="textarea" :rows="12" placeholder="粘贴 Claude Desktop 配置 JSON..." />
       <template #footer>
         <el-button @click="importDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="handleImportSubmit" :loading="importLoading">
@@ -207,11 +171,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog
-      v-model="importResultVisible"
-      title="导入结果"
-      width="500px"
-    >
+    <el-dialog v-model="importResultVisible" title="导入结果" width="500px">
       <div class="import-result-summary">
         <el-tag type="info">总数: {{ importResult?.total || 0 }}</el-tag>
         <el-tag type="success">成功: {{ importResult?.success || 0 }}</el-tag>

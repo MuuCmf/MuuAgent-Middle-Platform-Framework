@@ -282,6 +282,20 @@ export class McpServerRegistry implements OnModuleInit {
   }
 
   /**
+   * 获取缓存统计
+   */
+  getStats() {
+    return {
+      size: this.cache.size,
+      ttlMs: this.CACHE_TTL,
+      lastRefresh: this.lastRefresh,
+      expiredCount: Array.from(this.cache.values()).filter(
+        (item) => item.expireAt <= Date.now(),
+      ).length,
+    };
+  }
+
+  /**
    * 验证配置
    * @param config 配置
    */

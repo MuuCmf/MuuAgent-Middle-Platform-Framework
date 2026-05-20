@@ -1,20 +1,14 @@
 <template>
+  <div class="help-tip" style="margin-bottom: 20px;">
+    <div class="help-tip-title">💡 {{ $t('model.templateTip') }}</div>
+    <ul>
+      <li><strong>{{ $t('model.temperatureDesc') }}</strong></li>
+      <li><strong>{{ $t('model.topPDesc') }}</strong></li>
+      <li><strong>{{ $t('model.contextWindowDesc') }}</strong></li>
+      <li><strong>{{ $t('model.maxTokensDesc') }}</strong></li>
+    </ul>
+  </div>
   <div class="card">
-    <div class="card-title">
-      {{ $t('model.templateList') }}
-      <el-tag type="info" size="small">{{ templates.length }} {{ $t('model.templateCount') }}</el-tag>
-    </div>
-
-    <div class="help-tip" style="margin-bottom: 20px;">
-      <div class="help-tip-title">💡 {{ $t('model.templateTip') }}</div>
-      <ul>
-        <li><strong>{{ $t('model.temperatureDesc') }}</strong></li>
-        <li><strong>{{ $t('model.topPDesc') }}</strong></li>
-        <li><strong>{{ $t('model.contextWindowDesc') }}</strong></li>
-        <li><strong>{{ $t('model.maxTokensDesc') }}</strong></li>
-      </ul>
-    </div>
-
     <div style="margin-bottom: 16px; display: flex; gap: 12px;">
       <el-button type="primary" @click="handleAddTemplate">
         <el-icon>
@@ -23,13 +17,15 @@
         {{ $t('model.createTemplate') }}
       </el-button>
 
-      <el-select v-model="filterModelType" :placeholder="$t('model.modelTypeFilter')" clearable style="width: 150px;" @change="loadTemplates">
+      <el-select v-model="filterModelType" :placeholder="$t('model.modelTypeFilter')" clearable style="width: 150px;"
+        @change="loadTemplates">
         <el-option label="LLM" value="llm" />
         <el-option :label="$t('model.embedding')" value="embedding" />
         <el-option :label="$t('model.multimodal')" value="multimodal" />
       </el-select>
 
-      <el-select v-model="filterSceneTag" :placeholder="$t('model.sceneTagFilter')" clearable style="width: 150px;" @change="loadTemplates">
+      <el-select v-model="filterSceneTag" :placeholder="$t('model.sceneTagFilter')" clearable style="width: 150px;"
+        @change="loadTemplates">
         <el-option :label="$t('model.customerService')" value="customer_service" />
         <el-option :label="$t('model.creativeWriting')" value="creative" />
         <el-option :label="$t('model.vectorGeneration')" value="vector" />
@@ -85,13 +81,15 @@
           <el-button size="small" type="success" @click="handleSetDefaultTemplate(row.id)" :disabled="row.isDefault">
             {{ $t('model.setDefault') }}
           </el-button>
-          <el-button size="small" type="danger" @click="handleDeleteTemplate(row.id)">{{ $t('common.delete') }}</el-button>
+          <el-button size="small" type="danger" @click="handleDeleteTemplate(row.id)">{{ $t('common.delete')
+            }}</el-button>
         </template>
       </el-table-column>
     </el-table>
   </div>
 
-  <el-drawer v-model="templateDialogVisible" :title="editingTemplate ? $t('model.editTemplate') : $t('model.createTemplate')" direction="rtl" size="600px"
+  <el-drawer v-model="templateDialogVisible"
+    :title="editingTemplate ? $t('model.editTemplate') : $t('model.createTemplate')" direction="rtl" size="600px"
     class="template-drawer">
     <el-form :model="templateForm" label-width="100px" label-position="top">
       <div class="form-section">
@@ -133,7 +131,8 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('model.modelType')" required>
-              <el-select v-model="templateForm.modelType" style="width: 100%;" :placeholder="$t('model.modelTypeSelectTip')">
+              <el-select v-model="templateForm.modelType" style="width: 100%;"
+                :placeholder="$t('model.modelTypeSelectTip')">
                 <el-option :label="$t('model.llm')" value="llm">
                   <div class="select-option-content">
                     <span>{{ $t('model.llm') }}</span>
@@ -157,7 +156,8 @@
           </el-col>
           <el-col :span="12">
             <el-form-item :label="$t('model.sceneTagFilter')">
-              <el-select v-model="templateForm.sceneTag" style="width: 100%;" clearable :placeholder="$t('model.sceneTagTip')">
+              <el-select v-model="templateForm.sceneTag" style="width: 100%;" clearable
+                :placeholder="$t('model.sceneTagTip')">
                 <el-option :label="$t('model.customerServiceDesc')" value="customer_service" />
                 <el-option :label="$t('model.creativeWritingDesc')" value="creative" />
                 <el-option :label="$t('model.vectorGenerationDesc')" value="vector" />

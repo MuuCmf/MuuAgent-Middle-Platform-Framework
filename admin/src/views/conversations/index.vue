@@ -11,10 +11,6 @@
     </div>
 
     <div class="card">
-      <div class="card-title">
-        <span>{{ $t('conversation.conversationList') }}</span>
-      </div>
-
       <div class="filter-section">
         <el-select
           v-model="filters.conversationType"
