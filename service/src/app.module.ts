@@ -19,7 +19,7 @@ import { CacheModule } from './cache/cache.module';
 import { TaskModule } from './task/task.module';
 
 // Business module auto-discovery
-import { resolveBusinessModules } from './core/discovery';
+import { resolveBusinessModules } from './module-discovery/discovery';
 
 /**
  * 应用根模块
