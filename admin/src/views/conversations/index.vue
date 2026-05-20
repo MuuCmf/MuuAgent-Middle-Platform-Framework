@@ -107,7 +107,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('conversation.operation')" width="200" fixed="right">
+        <el-table-column :label="$t('conversation.operation')" min-width="200" fixed="right" align="right">
           <template #default="{ row }">
             <el-button
               type="primary"

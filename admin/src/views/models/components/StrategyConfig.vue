@@ -71,8 +71,8 @@
 
       <el-table-column :label="$t('common.actions')" width="180" align="right">
         <template #default="{ row }">
-          <el-button size="small" @click="handleEditStrategy(row)">{{ $t('strategyConfig.edit') }}</el-button>
-          <el-button size="small" type="danger" @click="handleDeleteStrategy(row.modelType)">{{ $t('strategyConfig.delete') }}</el-button>
+          <el-button link size="small" type="primary" @click="handleEditStrategy(row)">{{ $t('strategyConfig.edit') }}</el-button>
+          <el-button link size="small" type="danger" @click="handleDeleteStrategy(row.modelType)">{{ $t('strategyConfig.delete') }}</el-button>
         </template>
       </el-table-column>
     </el-table>

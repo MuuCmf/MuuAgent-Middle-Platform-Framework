@@ -71,8 +71,8 @@
       </el-table-column>
       <el-table-column :label="$t('common.actions')" width="150" align="right" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="handleEditKeyword(row)">{{ $t('intentKeyword.edit') }}</el-button>
-          <el-button size="small" type="danger" @click="handleDeleteKeyword(row.id)">{{ $t('intentKeyword.delete') }}</el-button>
+          <el-button link size="small" type="primary" @click="handleEditKeyword(row)">{{ $t('intentKeyword.edit') }}</el-button>
+          <el-button link size="small" type="danger" @click="handleDeleteKeyword(row.id)">{{ $t('intentKeyword.delete') }}</el-button>
         </template>
       </el-table-column>
     </el-table>

@@ -58,9 +58,9 @@
           <span v-else style="color: #999">-</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="100" fixed="right">
+      <el-table-column label="操作" width="100" fixed="right" align="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="handleViewDetail(row)">
+          <el-button link type="primary" size="small" @click="handleViewDetail(row)">
             详情
           </el-button>
         </template>

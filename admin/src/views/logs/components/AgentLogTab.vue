@@ -29,6 +29,11 @@
           </div>
         </template>
       </el-table-column>
+      <el-table-column label="会话ID" width="220">
+        <template #default="{ row }">
+          <span style="font-size: 12px; color: #666">{{ row.conversationId || '-' }}</span>
+        </template>
+      </el-table-column>
       <el-table-column label="耗时" width="100" align="right">
         <template #default="{ row }">
           <span :style="{ color: row.costMs > 5000 ? '#ff4d4f' : '#52c41a' }">
@@ -58,9 +63,9 @@
           <span v-else style="color: #999">-</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="100" fixed="right">
+      <el-table-column label="操作" width="100" fixed="right" align="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="handleViewDetail(row)">
+          <el-button link type="primary" size="small" @click="handleViewDetail(row)">
             详情
           </el-button>
         </template>
@@ -171,6 +176,7 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { logApi, type AgentLog } from '@/api/log'
 import type { ReasoningStep } from '@/api/agent'
+import { el } from 'element-plus/es/locale/index.mjs'
 
 const loading = ref(false)
 const logs = ref<AgentLog[]>([])

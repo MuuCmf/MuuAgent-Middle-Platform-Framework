@@ -82,8 +82,8 @@
         </el-table-column>
         <el-table-column :label="$t('common.actions')" width="150" align="right" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row.id)">{{ $t('common.delete') }}</el-button>
+            <el-button link size="small" type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
+            <el-button link size="small" type="danger" @click="handleDelete(row.id)">{{ $t('common.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>

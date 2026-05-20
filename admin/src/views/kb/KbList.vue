@@ -108,7 +108,7 @@
                 <el-icon>
                   <View />
                 </el-icon>
-                查看
+                管理
               </el-button>
               <el-button size="small" @click="handleEdit(kb)">
                 <el-icon>

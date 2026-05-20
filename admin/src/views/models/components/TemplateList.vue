@@ -76,12 +76,12 @@
       </el-table-column>
       <el-table-column :label="$t('common.actions')" width="280" fixed="right" align="right">
         <template #default="{ row }">
-          <el-button size="small" @click="handleEditTemplate(row)">{{ $t('common.edit') }}</el-button>
-          <el-button size="small" type="warning" @click="handleCopyTemplate(row.id)">{{ $t('model.copy') }}</el-button>
-          <el-button size="small" type="success" @click="handleSetDefaultTemplate(row.id)" :disabled="row.isDefault">
+          <el-button link size="small" type="primary" @click="handleEditTemplate(row)">{{ $t('common.edit') }}</el-button>
+          <el-button link size="small" type="warning" @click="handleCopyTemplate(row.id)">{{ $t('model.copy') }}</el-button>
+          <el-button link size="small" type="success" @click="handleSetDefaultTemplate(row.id)" :disabled="row.isDefault">
             {{ $t('model.setDefault') }}
           </el-button>
-          <el-button size="small" type="danger" @click="handleDeleteTemplate(row.id)">{{ $t('common.delete')
+          <el-button link size="small" type="danger" @click="handleDeleteTemplate(row.id)">{{ $t('common.delete')
             }}</el-button>
         </template>
       </el-table-column>

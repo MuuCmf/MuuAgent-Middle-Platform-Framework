@@ -144,9 +144,9 @@
           {{ formatRoutingLogTime(row.createdAt) }}
         </template>
       </el-table-column>
-      <el-table-column :label="$t('common.actions')" width="80" align="center" fixed="right">
+      <el-table-column :label="$t('common.actions')" align="right" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" text type="primary" @click="handleViewRoutingLogDetail(row)">{{ $t('routingLog.detail') }}</el-button>
+          <el-button link size="small" type="primary" @click="handleViewRoutingLogDetail(row)">{{ $t('routingLog.detail') }}</el-button>
         </template>
       </el-table-column>
     </el-table>

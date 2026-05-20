@@ -45,10 +45,10 @@
       <el-table-column prop="qpsLimit" :label="$t('modelStatus.qpsLimit')" width="100" />
       <el-table-column :label="$t('common.actions')" width="120" align="right">
         <template #default="{ row }">
-          <el-button v-if="row.circuitStatus !== 'closed'" size="small" type="primary" @click="handleResetCircuit(row.modelId)">
+          <el-button link v-if="row.circuitStatus !== 'closed'" size="small" type="primary" @click="handleResetCircuit(row.modelId)">
             {{ $t('modelStatus.resetCircuit') }}
           </el-button>
-          <el-button v-else size="small" type="primary" disabled>
+          <el-button link v-else size="small" type="primary" disabled>
             {{ $t('modelStatus.resetCircuit') }}
           </el-button>
         </template>
