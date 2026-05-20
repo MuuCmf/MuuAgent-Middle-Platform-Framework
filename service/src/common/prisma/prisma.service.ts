@@ -30,14 +30,30 @@ export class PrismaService extends PrismaClient {
   /** 关系映射：modelName -> (fieldName -> targetModelName) */
   private readonly relationMap: Map<string, Map<string, string>>;
 
+  /** 扩展后的 Prisma 客户端实例 */
+  private extendedClient: any;
+
   /**
    * 构造函数
    * 初始化 DMMF 元数据映射
+   * 使用 Proxy 模式将所有 Prisma 调用转发到扩展客户端
    */
   constructor() {
     super();
     this.bigIntFieldsMap = this.buildBigIntFieldsMap();
     this.relationMap = this.buildRelationMap();
+    
+    // 使用 Proxy 将所有属性访问转发到扩展客户端
+    return new Proxy(this, {
+      get(target: any, prop: string | symbol) {
+        // 如果扩展客户端已初始化且属性存在于扩展客户端上，则返回扩展客户端的属性
+        if (target.extendedClient && prop in target.extendedClient) {
+          return target.extendedClient[prop];
+        }
+        // 否则返回原始实例的属性
+        return target[prop];
+      }
+    });
   }
 
   /**
@@ -46,7 +62,7 @@ export class PrismaService extends PrismaClient {
   async onModuleInit() {
     await this.$connect();
     this.logger.log('数据库连接成功');
-    this.registerSnowflakeIdMiddleware();
+    this.initializeExtendedClient();
   }
 
   /**
@@ -123,77 +139,78 @@ export class PrismaService extends PrismaClient {
   }
 
   /**
-   * 注册雪花ID生成中间件
-   * 在创建记录时自动生成雪花ID
-   * 应用层使用 string，数据库层使用 BigInt
+   * 初始化扩展客户端
+   * 使用 Prisma Client Extensions 的 query 扩展拦截所有数据库操作
+   * 实现雪花ID自动生成和 BigInt 类型转换
    */
-  private registerSnowflakeIdMiddleware(): void {
-    this.$use(async (params, next) => {
-      try {
-        const model = params.model;
-
-        if (params.action === 'create') {
-          const data = params.args?.data;
-          if (data) {
-            if (!data.id || data.id === 0 || data.id === BigInt(0) || data.id === '') {
-              const snowflakeId = generateId();
-              data.id = BigInt(snowflakeId);
-              //this.logger.debug(`为 ${model} 生成雪花 ID: ${snowflakeId}`);
-            }
-            this.convertStringToBigInt(data, model);
-          }
-        } else if (params.action === 'createMany') {
-          if (params.args?.data && Array.isArray(params.args.data)) {
-            params.args.data.forEach((item: any) => {
-              if (!item.id || item.id === 0 || item.id === BigInt(0) || item.id === '') {
-                const snowflakeId = generateId();
-                item.id = BigInt(snowflakeId);
-                //this.logger.debug(`为 ${model} 生成雪花 ID: ${snowflakeId}`);
+  private initializeExtendedClient(): void {
+    const self = this;
+    
+    this.extendedClient = this.$extends({
+      query: {
+        async $allOperations({ model, operation, args, query }) {
+          try {
+            if (operation === 'create') {
+              const data = args?.data;
+              if (data) {
+                if (!data.id || data.id === 0 || data.id === BigInt(0) || data.id === '') {
+                  const snowflakeId = generateId();
+                  data.id = BigInt(snowflakeId);
+                }
+                self.convertStringToBigInt(data, model);
               }
-              this.convertStringToBigInt(item, model);
-            });
-          }
-        } else if (params.action === 'upsert') {
-          if (params.args?.update) {
-            this.convertStringToBigInt(params.args.update, model);
-          }
-          if (params.args?.create) {
-            const data = params.args.create;
-            if (!data.id || data.id === 0 || data.id === BigInt(0) || data.id === '') {
-              const snowflakeId = generateId();
-              data.id = BigInt(snowflakeId);
-              //this.logger.debug(`为 ${model} (upsert create) 生成雪花 ID: ${snowflakeId}`);
+            } else if (operation === 'createMany') {
+              if (args?.data && Array.isArray(args.data)) {
+                args.data.forEach((item: any) => {
+                  if (!item.id || item.id === 0 || item.id === BigInt(0) || item.id === '') {
+                    const snowflakeId = generateId();
+                    item.id = BigInt(snowflakeId);
+                  }
+                  self.convertStringToBigInt(item, model);
+                });
+              }
+            } else if (operation === 'upsert') {
+              if (args?.update) {
+                self.convertStringToBigInt(args.update, model);
+              }
+              if (args?.create) {
+                const data = args.create;
+                if (!data.id || data.id === 0 || data.id === BigInt(0) || data.id === '') {
+                  const snowflakeId = generateId();
+                  data.id = BigInt(snowflakeId);
+                }
+                self.convertStringToBigInt(data, model);
+              }
+            } else if (operation === 'update') {
+              if (args?.data) {
+                self.convertStringToBigInt(args.data, model);
+              }
+            } else if (operation === 'updateMany') {
+              if (args?.data && Array.isArray(args.data)) {
+                args.data.forEach((item: any) => self.convertStringToBigInt(item, model));
+              }
             }
-            this.convertStringToBigInt(data, model);
+
+            if (args?.where) {
+              self.convertStringToBigInt(args.where, model);
+            }
+
+            if (args?.cursor) {
+              self.convertStringToBigInt(args.cursor, model);
+            }
+
+            const result = await query(args);
+
+            return self.convertBigIntToString(result, model);
+          } catch (error) {
+            self.logger.error(`扩展客户端处理错误: ${error.message}`, error.stack);
+            throw error;
           }
-        } else if (params.action === 'update') {
-          if (params.args?.data) {
-            this.convertStringToBigInt(params.args.data, model);
-          }
-        } else if (params.action === 'updateMany') {
-          if (params.args?.data && Array.isArray(params.args.data)) {
-            params.args.data.forEach((item: any) => this.convertStringToBigInt(item, model));
-          }
-        }
-
-        if (params.args?.where) {
-          this.convertStringToBigInt(params.args.where, model);
-        }
-
-        if (params.args?.cursor) {
-          this.convertStringToBigInt(params.args.cursor, model);
-        }
-
-        const result = await next(params);
-
-        return this.convertBigIntToString(result, model);
-      } catch (error) {
-        this.logger.error(`中间件处理错误: ${error.message}`, error.stack);
-        throw error;
-      }
+        },
+      },
     });
 
-    this.logger.log('雪花ID生成中间件已注册');
+    this.logger.log('雪花ID生成扩展客户端已初始化');
   }
 
   /**

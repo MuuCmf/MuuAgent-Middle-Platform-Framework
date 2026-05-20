@@ -1,25 +1,50 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { NestExpressApplication } from '@nestjs/platform-express';
-import { join } from 'path';
-import { AppModule } from './app.module';
-import { Request, Response, NextFunction } from 'express';
-import { GlobalExceptionFilter } from './common/errors';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe, ConsoleLogger } from "@nestjs/common";
+import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
+import { NestExpressApplication } from "@nestjs/platform-express";
+import { join } from "path";
+import { AppModule } from "./app.module";
+import { Request, Response, NextFunction } from "express";
+import { GlobalExceptionFilter } from "./common/errors";
+
+/**
+ * 自定义 Logger 类
+ * 过滤路由映射日志，保留其他重要日志
+ */
+class CustomLogger extends ConsoleLogger {
+  /**
+   * 重写 log 方法，过滤路由映射日志
+   * @param message 日志消息
+   * @param context 日志上下文
+   */
+  log(message: any, context?: string) {
+    // 过滤路由映射日志
+    if (context === 'RouterExplorer' && message.includes('Mapped')) {
+      return;
+    }
+    super.log(message, context);
+  }
+}
 
 /**
  * 应用启动入口函数
  * @returns {Promise<void>}
  */
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: new CustomLogger(),
+  });
 
   // 设置全局前缀
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix("api");
 
   // 配置静态文件服务（ public 目录）
-  app.useStaticAssets(join(__dirname, '..', 'public', 'client'));
-  app.useStaticAssets(join(__dirname, '..', 'public', 'admin'), { prefix: '/admin' });
+  app.useStaticAssets(join(__dirname, "..", "public", "client"), {
+    prefix: "/client",
+  });
+  app.useStaticAssets(join(__dirname, "..", "public", "admin"), {
+    prefix: "/admin",
+  }); 
 
   // 启用CORS跨域
   app.enableCors();
@@ -39,64 +64,59 @@ async function bootstrap(): Promise<void> {
   app.use((req: Request, res: Response, next: NextFunction) => {
     // 如果是 API 路由或静态文件，继续正常处理
     if (
-      req.path.startsWith('/api') ||
-      req.path.startsWith('/api-docs') ||
+      req.path.startsWith("/api") ||
+      req.path.startsWith("/api-docs") ||
       req.path.match(/\.\w+$/) // 包含文件扩展名的请求
     ) {
       return next();
     }
 
     // SSE 流式接口需要特殊处理，不经过 SPA 路由
-    if (req.headers.accept === 'text/event-stream') {
+    if (req.headers.accept === "text/event-stream") {
       return next();
     }
 
-    // ======================
-    // 管理端：/admin/* → 返回 admin/index.html
-    // ======================
-    if (req.path.startsWith('/admin')) {
-      return res.sendFile(join(__dirname, '..', 'public', 'admin', 'index.html'));
-    }
-
-    // ======================
-    // 客户端：其他所有 → 返回 client/index.html
-    // ======================
-    if (!req.path.startsWith('/client')) {
-      return res.sendFile(join(__dirname, '..', 'public', 'client', 'index.html'));
-    }
-
     // 根路径返回欢迎信息
-    if (req.path === '/') {
+    if (req.path === "/") {
       return res.json({
-        name: 'MuuAI-Middle-Platform',
-        description: 'AI模型管理 + 智能调度 + Skill + Agent + RAG知识库 智能中台',
-        version: '1.0.0',
+        name: "MuuAI-Middle-Platform",
+        description:
+          "AI模型管理 + 智能调度 + Skill + Agent + RAG知识库 智能中台",
+        version: "1.0.0",
         endpoints: {
-          api: '/api',
-          docs: '/api-docs'
-        }
+          api: "/api",
+          docs: "/api-docs",
+        },
       });
+    }
+
+    // SPA 路由回退：/client 和 /admin 路径下的所有路由返回对应的 index.html
+    if (req.path.startsWith("/client")) {
+      return res.sendFile(join(__dirname, "..", "public", "client", "index.html"));
+    }
+    if (req.path.startsWith("/admin")) {
+      return res.sendFile(join(__dirname, "..", "public", "admin", "index.html"));
     }
 
     // 其他路由返回 404
     return res.status(404).json({
       statusCode: 404,
-      message: 'Resource not found',
-      error: 'Not Found'
+      message: "Resource not found",
+      error: "Not Found",
     });
   });
 
   // 配置Swagger API文档
   const config = new DocumentBuilder()
-    .setTitle('MuuAI-Middle-Platform')
-    .setDescription('AI模型管理 + 智能调度 + Skill + Agent 智能中台')
-    .setVersion('1.0.0')
+    .setTitle("MuuAI-Middle-Platform")
+    .setDescription("AI模型管理 + 智能调度 + Skill + Agent 智能中台")
+    .setVersion("1.0.0")
     .addBearerAuth()
-    .addApiKey({ type: 'apiKey', name: 'x-api-key', in: 'header' }, 'api-key')
+    .addApiKey({ type: "apiKey", name: "x-api-key", in: "header" }, "api-key")
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api-docs', app, document);
+  SwaggerModule.setup("api-docs", app, document);
 
   const port = process.env.PORT || 3000;
   await app.listen(port);

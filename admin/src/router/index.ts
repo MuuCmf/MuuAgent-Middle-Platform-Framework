@@ -134,7 +134,7 @@ const routes: RouteRecordRaw[] = [
 ];
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.VITE_ROUTER_BASE || "/admin/"),
+  history: createWebHistory(import.meta.env.BASE_URL || "/admin/"),
   routes,
 });
 
@@ -144,7 +144,7 @@ router.beforeEach((to, _from, next) => {
   // 设置页面标题
   if (to.meta.title) {
     const title = i18n.global.t(to.meta.title as string);
-    document.title = `${title} - MuuAI中台管理系统`;
+    document.title = `${title} - MuuAI`;
   }
 
   if (to.meta.requiresAuth !== false && !token) {
