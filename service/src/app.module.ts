@@ -1,46 +1,43 @@
+import * as dotenv from 'dotenv';
+dotenv.config({ path: '.env' });
+
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+
+// Global modules (always loaded — providers available everywhere)
 import { PrismaModule } from './common/prisma/prisma.module';
 import { CommonModule } from './common/common.module';
-import { RateLimitModule } from './rate-limit/rate-limit.module';
-import { AppModule as AppMgmtModule } from './app/app.module';
-import { ModelModule } from './model/model.module';
-import { ModelTemplateModule } from './model-template/model-template.module';
-import { PromptTemplateModule } from './prompt-template/prompt-template.module';
-import { ModelRoutingModule } from "./model-routing/model-routing.module";
-import { McpServerModule } from './mcp-server/mcp-server.module';
-import { AiModule } from './ai/ai.module';
-import { SkillModule } from './skill/skill.module';
-import { AgentModule } from './agent/agent.module';
-import { LogModule } from './log/log.module';
-import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
-import { KbModule } from './kb/kb.module';
-import { DocumentModule } from './document/document.module';
-import { RetrievalModule } from './retrieval/retrieval.module';
-import { VectorModule } from './vector/vector.module';
+import { RateLimitModule } from './rate-limit/rate-limit.module';
+import { PromptTemplateModule } from './prompt-template/prompt-template.module';
+import { FileModule } from './file/file.module';
+
+// Infrastructure modules (always loaded — forRoot / forRootAsync)
 import { CacheModule } from './cache/cache.module';
 import { TaskModule } from './task/task.module';
-import { OAuthModule } from './oauth/oauth.module';
-import { ConversationModule } from './conversation/conversation.module';
-import { FileModule } from './file/file.module';
-import { IntentModule } from './intent/intent.module';
+
+// Business module auto-discovery
+import { resolveBusinessModules } from './core/discovery';
 
 /**
  * 应用根模块
- * 负责整合所有功能模块
+ *
+ * 业务模块通过 ModuleDiscovery 自动加载：
+ * - ENABLED_MODULES=all 或未设置（默认，加载全部）
+ * - ENABLED_MODULES=agent,skill,kb（指定模块 + 传递依赖自动补全）
+ * - ENABLED_MODULES=all,-log,-oauth（排除特定模块）
+ * - 在 src/modules/ 目录下放置新模块目录即可实现即插即用
  */
 @Module({
   imports: [
+    // === Infrastructure (forRoot / forRootAsync) ===
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
     }),
-
     EventEmitterModule.forRoot(),
-
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
@@ -48,44 +45,22 @@ import { IntentModule } from './intent/intent.module';
       },
     ]),
 
-    PrismaModule,
-
-    CommonModule,
-
+    // === Infrastructure (always loaded) ===
     CacheModule,
-
     TaskModule,
 
+    // === Global modules (always loaded) ===
+    PrismaModule,
+    CommonModule,
     AuthModule,
-
     RateLimitModule,
-
-    AppMgmtModule,
-
-    ModelModule,
-    ModelTemplateModule,
     PromptTemplateModule,
-    ModelRoutingModule,
-    McpServerModule,
-    AiModule,
-    SkillModule,
-    AgentModule,
-    LogModule,
-
-    KbModule,
-    DocumentModule,
-    RetrievalModule,
-    VectorModule,
-
     FileModule,
 
-    AdminModule,
-
-    OAuthModule,
-
-    ConversationModule,
-
-    IntentModule,
+    // === Business modules (auto-discovered, dependency-sorted) ===
+    ...resolveBusinessModules({
+      envModules: process.env.ENABLED_MODULES,
+    }),
   ],
 })
 export class AppModule {}

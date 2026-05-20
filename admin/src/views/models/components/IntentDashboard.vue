@@ -1,11 +1,11 @@
 <template>
   <div class="help-tip" style="margin-bottom: 20px;">
-    <div class="help-tip-title">💡 监控说明</div>
+    <div class="help-tip-title">💡 {{ $t('intentDashboard.helpTitle') }}</div>
     <ul>
-      <li><strong>意图分布</strong>：展示各意图类型的请求分布情况</li>
-      <li><strong>模型使用排行</strong>：展示各模型的使用频率排名</li>
-      <li><strong>降级统计</strong>：展示降级原因分布，帮助优化调度策略</li>
-      <li><strong>趋势图</strong>：展示请求量随时间的变化趋势</li>
+      <li><strong>{{ $t('intentDashboard.helpItem1') }}</strong></li>
+      <li><strong>{{ $t('intentDashboard.helpItem2') }}</strong></li>
+      <li><strong>{{ $t('intentDashboard.helpItem3') }}</strong></li>
+      <li><strong>{{ $t('intentDashboard.helpItem4') }}</strong></li>
     </ul>
   </div>
 
@@ -13,29 +13,29 @@
     <el-date-picker
       v-model="dashboardDateRange"
       type="daterange"
-      range-separator="至"
-      start-placeholder="开始日期"
-      end-placeholder="结束日期"
+      :range-separator="$t('intentDashboard.dateRangeSeparator')"
+      :start-placeholder="$t('intentDashboard.startDate')"
+      :end-placeholder="$t('intentDashboard.endDate')"
       format="YYYY-MM-DD"
       value-format="YYYY-MM-DD"
       style="width: 260px;"
       @change="loadDashboardAll"
     />
 
-    <el-select v-model="dashboardFilterAppCode" placeholder="应用筛选" clearable style="width: 160px;" @change="loadDashboardAll">
+    <el-select v-model="dashboardFilterAppCode" :placeholder="$t('intentDashboard.appFilter')" clearable style="width: 160px;" @change="loadDashboardAll">
       <el-option v-for="app in dashboardApps" :key="app.code" :label="app.name" :value="app.code" />
     </el-select>
 
     <el-button @click="loadDashboardAll">
       <el-icon><Refresh /></el-icon>
-      刷新
+      {{ $t('common.refresh') }}
     </el-button>
   </div>
 
   <el-row :gutter="16" style="margin-bottom: 20px;">
     <el-col :span="6">
       <el-card shadow="hover">
-        <el-statistic title="总请求数" :value="dashboardOverview?.totalRequests || 0">
+        <el-statistic :title="$t('intentDashboard.totalRequests')" :value="dashboardOverview?.totalRequests || 0">
           <template #prefix>
             <el-icon><DataLine /></el-icon>
           </template>
@@ -44,7 +44,7 @@
     </el-col>
     <el-col :span="6">
       <el-card shadow="hover">
-        <el-statistic title="成功率" :value="dashboardOverview?.successRate || 0" suffix="%">
+        <el-statistic :title="$t('intentDashboard.successRate')" :value="dashboardOverview?.successRate || 0" suffix="%">
           <template #prefix>
             <el-icon><TrendCharts /></el-icon>
           </template>
@@ -53,7 +53,7 @@
     </el-col>
     <el-col :span="6">
       <el-card shadow="hover">
-        <el-statistic title="平均耗时" :value="dashboardOverview?.avgCostMs || 0" suffix="ms">
+        <el-statistic :title="$t('intentDashboard.avgLatency')" :value="dashboardOverview?.avgCostMs || 0" suffix="ms">
           <template #prefix>
             <el-icon><PieChart /></el-icon>
           </template>
@@ -62,7 +62,7 @@
     </el-col>
     <el-col :span="6">
       <el-card shadow="hover">
-        <el-statistic title="降级率" :value="dashboardOverview?.degradeRate || 0" suffix="%">
+        <el-statistic :title="$t('intentDashboard.degradeRate')" :value="dashboardOverview?.degradeRate || 0" suffix="%">
           <template #prefix>
             <el-icon><WarningFilled /></el-icon>
           </template>
@@ -76,17 +76,17 @@
       <el-card>
         <template #header>
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span>意图分布</span>
-            <el-tag v-if="dashboardOverview" type="info" size="small">{{ dashboardOverview.intentDistribution?.length || 0 }} 种意图</el-tag>
+            <span>{{ $t('intentDashboard.intentDistribution') }}</span>
+            <el-tag v-if="dashboardOverview" type="info" size="small">{{ dashboardOverview.intentDistribution?.length || 0 }} {{ $t('intentDashboard.intentTypes') }}</el-tag>
           </div>
         </template>
         <div class="distribution-list">
           <div v-for="item in dashboardOverview?.intentDistribution" :key="item.intent" class="distribution-item">
             <div class="distribution-header">
               <el-tag :type="getDashboardIntentTagType(item.intent)" size="small">
-                {{ getDashboardIntentLabel(item.intent) }}
+                {{ getIntentLabel(item.intent) }}
               </el-tag>
-              <span class="distribution-count">{{ item.count }} 次 ({{ item.percentage }}%)</span>
+              <span class="distribution-count">{{ item.count }} {{ $t('intentDashboard.times') }} ({{ item.percentage }}%)</span>
             </div>
             <el-progress
               :percentage="item.percentage"
@@ -94,7 +94,7 @@
               :stroke-width="12"
             />
           </div>
-          <el-empty v-if="!dashboardOverview?.intentDistribution?.length" description="暂无数据" :image-size="60" />
+          <el-empty v-if="!dashboardOverview?.intentDistribution?.length" :description="$t('intentDashboard.noData')" :image-size="60" />
         </div>
       </el-card>
     </el-col>
@@ -103,8 +103,8 @@
       <el-card>
         <template #header>
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span>模型使用排行</span>
-            <el-tag v-if="dashboardModelUsage.length" type="info" size="small">{{ dashboardModelUsage.length }} 个模型</el-tag>
+            <span>{{ $t('intentDashboard.modelUsageRanking') }}</span>
+            <el-tag v-if="dashboardModelUsage.length" type="info" size="small">{{ dashboardModelUsage.length }} {{ $t('intentDashboard.models') }}</el-tag>
           </div>
         </template>
         <div class="distribution-list">
@@ -116,7 +116,7 @@
                 </el-tag>
                 <span style="margin-left: 8px;">{{ item.modelCode }}</span>
               </div>
-              <span class="distribution-count">{{ item.count }} 次</span>
+              <span class="distribution-count">{{ item.count }} {{ $t('intentDashboard.times') }}</span>
             </div>
             <el-progress
               :percentage="dashboardModelUsage.length ? Math.round((item.count / dashboardModelUsage[0].count) * 100) : 0"
@@ -124,7 +124,7 @@
               :stroke-width="12"
             />
           </div>
-          <el-empty v-if="!dashboardModelUsage.length" description="暂无数据" :image-size="60" />
+          <el-empty v-if="!dashboardModelUsage.length" :description="$t('intentDashboard.noData')" :image-size="60" />
         </div>
       </el-card>
     </el-col>
@@ -135,15 +135,15 @@
       <el-card>
         <template #header>
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span>降级统计</span>
-            <el-tag v-if="dashboardDegradeStats.length" type="warning" size="small">{{ dashboardDegradeStats.length }} 种原因</el-tag>
+            <span>{{ $t('intentDashboard.degradeStats') }}</span>
+            <el-tag v-if="dashboardDegradeStats.length" type="warning" size="small">{{ dashboardDegradeStats.length }} {{ $t('intentDashboard.reasons') }}</el-tag>
           </div>
         </template>
         <div class="distribution-list">
           <div v-for="item in dashboardDegradeStats" :key="item.reason" class="distribution-item">
             <div class="distribution-header">
               <span class="degrade-reason">{{ item.reason }}</span>
-              <span class="distribution-count">{{ item.count }} 次</span>
+              <span class="distribution-count">{{ item.count }} {{ $t('intentDashboard.times') }}</span>
             </div>
             <el-progress
               :percentage="dashboardDegradeStats.length ? Math.round((item.count / dashboardDegradeStats[0].count) * 100) : 0"
@@ -151,7 +151,7 @@
               :stroke-width="12"
             />
           </div>
-          <el-empty v-if="!dashboardDegradeStats.length" description="暂无降级数据" :image-size="60" />
+          <el-empty v-if="!dashboardDegradeStats.length" :description="$t('intentDashboard.noDegradeData')" :image-size="60" />
         </div>
       </el-card>
     </el-col>
@@ -160,10 +160,10 @@
       <el-card>
         <template #header>
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span>请求趋势</span>
+            <span>{{ $t('intentDashboard.requestTrend') }}</span>
             <el-radio-group v-model="dashboardTrendGranularity" size="small" @change="loadDashboardTrend">
-              <el-radio-button value="hour">按小时</el-radio-button>
-              <el-radio-button value="day">按天</el-radio-button>
+              <el-radio-button value="hour">{{ $t('intentDashboard.hourly') }}</el-radio-button>
+              <el-radio-button value="day">{{ $t('intentDashboard.daily') }}</el-radio-button>
             </el-radio-group>
           </div>
         </template>
@@ -174,12 +174,12 @@
                 <div
                   class="trend-bar success-bar"
                   :style="{ height: getDashboardBarHeight(point.successCount || 0, dashboardMaxTrendValue) }"
-                  :title="`成功: ${point.successCount || 0}`"
+                  :title="`${$t('intentDashboard.success')}: ${point.successCount || 0}`"
                 />
                 <div
                   class="trend-bar fail-bar"
                   :style="{ height: getDashboardBarHeight(point.failCount || 0, dashboardMaxTrendValue) }"
-                  :title="`失败: ${point.failCount || 0}`"
+                  :title="`${$t('intentDashboard.failed')}: ${point.failCount || 0}`"
                 />
               </div>
               <span class="trend-label">{{ formatDashboardTrendLabel(point.time) }}</span>
@@ -188,15 +188,15 @@
           <div class="trend-legend">
             <div class="legend-item">
               <div class="legend-color success-color" />
-              <span>成功</span>
+              <span>{{ $t('intentDashboard.success') }}</span>
             </div>
             <div class="legend-item">
               <div class="legend-color fail-color" />
-              <span>失败</span>
+              <span>{{ $t('intentDashboard.failed') }}</span>
             </div>
           </div>
         </div>
-        <el-empty v-if="!dashboardTrendData.length" description="暂无趋势数据" :image-size="60" />
+        <el-empty v-if="!dashboardTrendData.length" :description="$t('intentDashboard.noTrendData')" :image-size="60" />
       </el-card>
     </el-col>
   </el-row>
@@ -204,6 +204,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Refresh, DataLine, TrendCharts, PieChart, WarningFilled } from '@element-plus/icons-vue'
 import {
@@ -215,6 +216,8 @@ import {
 } from '@/api/intent-dashboard'
 import { appApi } from '@/api/app'
 
+const { t } = useI18n()
+
 const dashboardDateRange = ref<[string, string] | null>(null)
 const dashboardFilterAppCode = ref<string>()
 const dashboardApps = ref<Array<{ code: string; name: string }>>([])
@@ -225,17 +228,11 @@ const dashboardTrendGranularity = ref<'hour' | 'day'>('hour')
 const dashboardModelUsage = ref<ModelUsageRank[]>([])
 const dashboardDegradeStats = ref<DegradeStat[]>([])
 
-/**
- * 看板最大趋势值
- */
 const dashboardMaxTrendValue = computed(() => {
   if (!dashboardTrendData.value.length) return 1
   return Math.max(...dashboardTrendData.value.map(d => d.count), 1)
 })
 
-/**
- * 看板意图标签类型
- */
 const getDashboardIntentTagType = (intent: string): string => {
   const map: Record<string, string> = {
     general: 'primary',
@@ -249,25 +246,19 @@ const getDashboardIntentTagType = (intent: string): string => {
   return map[intent] || 'primary'
 }
 
-/**
- * 看板意图标签文本
- */
-const getDashboardIntentLabel = (intent: string): string => {
+const getIntentLabel = (intent: string): string => {
   const map: Record<string, string> = {
-    general: '通用',
-    code: '代码',
-    math: '数学',
-    creative: '创意',
-    image: '生图',
-    tts: '语音合成',
-    asr: '语音识别'
+    general: t('intentLabel.general'),
+    code: t('intentLabel.code'),
+    math: t('intentLabel.math'),
+    creative: t('intentLabel.creative'),
+    image: t('intentLabel.image'),
+    tts: t('intentLabel.tts'),
+    asr: t('intentLabel.asr')
   }
   return map[intent] || intent
 }
 
-/**
- * 看板意图颜色
- */
 const getDashboardIntentColor = (intent: string): string => {
   const map: Record<string, string> = {
     general: '#1890ff',
@@ -281,17 +272,11 @@ const getDashboardIntentColor = (intent: string): string => {
   return map[intent] || '#1890ff'
 }
 
-/**
- * 看板柱状图高度
- */
 const getDashboardBarHeight = (value: number, max: number): string => {
   if (max === 0) return '0%'
   return `${(value / max) * 100}%`
 }
 
-/**
- * 格式化看板趋势标签
- */
 const formatDashboardTrendLabel = (time: string): string => {
   if (!time) return '-'
   if (dashboardTrendGranularity.value === 'hour') {
@@ -300,21 +285,15 @@ const formatDashboardTrendLabel = (time: string): string => {
   return time.slice(5)
 }
 
-/**
- * 加载看板应用列表
- */
 const loadDashboardApps = async () => {
   try {
     const res = await appApi.getList()
     dashboardApps.value = res.data.data?.list || []
   } catch {
-    // 忽略
+    // ignore
   }
 }
 
-/**
- * 加载看板概览
- */
 const loadDashboardOverview = async () => {
   try {
     const res = await intentDashboardApi.getOverview({
@@ -324,13 +303,10 @@ const loadDashboardOverview = async () => {
     })
     dashboardOverview.value = res.data.data || null
   } catch {
-    ElMessage.error('加载概览数据失败')
+    ElMessage.error(t('intentDashboard.loadOverviewFailed'))
   }
 }
 
-/**
- * 加载看板趋势
- */
 const loadDashboardTrend = async () => {
   try {
     const res = await intentDashboardApi.getTrend({
@@ -340,13 +316,10 @@ const loadDashboardTrend = async () => {
     })
     dashboardTrendData.value = res.data.data || []
   } catch {
-    ElMessage.error('加载趋势数据失败')
+    ElMessage.error(t('intentDashboard.loadTrendFailed'))
   }
 }
 
-/**
- * 加载看板模型使用排行
- */
 const loadDashboardModelUsage = async () => {
   try {
     const res = await intentDashboardApi.getModelUsage({
@@ -355,13 +328,10 @@ const loadDashboardModelUsage = async () => {
     })
     dashboardModelUsage.value = res.data.data || []
   } catch {
-    ElMessage.error('加载模型使用数据失败')
+    ElMessage.error(t('intentDashboard.loadModelUsageFailed'))
   }
 }
 
-/**
- * 加载看板降级统计
- */
 const loadDashboardDegradeStats = async () => {
   try {
     const res = await intentDashboardApi.getDegradeStats({
@@ -370,13 +340,10 @@ const loadDashboardDegradeStats = async () => {
     })
     dashboardDegradeStats.value = res.data.data || []
   } catch {
-    ElMessage.error('加载降级统计数据失败')
+    ElMessage.error(t('intentDashboard.loadDegradeFailed'))
   }
 }
 
-/**
- * 加载看板所有数据
- */
 const loadDashboardAll = () => {
   loadDashboardOverview()
   loadDashboardTrend()

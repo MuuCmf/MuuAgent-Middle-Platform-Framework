@@ -48,12 +48,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'route.models', icon: 'Setting' }
       },
       {
-        path: 'model-routing',
-        name: 'ModelRouting',
-        component: () => import('@/views/model-routing/index.vue'),
-        meta: { title: 'route.modelRouting', icon: 'Connection' }
-      },
-      {
         path: 'agents',
         name: 'Agents',
         component: () => import('@/views/agents/index.vue'),

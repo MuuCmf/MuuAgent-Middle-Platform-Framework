@@ -78,7 +78,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('common.operation')" width="280" fixed="right" align="right">
+      <el-table-column :label="$t('common.actions')" width="280" fixed="right" align="right">
         <template #default="{ row }">
           <el-button size="small" @click="handleEditTemplate(row)">{{ $t('common.edit') }}</el-button>
           <el-button size="small" type="warning" @click="handleCopyTemplate(row.id)">{{ $t('model.copy') }}</el-button>

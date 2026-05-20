@@ -63,7 +63,7 @@
           <el-tag v-else type="info">{{ $t('model.unused') }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('common.operation')" width="140" fixed="right" align="right">
+      <el-table-column :label="$t('common.actions')" width="140" fixed="right" align="right">
         <template #default="{ row }">
           <el-button size="small" @click="handleEditModel(row)">{{ $t('common.edit') }}</el-button>
           <el-button size="small" type="danger" @click="handleDeleteModel(row.id)">{{ $t('common.delete') }}</el-button>

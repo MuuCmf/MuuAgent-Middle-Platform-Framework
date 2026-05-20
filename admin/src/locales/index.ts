@@ -14,7 +14,7 @@ const getStoredLocale = (): string => {
   if (stored && ['zh-CN', 'en-US'].includes(stored)) {
     return stored
   }
-  
+
   const browserLang = navigator.language
   if (browserLang.startsWith('zh')) {
     return 'zh-CN'

@@ -2,7 +2,7 @@
  * vue-i18n TypeScript 类型定义
  */
 import { DefineLocaleMessage } from 'vue-i18n'
-import zhCN from './locales/zh-CN'
+import zhCN from './zh-CN'
 
 /**
  * 语言消息类型

@@ -1,7 +1,6 @@
 <template>
   <el-dropdown @command="handleLanguageChange" trigger="click">
     <el-button type="primary" text>
-      <el-icon><IEpGlobeSolid /></el-icon>
       <span class="lang-text">{{ currentLangLabel }}</span>
     </el-button>
     <template #dropdown>
@@ -12,7 +11,6 @@
           :command="lang.value"
           :disabled="lang.value === currentLang"
         >
-          <el-icon v-if="lang.value === currentLang"><IEpCheck /></el-icon>
           <span>{{ lang.label }}</span>
         </el-dropdown-item>
       </el-dropdown-menu>

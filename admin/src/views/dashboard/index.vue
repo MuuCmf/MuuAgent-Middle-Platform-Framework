@@ -123,7 +123,7 @@
             <el-icon><Monitor /></el-icon>
             模型状态监控
             <el-button text type="primary" size="small" style="margin-left: auto;" @click="goToMCP">
-              管理MCP
+              模型配置
             </el-button>
           </div>
           <div class="model-status-grid">
@@ -482,7 +482,7 @@ const goToLogs = () => {
 }
 
 const goToMCP = () => {
-  router.push('/model-routing')
+  router.push('/models')
 }
 
 const startRealTimeUpdate = () => {
