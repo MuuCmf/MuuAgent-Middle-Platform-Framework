@@ -27,7 +27,7 @@ export default {
     kbList: 'Knowledge Base List',
     kbDetail: 'Knowledge Base Detail',
     promptTemplates: 'Prompt Templates',
-    rateLimit: 'Rate Limit & Circuit Breaker',
+    rateLimit: 'RL&CB',
     cache: 'Cache Management',
     conversations: 'Conversations',
     conversationList: 'Conversation List',

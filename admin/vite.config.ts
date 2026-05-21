@@ -33,10 +33,6 @@ export default defineConfig(({ mode }) => {
               }
             })
           }
-        },
-        '/admin': {
-          target: 'http://localhost:9898',
-          changeOrigin: true
         }
       }
     },
