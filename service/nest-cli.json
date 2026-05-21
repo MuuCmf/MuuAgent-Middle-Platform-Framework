@@ -8,7 +8,12 @@
       {
         "include": "../public/**/*",
         "outDir": "dist/public",
-        "watchAssets":true
+        "watchAssets": true
+      },
+      {
+        "include": "../skills/**/*",
+        "outDir": "dist/skills",
+        "watchAssets": true
       }
     ]
   }

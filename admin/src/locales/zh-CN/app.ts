@@ -3,7 +3,7 @@ export default {
     title: '应用管理',
     description: '管理多租户应用，配置资源权限和配额限制',
     managementTip: '应用管理说明',
-    managementDesc: '应用是AI中台的租户单元，每个应用拥有独立的API Key、配额限制和OAuth配置。支持创建、编辑、删除以及密钥重置等操作。',
+    managementDesc: '应用是中台的租户单元，每个应用拥有独立的API Key、配额限制和OAuth配置。支持创建、编辑、删除以及密钥重置等操作。',
     appList: '应用列表',
     createApp: '新建应用',
     searchAppNameOrCode: '搜索应用名称/标识',

@@ -34,6 +34,7 @@ RUN addgroup -g 1001 -S nodejs \
 # 从构建阶段复制文件
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/dist/skills ./skills
 COPY --from=builder --chown=nodejs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
 
