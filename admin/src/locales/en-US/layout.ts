@@ -19,7 +19,7 @@ export default {
     apps: 'Applications',
     appList: 'Application List',
     appDetail: 'Application Detail',
-    models: 'Model Configuration',
+    models: 'Model',
     agents: 'Agents',
     skills: 'Skills',
     mcpServer: 'MCP Server',

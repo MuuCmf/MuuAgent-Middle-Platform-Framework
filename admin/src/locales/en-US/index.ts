@@ -11,6 +11,7 @@ import log from './log'
 import prompt from './prompt'
 import mcp from './mcp'
 import rateLimit from './rateLimit'
+import dashboard from './dashboard'
 
 export default {
   ...common,
@@ -26,4 +27,5 @@ export default {
   ...prompt,
   ...mcp,
   ...rateLimit,
+  ...dashboard,
 }

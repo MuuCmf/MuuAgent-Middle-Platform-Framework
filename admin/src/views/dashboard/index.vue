@@ -1,13 +1,13 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">仪表盘</h1>
-      <p class="page-description">展示AI中台的整体运行状态，包括调用统计、成功率、模型分布等关键指标</p>
+      <h1 class="page-title">{{ t('dashboard.title') }}</h1>
+      <p class="page-description">{{ t('dashboard.description') }}</p>
     </div>
 
     <el-alert
       v-if="alerts.length > 0"
-      :title="`系统告警：${alerts.length} 条未处理告警`"
+      :title="`${t('dashboard.systemAlert')}：${t('dashboard.unhandledAlerts', { count: alerts.length })}`"
       type="warning"
       :closable="false"
       show-icon
@@ -21,18 +21,20 @@
             <span class="alert-time">{{ formatTime(alert.timestamp) }}</span>
           </div>
           <el-button v-if="alerts.length > 3" text type="primary" size="small" @click="showAllAlerts = true">
-            查看全部 {{ alerts.length }} 条告警
+            {{ t('dashboard.viewAllAlerts', { count: alerts.length }) }}
           </el-button>
         </div>
       </template>
     </el-alert>
 
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">📊</div>
+      <div class="stat-card primary">
+        <div class="stat-icon-wrapper">
+          <el-icon class="stat-icon"><DataLine /></el-icon>
+        </div>
         <div class="stat-content">
+          <div class="stat-label">{{ t('dashboard.stats.totalCalls') }}</div>
           <div class="stat-value">{{ animatedStats.totalCalls }}</div>
-          <div class="stat-label">AI调用总数</div>
           <div class="stat-trend" :class="{ 'trend-up': trendData.callsTrend > 0 }">
             <el-icon v-if="trendData.callsTrend > 0"><Top /></el-icon>
             <el-icon v-else><Bottom /></el-icon>
@@ -41,25 +43,31 @@
         </div>
       </div>
       <div class="stat-card success">
-        <div class="stat-icon">✅</div>
-        <div class="stat-content">
-          <div class="stat-value">{{ animatedStats.successRate }}%</div>
-          <div class="stat-label">成功率</div>
-          <el-progress :percentage="Number(stats.ai?.successRate || 0)" :show-text="false" :stroke-width="4" />
+        <div class="stat-icon-wrapper">
+          <el-icon class="stat-icon"><CircleCheck /></el-icon>
         </div>
-      </div>
-      <div class="stat-card info">
-        <div class="stat-icon">⚡</div>
         <div class="stat-content">
-          <div class="stat-value">{{ animatedStats.avgResponseTime }}ms</div>
-          <div class="stat-label">平均响应时间</div>
+          <div class="stat-label">{{ t('dashboard.stats.successRate') }}</div>
+          <div class="stat-value">{{ animatedStats.successRate }}%</div>
+          <el-progress :percentage="Number(stats.ai?.successRate || 0)" :show-text="false" :stroke-width="6" />
         </div>
       </div>
       <div class="stat-card warning">
-        <div class="stat-icon">🔧</div>
+        <div class="stat-icon-wrapper">
+          <el-icon class="stat-icon"><Timer /></el-icon>
+        </div>
         <div class="stat-content">
+          <div class="stat-label">{{ t('dashboard.stats.avgResponseTime') }}</div>
+          <div class="stat-value">{{ animatedStats.avgResponseTime }}<span class="stat-unit">ms</span></div>
+        </div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-icon-wrapper">
+          <el-icon class="stat-icon"><Cpu /></el-icon>
+        </div>
+        <div class="stat-content">
+          <div class="stat-label">{{ t('dashboard.stats.activeModels') }}</div>
           <div class="stat-value">{{ animatedStats.activeModels }}</div>
-          <div class="stat-label">活跃模型</div>
         </div>
       </div>
     </div>
@@ -69,35 +77,35 @@
         <div class="card">
           <div class="card-title">
             <el-icon><Clock /></el-icon>
-            实时调用数据
+            {{ t('dashboard.realtime.title') }}
             <el-tag type="success" size="small" style="margin-left: 10px;">
               <el-icon class="pulse"><Connection /></el-icon>
-              实时更新
+              {{ t('dashboard.realtime.realtimeUpdate') }}
             </el-tag>
           </div>
           <div class="realtime-stats">
             <div class="realtime-item">
-              <span class="realtime-label">当前并发</span>
+              <span class="realtime-label">{{ t('dashboard.realtime.currentConcurrent') }}</span>
               <span class="realtime-value">{{ realtimeData.currentConcurrent }}</span>
             </div>
             <div class="realtime-item">
-              <span class="realtime-label">当前QPS</span>
+              <span class="realtime-label">{{ t('dashboard.realtime.currentQps') }}</span>
               <span class="realtime-value">{{ realtimeData.currentQps }}</span>
             </div>
             <div class="realtime-item">
-              <span class="realtime-label">今日调用</span>
+              <span class="realtime-label">{{ t('dashboard.realtime.todayCalls') }}</span>
               <span class="realtime-value">{{ realtimeData.todayCalls }}</span>
             </div>
             <div class="realtime-item">
-              <span class="realtime-label">今日错误</span>
+              <span class="realtime-label">{{ t('dashboard.realtime.todayErrors') }}</span>
               <span class="realtime-value error">{{ realtimeData.todayErrors }}</span>
             </div>
           </div>
           <el-divider />
           <div class="recent-calls">
             <div class="recent-calls-header">
-              <span>最近调用记录</span>
-              <el-button text type="primary" size="small" @click="goToLogs">查看全部</el-button>
+              <span>{{ t('dashboard.realtime.recentCalls') }}</span>
+              <el-button text type="primary" size="small" @click="goToLogs">{{ t('dashboard.realtime.viewAll') }}</el-button>
             </div>
             <el-timeline>
               <el-timeline-item
@@ -109,7 +117,7 @@
                 <div class="call-item">
                   <el-tag size="small">{{ call.modelCode }}</el-tag>
                   <span class="call-duration">{{ call.costMs }}ms</span>
-                  <el-tag v-if="!call.success" type="danger" size="small">失败</el-tag>
+                  <el-tag v-if="!call.success" type="danger" size="small">{{ t('dashboard.realtime.failed') }}</el-tag>
                 </div>
               </el-timeline-item>
             </el-timeline>
@@ -121,9 +129,9 @@
         <div class="card">
           <div class="card-title">
             <el-icon><Monitor /></el-icon>
-            模型状态监控
+            {{ t('dashboard.modelStatus.title') }}
             <el-button text type="primary" size="small" style="margin-left: auto;" @click="goToMCP">
-              模型配置
+              {{ t('dashboard.modelStatus.modelConfig') }}
             </el-button>
           </div>
           <div class="model-status-grid">
@@ -142,15 +150,15 @@
               <div class="model-name">{{ model.modelName }}</div>
               <div class="model-metrics">
                 <div class="metric">
-                  <span class="metric-label">并发</span>
+                  <span class="metric-label">{{ t('dashboard.modelStatus.concurrent') }}</span>
                   <span class="metric-value">{{ model.currentConcurrent }}/{{ model.maxConcurrent }}</span>
                 </div>
                 <div class="metric">
-                  <span class="metric-label">QPS</span>
+                  <span class="metric-label">{{ t('dashboard.modelStatus.qps') }}</span>
                   <span class="metric-value">{{ model.currentQps }}/{{ model.qpsLimit }}</span>
                 </div>
                 <div class="metric">
-                  <span class="metric-label">错误</span>
+                  <span class="metric-label">{{ t('dashboard.modelStatus.errors') }}</span>
                   <span class="metric-value" :class="{ 'error-value': model.errorCount > 0 }">
                     {{ model.errorCount }}
                   </span>
@@ -171,14 +179,14 @@
     <el-row :gutter="20">
       <el-col :span="12">
         <div class="card">
-          <div class="card-title">📈 模型类型统计</div>
+          <div class="card-title">📈 {{ t('dashboard.modelTypeStats.title') }}</div>
           <el-table :data="stats.modelTypeStats || []" stripe>
-            <el-table-column prop="modelType" label="模型类型" width="150">
+            <el-table-column prop="modelType" :label="t('dashboard.modelTypeStats.modelType')" width="150">
               <template #default="{ row }">
                 <el-tag>{{ row.modelType }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="count" label="调用次数" width="120">
+            <el-table-column prop="count" :label="t('dashboard.modelTypeStats.callCount')" width="120">
               <template #default="{ row }">
                 <el-progress
                   :percentage="getPercentage(row.count, totalModelTypeCalls)"
@@ -188,7 +196,7 @@
                 <span style="margin-left: 10px;">{{ row.count }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="说明">
+            <el-table-column :label="t('dashboard.modelTypeStats.description')">
               <template #default="{ row }">
                 {{ getModelTypeDesc(row.modelType) }}
               </template>
@@ -199,9 +207,9 @@
 
       <el-col :span="12">
         <div class="card">
-          <div class="card-title">🏆 模型调用排行 TOP 5</div>
+          <div class="card-title">🏆 {{ t('dashboard.topModels.title') }}</div>
           <el-table :data="topModels" stripe>
-            <el-table-column label="排名" width="70">
+            <el-table-column :label="t('dashboard.topModels.rank')" width="70">
               <template #default="{ $index }">
                 <el-tag
                   :type="$index < 3 ? 'warning' : 'info'"
@@ -211,13 +219,13 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="modelCode" label="模型标识" width="200">
+            <el-table-column prop="modelCode" :label="t('dashboard.topModels.modelCode')" width="200">
               <template #default="{ row }">
                 <el-tag type="info">{{ row.modelCode }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="count" label="调用次数" width="100" />
-            <el-table-column prop="avgCostMs" label="平均耗时(ms)">
+            <el-table-column prop="count" :label="t('dashboard.topModels.callCount')" width="100" />
+            <el-table-column prop="avgCostMs" :label="t('dashboard.topModels.avgCostMs')">
               <template #default="{ row }">
                 <el-tag :type="getResponseTimeType(row.avgCostMs)" size="small">
                   {{ row.avgCostMs }}
@@ -229,15 +237,15 @@
       </el-col>
     </el-row>
 
-    <el-dialog v-model="showAllAlerts" title="系统告警" width="600px">
+    <el-dialog v-model="showAllAlerts" :title="t('dashboard.alert.title')" width="600px">
       <el-table :data="alerts" stripe max-height="400">
-        <el-table-column prop="level" label="级别" width="100">
+        <el-table-column prop="level" :label="t('dashboard.alert.level')" width="100">
           <template #default="{ row }">
             <el-tag :type="getAlertType(row.level)" size="small">{{ row.level }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="message" label="告警信息" />
-        <el-table-column prop="timestamp" label="时间" width="180">
+        <el-table-column prop="message" :label="t('dashboard.alert.message')" />
+        <el-table-column prop="timestamp" :label="t('dashboard.alert.time')" width="180">
           <template #default="{ row }">
             {{ formatTime(row.timestamp) }}
           </template>
@@ -250,10 +258,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Clock, Monitor, Top, Bottom, Connection, WarningFilled } from '@element-plus/icons-vue'
+import { Clock, Monitor, Top, Bottom, Connection, WarningFilled, DataLine, CircleCheck, Timer, Cpu } from '@element-plus/icons-vue'
 import { logApi, type Statistics, type Log } from '@/api/log'
 import { routingApi, type ModelRoutingStatus } from '@/api/model-routing'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const router = useRouter()
 
 const stats = ref<Statistics>({
@@ -312,7 +322,7 @@ const loadStats = async () => {
     
     trendData.value.callsTrend = Math.random() * 20 - 10
   } catch (error) {
-    console.error('加载统计失败', error)
+    console.error(t('dashboard.loading.stats'), error)
   }
 }
 
@@ -328,7 +338,7 @@ const loadModelStatus = async () => {
     
     checkAlerts()
   } catch (error) {
-    console.error('加载模型状态失败', error)
+    console.error(t('dashboard.loading.modelStatus'), error)
   }
 }
 
@@ -340,7 +350,7 @@ const loadRecentCalls = async () => {
     realtimeData.value.todayCalls = recentCalls.value.length
     realtimeData.value.todayErrors = recentCalls.value.filter(c => !c.success).length
   } catch (error) {
-    console.error('加载最近调用失败', error)
+    console.error(t('dashboard.loading.recentCalls'), error)
   }
 }
 
@@ -352,7 +362,7 @@ const checkAlerts = () => {
       newAlerts.push({
         id: `circuit-${model.modelId}`,
         level: 'ERROR',
-        message: `模型 ${model.modelName} 已熔断`,
+        message: t('dashboard.alert.circuitBreaker', { name: model.modelName }),
         timestamp: new Date().toISOString()
       })
     }
@@ -361,7 +371,7 @@ const checkAlerts = () => {
       newAlerts.push({
         id: `error-${model.modelId}`,
         level: 'WARNING',
-        message: `模型 ${model.modelName} 错误次数过高 (${model.errorCount})`,
+        message: t('dashboard.alert.highErrorCount', { name: model.modelName, count: model.errorCount }),
         timestamp: new Date().toISOString()
       })
     }
@@ -370,7 +380,7 @@ const checkAlerts = () => {
       newAlerts.push({
         id: `concurrent-${model.modelId}`,
         level: 'WARNING',
-        message: `模型 ${model.modelName} 并发接近上限`,
+        message: t('dashboard.alert.concurrentLimit', { name: model.modelName }),
         timestamp: new Date().toISOString()
       })
     }
@@ -397,27 +407,8 @@ const animateNumber = (key: string, target: number) => {
   }, 30)
 }
 
-const getModelTypeDesc = (type: string) => {
-  const map: Record<string, string> = {
-    'llm': '大语言模型，用于文本生成和对话',
-    'embedding': '向量模型，用于文本向量化',
-    'tts': '语音合成，将文本转为语音',
-    'asr': '语音识别，将语音转为文本',
-    'image': '图像生成，根据文本生成图片'
-  }
-  return map[type] || type
-}
-
-const formatTime = (timestamp: string) => {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
-  
-  return date.toLocaleString('zh-CN', {
+const formatTime = (time: string) => {
+  return new Date(time).toLocaleString('zh-CN', {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -425,28 +416,58 @@ const formatTime = (timestamp: string) => {
   })
 }
 
-const getModelStatusText = (model: ModelRoutingStatus) => {
-  if (model.circuitOpen) return '熔断'
-  if (model.currentConcurrent >= model.maxConcurrent * 0.8) return '繁忙'
-  return '正常'
+const getPercentage = (value: number, total: number) => {
+  if (!total) return 0
+  return Math.round((value / total) * 100)
+}
+
+const getAlertType = (level: string) => {
+  const typeMap: Record<string, any> = {
+    ERROR: 'danger',
+    WARNING: 'warning',
+    INFO: 'info'
+  }
+  return typeMap[level] || 'info'
+}
+
+const getModelTypeDesc = (type: string) => {
+  const descMap: Record<string, string> = {
+    llm: t('dashboard.modelTypeStats.descriptions.llm'),
+    embedding: t('dashboard.modelTypeStats.descriptions.embedding'),
+    tts: t('dashboard.modelTypeStats.descriptions.tts'),
+    asr: t('dashboard.modelTypeStats.descriptions.asr'),
+    image: t('dashboard.modelTypeStats.descriptions.image'),
+    multimodal: t('dashboard.modelTypeStats.descriptions.multimodal')
+  }
+  return descMap[type] || t('dashboard.modelTypeStats.descriptions.other')
+}
+
+const getResponseTimeType = (time: number) => {
+  if (time < 1000) return 'success'
+  if (time < 3000) return 'warning'
+  return 'danger'
+}
+
+const getModelStatusClass = (model: ModelRoutingStatus) => {
+  if (model.circuitOpen) return 'status-error'
+  if (model.errorCount > 5) return 'status-warning'
+  return 'status-normal'
 }
 
 const getModelTagType = (model: ModelRoutingStatus) => {
   if (model.circuitOpen) return 'danger'
-  if (model.currentConcurrent >= model.maxConcurrent * 0.8) return 'warning'
+  if (model.errorCount > 5) return 'warning'
   return 'success'
 }
 
-const getModelStatusClass = (model: ModelRoutingStatus) => {
-  if (model.circuitOpen) return 'status-danger'
-  if (model.currentConcurrent >= model.maxConcurrent * 0.8) return 'status-warning'
-  return 'status-normal'
+const getModelStatusText = (model: ModelRoutingStatus) => {
+  if (model.circuitOpen) return t('dashboard.modelStatus.circuitOpen')
+  if (model.errorCount > 5) return t('dashboard.modelStatus.abnormal')
+  return t('dashboard.modelStatus.normal')
 }
 
-const getConcurrentPercentage = (model: ModelRoutingStatus): number => {
-  if (!model.maxConcurrent || model.maxConcurrent === 0) return 0
-  const percentage = Math.round((model.currentConcurrent / model.maxConcurrent) * 100)
-  return Math.min(100, Math.max(0, percentage))
+const getConcurrentPercentage = (model: ModelRoutingStatus) => {
+  return Math.round((model.currentConcurrent / model.maxConcurrent) * 100)
 }
 
 const getProgressStatus = (model: ModelRoutingStatus) => {
@@ -454,27 +475,6 @@ const getProgressStatus = (model: ModelRoutingStatus) => {
   if (percentage >= 90) return 'exception'
   if (percentage >= 70) return 'warning'
   return 'success'
-}
-
-const getPercentage = (value: number, total: number): number => {
-  if (!total || total === 0) return 0
-  const percentage = Math.round((value / total) * 100)
-  return Math.min(100, Math.max(0, percentage))
-}
-
-const getResponseTimeType = (ms: number) => {
-  if (ms < 500) return 'success'
-  if (ms < 2000) return 'warning'
-  return 'danger'
-}
-
-const getAlertType = (level: string) => {
-  const map: Record<string, any> = {
-    'ERROR': 'danger',
-    'WARNING': 'warning',
-    'INFO': 'info'
-  }
-  return map[level] || 'info'
 }
 
 const goToLogs = () => {
@@ -485,18 +485,15 @@ const goToMCP = () => {
   router.push('/models')
 }
 
-const startRealTimeUpdate = () => {
-  updateInterval = window.setInterval(() => {
-    loadModelStatus()
-    loadRecentCalls()
-  }, 5000)
-}
-
 onMounted(() => {
   loadStats()
   loadModelStatus()
   loadRecentCalls()
-  startRealTimeUpdate()
+  
+  updateInterval = window.setInterval(() => {
+    loadModelStatus()
+    loadRecentCalls()
+  }, 5000)
 })
 
 onUnmounted(() => {
@@ -506,34 +503,10 @@ onUnmounted(() => {
 })
 </script>
 
-<style lang="scss" scoped>
-.alert-list {
-  .alert-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid #f0f0f0;
-    
-    &:last-child {
-      border-bottom: none;
-    }
-    
-    .alert-message {
-      flex: 1;
-      font-size: 14px;
-    }
-    
-    .alert-time {
-      font-size: 12px;
-      color: #999;
-    }
-  }
-}
-
+<style scoped lang="scss">
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 20px;
   margin-bottom: 20px;
 }
@@ -542,92 +515,158 @@ onUnmounted(() => {
   background: white;
   border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
-  gap: 16px;
-  transition: all 0.3s;
+  gap: 20px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid #f0f0f0;
   
   &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  }
+  
+  &.primary {
+    .stat-icon-wrapper {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
   }
   
   &.success {
-    border-left: 4px solid #67c23a;
-  }
-  
-  &.info {
-    border-left: 4px solid #409eff;
+    .stat-icon-wrapper {
+      background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
+    }
   }
   
   &.warning {
-    border-left: 4px solid #e6a23c;
+    .stat-icon-wrapper {
+      background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%);
+    }
   }
   
-  .stat-icon {
-    font-size: 48px;
-    opacity: 0.8;
+  &.info {
+    .stat-icon-wrapper {
+      background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%);
+    }
+  }
+  
+  .stat-icon-wrapper {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    
+    .stat-icon {
+      font-size: 28px;
+      color: white;
+    }
   }
   
   .stat-content {
     flex: 1;
-    
-    .stat-value {
-      font-size: 32px;
-      font-weight: bold;
-      color: #303133;
-      line-height: 1;
-      margin-bottom: 8px;
-    }
+    min-width: 0;
     
     .stat-label {
       font-size: 14px;
-      color: #909399;
+      color: #8c8c8c;
       margin-bottom: 8px;
+      font-weight: 500;
+    }
+    
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #262626;
+      margin-bottom: 8px;
+      line-height: 1.2;
+      
+      .stat-unit {
+        font-size: 18px;
+        color: #8c8c8c;
+        margin-left: 4px;
+        font-weight: 500;
+      }
     }
     
     .stat-trend {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 4px;
       font-size: 13px;
-      color: #f56c6c;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 500;
       
       &.trend-up {
-        color: #67c23a;
+        color: #52c41a;
+        background: #f6ffed;
+      }
+      
+      &:not(.trend-up) {
+        color: #ff4d4f;
+        background: #fff2f0;
       }
     }
+    
+    .el-progress {
+      margin-top: 8px;
+    }
+  }
+}
+
+.alert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alert-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  
+  .alert-message {
+    flex: 1;
+    font-size: 13px;
+  }
+  
+  .alert-time {
+    font-size: 12px;
+    color: #909399;
   }
 }
 
 .realtime-stats {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.realtime-item {
+  text-align: center;
+  padding: 16px;
+  background: #f5f7fa;
+  border-radius: 8px;
   
-  .realtime-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px;
-    background: #f5f7fa;
-    border-radius: 8px;
+  .realtime-label {
+    display: block;
+    font-size: 12px;
+    color: #909399;
+    margin-bottom: 8px;
+  }
+  
+  .realtime-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: #303133;
     
-    .realtime-label {
-      font-size: 14px;
-      color: #606266;
-    }
-    
-    .realtime-value {
-      font-size: 20px;
-      font-weight: bold;
-      color: #303133;
-      
-      &.error {
-        color: #f56c6c;
-      }
+    &.error {
+      color: #f56c6c;
     }
   }
 }
@@ -638,16 +677,17 @@ onUnmounted(() => {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 16px;
+    font-size: 14px;
     font-weight: 500;
   }
   
   .call-item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     
     .call-duration {
-      font-size: 13px;
+      font-size: 12px;
       color: #909399;
     }
   }
@@ -660,27 +700,24 @@ onUnmounted(() => {
 }
 
 .model-status-card {
+  padding: 16px;
   background: #f5f7fa;
   border-radius: 8px;
-  padding: 16px;
+  border: 1px solid #e4e7ed;
   transition: all 0.3s;
-  border: 2px solid transparent;
   
   &:hover {
-    background: #fff;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
   }
   
-  &.status-normal {
-    border-color: #67c23a;
+  &.status-error {
+    border-color: #f56c6c;
+    background: #fef0f0;
   }
   
   &.status-warning {
     border-color: #e6a23c;
-  }
-  
-  &.status-danger {
-    border-color: #f56c6c;
+    background: #fdf6ec;
   }
   
   .model-header {
@@ -691,22 +728,20 @@ onUnmounted(() => {
     
     .warning-icon {
       color: #e6a23c;
-      font-size: 20px;
-      animation: pulse 2s infinite;
+      font-size: 16px;
     }
   }
   
   .model-name {
-    font-size: 16px;
-    font-weight: 500;
-    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 600;
     color: #303133;
+    margin-bottom: 12px;
   }
   
   .model-metrics {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    display: flex;
+    justify-content: space-between;
     margin-bottom: 12px;
     
     .metric {
@@ -714,15 +749,14 @@ onUnmounted(() => {
       
       .metric-label {
         display: block;
-        font-size: 12px;
+        font-size: 11px;
         color: #909399;
         margin-bottom: 4px;
       }
       
       .metric-value {
-        display: block;
-        font-size: 14px;
-        font-weight: 500;
+        font-size: 13px;
+        font-weight: 600;
         color: #303133;
         
         &.error-value {
@@ -733,6 +767,10 @@ onUnmounted(() => {
   }
 }
 
+.pulse {
+  animation: pulse 2s infinite;
+}
+
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
@@ -740,9 +778,5 @@ onUnmounted(() => {
   50% {
     opacity: 0.5;
   }
-}
-
-.pulse {
-  animation: pulse 2s infinite;
 }
 </style>

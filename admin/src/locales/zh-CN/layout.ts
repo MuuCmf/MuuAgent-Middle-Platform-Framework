@@ -19,7 +19,7 @@ export default {
     apps: '应用管理',
     appList: '应用列表',
     appDetail: '应用详情',
-    models: '模型配置',
+    models: '模型',
     agents: '智能体',
     skills: '技能',
     mcpServer: 'MCP Server',
