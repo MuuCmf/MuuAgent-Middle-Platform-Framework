@@ -2,26 +2,26 @@
   <div class="page-container">
     <div class="page-header">
       <div>
-        <h1 class="page-title">缓存监控</h1>
-        <p class="page-description">覆盖工具执行、技能、MCP、意图分类四层缓存体系</p>
+        <h1 class="page-title">{{ t('cache.title') }}</h1>
+        <p class="page-description">{{ t('cache.description') }}</p>
       </div>
       <el-button @click="refreshAll" :loading="loading">
         <el-icon><Refresh /></el-icon>
-        刷新
+        {{ t('cache.refresh') }}
       </el-button>
     </div>
 
     <!-- 1. 工具执行缓存 -->
     <div class="card">
       <div class="section-head">
-        <span class="badge" style="background: #667eea;">工具</span>
-        <span class="section-title">工具执行缓存</span>
-        <span class="section-meta">Memory (LRU)</span>
-        <span class="section-meta">TTL {{ (config.defaultTtl / 1000).toFixed(0) }}s</span>
-        <span class="section-meta">容量 {{ config.maxSize }}</span>
-        <el-tag v-if="!config.enabled" type="danger" size="small">已禁用</el-tag>
+        <span class="badge" style="background: #667eea;">{{ t('cache.toolExecution.badge') }}</span>
+        <span class="section-title">{{ t('cache.toolExecution.title') }}</span>
+        <span class="section-meta">{{ t('cache.toolExecution.type') }}</span>
+        <span class="section-meta">{{ t('cache.toolExecution.ttl') }} {{ (config.defaultTtl / 1000).toFixed(0) }}s</span>
+        <span class="section-meta">{{ t('cache.toolExecution.capacity') }} {{ config.maxSize }}</span>
+        <el-tag v-if="!config.enabled" type="danger" size="small">{{ t('cache.toolExecution.disabled') }}</el-tag>
         <span class="section-meta" style="margin-left: auto;">
-          排除：
+          {{ t('cache.toolExecution.exclude') }}
           <el-tag v-for="t in config.excludeTools" :key="t" size="small" type="info" style="margin-left: 4px;">{{ t }}</el-tag>
         </span>
       </div>
@@ -30,37 +30,37 @@
         <el-col :span="4">
           <div class="metric">
             <div class="metric-value">{{ stats.size }} / {{ stats.maxSize }}</div>
-            <div class="metric-label">缓存项 / 上限</div>
+            <div class="metric-label">{{ t('cache.toolExecution.items') }}</div>
           </div>
         </el-col>
         <el-col :span="4">
           <div class="metric">
             <div class="metric-value" :style="{ color: hitColor(stats.hitRate) }">{{ fmtPercent(stats.hitRate) }}</div>
-            <div class="metric-label">命中率</div>
+            <div class="metric-label">{{ t('cache.toolExecution.hitRate') }}</div>
           </div>
         </el-col>
         <el-col :span="4">
           <div class="metric">
             <div class="metric-value">{{ stats.hits.toLocaleString() }} / {{ stats.misses.toLocaleString() }}</div>
-            <div class="metric-label">命中 / 未命中</div>
+            <div class="metric-label">{{ t('cache.toolExecution.hitsMisses') }}</div>
           </div>
         </el-col>
         <el-col :span="4">
           <div class="metric">
             <div class="metric-value">{{ stats.evictions }} / {{ stats.expirations }}</div>
-            <div class="metric-label">淘汰 / 过期</div>
+            <div class="metric-label">{{ t('cache.toolExecution.evictExpire') }}</div>
           </div>
         </el-col>
         <el-col :span="4">
           <div class="metric">
             <div class="metric-value">{{ stats.totalRequests.toLocaleString() }}</div>
-            <div class="metric-label">总请求数</div>
+            <div class="metric-label">{{ t('cache.toolExecution.totalRequests') }}</div>
           </div>
         </el-col>
         <el-col :span="4">
           <div class="metric">
             <div class="metric-value">{{ fmtMemory(stats.estimatedMemoryUsage) }}</div>
-            <div class="metric-label">内存估算</div>
+            <div class="metric-label">{{ t('cache.toolExecution.memoryUsage') }}</div>
           </div>
         </el-col>
       </el-row>
@@ -69,10 +69,10 @@
       <div class="section-actions">
         <span style="font-size: 12px; color: #909399; margin-right: 8px;">{{ autoRefreshHint }}</span>
         <el-button size="small" @click="handleCleanupExpired" :loading="cleanupLoading">
-          清理过期
+          {{ t('cache.toolExecution.cleanupExpired') }}
         </el-button>
         <el-button size="small" type="danger" @click="handleClearCache" :loading="clearLoading">
-          清空工具缓存
+          {{ t('cache.toolExecution.clearCache') }}
         </el-button>
       </div>
     </div>
@@ -80,9 +80,9 @@
     <!-- 2. 技能缓存 -->
     <div class="card">
       <div class="section-head">
-        <span class="badge" style="background: #e6a23c;">技能</span>
-        <span class="section-title">技能缓存</span>
-        <span class="section-meta">Redis + Memory (L1 / L2 / L3)</span>
+        <span class="badge" style="background: #e6a23c;">{{ t('cache.skill.badge') }}</span>
+        <span class="section-title">{{ t('cache.skill.title') }}</span>
+        <span class="section-meta">{{ t('cache.skill.type') }}</span>
         <span class="section-meta" style="margin-left: auto;">
           <el-tag size="small">L1 {{ fmtDuration(overview?.skillCache.config?.L1_TTL) }}</el-tag>
           <el-tag size="small" type="warning" style="margin-left: 4px;">L2 {{ fmtDuration(overview?.skillCache.config?.L2_TTL) }}</el-tag>
@@ -94,25 +94,25 @@
         <el-col :span="6">
           <div class="metric">
             <div class="metric-value" :style="{ color: hitColor(overview?.skillCache.l2HitRate ?? 0) }">{{ fmtPercent(overview?.skillCache.l2HitRate ?? 0) }}</div>
-            <div class="metric-label">L2 内存命中率</div>
+            <div class="metric-label">{{ t('cache.skill.l2HitRate') }}</div>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="metric">
             <div class="metric-value">{{ overview?.skillCache.l2MemKeys ?? '-' }}</div>
-            <div class="metric-label">L2 内存条目</div>
+            <div class="metric-label">{{ t('cache.skill.l2Items') }}</div>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="metric">
             <div class="metric-value">{{ (overview?.skillCache.l2Hits ?? 0).toLocaleString() }} / {{ (overview?.skillCache.l2Misses ?? 0).toLocaleString() }}</div>
-            <div class="metric-label">L2 命中 / 未命中</div>
+            <div class="metric-label">{{ t('cache.skill.l2HitsMisses') }}</div>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="metric">
             <div class="metric-value">{{ overview?.skillCache.l2Evictions ?? '-' }} / {{ overview?.skillCache.trackedRedisL2 ?? '-' }}</div>
-            <div class="metric-label">L2 淘汰 / Redis键</div>
+            <div class="metric-label">{{ t('cache.skill.l2EvictRedis') }}</div>
           </div>
         </el-col>
       </el-row>
@@ -120,19 +120,19 @@
         <el-col :span="6">
           <div class="metric">
             <div class="metric-value">{{ overview?.skillCache.trackedRedisL1 ?? '-' }}</div>
-            <div class="metric-label">Redis L1 元数据键</div>
+            <div class="metric-label">{{ t('cache.skill.redisL1Meta') }}</div>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="metric">
             <div class="metric-value">{{ overview?.skillCache.trackedRedisL2 ?? '-' }}</div>
-            <div class="metric-label">Redis L2 描述符键</div>
+            <div class="metric-label">{{ t('cache.skill.redisL2Desc') }}</div>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="metric">
             <div class="metric-value">{{ overview?.skillCache.trackedRedisL3 ?? '-' }}</div>
-            <div class="metric-label">Redis L3 文档键</div>
+            <div class="metric-label">{{ t('cache.skill.redisL3Doc') }}</div>
           </div>
         </el-col>
       </el-row>
@@ -141,22 +141,22 @@
     <!-- 3. MCP Server 缓存 -->
     <div class="card">
       <div class="section-head">
-        <span class="badge" style="background: #67c23a;">MCP</span>
-        <span class="section-title">MCP Server 注册表</span>
-        <span class="section-meta">Memory (Map)</span>
-        <span class="section-meta">TTL {{ fmtDuration(overview?.mcpServer.ttlMs) }}</span>
+        <span class="badge" style="background: #67c23a;">{{ t('cache.mcp.badge') }}</span>
+        <span class="section-title">{{ t('cache.mcp.title') }}</span>
+        <span class="section-meta">{{ t('cache.mcp.type') }}</span>
+        <span class="section-meta">{{ t('cache.mcp.ttl') }} {{ fmtDuration(overview?.mcpServer.ttlMs) }}</span>
       </div>
       <el-row :gutter="12">
         <el-col :span="6">
           <div class="metric">
             <div class="metric-value">{{ overview?.mcpServer.keys ?? '-' }}</div>
-            <div class="metric-label">缓存条目</div>
+            <div class="metric-label">{{ t('cache.mcp.items') }}</div>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="metric">
             <div class="metric-value" :class="{ 'metric-warn': (overview?.mcpServer.expiredCount ?? 0) > 0 }">{{ overview?.mcpServer.expiredCount ?? '0' }}</div>
-            <div class="metric-label">已过期</div>
+            <div class="metric-label">{{ t('cache.mcp.expired') }}</div>
           </div>
         </el-col>
       </el-row>
@@ -165,15 +165,15 @@
     <!-- 4. 意图分类缓存 -->
     <div class="card">
       <div class="section-head">
-        <span class="badge" style="background: #909399;">意图</span>
-        <span class="section-title">意图分类缓存</span>
-        <span class="section-meta">MySQL (intentCache)</span>
+        <span class="badge" style="background: #909399;">{{ t('cache.intent.badge') }}</span>
+        <span class="section-title">{{ t('cache.intent.title') }}</span>
+        <span class="section-meta">{{ t('cache.intent.type') }}</span>
       </div>
       <el-row :gutter="12">
         <el-col :span="6">
           <div class="metric">
             <div class="metric-value">{{ (overview?.intentCache.keys ?? 0).toLocaleString() }}</div>
-            <div class="metric-label">持久化记录数</div>
+            <div class="metric-label">{{ t('cache.intent.records') }}</div>
           </div>
         </el-col>
       </el-row>
@@ -183,10 +183,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { agentApi, type ToolCacheStats, type ToolCacheConfig, type CacheOverview } from '@/api/agent'
 
+const { t } = useI18n()
 const loading = ref(false)
 const overview = ref<CacheOverview | null>(null)
 const cleanupLoading = ref(false)
@@ -197,7 +199,7 @@ const config = ref<ToolCacheConfig>({ maxSize: 500, defaultTtl: 60000, enabled: 
 
 let timer: NodeJS.Timeout | null = null
 
-const autoRefreshHint = computed(() => '每 10 秒自动刷新')
+const autoRefreshHint = computed(() => t('cache.toolExecution.autoRefresh'))
 
 // ---- formatters ----
 const fmtPercent = (v: number) => v != null ? (v * 100).toFixed(1) + '%' : '-'
@@ -237,10 +239,10 @@ const handleCleanupExpired = async () => {
   try {
     cleanupLoading.value = true
     const { data } = await agentApi.cleanupExpiredCache()
-    ElMessage.success(`已清理 ${data.data.cleanedCount} 个过期缓存项`)
+    ElMessage.success(t('cache.message.cleanupSuccess', { count: data.data.cleanedCount }))
     await loadStats()
   } catch {
-    ElMessage.error('清理失败')
+    ElMessage.error(t('cache.message.cleanupFailed'))
   } finally {
     cleanupLoading.value = false
   }
@@ -248,13 +250,13 @@ const handleCleanupExpired = async () => {
 
 const handleClearCache = async () => {
   try {
-    await ElMessageBox.confirm('确定要清空工具执行缓存吗？', '警告', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
+    await ElMessageBox.confirm(t('cache.message.clearConfirm'), t('cache.message.clearWarning'), { confirmButtonText: t('cache.message.confirm'), cancelButtonText: t('cache.message.cancel'), type: 'warning' })
     clearLoading.value = true
     await agentApi.clearCache()
-    ElMessage.success('已清空')
+    ElMessage.success(t('cache.message.clearSuccess'))
     await Promise.all([loadStats(), loadOverview()])
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('清空失败')
+    if (e !== 'cancel') ElMessage.error(t('cache.message.clearFailed'))
   } finally {
     clearLoading.value = false
   }

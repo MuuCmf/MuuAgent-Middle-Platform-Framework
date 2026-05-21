@@ -4,10 +4,10 @@
       <div class="header-left">
         <el-button @click="handleBack" text class="back-btn">
           <el-icon><ArrowLeft /></el-icon>
-          返回列表
+          {{ $t('knowledge.actions.backToList') }}
         </el-button>
         <div class="title-group">
-          <h1 class="page-title">{{ kbInfo?.kbName || '知识库详情' }}</h1>
+          <h1 class="page-title">{{ kbInfo?.kbName || $t('knowledge.detail.title') }}</h1>
           <el-tag
             v-if="kbInfo"
             :type="kbInfo.status ? 'success' : 'danger'"
@@ -16,7 +16,7 @@
             effect="dark"
             round
           >
-            {{ kbInfo.status ? '启用中' : '已禁用' }}
+            {{ kbInfo.status ? $t('knowledge.detail.enabledStatus') : $t('knowledge.detail.disabledStatus') }}
           </el-tag>
         </div>
       </div>
@@ -26,22 +26,22 @@
       <el-card class="detail-card" shadow="never">
         <template #header>
           <div class="card-header">
-            <span class="card-header__title">基本信息</span>
+            <span class="card-header__title">{{ $t('knowledge.detail.basicInfo') }}</span>
           </div>
         </template>
 
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="知识库名称">
+          <el-descriptions-item :label="$t('knowledge.detail.kbName')">
             {{ kbInfo.kbName }}
           </el-descriptions-item>
-          <el-descriptions-item label="知识库标识">
+          <el-descriptions-item :label="$t('knowledge.detail.kbCode')">
             <el-tag effect="plain" round>{{ kbInfo.kbCode }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="创建时间">
+          <el-descriptions-item :label="$t('knowledge.detail.createTime')">
             {{ formatDate(kbInfo.createdTime) }}
           </el-descriptions-item>
-          <el-descriptions-item label="描述" :span="3">
-            {{ kbInfo.description || '暂无描述' }}
+          <el-descriptions-item :label="$t('knowledge.list.description')" :span="3">
+            {{ kbInfo.description || $t('knowledge.list.noDescription') }}
           </el-descriptions-item>
         </el-descriptions>
       </el-card>
@@ -49,29 +49,34 @@
       <el-card class="detail-card" shadow="never">
         <template #header>
           <div class="card-header">
-            <span class="card-header__title">检索配置</span>
+            <span class="card-header__title">{{ $t('knowledge.detail.retrievalConfig') }}</span>
           </div>
         </template>
 
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="检索方式">
+          <el-descriptions-item :label="$t('knowledge.list.retrievalMethod')">
             <el-tag effect="plain" round>
-              {{ kbInfo.retrievalMethod === 'bm25' ? 'BM25 检索' : '向量检索' }}
+              {{
+                kbInfo.retrievalMethod === 'bm25'
+                  ? $t('knowledge.list.bm25Retrieval')
+                  : $t('knowledge.list.vectorRetrieval')
+              }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item v-if="kbInfo.retrievalMethod !== 'bm25'" label="向量模型">
+          <el-descriptions-item v-if="kbInfo.retrievalMethod !== 'bm25'"
+            :label="$t('knowledge.list.vectorModel')">
             {{ kbInfo.embeddingModel }}
           </el-descriptions-item>
-          <el-descriptions-item label="切片大小">
+          <el-descriptions-item :label="$t('knowledge.detail.chunkSize')">
             {{ kbInfo.chunkSize }}
           </el-descriptions-item>
-          <el-descriptions-item label="切片重叠">
+          <el-descriptions-item :label="$t('knowledge.detail.chunkOverlap')">
             {{ kbInfo.chunkOverlap }}
           </el-descriptions-item>
-          <el-descriptions-item label="相似度阈值">
+          <el-descriptions-item :label="$t('knowledge.detail.similarityThreshold')">
             {{ kbInfo.similarityThresh }}
           </el-descriptions-item>
-          <el-descriptions-item label="召回条数">
+          <el-descriptions-item :label="$t('knowledge.detail.topN')">
             {{ kbInfo.topN }}
           </el-descriptions-item>
         </el-descriptions>
@@ -80,35 +85,37 @@
       <el-card class="detail-card" shadow="never">
         <template #header>
           <div class="card-header">
-            <span class="card-header__title">文档列表</span>
+            <span class="card-header__title">{{ $t('knowledge.detail.documentList') }}</span>
             <el-upload :show-file-list="false" :before-upload="handleUpload" accept=".pdf,.doc,.docx,.txt,.md">
               <el-button type="primary" size="small">
                 <el-icon><Upload /></el-icon>
-                上传文档
+                {{ $t('knowledge.actions.upload') }}
               </el-button>
             </el-upload>
           </div>
         </template>
 
         <el-table :data="documentList" style="width: 100%">
-          <el-table-column prop="fileName" label="文档名称" min-width="180" />
-          <el-table-column prop="fileType" label="类型" width="80" />
-          <el-table-column prop="fileSize" label="大小" width="120">
+          <el-table-column prop="fileName" :label="$t('knowledge.detail.fileName')" min-width="180" />
+          <el-table-column prop="fileType" :label="$t('knowledge.detail.fileType')" width="80" />
+          <el-table-column prop="fileSize" :label="$t('knowledge.detail.fileSize')" width="120">
             <template #default="{ row }">
               {{ formatFileSize(row.fileSize) }}
             </template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" width="100">
+          <el-table-column prop="status" :label="$t('knowledge.detail.status')" width="100">
             <template #default="{ row }">
               <el-tag :type="getStatusType(row.status)" size="small">
                 {{ getStatusText(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="totalChunks" label="切片数" width="80" />
-          <el-table-column label="操作" width="100">
+          <el-table-column prop="totalChunks" :label="$t('knowledge.detail.chunksCount')" width="80" />
+          <el-table-column :label="$t('knowledge.detail.operations')" width="100">
             <template #default="{ row }">
-              <el-button text type="danger" @click="handleDeleteDocument(row)">删除</el-button>
+              <el-button text type="danger" @click="handleDeleteDocument(row)">
+                {{ $t('knowledge.actions.delete') }}
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -129,6 +136,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Upload } from '@element-plus/icons-vue'
 import { kbApi, documentApi } from '@/api'
@@ -137,6 +145,7 @@ import type { DocumentInfo } from '@/api/document'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
 const loading = ref(false)
 const kbInfo = ref<KbInfo | null>(null)
@@ -153,7 +162,7 @@ const fetchKbDetail = async () => {
     const response = await kbApi.getDetail(kbId)
     kbInfo.value = response.data.data
   } catch (error: any) {
-    ElMessage.error(error.message || '获取知识库详情失败')
+    ElMessage.error(error.message || t('knowledge.messages.fetchDetailFailed'))
   } finally {
     loading.value = false
   }
@@ -169,7 +178,7 @@ const fetchDocumentList = async () => {
     documentList.value = response.data.data.list
     total.value = response.data.data.total
   } catch (error: any) {
-    ElMessage.error(error.message || '获取文档列表失败')
+    ElMessage.error(error.message || t('knowledge.messages.fetchDocumentListFailed'))
   }
 }
 
@@ -183,25 +192,25 @@ const handleUpload = async (file: File) => {
     const user = userStr ? JSON.parse(userStr) : null
 
     if (!user?.id) {
-      ElMessage.error('用户信息获取失败，请重新登录')
+      ElMessage.error(t('knowledge.messages.getUserInfoFailed'))
       return false
     }
 
     await documentApi.upload(user.id, kbId, file)
-    ElMessage.success('文档上传成功')
+    ElMessage.success(t('knowledge.messages.uploadSuccess'))
     fetchDocumentList()
     fetchKbDetail()
   } catch (error: any) {
-    ElMessage.error(error.message || '文档上传失败')
+    ElMessage.error(error.message || t('knowledge.messages.uploadFailed'))
   }
   return false
 }
 
 const handleDeleteDocument = async (doc: DocumentInfo) => {
   try {
-    await ElMessageBox.confirm('确定要删除该文档吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('knowledge.messages.deleteDocumentConfirm'), t('knowledge.messages.deleteConfirmTitle'), {
+      confirmButtonText: t('knowledge.actions.confirm'),
+      cancelButtonText: t('knowledge.actions.cancel'),
       type: 'warning'
     })
 
@@ -209,17 +218,17 @@ const handleDeleteDocument = async (doc: DocumentInfo) => {
     const user = userStr ? JSON.parse(userStr) : null
 
     if (!user?.id) {
-      ElMessage.error('用户信息获取失败，请重新登录')
+      ElMessage.error(t('knowledge.messages.getUserInfoFailed'))
       return
     }
 
     await documentApi.delete(user.id, kbId, doc.docId)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('knowledge.messages.deleteSuccess'))
     fetchDocumentList()
     fetchKbDetail()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      ElMessage.error(error.message || t('knowledge.messages.deleteFailed'))
     }
   }
 }
@@ -254,13 +263,13 @@ const getStatusType = (status: number) => {
 }
 
 const getStatusText = (status: number) => {
-  const texts: Record<number, string> = {
-    0: '解析中',
-    1: '正常',
-    2: '失败',
-    3: '禁用'
+  const statusMap: Record<number, string> = {
+    0: t('knowledge.document.status.parsing'),
+    1: t('knowledge.document.status.normal'),
+    2: t('knowledge.document.status.failed'),
+    3: t('knowledge.document.status.disabled')
   }
-  return texts[status] || '未知'
+  return statusMap[status] || t('knowledge.document.status.unknown')
 }
 
 onMounted(() => {

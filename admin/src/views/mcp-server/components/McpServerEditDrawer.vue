@@ -1,21 +1,24 @@
 <template>
-  <el-drawer :model-value="modelValue" :title="mode === 'create' ? '新建 MCP Server' : '编辑 MCP Server'" direction="rtl"
+  <el-drawer :model-value="modelValue"
+    :title="mode === 'create' ? $t('mcp.editDrawer.createTitle') : $t('mcp.editDrawer.editTitle')" direction="rtl"
     size="550px" @close="handleClose">
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-      <el-form-item label="名称" prop="name">
-        <el-input v-model="form.name" placeholder="唯一标识，如 filesystem" :disabled="mode === 'edit'" />
-        <div class="form-tip">名称只能包含字母、数字、下划线和连字符，且以字母开头</div>
+      <el-form-item :label="$t('mcp.editDrawer.form.name')" prop="name">
+        <el-input v-model="form.name" :placeholder="$t('mcp.editDrawer.form.namePlaceholder')"
+          :disabled="mode === 'edit'" />
+        <div class="form-tip">{{ $t('mcp.editDrawer.form.nameTip') }}</div>
       </el-form-item>
 
-      <el-form-item label="显示名称" prop="displayName">
-        <el-input v-model="form.displayName" placeholder="如：文件系统服务" />
+      <el-form-item :label="$t('mcp.editDrawer.form.displayName')" prop="displayName">
+        <el-input v-model="form.displayName" :placeholder="$t('mcp.editDrawer.form.displayNamePlaceholder')" />
       </el-form-item>
 
-      <el-form-item label="描述" prop="description">
-        <el-input v-model="form.description" type="textarea" :rows="2" placeholder="MCP Server 的功能描述" />
+      <el-form-item :label="$t('mcp.editDrawer.form.description')" prop="description">
+        <el-input v-model="form.description" type="textarea" :rows="2"
+          :placeholder="$t('mcp.editDrawer.form.descriptionPlaceholder')" />
       </el-form-item>
 
-      <el-form-item label="传输协议" prop="transport">
+      <el-form-item :label="$t('mcp.editDrawer.form.transport')" prop="transport">
         <el-radio-group v-model="form.transport" @change="handleTransportChange">
           <el-radio-button value="http">HTTP</el-radio-button>
           <el-radio-button value="sse">SSE</el-radio-button>
@@ -23,75 +26,80 @@
         </el-radio-group>
         <div class="form-tip">
           <template v-if="form.transport === 'stdio'">
-            stdio 协议通过本地进程通信，适用于 npx/uvx 启动的 MCP Server
+            {{ $t('mcp.editDrawer.form.transportTipStdio') }}
           </template>
           <template v-else>
-            HTTP/SSE 协议通过网络连接 MCP Server
+            {{ $t('mcp.editDrawer.form.transportTipHttp') }}
           </template>
         </div>
       </el-form-item>
 
       <template v-if="form.transport === 'http' || form.transport === 'sse'">
-        <el-form-item label="URL" prop="url">
-          <el-input v-model="form.url" placeholder="http://localhost:8081/mcp" />
+        <el-form-item :label="$t('mcp.editDrawer.form.url')" prop="url">
+          <el-input v-model="form.url" :placeholder="$t('mcp.editDrawer.form.urlPlaceholder')" />
         </el-form-item>
       </template>
 
       <template v-if="form.transport === 'stdio'">
-        <el-form-item label="命令" prop="command">
-          <el-input v-model="form.command" placeholder="如：npx、uvx、python" />
-          <div class="form-tip">启动 MCP Server 的命令，如 npx、uvx、python 等</div>
+        <el-form-item :label="$t('mcp.editDrawer.form.command')" prop="command">
+          <el-input v-model="form.command" :placeholder="$t('mcp.editDrawer.form.commandPlaceholder')" />
+          <div class="form-tip">{{ $t('mcp.editDrawer.form.commandTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="参数" prop="args">
+        <el-form-item :label="$t('mcp.editDrawer.form.args')" prop="args">
           <el-input v-model="argsText" type="textarea" :rows="2"
-            placeholder="-y @modelcontextprotocol/server-filesystem /path" />
-          <div class="form-tip">命令行参数，多个参数用空格分隔。含空格的参数用引号包裹，如：&quot;/path with spaces&quot;</div>
+            :placeholder="$t('mcp.editDrawer.form.argsPlaceholder')" />
+          <div class="form-tip">{{ $t('mcp.editDrawer.form.argsTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="环境变量" prop="env">
+        <el-form-item :label="$t('mcp.editDrawer.form.env')" prop="env">
           <div class="env-editor">
             <div v-for="(item, index) in envEntries" :key="index" class="env-entry">
-              <el-input v-model="item.key" placeholder="变量名" style="width: 40%" />
-              <el-input v-model="item.value" placeholder="变量值" style="width: 40%" type="password" show-password />
+              <el-input v-model="item.key" :placeholder="$t('mcp.editDrawer.form.envKeyPlaceholder')"
+                style="width: 40%" />
+              <el-input v-model="item.value" :placeholder="$t('mcp.editDrawer.form.envValuePlaceholder')"
+                style="width: 40%" type="password" show-password />
               <el-button type="danger" :icon="Delete" circle @click="removeEnvEntry(index)" />
             </div>
             <el-button type="primary" link @click="addEnvEntry">
               <el-icon>
                 <Plus />
-              </el-icon> 添加环境变量
+              </el-icon> {{ $t('mcp.editDrawer.form.addEnvVar') }}
             </el-button>
           </div>
-          <div class="form-tip">敏感信息（如 API Token）建议通过环境变量传递</div>
+          <div class="form-tip">{{ $t('mcp.editDrawer.form.envTip') }}</div>
         </el-form-item>
       </template>
 
-      <el-form-item label="API Key" prop="apiKey">
+      <el-form-item :label="$t('mcp.editDrawer.form.apiKey')" prop="apiKey">
         <div class="api-key-wrapper">
           <el-input v-model="form.apiKey" type="password" show-password
-            :placeholder="hasExistingApiKey ? '已设置，留空保留原值' : '可选，用于认证'" :disabled="clearApiKey" />
-          <el-checkbox v-if="mode === 'edit' && hasExistingApiKey" v-model="clearApiKey" label="清空 API Key" />
+            :placeholder="hasExistingApiKey ? $t('mcp.editDrawer.form.apiKeySetPlaceholder') : $t('mcp.editDrawer.form.apiKeyPlaceholder')"
+            :disabled="clearApiKey" />
+          <el-checkbox v-if="mode === 'edit' && hasExistingApiKey" v-model="clearApiKey"
+            :label="$t('mcp.editDrawer.form.clearApiKey')" />
         </div>
         <div class="form-tip" v-if="mode === 'edit' && hasExistingApiKey && !clearApiKey">
           <el-icon>
             <InfoFilled />
           </el-icon>
-          已保存 API Key，输入新值将覆盖
+          {{ $t('mcp.editDrawer.form.apiKeySavedTip') }}
         </div>
       </el-form-item>
 
-      <el-form-item label="超时时间 (ms)" prop="timeout">
+      <el-form-item :label="$t('mcp.editDrawer.form.timeout')" prop="timeout">
         <el-input-number v-model="form.timeout" :min="1000" :max="300000" :step="1000" style="width: 100%" />
       </el-form-item>
 
-      <el-form-item label="允许的工具" prop="tools">
-        <el-select v-model="form.tools" multiple filterable allow-create default-first-option placeholder="输入工具名称后按回车添加"
-          style="width: 100%" />
-        <div class="form-tip">留空则允许所有工具，或指定允许的工具名称列表</div>
+      <el-form-item :label="$t('mcp.editDrawer.form.allowedTools')" prop="tools">
+        <el-select v-model="form.tools" multiple filterable allow-create default-first-option
+          :placeholder="$t('mcp.editDrawer.form.allowedToolsPlaceholder')" style="width: 100%" />
+        <div class="form-tip">{{ $t('mcp.editDrawer.form.allowedToolsTip') }}</div>
       </el-form-item>
 
-      <el-form-item label="状态" prop="enabled">
-        <el-switch v-model="form.enabled" active-text="启用" inactive-text="禁用" />
+      <el-form-item :label="$t('mcp.editDrawer.form.status')" prop="enabled">
+        <el-switch v-model="form.enabled" :active-text="$t('mcp.editDrawer.form.enable')"
+          :inactive-text="$t('mcp.editDrawer.form.disable')" />
       </el-form-item>
     </el-form>
 
@@ -101,30 +109,32 @@
           <el-icon>
             <Connection />
           </el-icon>
-          测试连接
+          {{ $t('mcp.actions.testConnection') }}
         </el-button>
         <el-button @click="handleDiscoverTools" :loading="discoverLoading">
           <el-icon>
             <Search />
           </el-icon>
-          发现工具
+          {{ $t('mcp.actions.discoverTools') }}
         </el-button>
-        <el-button @click="handleClose">取消</el-button>
+        <el-button @click="handleClose">{{ $t('mcp.actions.cancel') }}</el-button>
         <el-button type="primary" @click="handleSubmit" :loading="submitLoading">
-          {{ mode === 'create' ? '创建' : '保存' }}
+          {{ mode === 'create' ? $t('mcp.actions.create') : $t('mcp.actions.save') }}
         </el-button>
       </div>
     </template>
 
-    <el-dialog v-model="toolsDialogVisible" title="发现的工具" width="600px" append-to-body>
+    <el-dialog v-model="toolsDialogVisible" :title="$t('mcp.editDrawer.toolsDialog.title')" width="600px"
+      append-to-body>
       <el-table :data="discoveredTools" stripe max-height="400">
-        <el-table-column prop="name" label="工具名称" min-width="150" />
-        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="name" :label="$t('mcp.editDrawer.toolsDialog.toolName')" min-width="150" />
+        <el-table-column prop="description" :label="$t('mcp.editDrawer.toolsDialog.toolDesc')" min-width="200"
+          show-overflow-tooltip />
       </el-table>
       <template #footer>
-        <el-button @click="toolsDialogVisible = false">关闭</el-button>
+        <el-button @click="toolsDialogVisible = false">{{ $t('mcp.actions.close') }}</el-button>
         <el-button type="primary" @click="handleAddAllTools">
-          添加全部工具
+          {{ $t('mcp.actions.addAllTools') }}
         </el-button>
       </template>
     </el-dialog>
@@ -133,10 +143,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Connection, Search, InfoFilled, Plus, Delete } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { mcpServerApi, type McpServer, type ToolDescription, type McpTransport } from '@/api/mcp-server'
+
+const { t } = useI18n()
 
 interface EnvEntry {
   key: string
@@ -186,27 +199,27 @@ const hasExistingApiKey = computed(() => {
 
 const rules: FormRules = {
   name: [
-    { required: true, message: '请输入名称', trigger: 'blur' },
+    { required: true, message: t('mcp.editDrawer.validation.nameRequired'), trigger: 'blur' },
     {
       pattern: /^[a-zA-Z][a-zA-Z0-9_-]*$/,
-      message: '名称必须以字母开头，只能包含字母、数字、下划线和连字符',
+      message: t('mcp.editDrawer.validation.namePattern'),
       trigger: 'blur',
     },
   ],
   transport: [
-    { required: true, message: '请选择传输协议', trigger: 'change' },
+    { required: true, message: t('mcp.editDrawer.validation.transportRequired'), trigger: 'change' },
   ],
   url: [
     {
       validator: (_rule, value, callback) => {
         if ((form.transport === 'http' || form.transport === 'sse') && !value) {
-          callback(new Error('HTTP/SSE 协议需要提供 URL'))
+          callback(new Error(t('mcp.messages.connectionFailed', { message: 'HTTP/SSE protocol requires URL' })))
         } else if (value) {
           try {
             new URL(value)
             callback()
           } catch {
-            callback(new Error('请输入有效的 URL'))
+            callback(new Error(t('mcp.messages.connectionFailed', { message: 'Please enter a valid URL' })))
           }
         } else {
           callback()
@@ -219,7 +232,7 @@ const rules: FormRules = {
     {
       validator: (_rule, value, callback) => {
         if (form.transport === 'stdio' && !value) {
-          callback(new Error('stdio 协议需要提供命令'))
+          callback(new Error(t('mcp.messages.connectionFailed', { message: 'stdio protocol requires command' })))
         } else {
           callback()
         }
@@ -228,7 +241,7 @@ const rules: FormRules = {
     },
   ],
   timeout: [
-    { required: true, message: '请输入超时时间', trigger: 'blur' },
+    { required: true, message: t('mcp.editDrawer.validation.nameRequired'), trigger: 'blur' },
   ],
 }
 
@@ -361,12 +374,12 @@ const handleClose = () => {
 const handleTestConnection = async () => {
   if (form.transport === 'stdio') {
     if (!form.command) {
-      ElMessage.warning('请先输入命令')
+      ElMessage.warning(t('mcp.editDrawer.validation.commandRequired'))
       return
     }
   } else {
     if (!form.url) {
-      ElMessage.warning('请先输入 URL')
+      ElMessage.warning(t('mcp.editDrawer.validation.urlRequired'))
       return
     }
   }
@@ -384,13 +397,13 @@ const handleTestConnection = async () => {
       timeout: form.timeout,
     })
     if (data.data.success) {
-      ElMessage.success(`连接成功: ${data.data.message}`)
+      ElMessage.success(t('mcp.messages.connectionSuccess', { latency: data.data.message }))
     } else {
-      ElMessage.error(`连接失败: ${data.data.message}`)
+      ElMessage.error(t('mcp.messages.connectionFailed', { message: data.data.message }))
     }
   } catch (error) {
     console.error('测试连接失败:', error)
-    ElMessage.error('测试连接失败')
+    ElMessage.error(t('mcp.messages.testConnectionFailed'))
   } finally {
     testLoading.value = false
   }
@@ -399,12 +412,12 @@ const handleTestConnection = async () => {
 const handleDiscoverTools = async () => {
   if (form.transport === 'stdio') {
     if (!form.command) {
-      ElMessage.warning('请先输入命令')
+      ElMessage.warning(t('mcp.editDrawer.validation.commandRequired'))
       return
     }
   } else {
     if (!form.url) {
-      ElMessage.warning('请先输入 URL')
+      ElMessage.warning(t('mcp.editDrawer.validation.urlRequired'))
       return
     }
   }
@@ -425,11 +438,11 @@ const handleDiscoverTools = async () => {
     if (data.data.tools.length > 0) {
       toolsDialogVisible.value = true
     } else {
-      ElMessage.info('未发现任何工具')
+      ElMessage.info(t('mcp.messages.syncFailed'))
     }
   } catch (error) {
     console.error('发现工具失败:', error)
-    ElMessage.error('发现工具失败')
+    ElMessage.error(t('mcp.messages.syncFailed'))
   } finally {
     discoverLoading.value = false
   }
@@ -444,7 +457,7 @@ const handleAddAllTools = () => {
     }
   })
   toolsDialogVisible.value = false
-  ElMessage.success(`已添加 ${toolNames.length} 个工具`)
+  ElMessage.success(t('mcp.messages.syncSuccess', { count: toolNames.length }))
 }
 
 const handleSubmit = async () => {
@@ -470,7 +483,7 @@ const handleSubmit = async () => {
         enabled: form.enabled,
         tools: form.tools.length > 0 ? form.tools : undefined,
       })
-      ElMessage.success('创建成功')
+      ElMessage.success(t('mcp.messages.importSuccess', { count: 1 }))
     } else {
       await mcpServerApi.update(props.server!.id, {
         displayName: form.displayName || undefined,
@@ -485,13 +498,13 @@ const handleSubmit = async () => {
         enabled: form.enabled,
         tools: form.tools.length > 0 ? form.tools : undefined,
       })
-      ElMessage.success('保存成功')
+      ElMessage.success(t('mcp.messages.cacheRefreshed'))
     }
     emit('success')
     handleClose()
   } catch (error: any) {
     console.error('保存失败:', error)
-    ElMessage.error(error.response?.data?.message || '保存失败')
+    ElMessage.error(error.response?.data?.message || t('mcp.messages.deleteFailed'))
   } finally {
     submitLoading.value = false
   }

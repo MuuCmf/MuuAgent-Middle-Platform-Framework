@@ -1,7 +1,7 @@
 <template>
   <el-drawer
     :model-value="visible"
-    :title="editingTemplate ? '编辑 Prompt 模板' : '添加 Prompt 模板'"
+    :title="editingTemplate ? $t('prompt.actions.edit') + ' Prompt ' + $t('prompt.title') : $t('prompt.actions.add') + ' Prompt ' + $t('prompt.title')"
     direction="rtl"
     size="700px"
     class="prompt-template-edit-drawer"
@@ -9,74 +9,76 @@
   >
     <el-form :model="form" :rules="rules" ref="formRef" label-width="120px" class="template-form">
       <div class="form-section">
-        <div class="section-title">基本信息</div>
+        <div class="section-title">{{ $t('prompt.form.basicInfo') }}</div>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="模板名称" prop="name">
-              <el-input v-model="form.name" placeholder="如：RAG 问答提示词" />
+            <el-form-item :label="$t('prompt.form.templateName')" prop="name">
+              <el-input v-model="form.name" :placeholder="$t('prompt.form.templateNamePlaceholder')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="模板标识" prop="code">
+            <el-form-item :label="$t('prompt.form.templateCode')" prop="code">
               <el-input
                 v-model="form.code"
-                placeholder="如：rag-chat-default"
+                :placeholder="$t('prompt.form.templateCodePlaceholder')"
                 :disabled="!!editingTemplate"
               />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <el-form-item label="分类" prop="category">
+        <el-form-item :label="$t('prompt.form.category')" prop="category">
           <el-select v-model="form.category" class="w-full">
-            <el-option label="Agent - 智能体提示词" value="agent" />
-            <el-option label="RAG - 知识库问答" value="rag" />
-            <el-option label="ReAct - 推理模式" value="react" />
-            <el-option label="Skill - 技能调用" value="skill" />
-            <el-option label="Custom - 自定义" value="custom" />
+            <el-option :label="$t('prompt.categories.agent')" value="agent" />
+            <el-option :label="$t('prompt.categories.rag')" value="rag" />
+            <el-option :label="$t('prompt.categories.react')" value="react" />
+            <el-option :label="$t('prompt.categories.skill')" value="skill" />
+            <el-option :label="$t('prompt.categories.custom')" value="custom" />
           </el-select>
         </el-form-item>
 
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="所属应用">
+            <el-form-item :label="$t('prompt.form.appCode')">
               <AppSelector
                 v-model="form.appCode"
-                placeholder="选择应用"
+                :placeholder="$t('prompt.form.appCodePlaceholder')"
                 clearable
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="公开状态">
+            <el-form-item :label="$t('prompt.form.visibility')">
               <el-switch
                 v-model="form.isPublic"
-                active-text="公开"
-                inactive-text="私有"
+                :active-text="$t('prompt.list.public')"
+                :inactive-text="$t('prompt.list.private')"
               />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <el-form-item label="描述">
+        <el-form-item :label="$t('prompt.form.description')">
           <el-input
             v-model="form.description"
             type="textarea"
             :rows="2"
-            placeholder="描述该模板的用途和适用场景"
+            :placeholder="$t('prompt.form.descriptionPlaceholder')"
           />
         </el-form-item>
 
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="状态">
-              <el-switch v-model="form.status" active-text="启用" inactive-text="禁用" />
+            <el-form-item :label="$t('prompt.form.status')">
+              <el-switch v-model="form.status" :active-text="$t('prompt.filter.enabled')"
+                :inactive-text="$t('prompt.filter.disabled')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="默认模板">
-              <el-switch v-model="form.isDefault" active-text="是" inactive-text="否" />
-              <el-tooltip content="设为默认后，该分类下的智能体会自动使用此模板" placement="top">
+            <el-form-item :label="$t('prompt.form.defaultTemplate')">
+              <el-switch v-model="form.isDefault" :active-text="$t('prompt.list.yes')"
+                :inactive-text="$t('prompt.list.no')" />
+              <el-tooltip :content="$t('prompt.form.defaultTemplateTip')" placement="top">
                 <el-icon style="margin-left: 8px; color: #909399; cursor: help;"><QuestionFilled /></el-icon>
               </el-tooltip>
             </el-form-item>
@@ -85,38 +87,30 @@
       </div>
 
       <div class="form-section">
-        <div class="section-title">模板内容</div>
-        <el-form-item label="Prompt 内容" prop="content">
+        <div class="section-title">{{ $t('prompt.content.title') }}</div>
+        <el-form-item :label="$t('prompt.content.promptContent')" prop="content">
           <div class="content-wrapper">
             <el-input
               v-model="form.content"
               type="textarea"
               :rows="12"
-              placeholder="输入 Prompt 模板内容，使用 {{变量名}} 作为变量占位符"
+              :placeholder="$t('prompt.content.promptContentPlaceholder')"
             />
             <div class="content-help">
               <el-collapse>
-                <el-collapse-item title="📝 查看模板语法说明">
+                <el-collapse-item :title="$t('prompt.content.syntaxHelpTitle')">
                   <div class="help-content">
-                    <p class="help-title">变量语法：</p>
+                    <p class="help-title">{{ $t('prompt.content.variableSyntax') }}</p>
                     <ul class="help-list">
-                      <li>使用 <code v-pre>{{变量名}}</code> 定义变量占位符</li>
-                      <li>变量名建议使用驼峰命名，如：<code v-pre>{{userName}}</code></li>
-                      <li>渲染时会自动替换为实际值</li>
+                      <li>{{ $t('prompt.content.syntaxRule1') }}</li>
+                      <li>{{ $t('prompt.content.syntaxRule2') }}</li>
+                      <li>{{ $t('prompt.content.syntaxRule3') }}</li>
                     </ul>
 
-                    <p class="help-title" style="margin-top: 12px;">示例：</p>
-                    <pre class="example-code" v-pre>你是一个专业的问答助手。
+                    <p class="help-title" style="margin-top: 12px;">{{ $t('prompt.content.exampleTitle') }}</p>
+                    <pre class="example-code" v-pre>{{ exampleContent }}</pre>
 
-## 参考信息
-{{context}}
-
-## 用户问题
-{{query}}
-
-请基于参考信息回答用户问题。</pre>
-
-                    <p class="help-tip">💡 变量会在下方"变量定义"中配置</p>
+                    <p class="help-tip">{{ $t('prompt.content.variableConfigTip') }}</p>
                   </div>
                 </el-collapse-item>
               </el-collapse>
@@ -127,82 +121,82 @@
 
       <div class="form-section">
         <div class="section-title">
-          变量定义
+          {{ $t('prompt.variables.title') }}
           <el-button type="primary" size="small" @click="addVariable" style="margin-left: 12px;">
             <el-icon><Plus /></el-icon>
-            添加变量
+            {{ $t('prompt.actions.addVariable') }}
           </el-button>
         </div>
 
         <div v-if="form.variables && form.variables.length > 0" class="variables-list">
           <div v-for="(variable, index) in form.variables" :key="index" class="variable-item">
             <div class="variable-header">
-              <span class="variable-index">变量 {{ index + 1 }}</span>
+              <span class="variable-index">{{ $t('prompt.variables.variableIndex', { index: index + 1 }) }}</span>
               <el-button type="danger" size="small" text @click="removeVariable(index)">
                 <el-icon><Delete /></el-icon>
-                删除
+                {{ $t('prompt.actions.remove') }}
               </el-button>
             </div>
 
             <el-row :gutter="12">
               <el-col :span="10">
-                <el-form-item label="变量名" :prop="`variables.${index}.name`">
-                  <el-input v-model="variable.name" placeholder="如：userName" />
+                <el-form-item :label="$t('prompt.variables.name')" :prop="`variables.${index}.name`">
+                  <el-input v-model="variable.name" :placeholder="$t('prompt.variables.namePlaceholder')" />
                 </el-form-item>
               </el-col>
               <el-col :span="10">
-                <el-form-item label="类型">
+                <el-form-item :label="$t('prompt.variables.type')">
                   <el-select v-model="variable.type" class="w-full">
-                    <el-option label="字符串" value="string" />
-                    <el-option label="数字" value="number" />
-                    <el-option label="布尔值" value="boolean" />
-                    <el-option label="对象" value="object" />
-                    <el-option label="数组" value="array" />
+                    <el-option :label="$t('prompt.variables.types.string')" value="string" />
+                    <el-option :label="$t('prompt.variables.types.number')" value="number" />
+                    <el-option :label="$t('prompt.variables.types.boolean')" value="boolean" />
+                    <el-option :label="$t('prompt.variables.types.object')" value="object" />
+                    <el-option :label="$t('prompt.variables.types.array')" value="array" />
                   </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="4">
-                <el-form-item label="必填" label-width="60px">
+                <el-form-item :label="$t('prompt.variables.required')" label-width="60px">
                   <el-switch v-model="variable.required" />
                 </el-form-item>
               </el-col>
             </el-row>
 
-            <el-form-item label="描述">
-              <el-input v-model="variable.description" placeholder="描述该变量的用途" />
+            <el-form-item :label="$t('prompt.variables.description')">
+              <el-input v-model="variable.description" :placeholder="$t('prompt.variables.descriptionPlaceholder')" />
             </el-form-item>
 
-            <el-form-item v-if="!variable.required" label="默认值">
-              <el-input v-model="variable.defaultValue" placeholder="可选变量的默认值" />
+            <el-form-item v-if="!variable.required" :label="$t('prompt.variables.defaultValue')">
+              <el-input v-model="variable.defaultValue" :placeholder="$t('prompt.variables.defaultValuePlaceholder')" />
             </el-form-item>
           </div>
         </div>
 
-        <el-empty v-else description="暂无变量定义" :image-size="80" />
+        <el-empty v-else :description="$t('prompt.variables.emptyDescription')" :image-size="80" />
       </div>
 
       <div class="form-section">
-        <div class="section-title">高级设置</div>
-        <el-form-item label="标签">
+        <div class="section-title">{{ $t('prompt.advancedSettings.title') }}</div>
+        <el-form-item :label="$t('prompt.advancedSettings.tags')">
           <el-select
             v-model="form.tags"
             multiple
             filterable
             allow-create
             default-first-option
-            placeholder="输入标签后回车添加"
+            :placeholder="$t('prompt.advancedSettings.tagsPlaceholder')"
             class="w-full"
           >
             <el-option v-for="tag in defaultTags" :key="tag" :label="tag" :value="tag" />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="元数据">
+        <el-form-item :label="$t('prompt.advancedSettings.metadata')">
           <el-input
             v-model="metadataStr"
             type="textarea"
             :rows="3"
-            placeholder='JSON 格式的元数据，如：{"author": "admin", "version": "1.0"}'
+            :placeholder="$t('prompt.advancedSettings.metadataPlaceholder')"
           />
         </el-form-item>
       </div>
@@ -210,9 +204,9 @@
 
     <template #footer>
       <div class="drawer-footer">
-        <el-button @click="handleClose">取消</el-button>
+        <el-button @click="handleClose">{{ $t('prompt.actions.cancel') }}</el-button>
         <el-button type="primary" @click="handleSave" :loading="saving">
-          {{ editingTemplate ? '保存' : '创建' }}
+          {{ editingTemplate ? $t('prompt.actions.save') : $t('prompt.actions.create') }}
         </el-button>
       </div>
     </template>
@@ -221,6 +215,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete, QuestionFilled } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -239,6 +234,8 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+
+const { t } = useI18n()
 
 const formRef = ref<FormInstance>()
 const saving = ref(false)
@@ -259,16 +256,22 @@ const form = reactive<PromptTemplateForm>({
 })
 
 const rules: FormRules = {
-  name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
+  name: [{ required: true, message: t('prompt.validation.nameRequired'), trigger: 'blur' }],
   code: [
-    { required: true, message: '请输入模板标识', trigger: 'blur' },
-    { pattern: /^[a-z0-9-_]+$/, message: '标识只能包含小写字母、数字、中划线和下划线', trigger: 'blur' }
+    { required: true, message: t('prompt.validation.codeRequired'), trigger: 'blur' },
+    {
+      pattern: /^[a-z0-9-_]+$/,
+      message: t('prompt.validation.codePattern'),
+      trigger: 'blur'
+    }
   ],
-  category: [{ required: true, message: '请选择分类', trigger: 'change' }],
-  content: [{ required: true, message: '请输入 Prompt 内容', trigger: 'blur' }]
+  category: [{ required: true, message: t('prompt.validation.categoryRequired'), trigger: 'change' }],
+  content: [{ required: true, message: t('prompt.validation.contentRequired'), trigger: 'blur' }]
 }
 
 const defaultTags = ['推荐', '常用', '示例', '生产环境', '测试环境']
+
+const exampleContent = computed(() => t('prompt.content.exampleContent'))
 
 const metadataStr = computed({
   get: () => {
@@ -282,7 +285,6 @@ const metadataStr = computed({
     try {
       form.metadata = JSON.parse(value)
     } catch {
-      // 忽略解析错误
     }
   }
 })
@@ -354,17 +356,17 @@ const handleSave = async () => {
 
     if (editingTemplate.value) {
       await promptTemplateApi.update(form.code, form)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('prompt.messages.updateSuccess'))
     } else {
       await promptTemplateApi.create(form)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('prompt.messages.createSuccess'))
     }
 
     emit('save')
     handleClose()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '保存失败')
+      ElMessage.error(error.message || t('prompt.messages.saveFailed'))
     }
   } finally {
     saving.value = false

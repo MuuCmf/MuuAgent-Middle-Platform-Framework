@@ -1,21 +1,23 @@
 <template>
   <div class="retrieval-log-tab">
     <div class="filter-section">
-      <el-input v-model="filters.kbId" placeholder="知识库ID" clearable style="width: 250px" @clear="handleSearch"
-        @keyup.enter="handleSearch" />
-      <el-date-picker v-model="filters.timeRange" type="datetimerange" range-separator="至" start-placeholder="开始时间"
-        end-placeholder="结束时间" value-format="YYYY-MM-DD HH:mm:ss" style="width: 360px" @change="handleSearch" />
-      <el-button type="primary" @click="handleSearch">查询</el-button>
-      <el-button @click="handleReset">重置</el-button>
+      <el-input v-model="filters.kbId" :placeholder="t('log.retrieval.kbId')" clearable style="width: 250px"
+        @clear="handleSearch" @keyup.enter="handleSearch" />
+      <el-date-picker v-model="filters.timeRange" type="datetimerange"
+        :range-separator="t('log.common.timeRangeSeparator')" :start-placeholder="t('log.common.startTime')"
+        :end-placeholder="t('log.common.endTime')" value-format="YYYY-MM-DD HH:mm:ss" style="width: 360px"
+        @change="handleSearch" />
+      <el-button type="primary" @click="handleSearch">{{ t('log.common.search') }}</el-button>
+      <el-button @click="handleReset">{{ t('log.common.reset') }}</el-button>
     </div>
 
     <el-table :data="logs" stripe v-loading="loading">
-      <el-table-column label="调用时间" width="180">
+      <el-table-column :label="t('log.common.callTime')" width="180">
         <template #default="{ row }">
           {{ formatTime(row.createdAt) }}
         </template>
       </el-table-column>
-      <el-table-column label="知识库信息" width="200">
+      <el-table-column :label="t('log.retrieval.kbInfo')" width="200">
         <template #default="{ row }">
           <div>
             <el-tag type="success" size="small">{{ row.kbInfo?.kbName || row.kbId }}</el-tag>
@@ -25,7 +27,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="query" label="查询内容" min-width="200">
+      <el-table-column prop="query" :label="t('log.retrieval.queryContent')" min-width="200">
         <template #default="{ row }">
           <el-tooltip :content="row.query" placement="top">
             <span style="font-size: 12px; color: #666">
@@ -34,37 +36,37 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column label="Top N" width="80" align="center">
+      <el-table-column :label="t('log.retrieval.topN')" width="80" align="center">
         <template #default="{ row }">
           <span style="font-size: 12px">{{ row.topN || 5 }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="相似度阈值" width="100" align="center">
+      <el-table-column :label="t('log.retrieval.similarityThreshold')" width="100" align="center">
         <template #default="{ row }">
           <span style="font-size: 12px">{{ row.similarityThresh || 0.5 }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="检索数量" width="90" align="center">
+      <el-table-column :label="t('log.retrieval.retrievalCount')" width="90" align="center">
         <template #default="{ row }">
           <el-tag size="small" type="info">{{ row.retrievalCount || 0 }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="耗时" width="100" align="right">
+      <el-table-column :label="t('log.common.costTime')" width="100" align="right">
         <template #default="{ row }">
           <span :style="{ color: row.costTime > 3000 ? '#ff4d4f' : '#52c41a' }">
             {{ row.costTime }}ms
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="客户端IP" width="140">
+      <el-table-column :label="t('log.common.clientIp')" width="140">
         <template #default="{ row }">
           <span style="font-size: 12px; color: #666">{{ row.clientIp || '-' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="100" fixed="right" align="right">
+      <el-table-column :label="t('log.common.operation')" width="100" fixed="right" align="right">
         <template #default="{ row }">
           <el-button link type="primary" size="small" @click="handleViewDetail(row)">
-            详情
+            {{ t('log.common.detail') }}
           </el-button>
         </template>
       </el-table-column>
@@ -75,38 +77,38 @@
         :page-sizes="[10, 20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next, jumper" />
     </div>
 
-    <el-drawer v-model="detailVisible" title="知识库检索日志详情" direction="rtl" size="60%">
+    <el-drawer v-model="detailVisible" :title="t('log.retrieval.detailTitle')" direction="rtl" size="60%">
       <div v-if="currentLog" class="log-detail">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="日志ID">{{ currentLog.id }}</el-descriptions-item>
-          <el-descriptions-item label="调用时间">{{ formatTime(currentLog.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="知识库ID">
+          <el-descriptions-item :label="t('log.common.logId')">{{ currentLog.id }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.callTime')">{{ formatTime(currentLog.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.retrieval.kbId')">
             {{ currentLog.kbId }}
           </el-descriptions-item>
-          <el-descriptions-item label="知识库名称">
+          <el-descriptions-item :label="t('log.retrieval.kbName')">
             {{ currentLog.kbInfo?.kbName || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="Top N">{{ currentLog.topN || 5 }}</el-descriptions-item>
-          <el-descriptions-item label="相似度阈值">{{ currentLog.similarityThresh || 0.5 }}</el-descriptions-item>
-          <el-descriptions-item label="检索数量">
+          <el-descriptions-item :label="t('log.retrieval.topN')">{{ currentLog.topN || 5 }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.retrieval.similarityThreshold')">{{ currentLog.similarityThresh || 0.5 }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.retrieval.retrievalCount')">
             <el-tag size="small" type="info">{{ currentLog.retrievalCount || 0 }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="耗时">{{ currentLog.costTime }}ms</el-descriptions-item>
-          <el-descriptions-item label="请求ID">{{ currentLog.requestId || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="客户端IP">{{ currentLog.clientIp || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="用户标识">{{ currentLog.uid || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.costTime')">{{ currentLog.costTime }}ms</el-descriptions-item>
+          <el-descriptions-item :label="t('log.retrieval.requestId')">{{ currentLog.requestId || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.clientIp')">{{ currentLog.clientIp || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.uid')">{{ currentLog.uid || '-' }}</el-descriptions-item>
         </el-descriptions>
 
         <div class="query-section">
-          <h4>查询内容</h4>
+          <h4>{{ t('log.retrieval.querySectionTitle') }}</h4>
           <el-input type="textarea" :model-value="currentLog.query" :rows="3" readonly />
         </div>
 
         <div v-if="currentLog.results && currentLog.results.length > 0" class="results-section">
-          <h4>检索结果 ({{ currentLog.results.length }} 条)</h4>
+          <h4>{{ t('log.retrieval.resultsSectionTitle', { count: currentLog.results.length }) }}</h4>
           <el-table :data="currentLog.results" stripe border size="small">
-            <el-table-column type="index" label="#" width="50" />
-            <el-table-column label="相似度" width="100" align="center">
+            <el-table-column type="index" :label="t('log.retrieval.indexColumn')" width="50" />
+            <el-table-column :label="t('log.retrieval.similarityColumn')" width="100" align="center">
               <template #default="{ row }">
                 <el-progress 
                   :percentage="Math.round(row.score * 100)" 
@@ -115,21 +117,21 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column prop="docName" label="文档名称" width="180">
+            <el-table-column prop="docName" :label="t('log.retrieval.docNameColumn')" width="180">
               <template #default="{ row }">
                 <el-tooltip :content="row.docName" placement="top">
                   <span class="doc-name">{{ truncateText(row.docName, 20) }}</span>
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column prop="content" label="切片内容" min-width="300">
+            <el-table-column prop="content" :label="t('log.retrieval.chunkContentColumn')" min-width="300">
               <template #default="{ row }">
                 <el-tooltip :content="row.content" placement="top" :disabled="row.content.length <= 100">
                   <span class="chunk-content">{{ truncateText(row.content, 100) }}</span>
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column prop="chunkId" label="切片ID" width="120">
+            <el-table-column prop="chunkId" :label="t('log.retrieval.chunkIdColumn')" width="120">
               <template #default="{ row }">
                 <el-tooltip :content="row.chunkId" placement="top">
                   <span class="chunk-id">{{ row.chunkId.substring(0, 8) }}...</span>
@@ -140,7 +142,7 @@
         </div>
 
         <div v-else-if="currentLog.retrievalCount === 0" class="no-results">
-          <el-empty description="未检索到相关内容" :image-size="80" />
+          <el-empty :description="t('log.retrieval.noResultsDescription')" :image-size="80" />
         </div>
       </div>
     </el-drawer>
@@ -149,7 +151,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { logApi, type RetrievalLog } from '@/api/log'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const logs = ref<RetrievalLog[]>([])
@@ -226,7 +231,7 @@ const loadLogs = async () => {
     logs.value = res.data.data?.list || []
     total.value = res.data.data?.total || 0
   } catch (error) {
-    console.error('加载知识库检索日志失败', error)
+    console.error(t('log.retrieval.loadFailed'), error)
   } finally {
     loading.value = false
   }
@@ -257,7 +262,7 @@ const handleViewDetail = async (log: RetrievalLog) => {
     currentLog.value = res.data.data
     detailVisible.value = true
   } catch (error) {
-    console.error('加载知识库检索日志详情失败', error)
+    console.error(t('log.retrieval.loadDetailFailed'), error)
   }
 }
 

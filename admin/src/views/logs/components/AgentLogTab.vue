@@ -1,25 +1,26 @@
 <template>
   <div class="agent-log-tab">
     <div class="filter-section">
-      <el-input v-model="filters.agentCode" placeholder="Agent代码" clearable style="width: 200px" @clear="handleSearch"
+      <el-input v-model="filters.agentCode" :placeholder="t('log.agent.agentCode')" clearable style="width: 200px" @clear="handleSearch"
         @keyup.enter="handleSearch" />
-      <el-select v-model="filters.success" placeholder="调用状态" clearable style="width: 120px" @change="handleSearch">
-        <el-option label="成功" :value="true" />
-        <el-option label="失败" :value="false" />
+      <el-select v-model="filters.success" :placeholder="t('log.common.callStatus')" clearable style="width: 120px" @change="handleSearch">
+        <el-option :label="t('log.common.success')" :value="true" />
+        <el-option :label="t('log.common.failed')" :value="false" />
       </el-select>
-      <el-date-picker v-model="filters.timeRange" type="datetimerange" range-separator="至" start-placeholder="开始时间"
-        end-placeholder="结束时间" value-format="YYYY-MM-DD HH:mm:ss" style="width: 360px" @change="handleSearch" />
-      <el-button type="primary" @click="handleSearch">查询</el-button>
-      <el-button @click="handleReset">重置</el-button>
+      <el-date-picker v-model="filters.timeRange" type="datetimerange" :range-separator="t('log.common.timeRangeSeparator')"
+        :start-placeholder="t('log.common.startTime')" :end-placeholder="t('log.common.endTime')"
+        value-format="YYYY-MM-DD HH:mm:ss" style="width: 360px" @change="handleSearch" />
+      <el-button type="primary" @click="handleSearch">{{ t('log.common.search') }}</el-button>
+      <el-button @click="handleReset">{{ t('log.common.reset') }}</el-button>
     </div>
 
     <el-table :data="logs" stripe v-loading="loading">
-      <el-table-column label="调用时间" width="180">
+      <el-table-column :label="t('log.common.callTime')" width="180">
         <template #default="{ row }">
           {{ formatTime(row.createdAt) }}
         </template>
       </el-table-column>
-      <el-table-column label="Agent信息" width="200">
+      <el-table-column :label="t('log.agent.agentInfo')" width="200">
         <template #default="{ row }">
           <div>
             <el-tag type="primary" size="small">{{ row.agent?.code || row.agentId }}</el-tag>
@@ -29,44 +30,44 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="会话ID" width="220">
+      <el-table-column :label="t('log.agent.conversationId')" width="220">
         <template #default="{ row }">
           <span style="font-size: 12px; color: #666">{{ row.conversationId || '-' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="耗时" width="100" align="right">
+      <el-table-column :label="t('log.common.costTime')" width="100" align="right">
         <template #default="{ row }">
           <span :style="{ color: row.costMs > 5000 ? '#ff4d4f' : '#52c41a' }">
             {{ row.costMs }}ms
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="80" align="center">
+      <el-table-column :label="t('log.common.status')" width="80" align="center">
         <template #default="{ row }">
           <el-tag :type="row.success ? 'success' : 'danger'" size="small">
-            {{ row.success ? '成功' : '失败' }}
+            {{ row.success ? t('log.common.success') : t('log.common.failed') }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="客户端IP" width="140">
+      <el-table-column :label="t('log.common.clientIp')" width="140">
         <template #default="{ row }">
           <span style="font-size: 12px; color: #666">{{ row.clientIp || '-' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="错误信息" min-width="200">
+      <el-table-column :label="t('log.common.errorMessage')" min-width="200">
         <template #default="{ row }">
           <el-tooltip v-if="row.errorMessage" :content="row.errorMessage" placement="top">
             <span style="color: #ff4d4f; font-size: 12px; cursor: pointer">
               {{ truncateText(row.errorMessage, 30) }}
             </span>
           </el-tooltip>
-          <span v-else style="color: #999">-</span>
+          <span v-else style="color: #999">{{ t('log.common.noData') }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="100" fixed="right" align="right">
+      <el-table-column :label="t('log.common.operation')" width="100" fixed="right" align="right">
         <template #default="{ row }">
           <el-button link type="primary" size="small" @click="handleViewDetail(row)">
-            详情
+            {{ t('log.common.detail') }}
           </el-button>
         </template>
       </el-table-column>
@@ -77,40 +78,40 @@
         :page-sizes="[10, 20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next, jumper" />
     </div>
 
-    <el-drawer v-model="detailVisible" title="Agent调用日志详情" direction="rtl" size="60%">
+    <el-drawer v-model="detailVisible" :title="t('log.agent.detailTitle')" direction="rtl" size="60%">
       <div v-if="currentLog" class="log-detail">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="日志ID">{{ currentLog.id }}</el-descriptions-item>
-          <el-descriptions-item label="调用时间">{{ formatTime(currentLog.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="Agent代码">{{ currentLog.agent?.code || currentLog.agentId }}</el-descriptions-item>
-          <el-descriptions-item label="Agent名称">{{ currentLog.agent?.name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="耗时">{{ currentLog.costMs }}ms</el-descriptions-item>
-          <el-descriptions-item label="调用状态">
+          <el-descriptions-item :label="t('log.common.logId')">{{ currentLog.id }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.callTime')">{{ formatTime(currentLog.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.agent.agentCode')">{{ currentLog.agent?.code || currentLog.agentId }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.agent.agentName')">{{ currentLog.agent?.name || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.costTime')">{{ currentLog.costMs }}ms</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.status')">
             <el-tag :type="currentLog.success ? 'success' : 'danger'">
-              {{ currentLog.success ? '成功' : '失败' }}
+              {{ currentLog.success ? t('log.common.success') : t('log.common.failed') }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="推理模式">
+          <el-descriptions-item :label="t('log.agent.reasoningMode')">
             <el-tag v-if="currentLog.reasoningMode" size="small">
               {{ getReasoningModeLabel(currentLog.reasoningMode) }}
             </el-tag>
-            <span v-else style="color: #999">-</span>
+            <span v-else style="color: #999">{{ t('log.common.noData') }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="客户端IP">{{ currentLog.clientIp || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="用户标识">{{ currentLog.uid || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="应用标识">{{ currentLog.appCode || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="会话ID">{{ currentLog.conversationId || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.clientIp')">{{ currentLog.clientIp || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.uid')">{{ currentLog.uid || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.appCode')">{{ currentLog.appCode || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.agent.conversationId')">{{ currentLog.conversationId || '-' }}</el-descriptions-item>
         </el-descriptions>
 
         <div v-if="currentLog.errorMessage" class="error-section">
-          <h4>错误信息</h4>
+          <h4>{{ t('log.common.errorInfo') }}</h4>
           <el-alert type="error" :closable="false">
             <pre>{{ currentLog.errorMessage }}</pre>
           </el-alert>
         </div>
 
         <div v-if="parsedReasoningSteps.length > 0" class="reasoning-section">
-          <h4>🧠 推理过程</h4>
+          <h4>{{ t('log.agent.reasoningProcess') }}</h4>
           <div class="reasoning-steps">
             <div v-for="(step, index) in parsedReasoningSteps" :key="index" class="reasoning-step">
               <div class="step-header">
@@ -122,35 +123,35 @@
               </div>
               <div class="step-content">
                 <div v-if="step.thought" class="step-item">
-                  <span class="item-label">💭 思考：</span>
+                  <span class="item-label">{{ t('log.agent.stepItemLabels.thought') }}</span>
                   <div class="item-value">{{ step.thought }}</div>
                 </div>
                 <div v-if="step.action" class="step-item">
-                  <span class="item-label">⚡ 行动：</span>
+                  <span class="item-label">{{ t('log.agent.stepItemLabels.action') }}</span>
                   <div class="item-value">{{ step.action }}</div>
                 </div>
                 <div v-if="step.actionInput" class="step-item">
-                  <span class="item-label">📥 输入：</span>
+                  <span class="item-label">{{ t('log.agent.stepItemLabels.actionInput') }}</span>
                   <pre class="item-code">{{ formatJson(JSON.stringify(step.actionInput)) }}</pre>
                 </div>
                 <div v-if="step.observation" class="step-item">
-                  <span class="item-label">👁 观察：</span>
+                  <span class="item-label">{{ t('log.agent.stepItemLabels.observation') }}</span>
                   <div class="item-value">{{ step.observation }}</div>
                 </div>
                 <div v-if="step.toolName" class="step-item">
-                  <span class="item-label">🔧 工具：</span>
+                  <span class="item-label">{{ t('log.agent.stepItemLabels.toolName') }}</span>
                   <el-tag size="small" type="warning">{{ step.toolName }}</el-tag>
                 </div>
                 <div v-if="step.toolArgs" class="step-item">
-                  <span class="item-label">📋 参数：</span>
+                  <span class="item-label">{{ t('log.agent.stepItemLabels.toolArgs') }}</span>
                   <pre class="item-code">{{ formatJson(JSON.stringify(step.toolArgs)) }}</pre>
                 </div>
                 <div v-if="step.toolOutput" class="step-item">
-                  <span class="item-label">📤 结果：</span>
+                  <span class="item-label">{{ t('log.agent.stepItemLabels.toolOutput') }}</span>
                   <pre class="item-code">{{ formatJson(JSON.stringify(step.toolOutput)) }}</pre>
                 </div>
                 <div v-if="step.content && !step.thought && !step.action && !step.observation" class="step-item">
-                  <span class="item-label">📝 内容：</span>
+                  <span class="item-label">{{ t('log.agent.stepItemLabels.content') }}</span>
                   <div class="item-value">{{ step.content }}</div>
                 </div>
               </div>
@@ -159,12 +160,12 @@
         </div>
 
         <div class="request-section">
-          <h4>请求数据</h4>
+          <h4>{{ t('log.common.requestData') }}</h4>
           <el-input type="textarea" :model-value="formatJson(currentLog.request)" :rows="10" readonly />
         </div>
 
         <div class="response-section">
-          <h4>响应数据</h4>
+          <h4>{{ t('log.common.responseData') }}</h4>
           <el-input type="textarea" :model-value="formatJson(currentLog.response)" :rows="10" readonly />
         </div>
       </div>
@@ -174,8 +175,11 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { logApi, type AgentLog } from '@/api/log'
 import type { ReasoningStep } from '@/api/agent'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const logs = ref<AgentLog[]>([])
@@ -263,13 +267,7 @@ const formatJson = (json: string | undefined) => {
  * @returns 推理模式标签
  */
 const getReasoningModeLabel = (mode: string) => {
-  const labels: Record<string, string> = {
-    NONE: '默认模式',
-    REACT: 'ReAct模式',
-    PLAN: 'Plan模式',
-    REFLECT: 'Reflect模式',
-  }
-  return labels[mode] || mode
+  return t(`log.agent.reasoningModeLabels.${mode}`) || mode
 }
 
 /**
@@ -278,13 +276,7 @@ const getReasoningModeLabel = (mode: string) => {
  * @returns 步骤类型标签
  */
 const getStepTypeLabel = (type: string) => {
-  const labels: Record<string, string> = {
-    thought: '💭 思考',
-    action: '⚡ 行动',
-    observation: '👁 观察',
-    final_answer: '✅ 最终答案',
-  }
-  return labels[type] || type
+  return t(`log.agent.stepTypeLabels.${type}`) || type
 }
 
 /**
@@ -309,7 +301,7 @@ const loadLogs = async () => {
     logs.value = res.data.data?.list || []
     total.value = res.data.data?.total || 0
   } catch (error) {
-    console.error('加载Agent日志失败', error)
+    console.error(t('log.agent.loadFailed'), error)
   } finally {
     loading.value = false
   }
@@ -344,7 +336,7 @@ const handleViewDetail = async (log: AgentLog) => {
     currentLog.value = res.data.data
     detailVisible.value = true
   } catch (error) {
-    console.error('加载Agent日志详情失败', error)
+    console.error(t('log.agent.loadDetailFailed'), error)
   }
 }
 

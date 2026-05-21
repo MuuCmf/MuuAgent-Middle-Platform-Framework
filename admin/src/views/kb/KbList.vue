@@ -1,18 +1,18 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">知识库管理</h1>
-      <p class="page-description">创建和管理知识库，为智能体提供知识检索能力</p>
+      <h1 class="page-title">{{ $t('knowledge.title') }}</h1>
+      <p class="page-description">{{ $t('knowledge.description') }}</p>
     </div>
 
     <div class="help-tip">
-      <div class="help-tip-title">💡 知识库说明</div>
+      <div class="help-tip-title">{{ $t('knowledge.helpTip.title') }}</div>
       <ul>
-        <li><strong>知识库</strong>：存储文档数据，支持向量检索，为智能体提供知识支持</li>
-        <li><strong>向量模型</strong>：将文本转换为向量表示，用于语义相似度计算</li>
-        <li><strong>切片大小</strong>：文档切分的块大小，影响检索精度和效率</li>
-        <li><strong>相似度阈值</strong>：检索结果的最低相似度要求，范围 0-1</li>
-        <li><strong>召回条数</strong>：每次检索返回的最大文档片段数量</li>
+        <li><strong>{{ $t('knowledge.list.identifier') }}</strong>：{{ $t('knowledge.helpTip.knowledgeBase') }}</li>
+        <li><strong>{{ $t('knowledge.list.vectorModel') }}</strong>：{{ $t('knowledge.helpTip.vectorModel') }}</li>
+        <li><strong>{{ $t('knowledge.detail.chunkSize') }}</strong>：{{ $t('knowledge.helpTip.chunkSize') }}</li>
+        <li><strong>{{ $t('knowledge.detail.similarityThreshold') }}</strong>：{{ $t('knowledge.helpTip.similarityThreshold') }}</li>
+        <li><strong>{{ $t('knowledge.detail.topN') }}</strong>：{{ $t('knowledge.helpTip.topN') }}</li>
       </ul>
     </div>
 
@@ -23,25 +23,27 @@
           <el-icon>
             <Plus />
           </el-icon>
-          创建知识库
+          {{ $t('knowledge.actions.create') }}
         </el-button>
-        <el-input v-model="searchKeyword" placeholder="搜索知识库名称或标识" style="width: 300px;" @keyup.enter="handleSearch">
+        <el-input v-model="searchKeyword" :placeholder="$t('knowledge.filter.placeholder')" style="width: 300px;"
+          @keyup.enter="handleSearch">
           <template #prefix>
             <el-icon>
               <Search />
             </el-icon>
           </template>
         </el-input>
-        <el-select v-model="statusFilter" placeholder="状态筛选" style="width: 150px;" @change="handleSearch">
-          <el-option label="全部" value="" />
-          <el-option label="启用" :value="true" />
-          <el-option label="禁用" :value="false" />
+        <el-select v-model="statusFilter" :placeholder="$t('knowledge.filter.statusFilter')" style="width: 150px;"
+          @change="handleSearch">
+          <el-option :label="$t('knowledge.filter.all')" value="" />
+          <el-option :label="$t('knowledge.filter.enabled')" :value="true" />
+          <el-option :label="$t('knowledge.filter.disabled')" :value="false" />
         </el-select>
         <el-button @click="handleSearch">
           <el-icon>
             <Search />
           </el-icon>
-          搜索
+          {{ $t('knowledge.actions.search') }}
         </el-button>
 
       </div>
@@ -57,48 +59,50 @@
                 <span class="kb-name">{{ kb.kbName }}</span>
               </div>
               <el-tag :type="kb.status ? 'success' : 'danger'" size="small">
-                {{ kb.status ? '启用' : '禁用' }}
+                {{ kb.status ? $t('knowledge.filter.enabled') : $t('knowledge.filter.disabled') }}
               </el-tag>
             </div>
           </template>
 
           <div class="card-content">
             <div class="info-item">
-              <span class="label">标识：</span>
+              <span class="label">{{ $t('knowledge.list.identifier') }}：</span>
               <el-tag type="info" size="small">{{ kb.kbCode }}</el-tag>
             </div>
             <div class="info-item">
-              <span class="label">所属应用：</span>
+              <span class="label">{{ $t('knowledge.list.appCode') }}：</span>
               <el-tag v-if="kb.appCode" type="warning" size="small">{{ kb.appCode }}</el-tag>
-              <span v-else class="value">全局</span>
+              <span v-else class="value">{{ $t('knowledge.filter.global') }}</span>
             </div>
             <div class="info-item">
-              <span class="label">公开状态：</span>
+              <span class="label">{{ $t('knowledge.list.visibility') }}：</span>
               <el-tag :type="kb.isPublic ? 'success' : 'info'" size="small">
-                {{ kb.isPublic ? '公开' : '私有' }}
+                {{ kb.isPublic ? $t('knowledge.filter.public') : $t('knowledge.filter.private') }}
               </el-tag>
             </div>
             <div class="info-item" v-if="kb.description">
-              <span class="label">描述：</span>
+              <span class="label">{{ $t('knowledge.list.description') }}：</span>
               <span class="value">{{ kb.description }}</span>
             </div>
             <div class="info-row">
               <div class="info-item">
-                <span class="label">文档数：</span>
+                <span class="label">{{ $t('knowledge.list.documentCount') }}：</span>
                 <span class="value number">{{ kb.documentCount || 0 }}</span>
               </div>
               <div class="info-item">
-                <span class="label">切片数：</span>
+                <span class="label">{{ $t('knowledge.list.chunkCount') }}：</span>
                 <span class="value number">{{ kb.chunkCount || 0 }}</span>
               </div>
             </div>
             <div class="info-item" v-if="kb.retrievalMethod !== 'bm25'">
-              <span class="label">向量模型：</span>
+              <span class="label">{{ $t('knowledge.list.vectorModel') }}：</span>
               <span class="value">{{ kb.embeddingModel }}</span>
             </div>
             <div class="info-item">
-              <span class="label">检索方式：</span>
-              <span class="value">{{ kb.retrievalMethod === 'bm25' ? 'BM25检索' : '向量检索' }}</span>
+              <span class="label">{{ $t('knowledge.list.retrievalMethod') }}：</span>
+              <span class="value">{{
+                kb.retrievalMethod === 'bm25' ? $t('knowledge.list.bm25Retrieval') : $t('knowledge.list.vectorRetrieval')
+              }}</span>
             </div>
           </div>
 
@@ -108,19 +112,19 @@
                 <el-icon>
                   <View />
                 </el-icon>
-                管理
+                {{ $t('knowledge.actions.manage') }}
               </el-button>
               <el-button size="small" @click="handleEdit(kb)">
                 <el-icon>
                   <Edit />
                 </el-icon>
-                编辑
+                {{ $t('knowledge.actions.edit') }}
               </el-button>
               <el-button size="small" type="danger" @click="handleDelete(kb)">
                 <el-icon>
                   <Delete />
                 </el-icon>
-                删除
+                {{ $t('knowledge.actions.delete') }}
               </el-button>
             </div>
           </template>
@@ -128,8 +132,9 @@
       </div>
 
       <div class="pagination">
-        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[12, 24, 48, 96]"
-          :total="total" layout="total, sizes, prev, pager, next, jumper" />
+        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize"
+          :page-sizes="[12, 24, 48, 96]" :total="total"
+          layout="total, sizes, prev, pager, next, jumper" />
       </div>
     </div>
 
@@ -140,6 +145,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, FolderOpened, View, Edit, Delete } from '@element-plus/icons-vue'
 import { kbApi } from '@/api'
@@ -147,6 +153,7 @@ import type { KbInfo } from '@/api/kb'
 import KbEditDialog from './components/KbEditDialog.vue'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const loading = ref(false)
 const kbList = ref<KbInfo[]>([])
@@ -171,7 +178,7 @@ const fetchKbList = async () => {
     kbList.value = response.data.data.list
     total.value = response.data.data.total
   } catch (error: any) {
-    ElMessage.error(error.message || '获取知识库列表失败')
+    ElMessage.error(error.message || t('knowledge.messages.fetchListFailed'))
   } finally {
     loading.value = false
   }
@@ -211,9 +218,9 @@ const handleEdit = (kb: KbInfo) => {
 
 const handleDelete = async (kb: KbInfo) => {
   try {
-    await ElMessageBox.confirm('确定要删除该知识库吗？删除后无法恢复。', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('knowledge.messages.deleteConfirm'), t('knowledge.messages.deleteConfirmTitle'), {
+      confirmButtonText: t('knowledge.actions.confirm'),
+      cancelButtonText: t('knowledge.actions.cancel'),
       type: 'warning'
     })
 
@@ -221,16 +228,16 @@ const handleDelete = async (kb: KbInfo) => {
     const user = userStr ? JSON.parse(userStr) : null
 
     if (!user?.id) {
-      ElMessage.error('用户信息获取失败，请重新登录')
+      ElMessage.error(t('knowledge.messages.getUserInfoFailed'))
       return
     }
 
     await kbApi.delete(user.id, kb.kbId)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('knowledge.messages.deleteSuccess'))
     fetchKbList()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      ElMessage.error(error.message || t('knowledge.messages.deleteFailed'))
     }
   }
 }

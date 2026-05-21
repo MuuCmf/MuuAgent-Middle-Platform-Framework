@@ -1,18 +1,18 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">Prompt 模板管理</h1>
-      <p class="page-description">管理智能体和 RAG 问答的提示词模板</p>
+      <h1 class="page-title">{{ $t('prompt.title') }}</h1>
+      <p class="page-description">{{ $t('prompt.description') }}</p>
     </div>
 
     <div class="help-tip">
-      <div class="help-tip-title">💡 模板管理说明</div>
+      <div class="help-tip-title">{{ $t('prompt.helpTip.title') }}</div>
       <ul>
-        <li><strong>模板标识</strong>：模板的唯一标识符，用于在代码中引用模板</li>
-        <li><strong>分类</strong>：模板的应用场景，如 agent、rag、react、skill 等</li>
-        <li><strong>变量</strong>：模板中可替换的变量，使用 <span v-pre>{{变量名}}</span> 格式</li>
-        <li><strong>版本</strong>：模板支持版本管理，每次更新都会创建新版本</li>
-        <li><strong>默认模板</strong>：每个分类可以有一个默认模板，智能体会自动使用</li>
+        <li><strong>{{ $t('prompt.list.code') }}</strong>：{{ $t('prompt.helpTip.identifier') }}</li>
+        <li><strong>{{ $t('prompt.list.category') }}</strong>：{{ $t('prompt.helpTip.category') }}</li>
+        <li><strong>{{ $t('prompt.variables.title') }}</strong>：{{ $t('prompt.helpTip.variable') }}</li>
+        <li><strong>{{ $t('prompt.list.version') }}</strong>：{{ $t('prompt.helpTip.version') }}</li>
+        <li><strong>{{ $t('prompt.form.defaultTemplate') }}</strong>：{{ $t('prompt.helpTip.defaultTemplate') }}</li>
       </ul>
     </div>
 
@@ -22,27 +22,27 @@
           <el-icon>
             <Plus />
           </el-icon>
-          添加模板
+          {{ $t('prompt.actions.add') }}
         </el-button>
 
         <div class="filters">
-          <el-select v-model="filters.category" placeholder="选择分类" clearable @change="handleFilter"
-            style="width: 150px; margin-right: 12px;">
-            <el-option label="Agent" value="agent" />
-            <el-option label="RAG" value="rag" />
-            <el-option label="ReAct" value="react" />
-            <el-option label="Skill" value="skill" />
-            <el-option label="自定义" value="custom" />
+          <el-select v-model="filters.category" :placeholder="$t('prompt.filter.categoryPlaceholder')" clearable
+            @change="handleFilter" style="width: 150px; margin-right: 12px;">
+            <el-option :label="$t('prompt.categories.agent')" value="agent" />
+            <el-option :label="$t('prompt.categories.rag')" value="rag" />
+            <el-option :label="$t('prompt.categories.react')" value="react" />
+            <el-option :label="$t('prompt.categories.skill')" value="skill" />
+            <el-option :label="$t('prompt.categories.custom')" value="custom" />
           </el-select>
 
-          <el-select v-model="filters.status" placeholder="选择状态" clearable @change="handleFilter"
-            style="width: 120px; margin-right: 12px;">
-            <el-option label="启用" :value="true" />
-            <el-option label="禁用" :value="false" />
+          <el-select v-model="filters.status" :placeholder="$t('prompt.filter.statusPlaceholder')" clearable
+            @change="handleFilter" style="width: 120px; margin-right: 12px;">
+            <el-option :label="$t('prompt.filter.enabled')" :value="true" />
+            <el-option :label="$t('prompt.filter.disabled')" :value="false" />
           </el-select>
 
-          <el-input v-model="filters.keyword" placeholder="搜索模板名称或标识" clearable @change="handleFilter"
-            style="width: 250px;">
+          <el-input v-model="filters.keyword" :placeholder="$t('prompt.filter.searchPlaceholder')" clearable
+            @change="handleFilter" style="width: 250px;">
             <template #prefix>
               <el-icon>
                 <Search />
@@ -53,59 +53,64 @@
       </div>
 
       <el-table :data="templates" stripe v-loading="loading">
-        <el-table-column prop="name" label="名称" width="150" />
-        <el-table-column prop="code" label="标识" width="150">
+        <el-table-column prop="name" :label="$t('prompt.list.name')" width="150" />
+        <el-table-column prop="code" :label="$t('prompt.list.code')" width="150">
           <template #default="{ row }">
             <el-tag type="info" size="small">{{ row.code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="category" label="分类" width="90">
+        <el-table-column prop="category" :label="$t('prompt.list.category')" width="90">
           <template #default="{ row }">
             <el-tag :type="getCategoryType(row.category)" size="small">
               {{ getCategoryLabel(row.category) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="appCode" label="所属应用" width="100">
+        <el-table-column prop="appCode" :label="$t('prompt.list.appCode')" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.appCode" type="warning" size="small">{{ row.appCode }}</el-tag>
-            <span v-else style="color: #999">全局</span>
+            <span v-else style="color: #999">{{ $t('prompt.list.global') }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="isPublic" label="公开状态" width="90">
+        <el-table-column prop="isPublic" :label="$t('prompt.list.visibility')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.isPublic ? 'success' : 'info'" size="small">
-              {{ row.isPublic ? '公开' : '私有' }}
+              {{ row.isPublic ? $t('prompt.list.public') : $t('prompt.list.private') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip>
+        <el-table-column prop="description" :label="$t('prompt.list.description')" min-width="150"
+          show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.description || '-' }}
+            {{ row.description || $t('prompt.list.noDescription') }}
           </template>
         </el-table-column>
-        <el-table-column prop="version" label="版本" width="70" align="center">
+        <el-table-column prop="version" :label="$t('prompt.list.version')" width="70" align="center">
           <template #default="{ row }">
             <el-tag size="small">v{{ row.version }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="isDefault" label="默认" width="70" align="center">
+        <el-table-column prop="isDefault" :label="$t('prompt.list.isDefault')" width="70" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.isDefault" type="success" size="small">是</el-tag>
-            <span v-else>-</span>
+            <el-tag v-if="row.isDefault" type="success" size="small">{{ $t('prompt.list.yes') }}</el-tag>
+            <span v-else>{{ $t('prompt.list.no') }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="70" align="center">
+        <el-table-column prop="status" :label="$t('prompt.list.status')" width="70" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status ? 'success' : 'danger'" size="small">
-              {{ row.status ? '启用' : '禁用' }}
+              {{ row.status ? $t('prompt.filter.enabled') : $t('prompt.filter.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" align="right">
+        <el-table-column :label="$t('prompt.list.operations')" fixed="right" align="right">
           <template #default="{ row }">
-            <el-button link size="small" type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button link size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
+            <el-button link size="small" type="primary" @click="handleEdit(row)">
+              {{ $t('prompt.actions.edit') }}
+            </el-button>
+            <el-button link size="small" type="danger" @click="handleDelete(row.id)">
+              {{ $t('prompt.actions.delete') }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -122,10 +127,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { promptTemplateApi, type PromptTemplate } from '@/api/prompt-template'
 import PromptTemplateEditDrawer from './components/PromptTemplateEditDrawer.vue'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const templates = ref<PromptTemplate[]>([])
@@ -153,7 +161,7 @@ const fetchTemplates = async () => {
     templates.value = response.data.data.list
     total.value = response.data.data.total
   } catch (error: any) {
-    ElMessage.error(error.message || '获取模板列表失败')
+    ElMessage.error(error.message || t('prompt.messages.fetchListFailed'))
   } finally {
     loading.value = false
   }
@@ -189,18 +197,18 @@ const handleEdit = (row: PromptTemplate) => {
 
 const handleDelete = async (id: string) => {
   try {
-    await ElMessageBox.confirm('确定要删除该模板吗？此操作不可恢复。', '删除确认', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('prompt.messages.deleteConfirm'), t('prompt.messages.deleteConfirmTitle'), {
+      confirmButtonText: t('prompt.actions.confirm'),
+      cancelButtonText: t('prompt.actions.cancel'),
       type: 'warning'
     })
 
     await promptTemplateApi.delete(id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('prompt.messages.deleteSuccess'))
     fetchTemplates()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      ElMessage.error(error.message || t('prompt.messages.deleteFailed'))
     }
   }
 }
@@ -223,11 +231,11 @@ const getCategoryType = (category: string) => {
 
 const getCategoryLabel = (category: string) => {
   const labels: Record<string, string> = {
-    agent: 'Agent',
-    rag: 'RAG',
-    react: 'ReAct',
-    skill: 'Skill',
-    custom: '自定义'
+    agent: t('prompt.categories.agent').split(' - ')[0],
+    rag: t('prompt.categories.rag').split(' - ')[0],
+    react: t('prompt.categories.react').split(' - ')[0],
+    skill: t('prompt.categories.skill').split(' - ')[0],
+    custom: t('prompt.categories.custom').split(' - ')[0]
   }
   return labels[category] || category
 }
@@ -254,41 +262,5 @@ onMounted(() => {
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
-}
-
-.render-dialog-content {
-  .render-template-info {
-    margin-bottom: 16px;
-
-    p {
-      margin: 8px 0;
-      font-size: 14px;
-      color: #4b5563;
-    }
-  }
-
-  .render-result {
-    h4 {
-      margin: 0 0 12px 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #1f2937;
-    }
-  }
-}
-
-.view-dialog-content {
-
-  .view-content,
-  .view-variables {
-    margin-top: 16px;
-
-    h4 {
-      margin: 0 0 12px 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #1f2937;
-    }
-  }
 }
 </style>

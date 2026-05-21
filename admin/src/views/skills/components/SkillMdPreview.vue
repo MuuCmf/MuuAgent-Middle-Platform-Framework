@@ -2,7 +2,7 @@
   <div class="skill-md-preview">
     <!-- Frontmatter 元数据 -->
     <div v-if="frontmatter && Object.keys(frontmatter).length > 0" class="frontmatter-section">
-      <h4>元数据 (Frontmatter)</h4>
+      <h4>{{ t('skill.previewComponent.frontmatterTitle') }}</h4>
       <el-descriptions :column="2" border size="small">
         <el-descriptions-item v-if="frontmatter.name" label="Name" :span="2">
           <el-tag type="primary" size="small">{{ frontmatter.name }}</el-tag>
@@ -29,7 +29,7 @@
         </el-descriptions-item>
         <el-descriptions-item v-if="frontmatter.requires && (requiredKnowledgeBases.length > 0 || requiredSkills.length > 0)" label="Dependencies" :span="2">
           <div v-if="requiredKnowledgeBases.length > 0" style="margin-bottom: 4px;">
-            <span style="font-size: 12px; color: #999;">知识库:</span>
+            <span style="font-size: 12px; color: #999;">{{ t('skill.previewComponent.dependencies.knowledgeBase') }}</span>
             <el-tag
               v-for="kb in requiredKnowledgeBases"
               :key="kb"
@@ -41,7 +41,7 @@
             </el-tag>
           </div>
           <div v-if="requiredSkills.length > 0">
-            <span style="font-size: 12px; color: #999;">技能:</span>
+            <span style="font-size: 12px; color: #999;">{{ t('skill.previewComponent.dependencies.skill') }}</span>
             <el-tag
               v-for="skill in requiredSkills"
               :key="skill"
@@ -67,13 +67,13 @@
 
     <!-- 正文内容 -->
     <div v-if="body" class="body-section">
-      <h4>指令正文</h4>
+      <h4>{{ t('skill.previewComponent.bodyTitle') }}</h4>
       <div class="body-content markdown-body" v-html="renderedBody" />
     </div>
 
     <!-- 原始内容 -->
     <el-collapse v-if="rawContent" style="margin-top: 12px;">
-      <el-collapse-item title="查看原始 SKILL.md">
+      <el-collapse-item :title="t('skill.previewComponent.rawContentTitle')">
         <pre class="raw-content">{{ rawContent }}</pre>
       </el-collapse-item>
     </el-collapse>
@@ -82,6 +82,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
   frontmatter?: Record<string, unknown> | null

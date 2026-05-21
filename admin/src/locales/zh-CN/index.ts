@@ -12,6 +12,7 @@ import prompt from './prompt'
 import mcp from './mcp'
 import rateLimit from './rateLimit'
 import dashboard from './dashboard'
+import cache from './cache'
 
 export default {
   ...common,
@@ -28,4 +29,5 @@ export default {
   ...mcp,
   ...rateLimit,
   ...dashboard,
+  ...cache,
 }

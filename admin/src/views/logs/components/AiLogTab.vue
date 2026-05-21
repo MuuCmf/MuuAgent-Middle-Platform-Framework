@@ -1,32 +1,33 @@
 <template>
   <div class="ai-log-tab">
     <div class="filter-section">
-      <el-input v-model="filters.modelCode" placeholder="模型代码" clearable style="width: 200px" @clear="handleSearch"
+      <el-input v-model="filters.modelCode" :placeholder="t('log.ai.modelCode')" clearable style="width: 200px" @clear="handleSearch"
         @keyup.enter="handleSearch" />
-      <el-select v-model="filters.modelType" placeholder="模型类型" clearable style="width: 150px" @change="handleSearch">
-        <el-option label="LLM" value="llm" />
-        <el-option label="Embedding" value="embedding" />
-        <el-option label="图像生成" value="image" />
-        <el-option label="语音合成" value="tts" />
-        <el-option label="语音识别" value="asr" />
+      <el-select v-model="filters.modelType" :placeholder="t('log.ai.modelType')" clearable style="width: 150px" @change="handleSearch">
+        <el-option :label="t('log.ai.modelTypeOptions.llm')" value="llm" />
+        <el-option :label="t('log.ai.modelTypeOptions.embedding')" value="embedding" />
+        <el-option :label="t('log.ai.modelTypeOptions.image')" value="image" />
+        <el-option :label="t('log.ai.modelTypeOptions.tts')" value="tts" />
+        <el-option :label="t('log.ai.modelTypeOptions.asr')" value="asr" />
       </el-select>
-      <el-select v-model="filters.success" placeholder="调用状态" clearable style="width: 120px" @change="handleSearch">
-        <el-option label="成功" :value="true" />
-        <el-option label="失败" :value="false" />
+      <el-select v-model="filters.success" :placeholder="t('log.common.callStatus')" clearable style="width: 120px" @change="handleSearch">
+        <el-option :label="t('log.common.success')" :value="true" />
+        <el-option :label="t('log.common.failed')" :value="false" />
       </el-select>
-      <el-date-picker v-model="filters.timeRange" type="datetimerange" range-separator="至" start-placeholder="开始时间"
-        end-placeholder="结束时间" value-format="YYYY-MM-DD HH:mm:ss" style="width: 360px" @change="handleSearch" />
-      <el-button type="primary" @click="handleSearch">查询</el-button>
-      <el-button @click="handleReset">重置</el-button>
+      <el-date-picker v-model="filters.timeRange" type="datetimerange" :range-separator="t('log.common.timeRangeSeparator')"
+        :start-placeholder="t('log.common.startTime')" :end-placeholder="t('log.common.endTime')"
+        value-format="YYYY-MM-DD HH:mm:ss" style="width: 360px" @change="handleSearch" />
+      <el-button type="primary" @click="handleSearch">{{ t('log.common.search') }}</el-button>
+      <el-button @click="handleReset">{{ t('log.common.reset') }}</el-button>
     </div>
 
     <el-table :data="logs" stripe v-loading="loading">
-      <el-table-column label="调用时间" width="180">
+      <el-table-column :label="t('log.common.callTime')" width="180">
         <template #default="{ row }">
           {{ formatTime(row.createdAt) }}
         </template>
       </el-table-column>
-      <el-table-column label="模型信息" width="200">
+      <el-table-column :label="t('log.ai.modelInfo')" width="200">
         <template #default="{ row }">
           <div>
             <el-tag type="info" size="small">{{ row.modelCode }}</el-tag>
@@ -36,54 +37,54 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="modelType" label="类型" width="100">
+      <el-table-column prop="modelType" :label="t('log.ai.type')" width="100">
         <template #default="{ row }">
           <el-tag size="small">{{ row.modelType }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="耗时" width="100" align="right">
+      <el-table-column :label="t('log.common.costTime')" width="100" align="right">
         <template #default="{ row }">
           <span :style="{ color: row.costMs > 5000 ? '#ff4d4f' : '#52c41a' }">
             {{ row.costMs }}ms
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="Token使用" width="140" align="right">
+      <el-table-column :label="t('log.ai.tokenUsage')" width="140" align="right">
         <template #default="{ row }">
           <div v-if="row.inputTokens || row.outputTokens" style="font-size: 12px">
-            <div>输入: {{ row.inputTokens || 0 }}</div>
-            <div>输出: {{ row.outputTokens || 0 }}</div>
+            <div>{{ t('log.ai.input') }}: {{ row.inputTokens || 0 }}</div>
+            <div>{{ t('log.ai.output') }}: {{ row.outputTokens || 0 }}</div>
           </div>
-          <span v-else style="color: #999">-</span>
+          <span v-else style="color: #999">{{ t('log.common.noData') }}</span>
         </template>
       </el-table-column>
       
-      <el-table-column label="状态" width="80" align="center">
+      <el-table-column :label="t('log.common.status')" width="80" align="center">
         <template #default="{ row }">
           <el-tag :type="row.success ? 'success' : 'danger'" size="small">
-            {{ row.success ? '成功' : '失败' }}
+            {{ row.success ? t('log.common.success') : t('log.common.failed') }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="客户端IP" width="140">
+      <el-table-column :label="t('log.common.clientIp')" width="140">
         <template #default="{ row }">
           <span style="font-size: 12px; color: #666">{{ row.clientIp || '-' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="错误信息" min-width="200">
+      <el-table-column :label="t('log.common.errorMessage')" min-width="200">
         <template #default="{ row }">
           <el-tooltip v-if="row.errorMessage" :content="row.errorMessage" placement="top">
             <span style="color: #ff4d4f; font-size: 12px; cursor: pointer">
               {{ truncateText(row.errorMessage, 30) }}
             </span>
           </el-tooltip>
-          <span v-else style="color: #999">-</span>
+          <span v-else style="color: #999">{{ t('log.common.noData') }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="100" fixed="right" align="right">
+      <el-table-column :label="t('log.common.operation')" width="100" fixed="right" align="right">
         <template #default="{ row }">
           <el-button link type="primary" size="small" @click="handleViewDetail(row)">
-            详情
+            {{ t('log.common.detail') }}
           </el-button>
         </template>
       </el-table-column>
@@ -94,47 +95,47 @@
         :page-sizes="[10, 20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next, jumper" />
     </div>
 
-    <el-drawer v-model="detailVisible" title="AI调用日志详情" direction="rtl" size="60%">
+    <el-drawer v-model="detailVisible" :title="t('log.ai.detailTitle')" direction="rtl" size="60%">
       <div v-if="currentLog" class="log-detail">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="日志ID">{{ currentLog.id }}</el-descriptions-item>
-          <el-descriptions-item label="调用时间">{{ formatTime(currentLog.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="模型代码">{{ currentLog.modelCode }}</el-descriptions-item>
-          <el-descriptions-item label="模型类型">{{ currentLog.modelType }}</el-descriptions-item>
-          <el-descriptions-item label="模型名称">
+          <el-descriptions-item :label="t('log.common.logId')">{{ currentLog.id }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.callTime')">{{ formatTime(currentLog.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.ai.modelCode')">{{ currentLog.modelCode }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.ai.modelType')">{{ currentLog.modelType }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.ai.modelName')">
             {{ currentLog.model?.name || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="提供商">
+          <el-descriptions-item :label="t('log.ai.provider')">
             {{ currentLog.model?.provider || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="耗时">{{ currentLog.costMs }}ms</el-descriptions-item>
-          <el-descriptions-item label="调用状态">
+          <el-descriptions-item :label="t('log.common.costTime')">{{ currentLog.costMs }}ms</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.status')">
             <el-tag :type="currentLog.success ? 'success' : 'danger'">
-              {{ currentLog.success ? '成功' : '失败' }}
+              {{ currentLog.success ? t('log.common.success') : t('log.common.failed') }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="输入Token">{{ currentLog.inputTokens || 0 }}</el-descriptions-item>
-          <el-descriptions-item label="输出Token">{{ currentLog.outputTokens || 0 }}</el-descriptions-item>
-          <el-descriptions-item label="客户端IP">{{ currentLog.clientIp || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="用户代理">{{ currentLog.userAgent || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="用户标识">{{ currentLog.uid || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="应用标识">{{ currentLog.appCode || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.ai.inputTokens')">{{ currentLog.inputTokens || 0 }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.ai.outputTokens')">{{ currentLog.outputTokens || 0 }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.clientIp')">{{ currentLog.clientIp || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.userAgent')">{{ currentLog.userAgent || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.uid')">{{ currentLog.uid || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('log.common.appCode')">{{ currentLog.appCode || '-' }}</el-descriptions-item>
         </el-descriptions>
 
         <div v-if="currentLog.errorMessage" class="error-section">
-          <h4>错误信息</h4>
+          <h4>{{ t('log.common.errorInfo') }}</h4>
           <el-alert type="error" :closable="false">
             <pre>{{ currentLog.errorMessage }}</pre>
           </el-alert>
         </div>
 
         <div class="request-section">
-          <h4>请求数据</h4>
+          <h4>{{ t('log.common.requestData') }}</h4>
           <el-input type="textarea" :model-value="formatJson(currentLog.request)" :rows="10" readonly />
         </div>
 
         <div class="response-section">
-          <h4>响应数据</h4>
+          <h4>{{ t('log.common.responseData') }}</h4>
           <el-input type="textarea" :model-value="formatJson(currentLog.response)" :rows="10" readonly />
         </div>
       </div>
@@ -144,7 +145,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { logApi, type Log } from '@/api/log'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const logs = ref<Log[]>([])
@@ -227,7 +231,7 @@ const loadLogs = async () => {
     logs.value = res.data.data?.list || []
     total.value = res.data.data?.total || 0
   } catch (error) {
-    console.error('加载AI日志失败', error)
+    console.error(t('log.ai.loadFailed'), error)
   } finally {
     loading.value = false
   }
@@ -263,7 +267,7 @@ const handleViewDetail = async (log: Log) => {
     currentLog.value = res.data.data
     detailVisible.value = true
   } catch (error) {
-    console.error('加载AI日志详情失败', error)
+    console.error(t('log.ai.loadDetailFailed'), error)
   }
 }
 

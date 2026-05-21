@@ -2,21 +2,41 @@
   <el-dialog
     :model-value="visible"
     @update:model-value="(val: boolean) => emit('update:visible', val)"
-    title="导入标准技能"
+    :title="t('skill.importDialog.title')"
     width="720px"
     :close-on-click-modal="false"
     @close="handleClose"
   >
     <!-- 步骤条 -->
     <el-steps :active="step" align-center style="margin-bottom: 24px;">
-      <el-step title="上传文件" />
-      <el-step title="预览确认" />
-      <el-step title="安全扫描" />
-      <el-step title="完成导入" />
+      <el-step :title="t('skill.importDialog.steps.upload')" />
+      <el-step :title="t('skill.importDialog.steps.preview')" />
+      <el-step :title="t('skill.importDialog.steps.securityScan')" />
+      <el-step :title="t('skill.importDialog.steps.complete')" />
     </el-steps>
 
     <!-- Step 0: 上传 -->
     <div v-if="step === 0" class="step-content">
+      <!-- 安全警告提示 -->
+      <el-alert
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 16px;"
+      >
+        <template #title>
+          <strong>{{ t('skill.importDialog.securityWarning.title') }}</strong>
+        </template>
+        <template #default>
+          <ul style="margin: 8px 0 0; padding-left: 20px;">
+            <li>{{ t('skill.importDialog.securityWarning.risk1') }}</li>
+            <li>{{ t('skill.importDialog.securityWarning.risk2') }}</li>
+            <li>{{ t('skill.importDialog.securityWarning.risk3') }}</li>
+          </ul>
+          <p style="margin-top: 8px; color: #f56c6c; font-weight: 500;">{{ t('skill.importDialog.securityWarning.recommendation') }}</p>
+        </template>
+      </el-alert>
+
       <el-upload
         ref="uploadRef"
         class="upload-area"
@@ -24,34 +44,91 @@
         :auto-upload="false"
         :limit="1"
         accept=".zip"
+        :before-upload="handleBeforeUpload"
         :on-change="handleFileChange"
         :on-remove="handleFileRemove"
+        :exceed="handleExceed"
       >
         <el-icon class="upload-icon"><UploadFilled /></el-icon>
-        <div class="upload-text">
-          <p>拖拽 .zip 文件到此处或<em>点击上传</em></p>
-          <p class="upload-hint">支持 Agent Skills 标准格式的技能压缩包，导入到文件系统</p>
-        </div>
+        <div class="upload-text" v-html="t('skill.importDialog.upload.dragText')"></div>
+        <p class="upload-hint">{{ t('skill.importDialog.upload.hint') }}</p>
       </el-upload>
+
+      <!-- 文件大小限制提示 -->
+      <div v-if="uploadFile && fileSizeWarning" style="margin-top: 12px;">
+        <el-alert
+          :type="fileSizeWarning.type"
+          :title="fileSizeWarning.title"
+          :description="fileSizeWarning.description"
+          :closable="false"
+          show-icon
+        />
+      </div>
 
       <el-divider />
 
       <el-form label-width="100px" size="default">
-        <el-form-item label="目标应用">
-          <AppSelector v-model="targetAppCode" placeholder="不选则为公开技能" style="width: 100%;" />
+        <el-form-item :label="t('skill.importDialog.form.targetApp')">
+          <AppSelector v-model="targetAppCode" :placeholder="t('skill.importDialog.form.targetAppPlaceholder')" style="width: 100%;" />
         </el-form-item>
-        <el-form-item label="覆盖已有">
+        <el-form-item :label="t('skill.importDialog.form.overwrite')">
           <el-switch v-model="overwrite" />
-          <span style="margin-left: 8px; color: #909399; font-size: 12px;">若技能已存在则覆盖</span>
+          <span style="margin-left: 8px; color: #909399; font-size: 12px;">{{ t('skill.importDialog.form.overwriteHint') }}</span>
+          <!-- 覆盖模式警告 -->
+          <el-icon
+            v-if="overwrite"
+            :size="16"
+            color="#f56c6c"
+            style="margin-left: 4px; vertical-align: middle;"
+            @click="showOverwriteWarning = true"
+          >
+            <WarningFilled />
+          </el-icon>
         </el-form-item>
       </el-form>
+
+      <!-- 覆盖模式警告弹窗 -->
+      <el-dialog
+        v-model="showOverwriteWarning"
+        :title="t('skill.importDialog.overwriteWarning.title')"
+        width="500px"
+        append-to-body
+      >
+        <el-alert
+          type="error"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 16px;"
+        >
+          <template #title>
+            {{ t('skill.importDialog.overwriteWarning.alertTitle') }}
+          </template>
+        </el-alert>
+        <div style="line-height: 1.6; color: #606266;">
+          <p><strong>{{ t('skill.importDialog.overwriteWarning.impact') }}:</strong></p>
+          <ul style="padding-left: 20px; margin: 8px 0;">
+            <li>{{ t('skill.importDialog.overwriteWarning.impact1') }}</li>
+            <li>{{ t('skill.importDialog.overwriteWarning.impact2') }}</li>
+            <li>{{ t('skill.importDialog.overwriteWarning.impact3') }}</li>
+          </ul>
+          <p style="margin-top: 12px; color: #f56c6c;"><strong>{{ t('skill.importDialog.overwriteWarning.cannotUndo') }}</strong></p>
+        </div>
+        <template #footer>
+          <el-button @click="overwrite = false; showOverwriteWarning = false">
+            {{ t('skill.importDialog.overwriteWarning.disableOverwrite') }}
+          </el-button>
+          <el-button type="danger" @click="showOverwriteWarning = false">
+            {{ t('skill.importDialog.overwriteWarning.confirmRisk') }}
+          </el-button>
+        </template>
+      </el-dialog>
     </div>
 
     <!-- Step 1: 预览 -->
     <div v-if="step === 1" class="step-content">
       <div v-if="previewLoading" class="loading-box">
         <el-icon class="is-loading" :size="32"><Loading /></el-icon>
-        <p>正在解析 SKILL.md...</p>
+        <p>{{ t('skill.importDialog.preview.loading') }}</p>
       </div>
       <div v-else-if="previewData" class="preview-box">
         <SkillMdPreview
@@ -60,14 +137,14 @@
           :raw-content="previewData.rawContent"
         />
       </div>
-      <el-empty v-else description="无法解析 SKILL.md" />
+      <el-empty v-else :description="t('skill.importDialog.preview.failed')" />
     </div>
 
     <!-- Step 2: 安全扫描结果 -->
     <div v-if="step === 2" class="step-content">
       <div v-if="scanLoading" class="loading-box">
         <el-icon class="is-loading" :size="32"><Loading /></el-icon>
-        <p>正在进行安全扫描...</p>
+        <p>{{ t('skill.importDialog.securityScan.loading') }}</p>
       </div>
       <div v-else-if="scanResult" class="scan-result">
         <div class="scan-summary">
@@ -75,25 +152,25 @@
             <el-col :span="6">
               <div class="stat-card" :class="scanResult.critical > 0 ? 'stat-critical' : 'stat-ok'">
                 <div class="stat-num">{{ scanResult.critical }}</div>
-                <div class="stat-label">严重</div>
+                <div class="stat-label">{{ t('skill.importDialog.securityScan.critical') }}</div>
               </div>
             </el-col>
             <el-col :span="6">
               <div class="stat-card" :class="scanResult.high > 0 ? 'stat-high' : 'stat-ok'">
                 <div class="stat-num">{{ scanResult.high }}</div>
-                <div class="stat-label">高危</div>
+                <div class="stat-label">{{ t('skill.importDialog.securityScan.high') }}</div>
               </div>
             </el-col>
             <el-col :span="6">
               <div class="stat-card" :class="scanResult.medium > 0 ? 'stat-medium' : 'stat-ok'">
                 <div class="stat-num">{{ scanResult.medium }}</div>
-                <div class="stat-label">中危</div>
+                <div class="stat-label">{{ t('skill.importDialog.securityScan.medium') }}</div>
               </div>
             </el-col>
             <el-col :span="6">
               <div class="stat-card stat-ok">
                 <div class="stat-num">{{ scanResult.low }}</div>
-                <div class="stat-label">低危</div>
+                <div class="stat-label">{{ t('skill.importDialog.securityScan.low') }}</div>
               </div>
             </el-col>
           </el-row>
@@ -101,15 +178,59 @@
 
         <el-alert
           :type="scanResult.passed ? 'success' : 'error'"
-          :title="scanResult.passed ? '安全扫描通过' : '安全扫描未通过'"
+          :title="scanResult.passed ? t('skill.importDialog.securityScan.passed') : t('skill.importDialog.securityScan.notPassed')"
           :description="scanResult.summary"
           :closable="false"
           show-icon
           style="margin-bottom: 12px;"
         />
 
+        <!-- 安全风险详情警告 -->
+        <el-alert
+          v-if="scanResult.critical > 0 || scanResult.high > 0"
+          type="error"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 12px;"
+        >
+          <template #title>
+            {{ t('skill.importDialog.securityWarning.scanRiskAlert') }}
+          </template>
+          <template #default>
+            <p>{{ t('skill.importDialog.securityWarning.riskDetail', { critical: scanResult.critical, high: scanResult.high }) }}</p>
+          </template>
+        </el-alert>
+
+        <!-- 导入风险评估 -->
+        <div v-if="scanResult" class="risk-assessment">
+          <h4>{{ t('skill.importDialog.securityWarning.assessmentTitle') }}</h4>
+          <div class="risk-items">
+            <div class="risk-item" :class="{ 'risk-danger': scanResult.critical > 0 }">
+              <el-icon v-if="scanResult.critical > 0" color="#f56c6c"><CircleCloseFilled /></el-icon>
+              <el-icon v-else color="#67c23a"><CircleCheckFilled /></el-icon>
+              <span>{{ t('skill.importDialog.securityWarning.assessCritical') }}: {{ scanResult.critical }}</span>
+            </div>
+            <div class="risk-item" :class="{ 'risk-warning': scanResult.high > 0 }">
+              <el-icon v-if="scanResult.high > 0" color="#e6a23c"><WarningFilled /></el-icon>
+              <el-icon v-else color="#67c23a"><CircleCheckFilled /></el-icon>
+              <span>{{ t('skill.importDialog.securityWarning.assessHigh') }}: {{ scanResult.high }}</span>
+            </div>
+            <div class="risk-item">
+              <el-icon color="#909399"><InfoFilled /></el-icon>
+              <span>{{ t('skill.importDialog.securityWarning.assessMedium') }}: {{ scanResult.medium }}</span>
+            </div>
+            <div class="risk-item">
+              <el-icon color="#909399"><InfoFilled /></el-icon>
+              <span>{{ t('skill.importDialog.securityWarning.assessLow') }}: {{ scanResult.low }}</span>
+            </div>
+          </div>
+          <div v-if="scanResult.critical > 0 || scanResult.high > 0" class="final-warning">
+            <p>⚠️ {{ t('skill.importDialog.securityWarning.finalWarning') }}</p>
+          </div>
+        </div>
+
         <div v-if="scanResult.issues.length > 0" class="issues-list">
-          <h4>发现 {{ scanResult.issues.length }} 个问题</h4>
+          <h4>{{ t('skill.importDialog.securityScan.issuesFound', { count: scanResult.issues.length }) }}</h4>
           <div
             v-for="(issue, idx) in scanResult.issues"
             :key="idx"
@@ -136,13 +257,13 @@
     <div v-if="step === 3" class="step-content">
       <div v-if="importLoading" class="loading-box">
         <el-icon class="is-loading" :size="32"><Loading /></el-icon>
-        <p>正在导入...</p>
+        <p>{{ t('skill.importDialog.result.importing') }}</p>
       </div>
       <div v-else-if="importResult" class="import-result">
         <el-result
           :icon="importResult.success ? 'success' : 'error'"
-          :title="importResult.success ? '导入成功' : '导入失败'"
-          :sub-title="`技能: ${importResult.skillName}（文件系统）`"
+          :title="importResult.success ? t('skill.importDialog.result.success') : t('skill.importDialog.result.failed')"
+          :sub-title="t('skill.importDialog.result.skillInfo', { name: importResult.skillName })"
         >
           <template v-if="importResult.warnings.length > 0" #extra>
             <el-alert
@@ -163,37 +284,38 @@
 
     <template #footer>
       <div style="text-align: right;">
-        <el-button @click="handleClose">取消</el-button>
-        <el-button v-if="step > 0" @click="step--" :disabled="importLoading">上一步</el-button>
+        <el-button @click="handleClose">{{ t('skill.importDialog.footer.cancel') }}</el-button>
+        <el-button v-if="step > 0" @click="step--" :disabled="importLoading">{{ t('skill.importDialog.footer.prevStep') }}</el-button>
         <el-button
           v-if="step === 0"
           type="primary"
           @click="handlePreview"
           :disabled="!uploadFile"
         >
-          下一步：预览
+          {{ t('skill.importDialog.footer.nextPreview') }}
         </el-button>
         <el-button
           v-if="step === 1"
           type="primary"
           @click="handleScan"
         >
-          下一步：安全扫描
+          {{ t('skill.importDialog.footer.nextSecurityScan') }}
         </el-button>
         <el-button
           v-if="step === 2 && scanResult?.passed !== false"
           type="primary"
-          @click="handleImport"
+          @click="handleImportWithConfirm"
           :loading="importLoading"
+          :disabled="hasCriticalOrHighRisk && !riskConfirmed"
         >
-          确认导入
+          {{ hasCriticalOrHighRisk && !riskConfirmed ? t('skill.importDialog.footer.confirmRiskFirst') : t('skill.importDialog.footer.confirmImport') }}
         </el-button>
         <el-button
           v-if="step === 3 && importResult?.success"
           type="primary"
           @click="handleClose"
         >
-          完成
+          {{ t('skill.importDialog.footer.complete') }}
         </el-button>
       </div>
     </template>
@@ -201,14 +323,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { UploadFilled, Loading } from '@element-plus/icons-vue'
+import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { UploadFilled, Loading, WarningFilled, CircleCloseFilled, CircleCheckFilled, InfoFilled } from '@element-plus/icons-vue'
 import { type SecurityScanResult, type ImportResult } from '@/api/skill'
 import { useSkillStore } from '@/stores'
 import SkillMdPreview from './SkillMdPreview.vue'
 import AppSelector from '@/components/AppSelector.vue'
 import type { UploadFile } from 'element-plus'
+
+const { t } = useI18n()
 
 interface Props {
   visible: boolean
@@ -226,10 +351,14 @@ const skillStore = useSkillStore()
 
 const targetAppCode = ref('')
 const overwrite = ref(false)
+const showOverwriteWarning = ref(false)
+const riskConfirmed = ref(false)
 
 const step = ref(0)
 const uploadFile = ref<File | null>(null)
 const uploadRef = ref()
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 
 const previewLoading = ref(false)
 const previewData = ref<{ frontmatter: Record<string, unknown>; body: string; rawContent: string } | null>(null)
@@ -239,6 +368,72 @@ const scanResult = ref<SecurityScanResult | null>(null)
 
 const importLoading = ref(false)
 const importResult = ref<ImportResult | null>(null)
+
+/**
+ * 计算是否存在严重或高危风险
+ * @returns {boolean} 是否存在高风险
+ */
+const hasCriticalOrHighRisk = computed(() => {
+  if (!scanResult.value) return false
+  return scanResult.value.critical > 0 || scanResult.value.high > 0
+})
+
+/**
+ * 文件大小警告信息
+ * @returns {Object|null} 警告对象或null
+ */
+const fileSizeWarning = computed(() => {
+  if (!uploadFile.value) return null
+  const size = uploadFile.value.size
+  const sizeMB = size / (1024 * 1024)
+
+  if (size > MAX_FILE_SIZE) {
+    return {
+      type: 'error' as const,
+      title: t('skill.importDialog.securityWarning.fileTooLarge'),
+      description: t('skill.importDialog.securityWarning.fileSizeLimit', { size: MAX_FILE_SIZE / (1024 * 1024) }),
+    }
+  }
+
+  if (sizeMB > 10) {
+    return {
+      type: 'warning' as const,
+      title: t('skill.importDialog.securityWarning.largeFile'),
+      description: t('skill.importDialog.securityWarning.largeFileHint', { size: sizeMB.toFixed(2) }),
+    }
+  }
+
+  return null
+})
+
+/**
+ * 上传前文件验证
+ * @param file 上传的文件
+ * @returns {boolean} 是否允许上传
+ */
+const handleBeforeUpload = (file: File): boolean => {
+  const isZip = file.name.endsWith('.zip')
+  const isValidSize = file.size <= MAX_FILE_SIZE
+
+  if (!isZip) {
+    ElMessage.error(t('skill.importDialog.securityWarning.onlyZipAllowed'))
+    return false
+  }
+
+  if (!isValidSize) {
+    ElMessage.error(t('skill.importDialog.securityWarning.fileSizeExceeded', { size: MAX_FILE_SIZE / (1024 * 1024) }))
+    return false
+  }
+
+  return true
+}
+
+/**
+ * 处理文件超出限制
+ */
+const handleExceed = () => {
+  ElMessage.warning(t('skill.importDialog.securityWarning.exceedLimit'))
+}
 
 const handleFileChange = (file: UploadFile) => {
   uploadFile.value = file.raw || null
@@ -254,7 +449,7 @@ const handleFileRemove = () => {
 
 const handlePreview = async () => {
   if (!uploadFile.value) {
-    ElMessage.warning('请先上传技能文件')
+    ElMessage.warning(t('skill.importDialog.messages.uploadFirst'))
     return
   }
   step.value = 1
@@ -283,15 +478,41 @@ const handleScan = async () => {
       medium: 0,
       low: 0,
       issues: [],
-      summary: '点击"确认导入"后，服务端将自动执行：提示注入检测、危险代码模式扫描、文件类型白名单验证、依赖安装行为检测、硬编码凭证检测',
+      summary: t('skill.importDialog.securityScan.scanInfo'),
       passed: true,
     }
-    ElMessage.info('请点击"确认导入"提交到服务端进行完整安全扫描')
+    ElMessage.info(t('skill.importDialog.securityScan.submitScan'))
   } catch (error: any) {
-    ElMessage.error('扫描失败')
+    ElMessage.error(t('skill.importDialog.securityScan.scanFailed'))
   } finally {
     scanLoading.value = false
   }
+}
+
+const handleImportWithConfirm = async () => {
+  if (!uploadFile.value) return
+
+  // 如果存在严重或高危风险，需要二次确认
+  if (hasCriticalOrHighRisk.value && !riskConfirmed.value) {
+    try {
+      await ElMessageBox.confirm(
+        t('skill.importDialog.securityWarning.riskConfirmMessage'),
+        t('skill.importDialog.securityWarning.riskConfirmTitle'),
+        {
+          confirmButtonText: t('skill.importDialog.securityWarning.acceptRisk'),
+          cancelButtonText: t('skill.importDialog.footer.cancel'),
+          type: 'warning',
+          distinguishCancelAndClose: true,
+        }
+      )
+      riskConfirmed.value = true
+    } catch {
+      return
+    }
+  }
+
+  // 执行导入
+  await handleImport()
 }
 
 const handleImport = async () => {
@@ -322,6 +543,8 @@ const handleClose = () => {
   previewData.value = null
   scanResult.value = null
   importResult.value = null
+  showOverwriteWarning.value = false
+  riskConfirmed.value = false
   emit('update:visible', false)
 }
 
@@ -456,5 +679,77 @@ const formatFileSize = (bytes: number) => {
 
 .import-result {
   padding: 20px 0;
+}
+
+/**
+ * 安全风险评估样式
+ */
+.risk-assessment {
+  margin: 16px 0;
+  padding: 16px;
+  background: #fafbfc;
+  border-radius: 8px;
+  border: 1px solid #e4e7ed;
+
+  h4 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #303133;
+  }
+
+  .risk-items {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .risk-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: white;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #606266;
+    border: 1px solid #ebeef5;
+    transition: all 0.3s ease;
+
+    &.risk-danger {
+      background: #fef0f0;
+      border-color: #fde2e2;
+      color: #f56c6c;
+      font-weight: 500;
+    }
+
+    &.risk-warning {
+      background: #fdf6ec;
+      border-color: #faecd8;
+      color: #e6a23c;
+      font-weight: 500;
+    }
+
+    .el-icon {
+      flex-shrink: 0;
+    }
+  }
+
+  .final-warning {
+    padding: 12px;
+    background: #fef0f0;
+    border-left: 4px solid #f56c6c;
+    border-radius: 4px;
+    margin-top: 12px;
+
+    p {
+      margin: 0;
+      color: #f56c6c;
+      font-size: 13px;
+      line-height: 1.6;
+      font-weight: 500;
+    }
+  }
 }
 </style>

@@ -1,97 +1,123 @@
 <template>
-  <el-dialog v-model="dialogVisibleLocal" :title="isEdit ? '编辑知识库' : '创建知识库'" width="600px">
-    <el-form :model="formData" :rules="rules" ref="formRef" label-width="120px">
-      <el-form-item label="知识库名称" prop="kbName">
-        <el-input v-model="formData.kbName" placeholder="请输入知识库名称" />
+  <el-dialog
+    :model-value="visible"
+    :title="isEdit ? $t('knowledge.editDialog.editTitle') : $t('knowledge.editDialog.createTitle')"
+    width="600px"
+    @close="handleClose"
+  >
+    <el-form
+      ref="formRef"
+      :model="formData"
+      :rules="formRules"
+      label-width="100px"
+      label-position="top"
+    >
+      <el-form-item :label="$t('knowledge.editDialog.form.kbName')" prop="kbName">
+        <el-input v-model="formData.kbName" :placeholder="$t('knowledge.editDialog.form.kbNamePlaceholder')" />
       </el-form-item>
-      <el-form-item label="知识库标识" prop="kbCode">
-        <el-input v-model="formData.kbCode" placeholder="请输入知识库标识" :disabled="isEdit" />
+
+      <el-form-item :label="$t('knowledge.editDialog.form.kbCode')" prop="kbCode">
+        <el-input v-model="formData.kbCode" :placeholder="$t('knowledge.editDialog.form.kbCodePlaceholder')" />
       </el-form-item>
-      <el-row :gutter="16">
+
+      <el-form-item :label="$t('knowledge.editDialog.form.appCode')">
+        <el-select v-model="formData.appCode" :placeholder="$t('knowledge.editDialog.form.appCodePlaceholder')"
+          clearable style="width: 100%">
+          <el-option v-for="app in appList" :key="app.appCode" :label="app.appName" :value="app.appCode" />
+        </el-select>
+      </el-form-item>
+
+      <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="所属应用">
-            <AppSelector
-              v-model="formData.appCode"
-              placeholder="选择应用"
-              clearable
-            />
+          <el-form-item :label="$t('knowledge.editDialog.form.isPublic')">
+            <el-switch v-model="formData.isPublic" :active-text="$t('knowledge.filter.public')"
+              :inactive-text="$t('knowledge.filter.private')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="公开状态">
-            <el-switch
-              v-model="formData.isPublic"
-              active-text="公开"
-              inactive-text="私有"
-            />
+          <el-form-item :label="$t('knowledge.editDialog.form.retrievalMethod')">
+            <el-select v-model="formData.retrievalMethod" :placeholder="$t('knowledge.editDialog.form.retrievalMethodPlaceholder')"
+              style="width: 100%" @change="handleRetrievalMethodChange">
+              <el-option :label="$t('knowledge.editDialog.form.vectorRetrieval')" value="vector" />
+              <el-option :label="$t('knowledge.editDialog.form.bm25Retrieval')" value="bm25" />
+            </el-select>
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="检索方式" prop="retrievalMethod">
-        <el-select v-model="formData.retrievalMethod" placeholder="请选择检索方式" style="width: 100%">
-          <el-option label="向量检索" value="vector" />
-          <el-option label="BM25检索" value="bm25" />
-        </el-select>
-        <span style="margin-left: 8px; color: #909399; font-size: 12px;">向量检索需要Embedding模型</span>
-      </el-form-item>
-      <el-form-item v-if="formData.retrievalMethod === 'vector'" label="向量模型" prop="embeddingModel">
-        <el-select 
-          v-model="formData.embeddingModel" 
-          placeholder="请选择向量模型" 
-          style="width: 100%"
-          :disabled="embeddingModels.length === 0"
-        >
-          <el-option
-            v-for="model in embeddingModels"
-            :key="model.id"
-            :label="model.name"
-            :value="model.code"
-          >
-            <span style="float: left">{{ model.name }}</span>
-            <span style="float: right; color: var(--el-text-color-secondary); font-size: 13px">
-              {{ model.provider }}
-            </span>
-          </el-option>
-        </el-select>
-        <div v-if="embeddingModels.length === 0" style="color: var(--el-text-color-secondary); font-size: 12px; margin-top: 4px">
-          暂无可用的向量模型，请先在「模型配置」中添加向量模型
-        </div>
-      </el-form-item>
-      <el-form-item label="切片大小" prop="chunkSize">
-        <el-input-number v-model="formData.chunkSize" :min="100" :max="2000" />
-        <span style="margin-left: 8px; color: #909399; font-size: 12px;">字符数</span>
-      </el-form-item>
-      <el-form-item label="切片重叠" prop="chunkOverlap">
-        <el-input-number v-model="formData.chunkOverlap" :min="0" :max="500" />
-        <span style="margin-left: 8px; color: #909399; font-size: 12px;">字符数</span>
-      </el-form-item>
-      <el-form-item label="相似度阈值" prop="similarityThresh">
-        <el-input-number v-model="formData.similarityThresh" :min="0" :max="1" :step="0.1" :precision="1" />
-        <span style="margin-left: 8px; color: #909399; font-size: 12px;">范围 0-1</span>
-      </el-form-item>
-      <el-form-item label="召回条数" prop="topN">
-        <el-input-number v-model="formData.topN" :min="1" :max="20" />
-        <span style="margin-left: 8px; color: #909399; font-size: 12px;">条</span>
-      </el-form-item>
-      <el-form-item label="描述" prop="description">
-        <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="请输入描述" />
+
+      <div class="retrieval-tip" v-if="formData.retrievalMethod === 'vector'">
+        <el-alert type="info" show-icon :closable="false">
+          {{ $t('knowledge.editDialog.form.retrievalMethodTip') }}
+        </el-alert>
+      </div>
+
+      <template v-if="formData.retrievalMethod === 'vector'">
+        <el-form-item :label="$t('knowledge.editDialog.form.embeddingModel')" prop="embeddingModel">
+          <el-select v-model="formData.embeddingModel" :placeholder="$t('knowledge.editDialog.form.embeddingModelPlaceholder')"
+            style="width: 100%" :no-data-text="$t('knowledge.editDialog.form.noEmbeddingModelTip')">
+            <el-option v-for="model in embeddingModelList" :key="model.modelId" :label="model.modelName"
+              :value="model.modelId" />
+          </el-select>
+        </el-form-item>
+      </template>
+
+      <el-divider />
+
+      <el-row :gutter="20">
+        <el-col :span="8">
+          <el-form-item :label="$t('knowledge.editDialog.form.chunkSize')">
+            <el-input-number v-model="formData.chunkSize" :min="50" :max="2000" :step="50" controls-position="right"
+              style="width: 100%" />
+            <span class="unit">{{ $t('knowledge.editDialog.form.chunkSizeUnit') }}</span>
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item :label="$t('knowledge.editDialog.form.chunkOverlap')">
+            <el-input-number v-model="formData.chunkOverlap" :min="0" :max="500" :step="10" controls-position="right"
+              style="width: 100%" />
+            <span class="unit">{{ $t('knowledge.editDialog.form.chunkOverlapUnit') }}</span>
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item :label="$t('knowledge.editDialog.form.similarityThreshold')">
+            <el-slider v-model="formData.similarityThresh" :min="0" :max="1" :step="0.01" show-stops />
+            <span class="tip">{{ $t('knowledge.editDialog.form.similarityThresholdRange') }}</span>
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="20">
+        <el-col :span="8">
+          <el-form-item :label="$t('knowledge.editDialog.form.topN')">
+            <el-input-number v-model="formData.topN" :min="1" :max="20" :step="1" controls-position="right"
+              style="width: 100%" />
+            <span class="unit">{{ $t('knowledge.editDialog.form.topNUnit') }}</span>
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-form-item :label="$t('knowledge.editDialog.form.description')">
+        <el-input v-model="formData.description" type="textarea" :rows="3"
+          :placeholder="$t('knowledge.editDialog.form.descriptionPlaceholder')" />
       </el-form-item>
     </el-form>
+
     <template #footer>
-      <el-button @click="handleCancel">取消</el-button>
-      <el-button type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
+      <div class="dialog-footer">
+        <el-button @click="handleClose">{{ $t('knowledge.actions.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('knowledge.actions.confirm') }}</el-button>
+      </div>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { kbApi, modelApi } from '@/api'
-import type { KbInfo } from '@/api/kb'
-import type { Model } from '@/api/model'
 import type { FormInstance, FormRules } from 'element-plus'
-import AppSelector from '@/components/AppSelector.vue'
+import { kbApi, modelApi, appApi } from '@/api'
+import type { KbInfo } from '@/api/kb'
 
 const props = defineProps<{
   visible: boolean
@@ -103,152 +129,164 @@ const emit = defineEmits<{
   (e: 'success'): void
 }>()
 
-const submitting = ref(false)
+const { t } = useI18n()
+
 const formRef = ref<FormInstance>()
-const embeddingModels = ref<Model[]>([])
-const dialogVisibleLocal = ref(false)
+const submitLoading = ref(false)
+const appList = ref<any[]>([])
+const embeddingModelList = ref<any[]>([])
 
-const isEdit = ref(false)
-const currentKbId = ref('')
+const isEdit = computed(() => !!props.editData)
 
-const formData = reactive({
+const formData = ref({
   kbName: '',
   kbCode: '',
+  appCode: '',
+  isPublic: false,
+  retrievalMethod: 'vector',
   embeddingModel: '',
   chunkSize: 500,
-  chunkOverlap: 100,
+  chunkOverlap: 50,
   similarityThresh: 0.7,
-  topN: 5,
-  retrievalMethod: 'vector',
-  description: '',
-  appCode: '',
-  isPublic: false
+  topN: 3,
+  description: ''
 })
 
-const rules: FormRules = {
-  kbName: [{ required: true, message: '请输入知识库名称', trigger: 'blur' }],
-  kbCode: [{ required: true, message: '请输入知识库标识', trigger: 'blur' }],
-  embeddingModel: [
-    { 
-      validator: (_rule, value, callback) => {
-        if (formData.retrievalMethod === 'vector' && !value) {
-          callback(new Error('请选择向量模型'))
-        } else {
-          callback()
-        }
-      }, 
-      trigger: 'change' 
-    }
+const formRules: FormRules = {
+  kbName: [
+    { required: true, message: t('knowledge.editDialog.validation.kbNameRequired'), trigger: 'blur' }
+  ],
+  kbCode: [
+    { required: true, message: t('knowledge.editDialog.validation.kbCodeRequired'), trigger: 'blur' }
   ]
 }
 
-const fetchEmbeddingModels = async () => {
+watch(
+  () => props.visible,
+  (newVal) => {
+    if (newVal && props.editData) {
+      formData.value = {
+        kbName: props.editData.kbName || '',
+        kbCode: props.editData.kbCode || '',
+        appCode: props.editData.appCode || '',
+        isPublic: props.editData.isPublic || false,
+        retrievalMethod: props.editData.retrievalMethod || 'vector',
+        embeddingModel: props.editData.embeddingModel || '',
+        chunkSize: props.editData.chunkSize || 500,
+        chunkOverlap: props.editData.chunkOverlap || 50,
+        similarityThresh: props.editData.similarityThresh || 0.7,
+        topN: props.editData.topN || 3,
+        description: props.editData.description || ''
+      }
+    } else if (newVal) {
+      formData.value = {
+        kbName: '',
+        kbCode: '',
+        appCode: '',
+        isPublic: false,
+        retrievalMethod: 'vector',
+        embeddingModel: '',
+        chunkSize: 500,
+        chunkOverlap: 50,
+        similarityThresh: 0.7,
+        topN: 3,
+        description: ''
+      }
+    }
+  }
+)
+
+onMounted(async () => {
   try {
-    const response = await modelApi.getList()
-    const allModels = response.data.data.list || []
-    embeddingModels.value = allModels.filter((model: Model) => {
-      if (!model.status) return false
-      const isEmbeddingType = model.type === 'embedding'
-      const hasEmbeddingTag = model.tags && model.tags.includes('embedding')
-      return isEmbeddingType || hasEmbeddingTag
-    })
+    const [appsRes, modelsRes] = await Promise.all([
+      appApi.getList({ page: 1, pageSize: 1000 }),
+      modelApi.getList()
+    ])
+    appList.value = appsRes.data.data.list
+    embeddingModelList.value = modelsRes.data.data.list.filter((m: any) => m.modelType === 'embedding')
   } catch (error: any) {
-    console.error('获取模型列表失败:', error)
+    ElMessage.error(error.message || t('knowledge.messages.fetchModelListFailed'))
+  }
+})
+
+const handleRetrievalMethodChange = () => {
+  if (formData.value.retrievalMethod === 'bm25') {
+    formData.value.embeddingModel = ''
   }
 }
 
-const resetForm = () => {
-  Object.assign(formData, {
-    kbName: '',
-    kbCode: '',
-    embeddingModel: '',
-    chunkSize: 500,
-    chunkOverlap: 100,
-    similarityThresh: 0.7,
-    topN: 5,
-    retrievalMethod: 'vector',
-    description: '',
-    appCode: '',
-    isPublic: false
-  })
-}
-
-const handleCancel = () => {
+const handleClose = () => {
   emit('update:visible', false)
 }
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (valid) {
-      submitting.value = true
-      try {
-        const userStr = localStorage.getItem('admin_user')
-        const user = userStr ? JSON.parse(userStr) : null
-        
-        if (!user?.id) {
-          ElMessage.error('用户信息获取失败，请重新登录')
-          return
-        }
-        
-        if (isEdit.value) {
-          await kbApi.update({
-            uid: user.id,
-            kbId: currentKbId.value,
-            ...formData
-          })
-          ElMessage.success('更新成功')
-        } else {
-          await kbApi.create({
-            uid: user.id,
-            ...formData
-          })
-          ElMessage.success('创建成功')
-        }
-        
-        emit('update:visible', false)
-        emit('success')
-      } catch (error: any) {
-        ElMessage.error(error.message || '操作失败')
-      } finally {
-        submitting.value = false
-      }
+
+  await formRef.value.validate()
+
+  if (formData.value.retrievalMethod === 'vector' && !formData.value.embeddingModel) {
+    ElMessage.warning(t('knowledge.editDialog.validation.embeddingModelRequired'))
+    return
+  }
+
+  submitLoading.value = true
+
+  try {
+    const userStr = localStorage.getItem('admin_user')
+    const user = userStr ? JSON.parse(userStr) : null
+
+    if (!user?.id) {
+      ElMessage.error(t('knowledge.messages.getUserInfoFailed'))
+      return
     }
-  })
+
+    if (isEdit.value) {
+      await kbApi.update({
+        uid: user.id,
+        kbId: props.editData!.kbId,
+        ...formData.value
+      })
+      ElMessage.success(t('knowledge.messages.updateSuccess'))
+    } else {
+      await kbApi.create({
+        uid: user.id,
+        ...formData.value
+      })
+      ElMessage.success(t('knowledge.messages.createSuccess'))
+    }
+
+    handleClose()
+    emit('success')
+  } catch (error: any) {
+    ElMessage.error(error.message || t('knowledge.messages.operationFailed'))
+  } finally {
+    submitLoading.value = false
+  }
+}
+</script>
+
+<style scoped lang="scss">
+.unit {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #909399;
 }
 
-watch(() => props.visible, (val) => {
-  dialogVisibleLocal.value = val
-  if (val) {
-    if (props.editData) {
-      isEdit.value = true
-      currentKbId.value = props.editData.kbId
-      Object.assign(formData, {
-        kbName: props.editData.kbName,
-        kbCode: props.editData.kbCode,
-        embeddingModel: props.editData.embeddingModel,
-        chunkSize: props.editData.chunkSize,
-        chunkOverlap: props.editData.chunkOverlap,
-        similarityThresh: props.editData.similarityThresh,
-        topN: props.editData.topN,
-        retrievalMethod: props.editData.retrievalMethod || 'vector',
-        description: props.editData.description,
-        appCode: props.editData.appCode || '',
-        isPublic: props.editData.isPublic ?? false
-      })
-    } else {
-      isEdit.value = false
-      currentKbId.value = ''
-      resetForm()
-    }
-  }
-})
+.tip {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #909399;
+}
 
-watch(dialogVisibleLocal, (val) => {
-  emit('update:visible', val)
-})
+.retrieval-tip {
+  margin-bottom: 16px;
+}
 
-onMounted(() => {
-  fetchEmbeddingModels()
-})
-</script>
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+</style>

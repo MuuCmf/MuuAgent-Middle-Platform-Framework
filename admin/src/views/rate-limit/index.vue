@@ -1,64 +1,64 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">熔断限流配置</h1>
-      <p class="page-description">配置系统的熔断和限流规则，保障系统稳定性和高可用性</p>
+      <h1 class="page-title">{{ t('rateLimit.title') }}</h1>
+      <p class="page-description">{{ t('rateLimit.description') }}</p>
     </div>
 
     <div class="help-tip">
-      <div class="help-tip-title">💡 功能说明</div>
+      <div class="help-tip-title">{{ t('rateLimit.helpTip.title') }}</div>
       <ul>
-        <li><strong>限流</strong>：控制请求速率，防止系统过载，支持QPS、并发、每日限额三种策略</li>
-        <li><strong>熔断</strong>：自动检测故障并快速失败，防止级联故障，支持自动恢复</li>
-        <li><strong>多级限流</strong>：支持全局、应用、接口、模型四个级别的限流配置</li>
+        <li><strong>{{ t('rateLimit.helpTip.rateLimit').split('：')[0] }}</strong>：{{ t('rateLimit.helpTip.rateLimit').split('：')[1] }}</li>
+        <li><strong>{{ t('rateLimit.helpTip.circuitBreaker').split('：')[0] }}</strong>：{{ t('rateLimit.helpTip.circuitBreaker').split('：')[1] }}</li>
+        <li><strong>{{ t('rateLimit.helpTip.multiLevel').split('：')[0] }}</strong>：{{ t('rateLimit.helpTip.multiLevel').split('：')[1] }}</li>
       </ul>
     </div>
 
     <el-tabs v-model="activeTab" class="config-tabs">
-      <el-tab-pane label="限流配置" name="rateLimit">
+      <el-tab-pane :label="t('rateLimit.tabs.rateLimit')" name="rateLimit">
         <div class="card">
           <div class="card-title">
-            限流规则
-            <el-tag type="info" size="small">{{ rateLimitRules.length }} 条</el-tag>
+            {{ t('rateLimit.rateLimitSection.rulesTitle') }}
+            <el-tag type="info" size="small">{{ t('rateLimit.rateLimitSection.rulesCount', { count: rateLimitRules.length }) }}</el-tag>
           </div>
           
           <el-space style="margin-bottom: 16px;">
             <el-button type="primary" @click="handleAddRateLimit">
               <el-icon><Plus /></el-icon>
-              添加规则
+              {{ t('rateLimit.rateLimitSection.addRule') }}
             </el-button>
             <el-button @click="handleInitDefaultRules" :loading="initLoading">
-              初始化默认规则
+              {{ t('rateLimit.rateLimitSection.initDefaultRules') }}
             </el-button>
             <el-button @click="loadRateLimitRules">
               <el-icon><Refresh /></el-icon>
-              刷新
+              {{ t('rateLimit.rateLimitSection.refresh') }}
             </el-button>
           </el-space>
 
           <el-table :data="rateLimitRules" stripe v-loading="rateLimitLoading">
-            <el-table-column prop="level" label="限流级别" width="120">
+            <el-table-column prop="level" :label="t('rateLimit.rateLimitSection.levelColumn')" width="120">
               <template #default="{ row }">
                 <el-tag :type="getLevelTagType(row.level)">
-                  {{ getLevelLabel(row.level) }}
+                  {{ t(`rateLimit.levelLabels.${row.level}`) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="target" label="限流目标" />
-            <el-table-column prop="qpsLimit" label="QPS限制" width="100" />
-            <el-table-column prop="concurrentLimit" label="并发限制" width="100" />
-            <el-table-column prop="dailyLimit" label="每日限额" width="120" />
-            <el-table-column prop="burstSize" label="突发流量" width="100" />
-            <el-table-column prop="status" label="状态" width="80">
+            <el-table-column prop="target" :label="t('rateLimit.rateLimitSection.targetColumn')" />
+            <el-table-column prop="qpsLimit" :label="t('rateLimit.rateLimitSection.qpsLimitColumn')" width="100" />
+            <el-table-column prop="concurrentLimit" :label="t('rateLimit.rateLimitSection.concurrentLimitColumn')" width="100" />
+            <el-table-column prop="dailyLimit" :label="t('rateLimit.rateLimitSection.dailyLimitColumn')" width="120" />
+            <el-table-column prop="burstSize" :label="t('rateLimit.rateLimitSection.burstSizeColumn')" width="100" />
+            <el-table-column prop="status" :label="t('rateLimit.rateLimitSection.statusColumn')" width="80">
               <template #default="{ row }">
                 <el-tag :type="row.status ? 'success' : 'danger'">
-                  {{ row.status ? '启用' : '禁用' }}
+                  {{ row.status ? t('rateLimit.rateLimitSection.enabled') : t('rateLimit.rateLimitSection.disabled') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="120" align="right">
+            <el-table-column :label="t('rateLimit.rateLimitSection.operationColumn')" width="120" align="right">
               <template #default="{ row }">
-                <el-button link size="small" type="primary" @click="handleEditRateLimit(row)">编辑</el-button>
+                <el-button link size="small" type="primary" @click="handleEditRateLimit(row)">{{ t('rateLimit.rateLimitSection.edit') }}</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -66,33 +66,33 @@
 
         <div class="card" style="margin-top: 16px;">
           <div class="card-title">
-            限流统计
+            {{ t('rateLimit.rateLimitSection.statisticsTitle') }}
             <el-button size="small" @click="loadRateLimitStatistics" style="margin-left: auto;">
               <el-icon><Refresh /></el-icon>
-              刷新
+              {{ t('rateLimit.rateLimitSection.refresh') }}
             </el-button>
           </div>
           
           <el-table :data="rateLimitStatistics" stripe v-loading="statisticsLoading">
-            <el-table-column prop="level" label="限流级别" width="120">
+            <el-table-column prop="level" :label="t('rateLimit.rateLimitSection.levelColumn')" width="120">
               <template #default="{ row }">
                 <el-tag :type="getLevelTagType(row.level)">
-                  {{ getLevelLabel(row.level) }}
+                  {{ t(`rateLimit.levelLabels.${row.level}`) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="target" label="限流目标" />
-            <el-table-column label="当前QPS / 限制" width="150">
+            <el-table-column prop="target" :label="t('rateLimit.rateLimitSection.targetColumn')" />
+            <el-table-column :label="t('rateLimit.rateLimitSection.currentQpsLabel')" width="150">
               <template #default="{ row }">
                 {{ row.currentQps }} / {{ row.qpsLimit }}
               </template>
             </el-table-column>
-            <el-table-column label="当前并发 / 限制" width="150">
+            <el-table-column :label="t('rateLimit.rateLimitSection.currentConcurrentLabel')" width="150">
               <template #default="{ row }">
                 {{ row.currentConcurrent }} / {{ row.concurrentLimit }}
               </template>
             </el-table-column>
-            <el-table-column label="今日调用 / 每日限额" width="180">
+            <el-table-column :label="t('rateLimit.rateLimitSection.todayCountLabel')" width="180">
               <template #default="{ row }">
                 {{ row.todayCount }} / {{ row.dailyLimit }}
               </template>
@@ -101,39 +101,39 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="熔断配置" name="circuitBreaker">
+      <el-tab-pane :label="t('rateLimit.tabs.circuitBreaker')" name="circuitBreaker">
         <div class="card">
           <div class="card-title">
-            熔断规则
-            <el-tag type="info" size="small">{{ routingRules.length }} 条</el-tag>
+            {{ t('rateLimit.circuitBreakerSection.rulesTitle') }}
+            <el-tag type="info" size="small">{{ t('rateLimit.circuitBreakerSection.rulesCount', { count: routingRules.length }) }}</el-tag>
           </div>
           
           <el-button type="primary" @click="handleAddModelRoutingRule" style="margin-bottom: 16px;">
             <el-icon><Plus /></el-icon>
-            添加规则
+            {{ t('rateLimit.circuitBreakerSection.addRule') }}
           </el-button>
 
           <el-table :data="routingRules" stripe v-loading="routingLoading">
-            <el-table-column prop="modelId" label="模型">
+            <el-table-column prop="modelId" :label="t('rateLimit.circuitBreakerSection.modelColumn')">
               <template #default="{ row }">
                 {{ row.model?.name || row.modelId }}
               </template>
             </el-table-column>
-            <el-table-column prop="qpsLimit" label="QPS限制" width="100" />
-            <el-table-column prop="maxConcurrent" label="最大并发" width="100" />
-            <el-table-column prop="currentConcurrent" label="当前并发" width="100" />
-            <el-table-column prop="circuitStatus" label="熔断状态" width="100">
+            <el-table-column prop="qpsLimit" :label="t('rateLimit.circuitBreakerSection.qpsLimitColumn')" width="100" />
+            <el-table-column prop="maxConcurrent" :label="t('rateLimit.circuitBreakerSection.maxConcurrentColumn')" width="100" />
+            <el-table-column prop="currentConcurrent" :label="t('rateLimit.circuitBreakerSection.currentConcurrentColumn')" width="100" />
+            <el-table-column prop="circuitStatus" :label="t('rateLimit.circuitBreakerSection.circuitStatusColumn')" width="100">
               <template #default="{ row }">
                 <el-tag :type="getCircuitStatusTagType(row.circuitStatus)">
-                  {{ getCircuitStatusLabel(row.circuitStatus) }}
+                  {{ t(`rateLimit.circuitStatusLabels.${row.circuitStatus}`) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="errorCount" label="错误次数" width="100" />
-            <el-table-column label="操作" width="180" align="right">
+            <el-table-column prop="errorCount" :label="t('rateLimit.circuitBreakerSection.errorCountColumn')" width="100" />
+            <el-table-column :label="t('rateLimit.circuitBreakerSection.operationColumn')" width="180" align="right">
               <template #default="{ row }">
-                <el-button size="small" @click="handleEditModelRoutingRule(row)">编辑</el-button>
-                <el-button size="small" type="danger" @click="handleDeleteModelRoutingRule(row)">删除</el-button>
+                <el-button size="small" @click="handleEditModelRoutingRule(row)">{{ t('rateLimit.circuitBreakerSection.edit') }}</el-button>
+                <el-button size="small" type="danger" @click="handleDeleteModelRoutingRule(row)">{{ t('rateLimit.circuitBreakerSection.delete') }}</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -141,35 +141,35 @@
 
         <div class="card" style="margin-top: 16px;">
           <div class="card-title">
-            熔断状态
+            {{ t('rateLimit.circuitBreakerSection.statusTitle') }}
             <el-button size="small" @click="loadModelRoutingStatus" style="margin-left: auto;">
               <el-icon><Refresh /></el-icon>
-              刷新
+              {{ t('rateLimit.circuitBreakerSection.refresh') }}
             </el-button>
           </div>
           
           <el-table :data="routingStatus" stripe v-loading="statusLoading">
-            <el-table-column prop="modelName" label="模型" />
-            <el-table-column prop="circuitStatus" label="熔断状态" width="120">
+            <el-table-column prop="modelName" :label="t('rateLimit.circuitBreakerSection.modelColumn')" />
+            <el-table-column prop="circuitStatus" :label="t('rateLimit.circuitBreakerSection.circuitStatusColumn')" width="120">
               <template #default="{ row }">
                 <el-tag :type="getCircuitStatusTagType(row.circuitStatus)">
-                  {{ getCircuitStatusLabel(row.circuitStatus) }}
+                  {{ t(`rateLimit.circuitStatusLabels.${row.circuitStatus}`) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="failureCount" label="失败次数" width="100" />
-            <el-table-column prop="successCount" label="成功次数" width="100" />
-            <el-table-column prop="lastErrorTime" label="最后失败时间" width="180">
+            <el-table-column prop="failureCount" :label="t('rateLimit.circuitBreakerSection.failureCountColumn')" width="100" />
+            <el-table-column prop="successCount" :label="t('rateLimit.circuitBreakerSection.successCountColumn')" width="100" />
+            <el-table-column prop="lastErrorTime" :label="t('rateLimit.circuitBreakerSection.lastErrorTimeColumn')" width="180">
               <template #default="{ row }">
                 {{ row.lastErrorTime ? new Date(row.lastErrorTime).toLocaleString() : '-' }}
               </template>
             </el-table-column>
-            <el-table-column prop="nextRetryTime" label="下次重试时间" width="180">
+            <el-table-column prop="nextRetryTime" :label="t('rateLimit.circuitBreakerSection.nextRetryTimeColumn')" width="180">
               <template #default="{ row }">
                 {{ row.nextRetryTime ? new Date(row.nextRetryTime).toLocaleString() : '-' }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="120" align="right">
+            <el-table-column :label="t('rateLimit.circuitBreakerSection.operationColumn')" width="120" align="right">
               <template #default="{ row }">
                 <el-button 
                   size="small" 
@@ -177,7 +177,7 @@
                   @click="handleResetModelRoutingStatus(row.modelId)"
                   :disabled="row.circuitStatus === 'closed'"
                 >
-                  重置
+                  {{ t('rateLimit.circuitBreakerSection.reset') }}
                 </el-button>
               </template>
             </el-table-column>
@@ -185,36 +185,36 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="黑名单" name="blacklist">
+      <el-tab-pane :label="t('rateLimit.tabs.blacklist')" name="blacklist">
         <div class="card">
-          <div class="card-title">IP黑名单</div>
+          <div class="card-title">{{ t('rateLimit.blacklistSection.title') }}</div>
           
           <el-button type="primary" @click="handleAddBlacklist" style="margin-bottom: 16px;">
             <el-icon><Plus /></el-icon>
-            添加黑名单
+            {{ t('rateLimit.blacklistSection.addBlacklist') }}
           </el-button>
 
-          <el-empty description="暂无黑名单数据" />
+          <el-empty :description="t('rateLimit.blacklistSection.emptyDescription')" />
         </div>
       </el-tab-pane>
     </el-tabs>
 
     <el-dialog 
       v-model="rateLimitDialogVisible" 
-      :title="editingRateLimit ? '编辑限流规则' : '添加限流规则'" 
+      :title="editingRateLimit ? t('rateLimit.dialog.editRateLimitRule') : t('rateLimit.dialog.addRateLimitRule')" 
       width="600px"
     >
       <el-form :model="rateLimitForm" label-width="120px">
-        <el-form-item label="限流级别" required>
+        <el-form-item :label="t('rateLimit.dialog.levelLabel')" required>
           <el-select v-model="rateLimitForm.level" style="width: 100%;">
-            <el-option label="全局" value="global" />
-            <el-option label="应用级" value="app" />
-            <el-option label="接口级" value="interface" />
-            <el-option label="模型级" value="model" />
+            <el-option :label="t('rateLimit.dialog.globalOption')" value="global" />
+            <el-option :label="t('rateLimit.dialog.appOption')" value="app" />
+            <el-option :label="t('rateLimit.dialog.interfaceOption')" value="interface" />
+            <el-option :label="t('rateLimit.dialog.modelOption')" value="model" />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="限流目标" required>
+        <el-form-item :label="t('rateLimit.dialog.targetLabel')" required>
           <el-input 
             v-model="rateLimitForm.target" 
             :placeholder="getTargetPlaceholder()"
@@ -223,12 +223,12 @@
 
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="QPS限制">
+            <el-form-item :label="t('rateLimit.dialog.qpsLimitLabel')">
               <el-input-number v-model="rateLimitForm.qpsLimit" :min="1" :max="10000" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="并发限制">
+            <el-form-item :label="t('rateLimit.dialog.concurrentLimitLabel')">
               <el-input-number v-model="rateLimitForm.concurrentLimit" :min="1" :max="1000" style="width: 100%;" />
             </el-form-item>
           </el-col>
@@ -236,30 +236,30 @@
 
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="每日限额">
+            <el-form-item :label="t('rateLimit.dialog.dailyLimitLabel')">
               <el-input-number v-model="rateLimitForm.dailyLimit" :min="1" :max="10000000" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="突发流量">
+            <el-form-item :label="t('rateLimit.dialog.burstSizeLabel')">
               <el-input-number v-model="rateLimitForm.burstSize" :min="1" :max="1000" style="width: 100%;" />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <el-form-item label="启用队列">
+        <el-form-item :label="t('rateLimit.dialog.enableQueueLabel')">
           <el-switch v-model="rateLimitForm.enableQueue" />
         </el-form-item>
 
         <template v-if="rateLimitForm.enableQueue">
           <el-row :gutter="16">
             <el-col :span="12">
-              <el-form-item label="队列大小">
+              <el-form-item :label="t('rateLimit.dialog.queueSizeLabel')">
                 <el-input-number v-model="rateLimitForm.queueSize" :min="1" :max="10000" style="width: 100%;" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="队列超时(ms)">
+              <el-form-item :label="t('rateLimit.dialog.queueTimeoutLabel')">
                 <el-input-number v-model="rateLimitForm.queueTimeout" :min="1000" :max="60000" style="width: 100%;" />
               </el-form-item>
             </el-col>
@@ -268,29 +268,29 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="rateLimitDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveRateLimit" :loading="saveLoading">保存</el-button>
+        <el-button @click="rateLimitDialogVisible = false">{{ t('rateLimit.dialog.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSaveRateLimit" :loading="saveLoading">{{ t('rateLimit.dialog.save') }}</el-button>
       </template>
     </el-dialog>
 
     <el-dialog 
       v-model="routingDialogVisible" 
-      :title="editingModelRoutingRule ? '编辑熔断规则' : '添加熔断规则'" 
+      :title="editingModelRoutingRule ? t('rateLimit.dialog.editCircuitBreakerRule') : t('rateLimit.dialog.addCircuitBreakerRule')" 
       width="500px"
     >
       <el-form :model="routingForm" label-width="120px">
-        <el-form-item label="模型ID" required>
-          <el-input v-model="routingForm.modelId" placeholder="请输入模型ID" />
+        <el-form-item :label="t('rateLimit.dialog.modelIdLabel')" required>
+          <el-input v-model="routingForm.modelId" :placeholder="t('rateLimit.dialog.modelIdPlaceholder')" />
         </el-form-item>
 
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="QPS限制">
+            <el-form-item :label="t('rateLimit.dialog.qpsLimitLabel')">
               <el-input-number v-model="routingForm.qpsLimit" :min="1" :max="1000" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="最大并发">
+            <el-form-item :label="t('rateLimit.dialog.maxConcurrentLabel')">
               <el-input-number v-model="routingForm.maxConcurrent" :min="1" :max="100" style="width: 100%;" />
             </el-form-item>
           </el-col>
@@ -298,27 +298,27 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="routingDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveModelRoutingRule" :loading="saveLoading">保存</el-button>
+        <el-button @click="routingDialogVisible = false">{{ t('rateLimit.dialog.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSaveModelRoutingRule" :loading="saveLoading">{{ t('rateLimit.dialog.save') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="blacklistDialogVisible" title="添加IP到黑名单" width="400px">
+    <el-dialog v-model="blacklistDialogVisible" :title="t('rateLimit.dialog.addToBlacklist')" width="400px">
       <el-form :model="blacklistForm" label-width="100px">
-        <el-form-item label="客户端IP" required>
-          <el-input v-model="blacklistForm.clientIp" placeholder="如：192.168.1.100" />
+        <el-form-item :label="t('rateLimit.dialog.clientIpLabel')" required>
+          <el-input v-model="blacklistForm.clientIp" :placeholder="t('rateLimit.dialog.clientIpPlaceholder')" />
         </el-form-item>
-        <el-form-item label="封禁原因" required>
-          <el-input v-model="blacklistForm.reason" placeholder="请输入封禁原因" />
+        <el-form-item :label="t('rateLimit.dialog.reasonLabel')" required>
+          <el-input v-model="blacklistForm.reason" :placeholder="t('rateLimit.dialog.reasonPlaceholder')" />
         </el-form-item>
-        <el-form-item label="封禁时长(秒)">
+        <el-form-item :label="t('rateLimit.dialog.durationLabel')">
           <el-input-number v-model="blacklistForm.duration" :min="60" :max="86400" style="width: 100%;" />
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="blacklistDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveBlacklist" :loading="saveLoading">保存</el-button>
+        <el-button @click="blacklistDialogVisible = false">{{ t('rateLimit.dialog.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSaveBlacklist" :loading="saveLoading">{{ t('rateLimit.dialog.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -326,6 +326,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { 
@@ -339,6 +340,8 @@ import {
   type ModelRoutingStatus,
   type BlacklistItem
 } from '@/api/rateLimit'
+
+const { t } = useI18n()
 
 const activeTab = ref('rateLimit')
 
@@ -385,16 +388,6 @@ const blacklistForm = ref<BlacklistItem>({
   duration: 3600
 })
 
-const getLevelLabel = (level: string) => {
-  const labels: Record<string, string> = {
-    global: '全局',
-    app: '应用级',
-    interface: '接口级',
-    model: '模型级'
-  }
-  return labels[level] || level
-}
-
 const getLevelTagType = (level: string) => {
   const types: Record<string, any> = {
     global: 'danger',
@@ -403,15 +396,6 @@ const getLevelTagType = (level: string) => {
     model: 'info'
   }
   return types[level] || ''
-}
-
-const getCircuitStatusLabel = (status: string) => {
-  const labels: Record<string, string> = {
-    closed: '关闭',
-    open: '打开',
-    half_open: '半开'
-  }
-  return labels[status] || status
 }
 
 const getCircuitStatusTagType = (status: string) => {
@@ -424,13 +408,7 @@ const getCircuitStatusTagType = (status: string) => {
 }
 
 const getTargetPlaceholder = () => {
-  const placeholders: Record<string, string> = {
-    global: '固定值：global',
-    app: '应用标识，如：app-001',
-    interface: '接口路径，如：/api/ai/invoke',
-    model: '模型ID'
-  }
-  return placeholders[rateLimitForm.value.level] || ''
+  return t(`rateLimit.dialog.targetPlaceholder.${rateLimitForm.value.level}`)
 }
 
 const loadRateLimitRules = async () => {
@@ -439,7 +417,7 @@ const loadRateLimitRules = async () => {
     const { data } = await rateLimitApi.getRules()
     rateLimitRules.value = data.data || []
   } catch (error) {
-    ElMessage.error('加载限流规则失败')
+    ElMessage.error(t('rateLimit.message.loadRateLimitRulesFailed'))
   } finally {
     rateLimitLoading.value = false
   }
@@ -451,7 +429,7 @@ const loadRateLimitStatistics = async () => {
     const { data } = await rateLimitApi.getStatistics()
     rateLimitStatistics.value = data.data || []
   } catch (error) {
-    ElMessage.error('加载限流统计失败')
+    ElMessage.error(t('rateLimit.message.loadRateLimitStatisticsFailed'))
   } finally {
     statisticsLoading.value = false
   }
@@ -463,7 +441,7 @@ const loadModelRoutingRules = async () => {
     const { data } = await circuitBreakerApi.getRules()
     routingRules.value = data.data || []
   } catch (error) {
-    ElMessage.error('加载熔断规则失败')
+    ElMessage.error(t('rateLimit.message.loadCircuitBreakerRulesFailed'))
   } finally {
     routingLoading.value = false
   }
@@ -475,7 +453,7 @@ const loadModelRoutingStatus = async () => {
     const { data } = await circuitBreakerApi.getStatus()
     routingStatus.value = data.data || []
   } catch (error) {
-    ElMessage.error('加载熔断状态失败')
+    ElMessage.error(t('rateLimit.message.loadCircuitBreakerStatusFailed'))
   } finally {
     statusLoading.value = false
   }
@@ -517,12 +495,12 @@ const handleSaveRateLimit = async () => {
   saveLoading.value = true
   try {
     await rateLimitApi.upsertRule(rateLimitForm.value)
-    ElMessage.success('保存成功')
+    ElMessage.success(t('rateLimit.message.saveSuccess'))
     rateLimitDialogVisible.value = false
     loadRateLimitRules()
     loadRateLimitStatistics()
   } catch (error) {
-    ElMessage.error('保存失败')
+    ElMessage.error(t('rateLimit.message.saveFailed'))
   } finally {
     saveLoading.value = false
   }
@@ -530,20 +508,24 @@ const handleSaveRateLimit = async () => {
 
 const handleInitDefaultRules = async () => {
   try {
-    await ElMessageBox.confirm('这将初始化默认的限流规则，是否继续？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      t('rateLimit.message.initDefaultConfirm'), 
+      t('rateLimit.message.initConfirmTitle'), 
+      {
+        confirmButtonText: t('rateLimit.message.confirmButton'),
+        cancelButtonText: t('rateLimit.message.cancelButton'),
+        type: 'warning'
+      }
+    )
     
     initLoading.value = true
     await rateLimitApi.initDefaultRules()
-    ElMessage.success('初始化成功')
+    ElMessage.success(t('rateLimit.message.initSuccess'))
     loadRateLimitRules()
     loadRateLimitStatistics()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('初始化失败')
+      ElMessage.error(t('rateLimit.message.initFailed'))
     }
   } finally {
     initLoading.value = false
@@ -574,12 +556,12 @@ const handleSaveModelRoutingRule = async () => {
   saveLoading.value = true
   try {
     await circuitBreakerApi.upsertRule(routingForm.value)
-    ElMessage.success('保存成功')
+    ElMessage.success(t('rateLimit.message.saveSuccess'))
     routingDialogVisible.value = false
     loadModelRoutingRules()
     loadModelRoutingStatus()
   } catch (error) {
-    ElMessage.error('保存失败')
+    ElMessage.error(t('rateLimit.message.saveFailed'))
   } finally {
     saveLoading.value = false
   }
@@ -588,41 +570,33 @@ const handleSaveModelRoutingRule = async () => {
 const handleDeleteModelRoutingRule = async (row: ModelRoutingRule) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除模型「${row.model?.name || row.modelId}」的熔断规则吗？`,
-      '删除确认',
+      t('rateLimit.message.deleteConfirm'), 
+      t('rateLimit.message.initConfirmTitle'), 
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('rateLimit.message.confirmButton'),
+        cancelButtonText: t('rateLimit.message.cancelButton'),
         type: 'warning'
       }
     )
     
-    await circuitBreakerApi.deleteRule(row.modelId)
-    ElMessage.success('删除成功')
+    await circuitBreakerApi.deleteRule(row.id)
+    ElMessage.success(t('rateLimit.message.deleteSuccess'))
     loadModelRoutingRules()
     loadModelRoutingStatus()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error(t('rateLimit.message.deleteFailed'))
     }
   }
 }
 
 const handleResetModelRoutingStatus = async (modelId: string) => {
   try {
-    await ElMessageBox.confirm('确定要重置该模型的熔断状态吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    
     await circuitBreakerApi.resetStatus(modelId)
-    ElMessage.success('重置成功')
+    ElMessage.success(t('rateLimit.message.resetSuccess'))
     loadModelRoutingStatus()
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('重置失败')
-    }
+    ElMessage.error(t('rateLimit.message.resetFailed'))
   }
 }
 
@@ -639,10 +613,10 @@ const handleSaveBlacklist = async () => {
   saveLoading.value = true
   try {
     await rateLimitApi.addToBlacklist(blacklistForm.value)
-    ElMessage.success('添加成功')
+    ElMessage.success(t('rateLimit.message.addBlacklistSuccess'))
     blacklistDialogVisible.value = false
   } catch (error) {
-    ElMessage.error('添加失败')
+    ElMessage.error(t('rateLimit.message.addBlacklistFailed'))
   } finally {
     saveLoading.value = false
   }
@@ -656,10 +630,74 @@ onMounted(() => {
 })
 </script>
 
-<style scoped lang="scss">
+<style scoped>
+.page-container {
+  padding: 20px;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 8px 0;
+}
+
+.page-description {
+  font-size: 14px;
+  color: #909399;
+  margin: 0;
+}
+
+.help-tip {
+  background: #f4f4f5;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.help-tip-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #606266;
+  margin-bottom: 8px;
+}
+
+.help-tip ul {
+  margin: 0;
+  padding-left: 20px;
+  list-style: none;
+}
+
+.help-tip li {
+  font-size: 13px;
+  color: #909399;
+  line-height: 1.8;
+}
+
 .config-tabs {
-  :deep(.el-tabs__content) {
-    padding: 0;
-  }
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid #e4e7ed;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>
