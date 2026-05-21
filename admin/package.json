@@ -1,6 +1,6 @@
 {
   "name": "muu-agent-admin",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "MuuAgent管理后台",
   "type": "module",
   "scripts": {

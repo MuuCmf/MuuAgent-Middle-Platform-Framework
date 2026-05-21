@@ -6,6 +6,8 @@ import { join } from "path";
 import { AppModule } from "./app.module";
 import { Request, Response, NextFunction } from "express";
 import { GlobalExceptionFilter } from "./common/errors";
+import { VersionService } from "./common/services/version.service";
+import { readFileSync } from "fs";
 
 /**
  * 自定义 Logger 类
@@ -27,6 +29,49 @@ class CustomLogger extends ConsoleLogger {
 }
 
 /**
+ * 读取版本号
+ * @returns {string} 版本号
+ */
+function getVersion(): string {
+  try {
+    // 从项目根目录查找 VERSION 文件
+    let currentDir = __dirname;
+    let versionPath: string | null = null;
+    
+    // 向上查找，最多查找 10 层
+    for (let i = 0; i < 10; i++) {
+      const testPath = join(currentDir, 'VERSION');
+      try {
+        const stats = require('fs').statSync(testPath);
+        if (stats.isFile()) {
+          versionPath = testPath;
+          break;
+        }
+      } catch {
+        // 文件不存在，继续向上查找
+      }
+      
+      const parentDir = join(currentDir, '..');
+      if (parentDir === currentDir) {
+        // 已经到达根目录
+        break;
+      }
+      currentDir = parentDir;
+    }
+    
+    if (versionPath) {
+      return readFileSync(versionPath, 'utf-8').trim();
+    } else {
+      console.warn('未找到 VERSION 文件，使用默认版本号');
+      return '0.0.0';
+    }
+  } catch (error) {
+    console.error('读取版本号失败:', error);
+    return '0.0.0';
+  }
+}
+
+/**
  * 应用启动入口函数
  * @returns {Promise<void>}
  */
@@ -34,6 +79,8 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: new CustomLogger(),
   });
+
+  const version = getVersion();
 
   // 设置全局前缀
   app.setGlobalPrefix("api");
@@ -82,7 +129,7 @@ async function bootstrap(): Promise<void> {
         name: "MuuAgent",
         description:
           "AI模型管理 + 智能调度 + Skill + Agent + RAG知识库 智能中台",
-        version: "1.0.0",
+        version: version,
         endpoints: {
           api: "/api",
           docs: "/api-docs",
@@ -110,7 +157,7 @@ async function bootstrap(): Promise<void> {
   const config = new DocumentBuilder()
     .setTitle("MuuAgent")
     .setDescription("AI模型管理 + 智能调度 + Skill + Agent 智能中台")
-    .setVersion("1.0.0")
+    .setVersion(version)
     .addBearerAuth()
     .addApiKey({ type: "apiKey", name: "x-api-key", in: "header" }, "api-key")
     .build();
@@ -121,7 +168,7 @@ async function bootstrap(): Promise<void> {
   const port = process.env.PORT || 3000;
   await app.listen(port);
 
-  console.log(`🚀 MuuAgent 运行在: http://localhost:${port}`);
+  console.log(`🚀 MuuAgent v${version} 运行在: http://localhost:${port}`);
   console.log(`📚 API文档地址: http://localhost:${port}/api-docs`);
 }
 

@@ -1,7 +1,7 @@
 <template>
   <el-container class="main-container">
     <el-header class="layouts-header">
-      <Logo :isCollapsed="isCollapsed" />
+      <Logo :isCollapsed="isCollapsed" :version="version" />
       <div class="header-actions">
         <LocaleSwitch />
         
@@ -172,6 +172,7 @@ import LocaleSwitch from '@/components/LocaleSwitch.vue'
 import { userApi, type AdminUser } from '@/api/user'
 import { clearCachedToken } from '@/utils/request'
 import { useI18n } from 'vue-i18n'
+import { versionApi } from '@/api/version'
 
 const router = useRouter()
 const route = useRoute()
@@ -183,6 +184,7 @@ const isCollapsed = ref(false)
 const userInfo = ref<AdminUser | null>(null)
 const passwordFormRef = ref<FormInstance>()
 const passwordLoading = ref(false)
+const version = ref<string>('')
 
 const activeMenu = computed(() => route.path)
 
@@ -328,8 +330,21 @@ const loadUserInfo = () => {
   }
 }
 
+/**
+ * 加载版本号
+ */
+const loadVersion = async () => {
+  try {
+    const versionInfo = await versionApi.getVersion()
+    version.value = versionInfo.version
+  } catch (error) {
+    console.error('获取版本号失败:', error)
+  }
+}
+
 onMounted(() => {
   loadUserInfo()
+  loadVersion()
 })
 </script>
 

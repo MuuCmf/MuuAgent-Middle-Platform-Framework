@@ -2,6 +2,7 @@
   <div class="logo" :class="isCollapsed ? 'closed' : 'opened'">
     <template v-if="!isCollapsed">
       <span class="name">{{ appConfig.appTitle }}</span>
+      <span v-if="version" class="version">v{{ version }}</span>
     </template>
     <template v-else>
       <span class="name">{{ firstCharName }}</span>
@@ -15,10 +16,12 @@ import { appConfig } from '@/config'
 
 interface Props {
   isCollapsed?: boolean
+  version?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  isCollapsed: false
+  isCollapsed: false,
+  version: ''
 })
 
 const firstCharName = computed(() => {
@@ -43,6 +46,14 @@ const firstCharName = computed(() => {
 
   .name {
     padding-right: 5px;
+  }
+
+  .version {
+    font-size: 12px;
+    color: #909399;
+    font-weight: 400;
+    margin-left: 5px;
+    margin-top: 8px;
   }
 }
 
