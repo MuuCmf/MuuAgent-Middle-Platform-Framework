@@ -55,40 +55,7 @@ export class McpServerRegistry implements OnModuleInit {
    * 模块初始化时加载配置
    */
   async onModuleInit() {
-    await this.loadFromEnv();
     await this.refresh();
-  }
-
-  /**
-   * 从环境变量加载初始配置（兼容旧配置方式）
-   */
-  private async loadFromEnv(): Promise<void> {
-    try {
-      const mcpConfigEnv = process.env.MCP_SERVER_CONFIG;
-      if (mcpConfigEnv) {
-        const servers = JSON.parse(mcpConfigEnv);
-        if (Array.isArray(servers)) {
-          this.logger.log('从环境变量加载 MCP Server 配置');
-
-          for (const server of servers) {
-            const existing = await this.repository.findByName(server.name);
-            if (!existing) {
-              await this.repository.create({
-                name: server.name,
-                url: server.url,
-                apiKey: server.apiKey,
-                timeout: server.timeout,
-                enabled: server.enabled ?? true,
-                tools: server.tools,
-              });
-              this.logger.log(`已导入 MCP Server: ${server.name}`);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      this.logger.error(`从环境变量加载 MCP Server 配置失败: ${error}`);
-    }
   }
 
   /**
