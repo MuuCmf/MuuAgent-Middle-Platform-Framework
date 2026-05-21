@@ -19,6 +19,9 @@ export interface SkillMetadata {
   isPublic: boolean;
   hasReferences: boolean;
   hasScripts: boolean;
+  hasAssets?: boolean;
+  discoveredAt?: string;
+  fileSize?: number;
 }
 
 /**

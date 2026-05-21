@@ -56,7 +56,7 @@ export default {
     topPDesc: '控制输出多样性，值越大生成的文本越多样',
     bindSkills: '绑定技能',
     selectSkills: '选择技能',
-    noSkills: '无',
+    noSkills: '暂未绑定技能',
     reasoningMode: '推理模式',
     defaultMode: '默认',
     reactMode: 'ReAct',

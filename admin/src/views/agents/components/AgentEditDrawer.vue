@@ -1,5 +1,5 @@
 <template>
-  <el-drawer :model-value="visible" :title="editingAgent ? $t('agent.editAgent') : $t('agent.createAgent')" direction="rtl" size="600px"
+  <el-drawer :model-value="visible" :title="editingAgent ? $t('agent.editAgent') : $t('agent.createAgent')" direction="rtl" size="680px"
     class="agent-edit-drawer" @update:model-value="handleClose">
     <el-form :model="form" :rules="rules" label-width="100px" ref="formRef" class="agent-form">
       <div class="form-section">

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { skillApi, type StandardSkill, type ScanResult, type ImportResult, type SyncResult, type SkillStats } from '@/api/skill'
+import { skillApi, type StandardSkill, type ScanResult, type ImportResult, type SyncResult, type SkillStats, type SkillListQuery, type PaginatedResponse } from '@/api/skill'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 export const useSkillStore = defineStore('skill', () => {
@@ -8,16 +8,53 @@ export const useSkillStore = defineStore('skill', () => {
   const scanning = ref(false)
   const syncing = ref(false)
   const skillStats = ref<SkillStats | null>(null)
+  
+  const currentPage = ref(1)
+  const pageSize = ref(20)
+  const total = ref(0)
+  const totalPages = ref(0)
+  const sortBy = ref<'name' | 'description' | 'source' | 'appCode'>('name')
+  const sortOrder = ref<'asc' | 'desc'>('asc')
+  const currentAppCode = ref<string>('')
 
-  /** 加载标准技能列表（经过L1缓存） */
-  const loadStandardSkills = async (appCode?: string) => {
+  /** 加载标准技能列表（经过L1缓存，支持分页） */
+  const loadStandardSkills = async (appCode?: string, page?: number, size?: number, sortField?: string, order?: 'asc' | 'desc') => {
     try {
-      const res = await skillApi.listStandardSkills(appCode)
-      standardSkills.value = res.data?.data || []
+      const query: SkillListQuery = {
+        appCode: appCode ?? currentAppCode.value,
+        page: page ?? currentPage.value,
+        pageSize: size ?? pageSize.value,
+        sortBy: (sortField as SkillListQuery['sortBy']) ?? sortBy.value,
+        sortOrder: order ?? sortOrder.value,
+      }
+      
+      const res = await skillApi.listStandardSkills(query)
+      const data = res.data?.data as PaginatedResponse<StandardSkill>
+      
+      if (data) {
+        standardSkills.value = data.data
+        currentPage.value = data.page
+        pageSize.value = data.pageSize
+        total.value = data.total
+        totalPages.value = data.totalPages
+        currentAppCode.value = appCode ?? currentAppCode.value
+        sortBy.value = (sortField as typeof sortBy.value) ?? sortBy.value
+        sortOrder.value = order ?? sortOrder.value
+      }
     } catch (error) {
       console.error('加载标准技能失败', error)
       standardSkills.value = []
+      total.value = 0
+      totalPages.value = 0
     }
+  }
+
+  /** 重置分页状态 */
+  const resetPagination = () => {
+    currentPage.value = 1
+    pageSize.value = 20
+    sortBy.value = 'name'
+    sortOrder.value = 'asc'
   }
 
   /** 扫描技能并同步到数据库 */
@@ -137,7 +174,15 @@ export const useSkillStore = defineStore('skill', () => {
     scanning,
     syncing,
     skillStats,
+    currentPage,
+    pageSize,
+    total,
+    totalPages,
+    sortBy,
+    sortOrder,
+    currentAppCode,
     loadStandardSkills,
+    resetPagination,
     scanSkills,
     importSkill,
     refreshIndex,

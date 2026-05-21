@@ -13,6 +13,7 @@
           :placeholder="$t('skillSelect.searchSkillName')"
           clearable
           prefix-icon="Search"
+          @input="handleSearch"
         />
       </div>
 
@@ -37,12 +38,12 @@
       </div>
 
       <div class="skill-list">
-        <div v-if="filteredSkills.length === 0" class="empty-skills">
+        <div v-if="paginatedSkills.length === 0" class="empty-skills">
           <el-empty :description="$t('skillSelect.noAvailableSkills')" :image-size="80" />
         </div>
         <div v-else class="skill-items">
           <div
-            v-for="skill in filteredSkills"
+            v-for="skill in paginatedSkills"
             :key="skill.name"
             class="skill-item"
             :class="{ 'is-selected': isSkillSelected(skill.name) }"
@@ -63,6 +64,17 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <div class="pagination-container" v-if="totalFiltered > 0">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="totalFiltered"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          small
+        />
       </div>
     </div>
 
@@ -110,6 +122,8 @@ const visible = computed({
 
 const searchKeyword = ref('')
 const selectedSkills = ref<SkillItem[]>([])
+const currentPage = ref(1)
+const pageSize = ref(20)
 
 const filteredSkills = computed(() => {
   if (!searchKeyword.value) {
@@ -123,12 +137,25 @@ const filteredSkills = computed(() => {
   )
 })
 
+const totalFiltered = computed(() => filteredSkills.value.length)
+
+const paginatedSkills = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredSkills.value.slice(start, end)
+})
+
+const handleSearch = () => {
+  currentPage.value = 1
+}
+
 watch(visible, (newVal) => {
   if (newVal) {
     selectedSkills.value = props.skills.filter(skill =>
       props.selectedCodes.includes(skill.name)
     )
     searchKeyword.value = ''
+    currentPage.value = 1
   }
 })
 
@@ -263,5 +290,11 @@ const handleClose = () => {
   color: #606266;
   line-height: 1.5;
   margin-top: 8px;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
 }
 </style>

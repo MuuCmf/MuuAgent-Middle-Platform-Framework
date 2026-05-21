@@ -57,29 +57,54 @@ export class SkillController {
   // ============================================================
 
   /**
-   * 列出所有可用技能（经过L1缓存）
+   * 列出所有可用技能（经过L1缓存，支持分页）
    * GET /admin/skill/standard/list
    */
   @Get('standard/list')
-  @ApiOperation({ summary: '列出标准技能（经过缓存层）' })
+  @ApiOperation({ summary: '列出标准技能（经过缓存层，支持分页）' })
   @RequireScope(AdminScope.SKILL_READ)
   async listStandardSkills(@Query() query: QueryStandardSkillDto, @Req() req: Request) {
     const context = extractIsolationContext(req);
     const skills = await this.skillRegistry.listAll(context);
     
-    const filtered = query.appCode
+    let filtered = query.appCode
       ? skills.filter(s => s.appCode === query.appCode || s.isPublic)
       : skills;
 
-    return success(filtered.map(s => ({
-      name: s.name,
-      description: s.description,
-      source: s.source,
-      appCode: s.appCode,
-      isPublic: s.isPublic,
-      hasReferences: s.hasReferences,
-      hasScripts: s.hasScripts,
-    })));
+    const { page = 1, pageSize = 20, sortBy = 'name', sortOrder = 'asc' } = query;
+
+    filtered.sort((a, b) => {
+      const aValue = ((a as unknown) as Record<string, unknown>)[sortBy] as string || '';
+      const bValue = ((b as unknown) as Record<string, unknown>)[sortBy] as string || '';
+      const comparison = aValue.localeCompare(bValue);
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    const total = filtered.length;
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    const paginated = filtered.slice(start, end);
+
+    const result = {
+      data: paginated.map(s => ({
+        name: s.name,
+        description: s.description,
+        source: s.source,
+        appCode: s.appCode,
+        isPublic: s.isPublic,
+        hasReferences: s.hasReferences,
+        hasScripts: s.hasScripts,
+        hasAssets: s.hasAssets,
+        discoveredAt: s.discoveredAt,
+        fileSize: s.fileSize,
+      })),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    };
+
+    return success(result);
   }
 
   /**

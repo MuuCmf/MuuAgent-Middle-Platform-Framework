@@ -17,6 +17,24 @@ export interface StandardSkill {
   fileSize?: number
 }
 
+/** 分页查询参数 */
+export interface SkillListQuery {
+  appCode?: string
+  page?: number
+  pageSize?: number
+  sortBy?: 'name' | 'description' | 'source' | 'appCode'
+  sortOrder?: 'asc' | 'desc'
+}
+
+/** 分页响应结构 */
+export interface PaginatedResponse<T> {
+  data: T[]
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+}
+
 /** 安全扫描问题 */
 export interface SecurityIssue {
   level: 'critical' | 'high' | 'medium' | 'low'
@@ -91,10 +109,14 @@ export interface SkillStats {
 // ===== API =====
 
 export const skillApi = {
-  /** 列出所有可用技能（经过L1缓存层） */
-  listStandardSkills(appCode?: string): Promise<AxiosResponse<ApiResponse<StandardSkill[]>>> {
-    const params: Record<string, string> = {}
-    if (appCode) params.appCode = appCode
+  /** 列出所有可用技能（经过L1缓存层，支持分页） */
+  listStandardSkills(query?: SkillListQuery): Promise<AxiosResponse<ApiResponse<PaginatedResponse<StandardSkill>>>> {
+    const params: Record<string, string | number> = {}
+    if (query?.appCode) params.appCode = query.appCode
+    if (query?.page) params.page = query.page
+    if (query?.pageSize) params.pageSize = query.pageSize
+    if (query?.sortBy) params.sortBy = query.sortBy
+    if (query?.sortOrder) params.sortOrder = query.sortOrder
     return adminRequest.get('api/admin/skill/standard/list', { params })
   },
 

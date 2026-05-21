@@ -78,7 +78,46 @@
         </el-space>
       </div>
 
-      <el-table :data="standardSkills" stripe v-loading="scanning">
+      <!-- 搜索和排序 -->
+      <div class="search-bar">
+        <el-input
+          v-model="searchKeyword"
+          placeholder="搜索技能名称或描述"
+          class="search-input"
+          @keyup.enter="handleSearch"
+        >
+          <template #append>
+            <el-button @click="handleSearch">
+              <el-icon><Search /></el-icon>
+            </el-button>
+          </template>
+        </el-input>
+        
+        <el-space>
+          <el-select
+            v-model="localSortBy"
+            placeholder="排序字段"
+            class="sort-select"
+            @change="handleSortChange"
+          >
+            <el-option label="名称" value="name" />
+            <el-option label="描述" value="description" />
+            <el-option label="来源" value="source" />
+            <el-option label="应用" value="appCode" />
+          </el-select>
+          <el-select
+            v-model="localSortOrder"
+            placeholder="排序方向"
+            class="sort-select"
+            @change="handleSortChange"
+          >
+            <el-option label="升序" value="asc" />
+            <el-option label="降序" value="desc" />
+          </el-select>
+        </el-space>
+      </div>
+
+      <el-table :data="filteredSkills" stripe v-loading="scanning">
         <el-table-column prop="name" label="名称" width="160">
           <template #default="{ row }">
             <el-button link type="primary" @click="handlePreviewSkillMd(row.name)">{{ row.name }}</el-button>
@@ -138,7 +177,21 @@
         </el-table-column>
       </el-table>
 
-      <el-empty v-if="standardSkills.length === 0 && !scanning" description="暂无标准技能，点击扫描发现或导入新技能" />
+      <!-- 分页组件 -->
+      <div class="pagination-container">
+        <span class="pagination-info">共 {{ total }} 条记录</span>
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handlePageSizeChange"
+          @current-change="handlePageChange"
+        />
+      </div>
+
+      <el-empty v-if="filteredSkills.length === 0 && !scanning" description="暂无标准技能，点击扫描发现或导入新技能" />
     </div>
 
     <!-- 技能导入对话框 -->
@@ -156,23 +209,60 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
-import { Refresh, RefreshRight, Upload, Delete } from '@element-plus/icons-vue'
+import { Refresh, RefreshRight, Upload, Delete, Search } from '@element-plus/icons-vue'
 import { useSkillStore } from '@/stores'
-import { skillApi } from '@/api/skill'
+import { skillApi, type StandardSkill } from '@/api/skill'
 import SkillImportDialog from './components/SkillImportDialog.vue'
 import SkillMdPreview from './components/SkillMdPreview.vue'
 
 const skillStore = useSkillStore()
+const { 
+  scanning, 
+  syncing,
+  currentPage,
+  pageSize,
+  total,
+} = storeToRefs(skillStore)
+
+const {
+  loadStandardSkills, 
+  scanSkills, 
+  refreshIndex, 
+  syncToDatabase, 
+  invalidateSkillCache, 
+  confirmClearAllCache, 
+  loadSkillStats,
+} = skillStore
 
 const filterAppCode = ref('')
-const { scanning, syncing, loadStandardSkills, scanSkills, refreshIndex, syncToDatabase, invalidateSkillCache, confirmClearAllCache, loadSkillStats } = skillStore
+
+// 搜索关键词
+const searchKeyword = ref('')
+
+// 本地排序字段（用于绑定到select）
+const localSortBy = ref<string>('name')
+const localSortOrder = ref<'asc' | 'desc'>('asc')
 
 // 计算属性：标准技能列表
 const standardSkills = computed(() => skillStore.standardSkills)
 // 计算属性：技能统计信息
 const skillStats = computed(() => skillStore.skillStats)
+
+// 本地搜索过滤
+const filteredSkills = computed(() => {
+  if (!searchKeyword.value) {
+    return standardSkills.value
+  }
+  const keyword = searchKeyword.value.toLowerCase()
+  return standardSkills.value.filter(
+    (skill: StandardSkill) =>
+      skill.name.toLowerCase().includes(keyword) ||
+      (skill.description && skill.description.toLowerCase().includes(keyword))
+  )
+})
 
 const importDialogVisible = ref(false)
 const previewDialogVisible = ref(false)
@@ -222,13 +312,48 @@ const handlePreviewSkillMd = async (name: string) => {
   }
 }
 
+// 搜索处理
+const handleSearch = () => {
+  currentPage.value = 1
+  loadStandardSkills(filterAppCode.value, currentPage.value, pageSize.value, localSortBy.value, localSortOrder.value)
+}
+
+// 排序变化处理
+const handleSortChange = () => {
+  currentPage.value = 1
+  loadStandardSkills(filterAppCode.value, currentPage.value, pageSize.value, localSortBy.value, localSortOrder.value)
+}
+
+// 页码变化处理
+const handlePageChange = (page: number) => {
+  loadStandardSkills(filterAppCode.value, page, pageSize.value, localSortBy.value, localSortOrder.value)
+}
+
+// 每页大小变化处理
+const handlePageSizeChange = (size: number) => {
+  currentPage.value = 1
+  loadStandardSkills(filterAppCode.value, currentPage.value, size, localSortBy.value, localSortOrder.value)
+}
+
 const handleImported = () => {
-  loadStandardSkills(filterAppCode.value)
+  currentPage.value = 1
+  loadStandardSkills(filterAppCode.value, currentPage.value, pageSize.value, localSortBy.value, localSortOrder.value)
 }
 
 onMounted(() => {
+  localSortBy.value = skillStore.sortBy
+  localSortOrder.value = skillStore.sortOrder
   loadStandardSkills(filterAppCode.value)
   loadSkillStats()
+})
+
+// 监听排序字段变化
+watch(() => skillStore.sortBy, (newVal) => {
+  localSortBy.value = newVal
+})
+
+watch(() => skillStore.sortOrder, (newVal) => {
+  localSortOrder.value = newVal
 })
 </script>
 
@@ -280,6 +405,38 @@ onMounted(() => {
       color: #909399;
       margin-top: 4px;
     }
+  }
+}
+
+.search-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+
+  .search-input {
+    width: 300px;
+  }
+
+  .sort-select {
+    width: 120px;
+  }
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #ebeef5;
+
+  .pagination-info {
+    font-size: 13px;
+    color: #606266;
   }
 }
 </style>
