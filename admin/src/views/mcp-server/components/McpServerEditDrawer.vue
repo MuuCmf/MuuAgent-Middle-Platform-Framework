@@ -500,6 +500,7 @@ const handleSubmit = async () => {
 
 <style scoped lang="scss">
 .form-tip {
+  width: 100%;
   font-size: 12px;
   color: var(--el-text-color-secondary);
   margin-top: 4px;

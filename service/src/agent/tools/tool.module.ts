@@ -6,6 +6,7 @@ import { DiscoveryModule } from '@nestjs/core';
 import { ToolRegistry } from './tool-registry';
 import { ToolExecutor } from './tool-executor';
 import { ToolDiscoveryService } from './core/tool-discovery.service';
+import { ToolController } from './tool.controller';
 
 // 内置工具
 import { HttpRequestTool, DbQueryTool, RunCodeTool, KbSearchTool } from './builtin';
@@ -49,6 +50,7 @@ import { WorkspaceModule } from '../../workspace/workspace.module';
 @Global()
 @Module({
   imports: [DiscoveryModule, ConfigModule, SkillModule, McpServerModule, RetrievalModule, WorkspaceModule],
+  controllers: [ToolController],
   providers: [
     // 核心服务
     ToolRegistry,

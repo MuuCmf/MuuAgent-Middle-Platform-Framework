@@ -23,7 +23,7 @@ interface KbSearchToolConfig {
 @AgentTool({
   name: 'kb_search',
   enabled: true,
-  category: 'kb',
+  category: 'builtin',
 })
 export class KbSearchTool extends BaseTool {
   readonly name = 'kb_search';

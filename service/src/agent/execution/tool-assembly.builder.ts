@@ -21,7 +21,7 @@ export class ToolAssemblyBuilder {
   async buildTools(
     resolution: SkillResolutionResult,
     resolvedKbCodes: string[],
-    agent: { id: any; workspaceConfig?: any },
+    agent: { id: any; workspaceConfig?: any; allowedBuiltinTools?: string },
     workspaceEnabled: boolean,
     enableKbTool: boolean = true,
     kbToolConfig?: {
@@ -49,6 +49,9 @@ export class ToolAssemblyBuilder {
     // 注册工具（use_skill, run_script, run_code 等）
     const { availableSkillNames, boundSkills } = resolution;
     const hasScriptedSkills = boundSkills.some(s => s.metadata.hasScripts);
+
+    // 解析允许使用的内置工具列表
+    const allowedBuiltinTools = this.parseAllowedBuiltinTools(agent.allowedBuiltinTools);
 
     const registeredTools = this.toolRegistry.getAll();
     for (const tool of registeredTools) {
@@ -85,7 +88,26 @@ export class ToolAssemblyBuilder {
           });
         }
       } else if (def.name === 'run_code') {
-        tools.push(def);
+        // 检查是否允许使用代码执行工具
+        if (allowedBuiltinTools.includes('run_code')) {
+          tools.push(def);
+        }
+      } else if (def.name === 'http_request') {
+        // 检查是否允许使用HTTP请求工具
+        if (allowedBuiltinTools.includes('http_request')) {
+          const existing = tools.find(t => t.name === def.name);
+          if (!existing) {
+            tools.push(def);
+          }
+        }
+      } else if (def.name === 'db_query') {
+        // 检查是否允许使用数据库查询工具
+        if (allowedBuiltinTools.includes('db_query')) {
+          const existing = tools.find(t => t.name === def.name);
+          if (!existing) {
+            tools.push(def);
+          }
+        }
       } else {
         const existing = tools.find(t => t.name === def.name);
         if (!existing) {
@@ -136,6 +158,26 @@ export class ToolAssemblyBuilder {
       }
     } catch (e) {
       this.logger.warn(`从 MCP Server ${serverName} 发现工具失败: ${e}`);
+    }
+  }
+
+  /**
+   * 解析允许使用的内置工具列表
+   * @param config JSON字符串配置
+   * @returns {string[]} 工具名称列表
+   */
+  private parseAllowedBuiltinTools(config?: string): string[] {
+    if (!config) {
+      // 未配置时默认允许所有内置工具（向后兼容）
+      return ['http_request', 'kb_search', 'db_query', 'run_code'];
+    }
+
+    try {
+      const tools = JSON.parse(config);
+      return Array.isArray(tools) ? tools : [];
+    } catch (e) {
+      this.logger.warn(`解析allowedBuiltinTools失败: ${e}`);
+      return [];
     }
   }
 }

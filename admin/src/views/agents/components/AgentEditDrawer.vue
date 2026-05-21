@@ -362,6 +362,10 @@ Final Answer: 最终答案</pre>
             </div>
           </div>
         </el-form-item>
+
+        <el-form-item label="内置工具" prop="allowedBuiltinTools">
+          <BuiltinToolSelector v-model="selectedBuiltinTools" />
+        </el-form-item>
       </div>
 
       <div class="form-section">
@@ -508,6 +512,7 @@ import { Plus, InfoFilled, Warning } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { Agent, AgentForm, WorkspaceAgentConfig, KbRetrievalConfig as KbRetrievalConfigType } from '@/api/agent'
 import { useI18n } from 'vue-i18n'
+import BuiltinToolSelector from './BuiltinToolSelector.vue'
 
 const { t } = useI18n()
 
@@ -525,6 +530,7 @@ interface InternalAgentForm {
   systemPrompt: string
   skills: string
   mcpServers?: string
+  allowedBuiltinTools?: string
   maxSteps: number
   status: boolean
   modelTemplateCode?: string
@@ -575,6 +581,7 @@ const form = ref<InternalAgentForm>({
   systemPrompt: '',
   skills: '[]',
   mcpServers: '[]',
+  allowedBuiltinTools: '[]',
   maxSteps: 5,
   status: true,
   modelTemplateCode: '',
@@ -605,6 +612,19 @@ const form = ref<InternalAgentForm>({
 })
 
 const editingAgent = computed(() => props.agent)
+
+const selectedBuiltinTools = computed({
+  get: () => {
+    try {
+      return form.value.allowedBuiltinTools ? JSON.parse(form.value.allowedBuiltinTools) : []
+    } catch {
+      return []
+    }
+  },
+  set: (value: string[]) => {
+    form.value.allowedBuiltinTools = JSON.stringify(value)
+  }
+})
 
 const skillSelectDialogVisible = ref(false)
 const selectedSkillCodes = ref<string[]>([])

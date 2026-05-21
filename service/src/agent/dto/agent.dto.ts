@@ -120,6 +120,16 @@ export class CreateAgentDto {
   @IsOptional()
   kbRetrievalConfig?: string;
 
+  // ===== 内置工具配置 =====
+
+  @ApiPropertyOptional({
+    description: '允许使用的内置工具列表(JSON数组)',
+    example: '["http_request","kb_search"]',
+  })
+  @IsString()
+  @IsOptional()
+  allowedBuiltinTools?: string;
+
   @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用)' })
   @IsString()
   @IsOptional()
@@ -220,6 +230,16 @@ export class UpdateAgentDto {
   @IsString()
   @IsOptional()
   kbRetrievalConfig?: string;
+
+  // ===== 内置工具配置 =====
+
+  @ApiPropertyOptional({
+    description: '允许使用的内置工具列表(JSON数组)',
+    example: '["http_request","kb_search"]',
+  })
+  @IsString()
+  @IsOptional()
+  allowedBuiltinTools?: string;
 
   @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用)' })
   @IsString()
