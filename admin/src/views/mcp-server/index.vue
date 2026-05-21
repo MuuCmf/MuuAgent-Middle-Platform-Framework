@@ -7,7 +7,7 @@
 
     <div class="help-tip">
       <div class="help-tip-title">💡 MCP Server 说明</div>
-      <p>MCP (Model Control Plane) Server 是提供工具能力的外部服务。配置后，智能体可以调用这些工具完成特定任务。支持 HTTP 协议连接，可配置超时、重试和健康检查。</p>
+      <p>MCP Server 是提供工具能力的外部服务。配置后，智能体可以调用这些工具完成特定任务。支持多种传输协议，可配置超时、重试和健康检查。</p>
     </div>
 
     <div class="card">
@@ -147,22 +147,24 @@
 
     <el-dialog v-model="importDialogVisible" title="导入 MCP Server 配置" width="600px">
       <div class="import-tip">
-        <p>支持 Claude Desktop 配置格式，直接粘贴 JSON 即可导入：</p>
-        <pre class="import-example">{
-      "mcpServers": {
-      "filesystem": {
+        <p>支持标准配置格式，直接粘贴 JSON 即可导入：</p>
+        <pre class="import-example">
+{
+  "mcpServers": {
+    "filesystem": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
-      },
-      "github": {
+    },
+    "github": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": { "GITHUB_TOKEN": "ghp_xxx" }
-      }
-      }
-      }</pre>
+    }
+  }
+}
+    </pre>
       </div>
-      <el-input v-model="importJsonText" type="textarea" :rows="12" placeholder="粘贴 Claude Desktop 配置 JSON..." />
+      <el-input v-model="importJsonText" type="textarea" :rows="12" placeholder="粘贴标准配置 JSON..." />
       <template #footer>
         <el-button @click="importDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="handleImportSubmit" :loading="importLoading">
@@ -464,19 +466,6 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
-}
-
-.help-tip-title {
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--el-color-primary);
-}
-
-.help-tip p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--el-text-color-regular);
-  line-height: 1.6;
 }
 
 .card {

@@ -91,7 +91,7 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('app.operation')" width="230" fixed="right">
+        <el-table-column :label="$t('app.operation')" width="240" fixed="right" align="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="handleView(row)">
               {{ $t('app.detail') }}
