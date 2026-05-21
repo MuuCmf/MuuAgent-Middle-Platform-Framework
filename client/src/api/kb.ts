@@ -1,4 +1,4 @@
-import { httpClient } from './request'
+import { httpClient } from '../utils/request'
 
 /**
  * 知识库信息

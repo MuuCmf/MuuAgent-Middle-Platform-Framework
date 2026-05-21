@@ -7,33 +7,26 @@
 
     <div class="help-tip">
       <div class="help-tip-title">💡 {{ $t('app.managementTip') }}</div>
-      <p>{{ $t('app.managementDesc') }}</p>
+      <ul>
+        <li>{{ $t('app.managementDesc') }}</li>
+      </ul>
     </div>
 
     <div class="card">
       <div class="card-title">
         <el-button type="primary" @click="handleCreate">
-          <el-icon><Plus /></el-icon>
+          <el-icon>
+            <Plus />
+          </el-icon>
           {{ $t('app.createApp') }}
         </el-button>
       </div>
 
       <div class="filter-section">
-        <el-input
-          v-model="searchForm.keyword"
-          :placeholder="$t('app.searchAppNameOrCode')"
-          clearable
-          style="width: 220px"
-          @clear="handleSearch"
-          @keyup.enter="handleSearch"
-        />
-        <el-select
-          v-model="searchForm.status"
-          :placeholder="$t('app.status')"
-          clearable
-          style="width: 100px"
-          @change="handleSearch"
-        >
+        <el-input v-model="searchForm.keyword" :placeholder="$t('app.searchAppNameOrCode')" clearable
+          style="width: 220px" @clear="handleSearch" @keyup.enter="handleSearch" />
+        <el-select v-model="searchForm.status" :placeholder="$t('app.status')" clearable style="width: 100px"
+          @change="handleSearch">
           <el-option :label="$t('app.enabled')" value="true" />
           <el-option :label="$t('app.disabled')" value="false" />
         </el-select>
@@ -41,25 +34,17 @@
         <el-button @click="handleReset">{{ $t('common.reset') }}</el-button>
       </div>
 
-      <el-table
-        v-loading="loading"
-        :data="appList"
-        stripe
-        style="width: 100%"
-      >
+      <el-table v-loading="loading" :data="appList" stripe style="width: 100%">
         <el-table-column prop="name" :label="$t('app.appName')" min-width="150" />
         <el-table-column prop="code" :label="$t('app.appCode')" min-width="120" />
         <el-table-column :label="$t('app.apiKey')" min-width="200">
           <template #default="{ row }">
             <div class="key-cell">
               <span class="key-text">{{ row.apiKey }}</span>
-              <el-button
-                link
-                type="primary"
-                size="small"
-                @click="copyToClipboard(row.apiKey)"
-              >
-                <el-icon><CopyDocument /></el-icon>
+              <el-button link type="primary" size="small" @click="copyToClipboard(row.apiKey)">
+                <el-icon>
+                  <CopyDocument />
+                </el-icon>
               </el-button>
             </div>
           </template>
@@ -110,24 +95,13 @@
       </el-table>
 
       <div class="pagination-section">
-        <el-pagination
-          v-model:current-page="pagination.page"
-          v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="pagination.total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handlePageChange"
-        />
+        <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]" :total="pagination.total" layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange" @current-change="handlePageChange" />
       </div>
     </div>
 
-    <AppEditDrawer
-      v-model="editDrawerVisible"
-      :app="currentApp"
-      :mode="editMode"
-      @success="handleEditSuccess"
-    />
+    <AppEditDrawer v-model="editDrawerVisible" :app="currentApp" :mode="editMode" @success="handleEditSuccess" />
   </div>
 </template>
 

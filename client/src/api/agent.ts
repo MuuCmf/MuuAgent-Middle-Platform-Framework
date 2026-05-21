@@ -1,4 +1,4 @@
-import { httpClient } from './request'
+import { httpClient } from '../utils/request'
 import { API_ENDPOINTS } from './config'
 import { streamRequest } from './stream'
 import type { ReasoningStep } from './reasoning'

@@ -1,9 +1,7 @@
 import axios, { type AxiosInstance } from 'axios'
-import { API_CONFIG } from './config'
+import { API_CONFIG } from '../api/config'
+import { getApiKey, getUid } from './auth'
 
-/**
- * HTTP客户端类
- */
 class HttpClient {
   private instance: AxiosInstance
 
@@ -19,9 +17,6 @@ class HttpClient {
     this.setupInterceptors()
   }
 
-  /**
-   * 设置拦截器
-   */
   private setupInterceptors() {
     this.instance.interceptors.request.use(
       (config) => {
@@ -29,9 +24,10 @@ class HttpClient {
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
         }
-        
-        config.headers['x-api-key'] = import.meta.env.VITE_API_KEY || ''
-        
+
+        config.headers['x-api-key'] = getApiKey()
+        config.headers['x-uid'] = getUid()
+
         return config
       },
       (error) => {
@@ -48,9 +44,6 @@ class HttpClient {
     )
   }
 
-  /**
-   * 获取axios实例
-   */
   getInstance(): AxiosInstance {
     return this.instance
   }

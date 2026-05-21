@@ -1,5 +1,5 @@
 export * from './config'
-export * from './request'
+export * from '../utils/request'
 export * from './stream'
 export * from './ai'
 export * from './conversation'

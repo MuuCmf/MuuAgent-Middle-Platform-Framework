@@ -1,8 +1,23 @@
 <template>
   <router-view />
+  <ApiKeyDialog ref="apiKeyDialogRef" />
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import ApiKeyDialog from './components/ApiKeyDialog.vue'
+import { hasCredentials } from './utils/auth'
+
+/**
+ * API Key 配置弹窗引用
+ */
+const apiKeyDialogRef = ref<InstanceType<typeof ApiKeyDialog>>()
+
+onMounted(() => {
+  if (!hasCredentials()) {
+    apiKeyDialogRef.value?.open()
+  }
+})
 </script>
 
 <style>

@@ -1,6 +1,7 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import type { ReasoningStep } from './reasoning'
 import type { WorkspaceToolCallPayload } from './workspace'
+import { getApiKey, getUid } from '../utils/auth'
 
 /**
  * SSE 流式响应回调接口
@@ -152,7 +153,8 @@ export async function streamRequest(params: StreamRequestParams): Promise<void> 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': import.meta.env.VITE_API_KEY || '',
+        'x-api-key': getApiKey(),
+        'x-uid': getUid(),
       },
       body: JSON.stringify(body),
       async onopen(response) {

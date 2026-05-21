@@ -1,6 +1,7 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source'
-import { httpClient } from './request'
+import { httpClient } from '../utils/request'
 import { API_CONFIG } from './config'
+import { getApiKey, getUid } from '../utils/auth'
 
 /**
  * 安全处理文本，修复 Unicode 字符截断问题
@@ -137,7 +138,8 @@ export const retrievalApi = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_API_KEY || '',
+          'x-api-key': getApiKey(),
+          'x-uid': getUid(),
         },
         body: JSON.stringify(data),
         signal: abortController.signal,

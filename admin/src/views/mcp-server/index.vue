@@ -7,7 +7,9 @@
 
     <div class="help-tip">
       <div class="help-tip-title">💡 MCP Server 说明</div>
-      <p>MCP Server 是提供工具能力的外部服务。配置后，智能体可以调用这些工具完成特定任务。支持多种传输协议，可配置超时、重试和健康检查。</p>
+      <ul>
+        <li>MCP Server 是提供工具能力的外部服务。配置后，智能体可以调用这些工具完成特定任务。支持多种传输协议，可配置超时、重试和健康检查。</li>
+      </ul>
     </div>
 
     <div class="card">

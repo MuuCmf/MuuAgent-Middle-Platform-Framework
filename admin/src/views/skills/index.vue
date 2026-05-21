@@ -6,7 +6,7 @@
     </div>
 
     <div class="help-tip">
-      <div class="help-tip-title">技能管理说明</div>
+      <div class="help-tip-title">💡 技能管理说明</div>
       <ul>
         <li><strong>三层缓存架构</strong>：L1元数据(Redis 30分钟) → L2描述符(内存 5分钟) → L3参考文档(Redis 1小时)</li>
         <li><strong>数据来源</strong>：Database优先查询，文件系统作为回源</li>
