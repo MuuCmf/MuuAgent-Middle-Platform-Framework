@@ -441,14 +441,6 @@ onMounted(() => {
   color: var(--el-text-color-regular);
 }
 
-.help-tip {
-  background: var(--el-color-primary-light-9);
-  border: 1px solid var(--el-color-primary-light-7);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 20px;
-}
-
 .import-tip {
   margin-bottom: 16px;
 

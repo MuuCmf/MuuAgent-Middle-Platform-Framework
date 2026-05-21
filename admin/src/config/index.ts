@@ -36,7 +36,7 @@ export const getAppConfig = (): AppConfig => {
   return {
     apiBaseUrl: import.meta.env.VITE_API_BASE_URL || '' + '/',
     apiKey: import.meta.env.VITE_API_KEY || '',
-    appTitle: import.meta.env.VITE_APP_TITLE || 'MuuAI中台管理系统',
+    appTitle: import.meta.env.VITE_APP_TITLE || 'MuuAgent',
     port: parseInt(import.meta.env.VITE_PORT || '5173', 10)
   }
 }

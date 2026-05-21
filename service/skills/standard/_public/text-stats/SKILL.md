@@ -3,7 +3,7 @@ name: text-stats
 description: Analyze text content — count characters, words, lines, sentences, and estimate reading time. Use when the user asks for text statistics, word count, or document metrics.
 license: MIT
 metadata:
-  author: muuai-platform
+  author: muu-agent
   version: "1.0.0"
   tags: ["text", "analysis", "statistics"]
 allowed-tools: "javascript"

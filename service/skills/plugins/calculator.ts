@@ -43,7 +43,7 @@ export const CalculatorPlugin: SkillPlugin = {
   name: 'calculator',
   version: '1.0.0',
   description: '数学计算插件',
-  author: 'MuuAI Team',
+  author: 'MuuAgent Team',
 
   functions: {
     add: {

@@ -84,7 +84,7 @@ export default {
     loginSuccess: '登录成功',
     loginFailed: '登录失败',
     logoutSuccess: '退出成功',
-    platformTitle: 'MuuAI中台 WEB管理端',
+    platformTitle: 'MuuAgent',
     loginPrompt: '请登录您的账号',
     pleaseInputUsername: '请输入账号',
     pleaseInputPassword: '请输入密码',

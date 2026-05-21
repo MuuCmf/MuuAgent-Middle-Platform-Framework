@@ -3,7 +3,7 @@ name: json-formatter
 description: Format, validate, and prettify JSON data. Use when the user needs to format messy JSON, validate JSON syntax, or convert between compact and pretty JSON.
 license: MIT
 metadata:
-  author: muuai-platform
+  author: muu-agent
   version: "1.0.0"
   tags: ["json", "format", "validate"]
 allowed-tools: "javascript"

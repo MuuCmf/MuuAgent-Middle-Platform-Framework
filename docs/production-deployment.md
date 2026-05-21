@@ -34,7 +34,7 @@
 
 ```bash
 git clone <repository-url>
-cd MuuAI-Middle-Platform
+cd MuuAgent
 ```
 
 ### 2. 配置环境变量
@@ -89,7 +89,7 @@ docker-compose logs -f app
 ### 目录结构
 
 ```
-MuuAI-Middle-Platform/
+MuuAgent/
 ├── docker-compose.yml          # Docker Compose 配置
 ├── Dockerfile                  # 应用 Dockerfile
 ├── service/

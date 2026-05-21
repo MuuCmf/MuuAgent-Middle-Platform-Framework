@@ -1,7 +1,7 @@
 {
-  "name": "muuai-middle-platform-web-admin",
+  "name": "muu-agent-admin",
   "version": "1.0.0",
-  "description": "MuuAI中台前端",
+  "description": "MuuAgent管理后台",
   "type": "module",
   "scripts": {
     "dev": "vite",

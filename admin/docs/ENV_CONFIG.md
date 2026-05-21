@@ -24,7 +24,7 @@ VITE_API_BASE_URL=/api
 VITE_API_KEY=your-api-key-here
 
 # 应用标题
-VITE_APP_TITLE=MuuAI中台管理系统
+VITE_APP_TITLE=MuuAgent管理系统
 
 # 应用端口
 VITE_PORT=5173
@@ -36,7 +36,7 @@ VITE_PORT=5173
 |--------|------|--------|----------|
 | `VITE_API_BASE_URL` | API基础路径 | `/api` | 否 |
 | `VITE_API_KEY` | API密钥 | - | 是 |
-| `VITE_APP_TITLE` | 应用标题 | `MuuAI中台管理系统` | 否 |
+| `VITE_APP_TITLE` | 应用标题 | `MuuAgent管理系统` | 否 |
 | `VITE_PORT` | 应用端口 | `5173` | 否 |
 
 ## 环境文件
@@ -101,7 +101,7 @@ console.log('应用标题:', appConfig.appTitle)
 ```env
 VITE_API_BASE_URL=/api
 VITE_API_KEY=AI-SVC-2026-MCP-KEY-666
-VITE_APP_TITLE=MuuAI中台管理系统（开发）
+VITE_APP_TITLE=MuuAgent管理系统（开发）
 VITE_PORT=5173
 ```
 
@@ -112,7 +112,7 @@ VITE_PORT=5173
 ```env
 VITE_API_BASE_URL=/api
 VITE_API_KEY=your-production-api-key
-VITE_APP_TITLE=MuuAI中台管理系统
+VITE_APP_TITLE=MuuAgent管理系统
 VITE_PORT=5173
 ```
 

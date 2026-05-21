@@ -1,14 +1,22 @@
-# MuuAI-Middle-Platform
+# MuuAgent-Middle-Platform-Framework
 
-企业级 AI 中台服务，提供统一的 AI 模型管理、智能调度、技能系统、智能体、知识库管理、提示词模板、多租户应用管理、意图分类、工作目录等功能。
+不念过往耕耘，不负时代趋势
+不颠覆存量业务，用 MuuAgent 激活系统新生
+
+MuuAgent 是一款融合业务中台架构与 AI 智能体能力的一体化快速开发框架。
+依托多年企业级项目研发经验打造，兼顾业务中台统筹能力与AI Agent 自主智能能力两大核心方向：
+具备完善的中台分层架构、统一接口网关、数据汇聚、权限统一、业务编排等中台基础能力，高效整合多端异构业务系统；
+内置记忆管理、智能规划、逻辑推理、工具调用、自主任务执行等全套 Agent 核心模块，赋能中台拥有主动智能服务能力；
+极致兼容传统存量项目，采用低耦合接入方案，无需重构原有业务逻辑与核心数据，即可快速完成存量项目接入中台、实现智能化升级。
+框架主打易搭建、高兼容、强拓展、智协同，既可从零搭建全新智能业务中台，也可用于传统项目中台化改造与 AI 能力赋能，大幅降低企业业务中台建设与智能化落地成本。
 
 ## 🎯 项目简介
 
-MuuAI-Middle-Platform 是一个基于 NestJS 和 Vue 3 构建的企业级 AI 中台服务，包含管理后台（admin）和用户端对话界面（client），旨在为企业提供统一的 AI 能力接入和管理平台。
+MuuAgent 是一个基于 NestJS 和 Vue 3 构建的企业级中台服务，包含管理后台（admin）和用户端对话界面（client），旨在为企业提供统一的 AI 能力接入和管理平台。
 
 ### 核心价值
 
-- **统一接入**: 一套 API 接入多家 AI 厂商（OpenAI、Azure、阿里云、腾讯云、火山引擎、Deepseek、智谱AI、Ollama 等）
+- **统一接入**: 一套 API 接入多家模型厂商（OpenAI、Azure、阿里云、腾讯云、火山引擎、Deepseek、智谱AI、Ollama 等）
 - **智能调度**: 自动负载均衡、故障转移、限流熔断、模型权重调度、意图分类路由
 - **成本优化**: 模型权重调度，智能选择最优模型，意图分类自动路由
 - **快速集成**: 标准化 API，支持多语言调用
@@ -206,7 +214,7 @@ MuuAI-Middle-Platform 是一个基于 NestJS 和 Vue 3 构建的企业级 AI 中
 ```bash
 # 1. 克隆项目
 git clone <repository-url>
-cd MuuAI-Middle-Platform
+cd MuuAgent
 
 # 2. 配置环境变量
 cp service/.env.example service/.env
@@ -254,7 +262,7 @@ npm run dev          # 启动开发服务器
 ## 📁 项目结构
 
 ```
-MuuAI-Middle-Platform/
+MuuAgent/
 ├── admin/                  # 管理后台（Vue 3）
 │   ├── src/
 │   │   ├── api/           # API 接口层
@@ -608,7 +616,7 @@ npx ts-node prisma/init-templates.ts
 ## 📞 联系方式
 
 - 项目主页: [Muu官网](https://www.muucmf.cc)
-- 问题反馈: [Issue Tracker](https://github.com/muucmf/muuai-middle-platform/issues)
+- 问题反馈: [Issue Tracker](https://github.com/muucmf/muuagent/issues)
 - 邮箱: <59262424@qq.com>
 
 ## 🙏 致谢
@@ -626,4 +634,4 @@ npx ts-node prisma/init-templates.ts
 
 ***
 
-**Made with ❤️ by MuuAI Team**
+**Made with ❤️ by MuuAgent Team**

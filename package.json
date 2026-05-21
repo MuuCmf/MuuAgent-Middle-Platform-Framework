@@ -1,5 +1,5 @@
 {
-  "name": "muu-platform",
+  "name": "muu-agent",
   "version": "1.0.0",
   "scripts": {
     "install:all": "npm install && cd client && npm install && cd ../admin && npm install && cd ../service && npm install",

@@ -43,7 +43,7 @@ export const StringPlugin: SkillPlugin = {
   name: 'string',
   version: '1.0.0',
   description: '字符串处理插件',
-  author: 'MuuAI Team',
+  author: 'MuuAgent Team',
 
   functions: {
     reverse: {

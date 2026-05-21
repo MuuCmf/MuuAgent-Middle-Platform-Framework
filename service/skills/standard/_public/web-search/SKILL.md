@@ -3,7 +3,7 @@ name: web-search
 description: 联网搜索技能，使用智谱AI Web Search MCP Server 进行实时网络搜索，获取最新信息。适用于需要查询实时新闻、天气、股票、技术文档等场景。
 license: MIT
 metadata:
-  author: muuai-platform
+  author: muu-agent
   version: "1.0.0"
   tags: ["search", "web", "internet", "realtime", "mcp"]
 requires:

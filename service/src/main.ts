@@ -79,7 +79,7 @@ async function bootstrap(): Promise<void> {
     // 根路径返回欢迎信息
     if (req.path === "/") {
       return res.json({
-        name: "MuuAI-Middle-Platform",
+        name: "MuuAgent",
         description:
           "AI模型管理 + 智能调度 + Skill + Agent + RAG知识库 智能中台",
         version: "1.0.0",
@@ -108,7 +108,7 @@ async function bootstrap(): Promise<void> {
 
   // 配置Swagger API文档
   const config = new DocumentBuilder()
-    .setTitle("MuuAI-Middle-Platform")
+    .setTitle("MuuAgent")
     .setDescription("AI模型管理 + 智能调度 + Skill + Agent 智能中台")
     .setVersion("1.0.0")
     .addBearerAuth()
@@ -121,7 +121,7 @@ async function bootstrap(): Promise<void> {
   const port = process.env.PORT || 3000;
   await app.listen(port);
 
-  console.log(`🚀 MuuAI-Middle-Platform 运行在: http://localhost:${port}`);
+  console.log(`🚀 MuuAgent 运行在: http://localhost:${port}`);
   console.log(`📚 API文档地址: http://localhost:${port}/api-docs`);
 }
 

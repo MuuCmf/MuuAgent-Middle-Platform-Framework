@@ -84,7 +84,7 @@ export default {
     loginSuccess: 'Login successful',
     loginFailed: 'Login failed',
     logoutSuccess: 'Logout successful',
-    platformTitle: 'MuuAI Platform Web Admin',
+    platformTitle: 'MuuAgent Admin',
     loginPrompt: 'Please login to your account',
     pleaseInputUsername: 'Please enter username',
     pleaseInputPassword: 'Please enter password',

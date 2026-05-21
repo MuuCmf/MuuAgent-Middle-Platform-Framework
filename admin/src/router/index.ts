@@ -144,7 +144,7 @@ router.beforeEach((to, _from, next) => {
   // 设置页面标题
   if (to.meta.title) {
     const title = i18n.global.t(to.meta.title as string);
-    document.title = `${title} - MuuAI`;
+    document.title = `${title} - MuuAgent`;
   }
 
   if (to.meta.requiresAuth !== false && !token) {

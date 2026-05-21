@@ -223,7 +223,7 @@ export class McpClientService implements OnModuleDestroy {
 
     const client = new Client(
       {
-        name: 'muuai-mcp-client',
+        name: 'muu-agent-mcp-client',
         version: '1.0.0',
       },
       {

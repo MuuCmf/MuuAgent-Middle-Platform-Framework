@@ -3,7 +3,7 @@ name: file-info
 description: Extract metadata and summary information from file paths or file content. Use when the user asks about file type, size, extension, MIME type detection, or wants quick file analysis.
 license: MIT
 metadata:
-  author: muuai-platform
+  author: muu-agent
   version: "1.0.0"
   tags: ["file", "metadata", "analysis"]
 allowed-tools: "javascript"

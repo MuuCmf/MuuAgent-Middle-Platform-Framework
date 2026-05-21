@@ -11,7 +11,7 @@
 
 ```bash
 git clone <repository-url>
-cd MuuAI-Middle-Platform
+cd MuuAgent
 ```
 
 ### 步骤 2: 修改配置

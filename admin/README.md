@@ -1,4 +1,4 @@
-# AI-MCP 管理中台前端
+# MuuAgent 管理后台
 
 这是一个基于 Vue 3 + TypeScript + Vite + Element Plus 构建的现代化前端项目。
 
@@ -7,7 +7,7 @@
 本前端项目与 `service` 后端项目平级放置，采用前后端分离架构：
 
 ```
-MuuAI-Middle-Platform/
+MuuAgent/
 ├── admin/          # 前端项目（本目录）
 ├── service/        # 后端项目（NestJS）
 └── docs/           # 项目文档
