@@ -149,11 +149,11 @@
         <el-col :span="12">
           <div class="metric-card" v-loading="usageLoading">
             <div class="metric-card__header">
-              <span class="metric-card__title">{{ $t('app.monthToken') }}</span>
+              <span class="metric-card__title">{{ $t('app.todayToken') }}</span>
               <el-icon class="metric-card__icon" :size="18"><Coin /></el-icon>
             </div>
             <div class="metric-card__body">
-              <span class="metric-card__value">{{ usage?.monthTokens || 0 }}</span>
+              <span class="metric-card__value">{{ usage?.todayTokens || 0 }}</span>
               <span class="metric-card__limit">/ {{ usage?.tokenLimit || 0 }}</span>
             </div>
             <el-progress
@@ -310,10 +310,10 @@ const dailyUsagePercent = computed(() => {
   return Math.min(100, Math.round((usage.value.todayCalls / usage.value.dailyLimit) * 100))
 })
 
-/** Token 月用量占月配额百分比 */
+/** Token 日用量占日配额百分比 */
 const tokenUsagePercent = computed(() => {
   if (!usage.value || !usage.value.tokenLimit) return 0
-  return Math.min(100, Math.round((usage.value.monthTokens / usage.value.tokenLimit) * 100))
+  return Math.min(100, Math.round((usage.value.todayTokens / usage.value.tokenLimit) * 100))
 })
 
 /** 今日输入 Token 占比百分比（用于比例条） */

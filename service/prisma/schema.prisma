@@ -285,7 +285,7 @@ model AppTenant {
   // ===== 配额限制 =====
   qpsLimit      Int      @default(100) @map("qps_limit") /// QPS限制
   dailyLimit    Int      @default(10000) @map("daily_limit") /// 每日调用限制
-  tokenLimit    Int      @default(1000000) @map("token_limit") /// Token配额（月）
+  tokenLimit    Int      @default(1000000) @map("token_limit") /// Token配额（日）
 
   // ===== OAuth 配置 =====
   enableOAuth   Boolean  @default(false) @map("enable_oauth") /// 是否启用OAuth

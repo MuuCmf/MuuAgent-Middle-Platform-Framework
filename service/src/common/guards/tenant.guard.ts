@@ -69,6 +69,14 @@ export class TenantGuard implements CanActivate {
       );
     }
 
+    const todayTokens = usage?.tokenCount || 0;
+    if (tenant.tokenLimit > 0 && todayTokens >= tenant.tokenLimit) {
+      throw new HttpException(
+        `已超过每日Token配额 (${tenant.tokenLimit})`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     (request as any).tenant = tenant;
     (request as any).appCode = tenant.code;
     (request as any).isSuperAdmin = false;
