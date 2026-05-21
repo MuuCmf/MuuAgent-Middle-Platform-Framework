@@ -4,7 +4,6 @@ import { IsolationService, IsolationContext } from '../common/services/base-isol
 import { ContextBuilder } from './execution/context-builder';
 import { ReasoningEngineFactory } from '../reasoning/reasoning.factory';
 import { ReasoningMode } from '../reasoning/types';
-import { ConversationService } from '../conversation/conversation.service';
 import {
   CreateAgentDto,
   UpdateAgentDto,
@@ -22,7 +21,6 @@ export class AgentService {
     private isolationService: IsolationService,
     private contextBuilder: ContextBuilder,
     private reasoningEngineFactory: ReasoningEngineFactory,
-    private conversationService: ConversationService,
   ) {}
 
   /**
@@ -190,7 +188,7 @@ export class AgentService {
     let agent;
     try {
       agent = await this.prisma.agent.findFirst({ where });
-      this.logger.log(`[AgentStream] 查询结果: ${JSON.stringify(agent)}`);
+      //this.logger.log(`[AgentStream] 查询结果: ${JSON.stringify(agent)}`);
     } catch (e) {
       this.logger.error(`[AgentStream] 查询智能体失败: ${e}`);
       agent = await this.prisma.agent.findFirst({

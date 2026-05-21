@@ -89,7 +89,19 @@ export class ContextBuilder {
     );
 
     let autoRetrievalResult;
-    let finalSystemPrompt = this.systemPrompt.build(agent, []);
+    const enableToolRetrieval = this.hybridRetrievalService.shouldEnableToolRetrieval(kbRetrievalConfig);
+    const toolConfig = this.hybridRetrievalService.getToolRetrievalConfig(kbRetrievalConfig);
+
+    const tools = await this.toolAssembly.buildTools(
+      resolution,
+      resolvedKbCodes,
+      agent,
+      !!dto.workspace,
+      enableToolRetrieval,
+      toolConfig,
+    );
+
+    let finalSystemPrompt = this.systemPrompt.build(agent, tools);
 
     if (shouldAutoRetrieve && resolvedKbCodes.length > 0) {
       this.logger.debug(`执行自动检索...`);
@@ -107,18 +119,6 @@ export class ContextBuilder {
         this.logger.debug(`系统提示词已增强, 检索到${autoRetrievalResult.chunks.length}条内容`);
       }
     }
-
-    const enableToolRetrieval = this.hybridRetrievalService.shouldEnableToolRetrieval(kbRetrievalConfig);
-    const toolConfig = this.hybridRetrievalService.getToolRetrievalConfig(kbRetrievalConfig);
-
-    const tools = await this.toolAssembly.buildTools(
-      resolution,
-      resolvedKbCodes,
-      agent,
-      !!dto.workspace,
-      enableToolRetrieval,
-      toolConfig,
-    );
 
     const mergedParams = await this.modelParams.build(agent);
 

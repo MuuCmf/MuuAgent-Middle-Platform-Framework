@@ -208,59 +208,6 @@ export function stripApiPath(url: string): string {
 }
 
 /**
- * 解析模型 API 的完整端点 URL（给 axios 使用）
- *
- * 支持两种 endpoint 格式：
- *   - 完整路径: https://api.deepseek.com/chat/completions → 直接使用
- *   - Base URL:  https://api.deepseek.com/v1 → 自动补全路径
- *
- * 如果 endpoint 为空，根据 provider 生成默认值
- */
-export function resolveEndpoint(
-  model: { provider?: string; endpoint?: string; code?: string },
-  type: 'chat' | 'embedding' | 'image' = 'chat',
-): string {
-  const provider = resolveProvider(model.provider, model.code || '');
-  const config = getProviderConfig(provider);
-  const endpoint = model.endpoint;
-
-  // Ollama 特殊处理
-  if (provider === 'ollama') {
-    const base = config.normalizeBaseUrl
-      ? config.normalizeBaseUrl(endpoint || config.defaultBaseUrl)
-      : endpoint || config.defaultBaseUrl;
-    return base + config.paths[type];
-  }
-
-  // Azure 特殊处理：路径含 {model} 占位符
-  if (provider === 'azure') {
-    const base = endpoint || config.defaultBaseUrl;
-    const path = config.paths[type].replace('{model}', model.code || 'gpt-4');
-    return base + path;
-  }
-
-  // endpoint 为空：使用默认 base + 路径
-  if (!endpoint) {
-    return config.defaultBaseUrl + config.paths[type];
-  }
-
-  // endpoint 已包含 API 路径 → 直接使用
-  if (
-    endpoint.includes('/chat/completions') ||
-    endpoint.includes('/embeddings') ||
-    endpoint.includes('/images/generations') ||
-    endpoint.includes('/api/chat') ||
-    endpoint.includes('/api/embeddings')
-  ) {
-    return endpoint;
-  }
-
-  // endpoint 是 base URL → 补全路径
-  const base = endpoint.replace(/\/+$/, '');
-  return base + config.paths[type];
-}
-
-/**
  * 解析 Base URL（给 AI SDK 使用）
  * 总是返回不含 API 路径的 base URL
  */

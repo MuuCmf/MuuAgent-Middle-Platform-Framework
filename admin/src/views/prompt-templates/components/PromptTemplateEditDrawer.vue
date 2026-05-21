@@ -108,7 +108,7 @@
                     </ul>
 
                     <p class="help-title" style="margin-top: 12px;">{{ $t('prompt.content.exampleTitle') }}</p>
-                    <pre class="example-code" v-pre>{{ exampleContent }}</pre>
+                    <pre class="example-code" v-pre>{{ $t('prompt.content.exampleContent') }}</pre>
 
                     <p class="help-tip">{{ $t('prompt.content.variableConfigTip') }}</p>
                   </div>
@@ -270,8 +270,6 @@ const rules: FormRules = {
 }
 
 const defaultTags = ['推荐', '常用', '示例', '生产环境', '测试环境']
-
-const exampleContent = computed(() => t('prompt.content.exampleContent'))
 
 const metadataStr = computed({
   get: () => {

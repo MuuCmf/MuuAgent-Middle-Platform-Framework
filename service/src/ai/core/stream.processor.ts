@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { StreamChunk, ToolCall } from '../interfaces/executor.interface';
 
 /**
  * 流式处理器配置接口
