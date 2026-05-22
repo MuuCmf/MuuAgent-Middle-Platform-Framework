@@ -43,7 +43,7 @@ export class AgentService {
       customModelParams: dto.customModelParams,
       reasoningMode: dto.reasoningMode || 'NONE',
       reasoningPrompt: dto.reasoningPrompt,
-      kbRetrievalMode: 'tool',
+      kbRetrievalConfig: dto.kbRetrievalConfig || JSON.stringify({ strategy: 'TOOL' }),
       workspaceConfig: dto.workspaceConfig ? JSON.stringify(dto.workspaceConfig) : null,
       appCode: dto.appCode,
       isPublic: dto.isPublic ?? false,
