@@ -183,13 +183,13 @@ export class SkillKbService {
           query,
           topN: actualTopN,
           similarityThresh: actualSimilarityThresh,
-        });
+        }, isolationContext);
 
-        if (retrievalResult && retrievalResult.items && retrievalResult.items.length > 0) {
+        if (retrievalResult && retrievalResult.list && retrievalResult.list.length > 0) {
           results.push({
             kbCode: kb.kbCode,
             kbName: kb.kbName,
-            chunks: retrievalResult.items.map((item: any) => ({
+            chunks: retrievalResult.list.map((item: any) => ({
               content: item.content,
               score: item.score,
               docName: item.docName,

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import { aiApi, agentApi, conversationApi, type Message, type Conversation } from '../api'
 import type { ReasoningStep } from '../api/reasoning'
 import type { WorkspaceToolCallPayload } from '../api/workspace'
@@ -66,6 +67,9 @@ export const useChatStore = defineStore('chat', () => {
   const agents = ref<any[]>([])
   const debugMode = ref(false)
   const enableThinkingMode = ref(false)
+
+  /** 当前流式请求的 AbortController，用于取消对话 */
+  const abortController = ref<AbortController | null>(null)
 
   // 工作目录状态
   const workspace = useWorkspace()
@@ -146,6 +150,10 @@ export const useChatStore = defineStore('chat', () => {
     messages.value.push(userMessage)
     isLoading.value = true
 
+    /** 创建新的 AbortController 用于取消当前请求 */
+    const controller = new AbortController()
+    abortController.value = controller
+
     const assistantMessage: Message = { 
       role: 'assistant', 
       content: '',
@@ -157,10 +165,8 @@ export const useChatStore = defineStore('chat', () => {
 
     try {
       if (selectedType.value === 'model') {
-        // 构建消息数组
         const messagesToSend: Message[] = []
         
-        // 如果启用思考模式，添加系统消息
         if (enableThinkingMode.value) {
           messagesToSend.push({
             role: 'system',
@@ -168,7 +174,6 @@ export const useChatStore = defineStore('chat', () => {
           })
         }
         
-        // 添加用户消息
         messagesToSend.push(userMessage)
         
         await new Promise<void>((resolve, reject) => {
@@ -179,7 +184,6 @@ export const useChatStore = defineStore('chat', () => {
               conversationId: currentConversationId.value,
             },
             (chunk: string) => {
-              // 使用通用处理函数处理思考内容
               processThinkingContent(messages.value[assistantIndex], chunk)
             },
             (error: Error) => {
@@ -188,12 +192,14 @@ export const useChatStore = defineStore('chat', () => {
             },
             () => {
               isLoading.value = false
+              abortController.value = null
               loadConversations()
               resolve()
             },
             (conversationId: string) => {
               currentConversationId.value = conversationId
-            }
+            },
+            controller.signal,
           )
         })
       } else {
@@ -225,6 +231,7 @@ export const useChatStore = defineStore('chat', () => {
             },
             () => {
               isLoading.value = false
+              abortController.value = null
               loadConversations()
               resolve()
             },
@@ -240,16 +247,60 @@ export const useChatStore = defineStore('chat', () => {
             (payload: WorkspaceToolCallPayload) => {
               if (!workspace.dirHandle.value) return
               const executor = new WorkspaceExecutor(workspace.dirHandle.value)
-              executor.execute(payload).then(result => {
-                if (currentConversationId.value) {
-                  submitWorkspaceResult(currentConversationId.value, result)
-                }
-              })
-            }
+
+              /**
+               * 需要用户确认的危险操作列表
+               */
+              const DANGEROUS_OPERATIONS: Record<string, (args: Record<string, unknown>) => string> = {
+                delete_file: (args) => `确定要删除文件 "${args.path}" 吗？此操作不可撤销。`,
+              }
+
+              const confirmMessage = DANGEROUS_OPERATIONS[payload.toolName]?.(payload.args)
+              if (confirmMessage) {
+                ElMessageBox.confirm(confirmMessage, '操作确认', {
+                  confirmButtonText: '确定',
+                  cancelButtonText: '取消',
+                  type: 'warning',
+                }).then(() => {
+                  executor.execute(payload).then(result => {
+                    if (currentConversationId.value) {
+                      submitWorkspaceResult(currentConversationId.value, result)
+                    }
+                  })
+                }).catch(() => {
+                  if (currentConversationId.value) {
+                    submitWorkspaceResult(currentConversationId.value, {
+                      callId: payload.callId,
+                      success: false,
+                      error: '用户取消了操作',
+                    })
+                  }
+                })
+              } else {
+                executor.execute(payload).then(result => {
+                  if (currentConversationId.value) {
+                    submitWorkspaceResult(currentConversationId.value, result)
+                  }
+                })
+              }
+            },
+            controller.signal,
           )
         })
       }
     } catch (error) {
+      isLoading.value = false
+      abortController.value = null
+    }
+  }
+
+  /**
+   * 停止当前生成
+   */
+  const stopGeneration = () => {
+    if (abortController.value) {
+      abortController.value.abort()
+      abortController.value = null
       isLoading.value = false
     }
   }
@@ -386,6 +437,7 @@ export const useChatStore = defineStore('chat', () => {
     workspaceRefreshTreeSummary: workspace.refreshTreeSummary,
     // 方法
     sendMessage,
+    stopGeneration,
     clearMessages,
     newConversation,
     switchConversation,

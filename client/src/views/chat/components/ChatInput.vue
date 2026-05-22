@@ -68,8 +68,16 @@
         />
         <div class="input-actions">
           <el-button
+            v-if="isLoading"
+            type="danger"
+            @click="emit('stop')"
+            circle
+          >
+            <el-icon><VideoPause /></el-icon>
+          </el-button>
+          <el-button
+            v-else
             type="primary"
-            :loading="isLoading"
             :disabled="!inputText.trim()"
             @click="handleSend"
             circle
@@ -84,7 +92,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { Promotion, Check, Cpu, User } from '@element-plus/icons-vue'
+import { Promotion, Check, Cpu, User, VideoPause } from '@element-plus/icons-vue'
 import WorkspaceIndicator from '@/views/chat/components/WorkspaceIndicator.vue'
 
 interface Agent {
@@ -112,6 +120,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   send: [content: string]
+  stop: []
   'update:mode': [value: 'chat' | 'rag' | 'retrieval']
   'mode-change': [value: 'chat' | 'rag' | 'retrieval']
   'agent-change': [agentId: string]
@@ -411,6 +420,11 @@ const getPlaceholder = (): string => {
   display: flex;
   gap: 8px;
   align-items: center;
+  .el-button {
+    padding: 0;
+    width: 44px;
+    height: 44px;
+  }
 }
 
 :deep(.el-textarea__inner) {
@@ -445,5 +459,20 @@ const getPlaceholder = (): string => {
 :deep(.el-button--primary:disabled) {
   background: #dcdfe6;
   box-shadow: none;
+}
+
+:deep(.el-button--danger) {
+  background: linear-gradient(135deg, #f56c6c 0%, #e6474b 100%);
+  border: none;
+  width: 44px;
+  height: 44px;
+  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.4);
+  transition: all 0.3s ease;
+}
+
+:deep(.el-button--danger:hover) {
+  background: linear-gradient(135deg, #e6474b 0%, #f56c6c 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(245, 108, 108, 0.5);
 }
 </style>

@@ -64,6 +64,7 @@ export const agentApi = {
     onConversationId?: (conversationId: string) => void,
     onReasoningStep?: (step: ReasoningStep) => void,
     onWorkspaceToolCall?: (payload: WorkspaceToolCallPayload) => void,
+    signal?: AbortSignal,
   ): Promise<void> {
     const baseURL = window.location.origin
     const url = `${baseURL}${API_ENDPOINTS.agents}/chat/stream`
@@ -79,6 +80,7 @@ export const agentApi = {
         onReasoningStep,
         onWorkspaceToolCall,
       },
+      signal,
     })
   },
 }

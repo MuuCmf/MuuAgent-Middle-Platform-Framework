@@ -54,7 +54,7 @@ export class KbService {
       embeddingModel: embeddingModel,
       chunkSize: dto.chunkSize || 500,
       chunkOverlap: dto.chunkOverlap || 100,
-      similarityThresh: dto.similarityThresh || 0.7,
+      similarityThresh: dto.similarityThresh || 0.5,
       topN: dto.topN || 5,
       retrievalMethod: retrievalMethod,
       description: dto.description,

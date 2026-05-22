@@ -44,7 +44,8 @@ export const aiApi = {
     onMessage: (content: string) => void,
     onError: (error: Error) => void,
     onComplete: () => void,
-    onConversationId?: (conversationId: string) => void
+    onConversationId?: (conversationId: string) => void,
+    signal?: AbortSignal,
   ): Promise<void> {
     const baseURL = window.location.origin || ''
     const url = `${baseURL}${API_ENDPOINTS.chat}`
@@ -63,6 +64,7 @@ export const aiApi = {
         onComplete,
         onConversationId,
       },
+      signal,
     })
   },
 

@@ -127,7 +127,7 @@ export class RetrievalService {
 
     const { list, total, method } = await this.cacheService.getOrSet(
       cacheKey,
-      () => this.doRetrieval(dto.kbId, dto.query, topN, similarityThresh, retrievalMethod),
+      () => this.doRetrieval(dto.kbId, dto.query, topN, similarityThresh, retrievalMethod, kb.embeddingModel),
       3600000,
     );
 
@@ -154,6 +154,7 @@ export class RetrievalService {
 
   /**
    * 执行实际检索（不含缓存逻辑），供 getOrSet 的 factory 调用
+   * 支持三种模式：bm25纯检索、vector纯检索、hybrid混合检索（RRF融合）
    */
   private async doRetrieval(
     kbId: string,
@@ -161,6 +162,7 @@ export class RetrievalService {
     topN: number,
     similarityThresh: number,
     retrievalMethod: string,
+    embeddingModel?: string,
   ): Promise<{ list: RetrievalItem[]; total: number; method: string }> {
     if (retrievalMethod === 'bm25') {
       console.log(`[Retrieval] 使用配置的BM25检索模式`);
@@ -168,69 +170,187 @@ export class RetrievalService {
       return { list: bm25Results, total: bm25Results.length, method: 'bm25' };
     }
 
-    // 向量检索 + BM25 fallback
+    // 向量检索
     let vectorResults: any[] = [];
     let vectorSearchFailed = false;
-    let isRandomVector = false;
 
     try {
-      const queryVector = await this.generateEmbedding(query);
-      isRandomVector = this.isRandomVector(queryVector);
+      const queryVector = await this.generateEmbedding(query, embeddingModel);
       vectorResults = await this.vectorService.searchSimilar(queryVector, topN * 2, kbId);
     } catch (error: any) {
-      console.error(`向量检索失败: ${error.message}`);
+      console.error(`[Retrieval] 向量检索失败: ${error.message}`);
       vectorSearchFailed = true;
     }
 
-    if (vectorSearchFailed || isRandomVector || vectorResults.length === 0) {
-      console.log(`[Retrieval] 使用BM25检索作为fallback (vectorSearchFailed=${vectorSearchFailed}, isRandomVector=${isRandomVector})`);
+    // 向量检索完全失败时降级到BM25
+    if (vectorSearchFailed) {
+      console.log(`[Retrieval] 向量检索失败，降级到BM25检索`);
       const bm25Results = await this.bm25Search(kbId, query, topN, similarityThresh);
       return { list: bm25Results, total: bm25Results.length, method: 'bm25' };
     }
 
-    const sortedVectorResults = [...vectorResults].sort((a, b) => b.score - a.score);
-    const topVectorResults = sortedVectorResults.slice(0, topN);
-
-    let filteredResults: any[];
-    if (topVectorResults.length > 0 && topVectorResults[0].score < 0.5) {
-      console.log(`[Retrieval] 向量相似度较低(${topVectorResults[0].score.toFixed(4)}), 使用BM25作为fallback`);
-      filteredResults = [];
-    } else {
-      filteredResults = topVectorResults.filter((result) => result.score >= similarityThresh);
+    // 同时执行BM25检索，用于混合融合
+    let bm25Results: any[] = [];
+    try {
+      bm25Results = await this.bm25Search(kbId, query, topN * 2, 0);
+    } catch (error: any) {
+      console.warn(`[Retrieval] BM25检索失败: ${error.message}`);
     }
 
-    console.log(`[Retrieval] Qdrant返回原始结果数: ${vectorResults.length}`);
-    console.log(`[Retrieval] 阈值过滤后结果数: ${filteredResults.length}`);
+    // 混合检索：RRF融合向量检索和BM25结果
+    if (vectorResults.length > 0 && bm25Results.length > 0) {
+      console.log(`[Retrieval] 执行混合检索融合: 向量结果=${vectorResults.length}, BM25结果=${bm25Results.length}`);
+      const fusedResults = await this.reciprocalRankFusion(vectorResults, bm25Results, topN, similarityThresh, kbId);
+      if (fusedResults.length > 0) {
+        return { list: fusedResults, total: fusedResults.length, method: 'hybrid' };
+      }
+    }
+
+    // 纯向量检索结果处理
     if (vectorResults.length > 0) {
-      console.log(`[Retrieval] 最高相似度: ${vectorResults[0]?.score?.toFixed(4)}, 最低相似度: ${vectorResults[vectorResults.length - 1]?.score?.toFixed(4)}`);
+      const sortedVectorResults = [...vectorResults].sort((a, b) => b.score - a.score);
+      const topVectorResults = sortedVectorResults.slice(0, topN);
+      const filteredResults = topVectorResults.filter((result) => result.score >= similarityThresh);
+
+      console.log(`[Retrieval] 向量检索原始结果数: ${vectorResults.length}, 阈值过滤后: ${filteredResults.length}`);
+      if (vectorResults.length > 0) {
+        console.log(`[Retrieval] 最高相似度: ${vectorResults[0]?.score?.toFixed(4)}, 最低相似度: ${vectorResults[vectorResults.length - 1]?.score?.toFixed(4)}`);
+      }
+
+      if (filteredResults.length > 0) {
+        const results: RetrievalItem[] = await Promise.all(
+          filteredResults.map(async (result) => {
+            const doc = await this.prisma.kbDocument.findUnique({
+              where: { id: result.payload.doc_id },
+              include: { file: { select: { fileName: true } } },
+            });
+            return {
+              chunkId: result.id,
+              content: result.payload.content,
+              score: result.score,
+              docId: result.payload.doc_id,
+              docName: doc?.file?.fileName || result.payload.doc_name || '未知文档',
+              chunkIndex: result.payload.chunk_index,
+            };
+          }),
+        );
+
+        results.sort((a, b) => b.score - a.score);
+        const finalResults = results.slice(0, topN);
+        return { list: finalResults, total: finalResults.length, method: 'vector' };
+      }
     }
 
-    if (filteredResults.length === 0) {
-      console.log(`[Retrieval] 向量检索结果为空，使用BM25作为fallback`);
-      const bm25Results = await this.bm25Search(kbId, query, topN, similarityThresh);
-      return { list: bm25Results, total: bm25Results.length, method: 'bm25' };
+    // 向量结果为空，降级到BM25
+    console.log(`[Retrieval] 向量检索结果为空，降级到BM25检索`);
+    if (bm25Results.length === 0) {
+      bm25Results = await this.bm25Search(kbId, query, topN, similarityThresh);
+    }
+    const filteredBm25 = bm25Results
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topN);
+    return { list: filteredBm25, total: filteredBm25.length, method: 'bm25' };
+  }
+
+  /**
+   * RRF (Reciprocal Rank Fusion) 融合算法
+   * 将向量检索和BM25检索的结果按排名进行融合，综合两者优势
+   * @param vectorResults 向量检索结果
+   * @param bm25Results BM25检索结果
+   * @param topN 返回数量
+   * @param similarityThresh 相似度阈值（用于过滤向量低分结果）
+   * @param kbId 知识库ID
+   * @returns {Promise<RetrievalItem[]>} 融合后的检索结果
+   */
+  private async reciprocalRankFusion(
+    vectorResults: any[],
+    bm25Results: any[],
+    topN: number,
+    similarityThresh: number,
+    kbId: string,
+  ): Promise<RetrievalItem[]> {
+    const k = 60;
+    const vectorWeight = 0.7;
+    const bm25Weight = 0.3;
+    const scoreMap = new Map<string, { rrfScore: number; vectorScore?: number; bm25Score?: number; payload?: any; id: string }>();
+
+    // 向量检索排名得分
+    const sortedVector = [...vectorResults].sort((a, b) => b.score - a.score);
+    for (let i = 0; i < sortedVector.length; i++) {
+      const result = sortedVector[i];
+      const chunkId = String(result.id);
+      const rrfScore = vectorWeight / (k + i + 1);
+      scoreMap.set(chunkId, {
+        rrfScore,
+        vectorScore: result.score,
+        id: chunkId,
+        payload: result.payload,
+      });
     }
 
+    // BM25排名得分
+    const sortedBm25 = [...bm25Results].sort((a, b) => b.score - a.score);
+    for (let i = 0; i < sortedBm25.length; i++) {
+      const result = sortedBm25[i];
+      const chunkId = String(result.id || result.chunkId);
+      const rrfScore = bm25Weight / (k + i + 1);
+      const existing = scoreMap.get(chunkId);
+      if (existing) {
+        existing.rrfScore += rrfScore;
+        existing.bm25Score = result.score;
+      } else {
+        scoreMap.set(chunkId, {
+          rrfScore,
+          bm25Score: result.score,
+          id: chunkId,
+          payload: {
+            content: result.content,
+            doc_id: result.docId,
+            doc_name: result.docName,
+            chunk_index: result.chunkIndex,
+          },
+        });
+      }
+    }
+
+    // 按RRF分数排序
+    const fusedEntries = Array.from(scoreMap.values())
+      .sort((a, b) => b.rrfScore - a.rrfScore)
+      .slice(0, topN);
+
+    // 转换为统一结果格式
     const results: RetrievalItem[] = await Promise.all(
-      filteredResults.map(async (result) => {
+      fusedEntries.map(async (entry) => {
         const doc = await this.prisma.kbDocument.findUnique({
-          where: { id: result.payload.doc_id },
+          where: { id: entry.payload?.doc_id },
           include: { file: { select: { fileName: true } } },
         });
+
+        // 使用向量分数作为主分数，无向量分数时使用归一化的BM25分数
+        let finalScore = entry.vectorScore || 0;
+        if (!entry.vectorScore && entry.bm25Score) {
+          finalScore = Math.min(entry.bm25Score / 10, 1.0);
+        }
+
         return {
-          chunkId: result.id,
-          content: result.payload.content,
-          score: result.score,
-          docId: result.payload.doc_id,
-          docName: doc?.file?.fileName || result.payload.doc_name || '未知文档',
-          chunkIndex: result.payload.chunk_index,
+          chunkId: entry.id,
+          content: entry.payload?.content || '',
+          score: finalScore,
+          docId: entry.payload?.doc_id,
+          docName: doc?.file?.fileName || entry.payload?.doc_name || '未知文档',
+          chunkIndex: entry.payload?.chunk_index,
         };
       }),
     );
 
-    results.sort((a, b) => b.score - a.score);
-    const finalResults = results.slice(0, topN);
-    return { list: finalResults, total: finalResults.length, method: 'vector' };
+    // 过滤低于阈值的结果（仅对有向量分数的结果应用阈值）
+    const filteredResults = results.filter(r => {
+      if (r.score > 0) return r.score >= similarityThresh;
+      return true;
+    });
+
+    console.log(`[Retrieval] RRF融合结果: 总条目=${fusedEntries.length}, 阈值过滤后=${filteredResults.length}`);
+    return filteredResults;
   }
 
   /**
@@ -338,26 +458,7 @@ export class RetrievalService {
       console.log(`[RAG] 使用配置的BM25检索模式`);
       retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
     } else {
-      let queryVector: number[];
-      let isRandomVector = false;
-      
-      try {
-        queryVector = await this.generateEmbedding(dto.query);
-        isRandomVector = this.isRandomVector(queryVector);
-        
-        retrievalResults = await this.vectorService.searchSimilar(
-          queryVector,
-          topN * 2,
-          dto.kbId,
-        );
-        if (isRandomVector || retrievalResults.length === 0) {
-          console.log(`[RAG] 向量检索降级到BM25`);
-          retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
-        }
-      } catch (error: any) {
-        console.error(`[RAG] 向量检索失败: ${error.message}`);
-        retrievalResults = await this.bm25Search(dto.kbId, dto.query, topN * 2, similarityThresh);
-      }
+      retrievalResults = await this.executeRetrieval(dto.kbId, dto.query, topN, similarityThresh, retrievalMethod, kb.embeddingModel);
     }
 
     let filteredResults: any[];
@@ -529,7 +630,7 @@ export class RetrievalService {
     emitter.emit(StreamEvents.conversationId(conversation.id as any));
 
     // 执行检索
-    const retrievalResults = await this.executeRetrieval(dto.kbId, dto.query, topN, similarityThresh, kb.retrievalMethod || 'vector');
+    const retrievalResults = await this.executeRetrieval(dto.kbId, dto.query, topN, similarityThresh, kb.retrievalMethod || 'vector', kb.embeddingModel);
 
     let filteredResults: any[];
     if ((kb.retrievalMethod || 'vector') === 'bm25') {
@@ -654,6 +755,7 @@ export class RetrievalService {
 
   /**
    * 执行检索（抽取公共方法）
+   * 支持混合检索：向量+BM25融合
    */
   private async executeRetrieval(
     kbId: string,
@@ -661,30 +763,110 @@ export class RetrievalService {
     topN: number,
     similarityThresh: number,
     retrievalMethod: string,
+    embeddingModel?: string,
   ): Promise<any[]> {
     if (retrievalMethod === 'bm25') {
       return this.bm25Search(kbId, query, topN * 2, similarityThresh);
     }
 
-    let queryVector: number[];
-    let isRandomVector = false;
-    
+    // 向量检索
+    let vectorResults: any[] = [];
+    let vectorSearchFailed = false;
+
     try {
-      queryVector = await this.generateEmbedding(query);
-      isRandomVector = this.isRandomVector(queryVector);
-      
-      const results = await this.vectorService.searchSimilar(
-        queryVector,
-        topN * 2,
-        kbId,
-      );
-      if (isRandomVector || results.length === 0) {
-        return this.bm25Search(kbId, query, topN * 2, similarityThresh);
-      }
-      return results;
-    } catch (error) {
+      const queryVector = await this.generateEmbedding(query, embeddingModel);
+      vectorResults = await this.vectorService.searchSimilar(queryVector, topN * 2, kbId);
+    } catch (error: any) {
+      console.error(`[executeRetrieval] 向量检索失败: ${error.message}`);
+      vectorSearchFailed = true;
+    }
+
+    // 向量检索完全失败时降级到BM25
+    if (vectorSearchFailed) {
       return this.bm25Search(kbId, query, topN * 2, similarityThresh);
     }
+
+    // 同时执行BM25检索
+    let bm25Results: any[] = [];
+    try {
+      bm25Results = await this.bm25Search(kbId, query, topN * 2, 0);
+    } catch (error: any) {
+      console.warn(`[executeRetrieval] BM25检索失败: ${error.message}`);
+    }
+
+    // 混合检索：两者都有结果时进行RRF融合
+    if (vectorResults.length > 0 && bm25Results.length > 0) {
+      return this.executeRRFFusion(vectorResults, bm25Results, topN * 2);
+    }
+
+    // 只有向量结果
+    if (vectorResults.length > 0) {
+      return vectorResults;
+    }
+
+    // 只有BM25结果或两者都为空
+    if (bm25Results.length === 0) {
+      bm25Results = await this.bm25Search(kbId, query, topN * 2, similarityThresh);
+    }
+    return bm25Results;
+  }
+
+  /**
+   * 执行RRF融合（简化版，用于executeRetrieval）
+   * @param vectorResults 向量检索结果
+   * @param bm25Results BM25检索结果
+   * @param topN 返回数量
+   * @returns {Promise<any[]>} 融合后的结果
+   */
+  private async executeRRFFusion(
+    vectorResults: any[],
+    bm25Results: any[],
+    topN: number,
+  ): Promise<any[]> {
+    const k = 60;
+    const vectorWeight = 0.7;
+    const bm25Weight = 0.3;
+    const scoreMap = new Map<string, { rrfScore: number; data: any }>();
+
+    const sortedVector = [...vectorResults].sort((a, b) => b.score - a.score);
+    for (let i = 0; i < sortedVector.length; i++) {
+      const result = sortedVector[i];
+      const chunkId = String(result.id);
+      scoreMap.set(chunkId, {
+        rrfScore: vectorWeight / (k + i + 1),
+        data: result,
+      });
+    }
+
+    const sortedBm25 = [...bm25Results].sort((a, b) => b.score - a.score);
+    for (let i = 0; i < sortedBm25.length; i++) {
+      const result = sortedBm25[i];
+      const chunkId = String(result.id || result.chunkId);
+      const rrfScore = bm25Weight / (k + i + 1);
+      const existing = scoreMap.get(chunkId);
+      if (existing) {
+        existing.rrfScore += rrfScore;
+      } else {
+        scoreMap.set(chunkId, {
+          rrfScore,
+          data: {
+            id: result.id,
+            score: result.score,
+            payload: {
+              content: result.content,
+              doc_id: result.docId,
+              doc_name: result.docName,
+              chunk_index: result.chunkIndex,
+            },
+          },
+        });
+      }
+    }
+
+    return Array.from(scoreMap.values())
+      .sort((a, b) => b.rrfScore - a.rrfScore)
+      .slice(0, topN)
+      .map(entry => entry.data);
   }
 
   /**
@@ -700,17 +882,18 @@ export class RetrievalService {
   /**
    * 生成文本向量
    * @param text 文本内容
+   * @param modelCode 指定模型编码（可选，使用知识库配置的向量模型）
    * @returns {Promise<number[]>} 向量数组
+   * @throws 当Embedding服务不可用时抛出错误，由上层降级到BM25检索
    */
-  private async generateEmbedding(text: string): Promise<number[]> {
+  private async generateEmbedding(text: string, modelCode?: string): Promise<number[]> {
     try {
       const result = await this.aiService.embedding(
-        { input: text },
+        { input: text, modelCode },
         '127.0.0.1',
         'retrieval-service',
       );
 
-      // 处理不同格式的embedding响应
       const data = result.data as any;
       if (data && Array.isArray(data)) {
         return data as number[];
@@ -719,13 +902,11 @@ export class RetrievalService {
       } else if (data && Array.isArray(data) && data[0] && data[0].embedding) {
         return data[0].embedding as number[];
       } else {
-        // 如果没有可用的embedding服务，返回随机向量（用于测试）
-        console.warn('Embedding服务不可用，使用随机向量');
-        return Array(1536).fill(0).map(() => Math.random() * 2 - 1);
+        throw new Error('Embedding服务返回数据格式异常，无法解析向量');
       }
     } catch (error: any) {
-      console.warn('Embedding生成失败，使用随机向量:', error.message);
-      return Array(1536).fill(0).map(() => Math.random() * 2 - 1);
+      console.error(`[Retrieval] Embedding生成失败: ${error.message}`);
+      throw error;
     }
   }
 
@@ -827,37 +1008,6 @@ ${context}
       console.error('LLM调用失败:', error.message);
       return '抱歉，回答生成失败，请稍后重试。';
     }
-  }
-
-  /**
-   * 判断向量是否为随机向量
-   * @param vector 向量数组
-   * @returns {boolean} 是否为随机向量
-   */
-  private isRandomVector(vector: number[]): boolean {
-    if (!vector || vector.length === 0) return true;
-    
-    const firstValue = vector[0];
-    const isRandomLike = Math.abs(firstValue) < 1 && firstValue > -1 && firstValue !== 0;
-    
-    if (!isRandomLike) return false;
-    
-    const variance = this.calculateVectorVariance(vector);
-    const mean = vector.reduce((sum, v) => sum + v, 0) / vector.length;
-    const expectedVarianceForRandom = 1 / 3;
-    
-    return Math.abs(variance - expectedVarianceForRandom) < 0.1;
-  }
-
-  /**
-   * 计算向量方差
-   * @param vector 向量数组
-   * @returns {number} 方差
-   */
-  private calculateVectorVariance(vector: number[]): number {
-    const mean = vector.reduce((sum, v) => sum + v, 0) / vector.length;
-    const squaredDiffs = vector.map(v => Math.pow(v - mean, 2));
-    return squaredDiffs.reduce((sum, v) => sum + v, 0) / vector.length;
   }
 
   /**

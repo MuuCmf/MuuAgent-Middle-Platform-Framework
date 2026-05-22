@@ -29,6 +29,8 @@ export interface StreamRequestParams {
   url: string
   body: any
   callbacks: StreamCallbacks
+  /** 可选的 AbortSignal，用于取消流式请求 */
+  signal?: AbortSignal
 }
 
 /**
@@ -133,20 +135,23 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
  * @param params 请求参数
  */
 export async function streamRequest(params: StreamRequestParams): Promise<void> {
-  const { url, body, callbacks } = params
+  const { url, body, callbacks, signal } = params
 
   console.log('[SSE] Initiating stream request to:', url)
 
   // 防止 onComplete 被调用多次
   const state: StreamState = { completed: false }
 
-  // 安全的完成回调
+  /** 安全的完成回调 */
   const safeComplete = () => {
     if (!state.completed) {
       state.completed = true
       callbacks.onComplete()
     }
   }
+
+  /** 检查是否已被用户取消 */
+  const isAborted = () => signal?.aborted ?? false
 
   try {
     await fetchEventSource(url, {
@@ -157,6 +162,7 @@ export async function streamRequest(params: StreamRequestParams): Promise<void> 
         'x-uid': getUid(),
       },
       body: JSON.stringify(body),
+      signal,
       async onopen(response) {
         if (response.ok && response.headers.get('content-type')?.includes('text/event-stream')) {
           return
@@ -166,20 +172,32 @@ export async function streamRequest(params: StreamRequestParams): Promise<void> 
         throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
       },
       onmessage(msg) {
+        if (isAborted()) return
         if (msg.data) {
           handleSSEData(msg.data, callbacks, state)
         }
       },
       onerror(err) {
+        if (isAborted()) {
+          console.log('[SSE] Stream aborted by user')
+          safeComplete()
+          return
+        }
         console.error('[SSE] Stream error:', err)
         callbacks.onError(err instanceof Error ? err : new Error('Unknown error'))
         throw err
       },
       onclose() {
+        if (isAborted()) return
         safeComplete()
       },
     })
-  } catch (error) {
+  } catch (error: any) {
+    if (isAborted() || error?.name === 'AbortError') {
+      console.log('[SSE] Request aborted by user')
+      safeComplete()
+      return
+    }
     console.error('[SSE] Request failed:', error)
     callbacks.onError(error instanceof Error ? error : new Error('Unknown error'))
   }

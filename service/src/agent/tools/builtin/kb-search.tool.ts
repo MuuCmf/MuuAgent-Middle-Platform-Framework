@@ -3,7 +3,6 @@ import { RetrievalService } from '../../../retrieval/retrieval.service';
 import { BaseTool } from '../abstract/base-tool';
 import { ToolDefinition, ToolExecutionContext } from '../abstract/tool.interface';
 import { AgentTool } from '../decorators';
-import { AgentSkills } from '../../types/agent-skills';
 import { SkillKbService } from '../../../skill/skill-kb.service';
 import { IsolationContext } from '../../../common/services/base-isolated.service';
 
@@ -84,8 +83,7 @@ export class KbSearchTool extends BaseTool {
     );
 
     const isolationCtx = this.getIsolationContext(context);
-    const agentSkills = AgentSkills.fromJson(context.agent.skills);
-    const availableKbCodes = await this.skillKbService.resolveKbCodes(agentSkills, isolationCtx);
+    const availableKbCodes = await this.skillKbService.getAgentKbCodes(String(context.agent.id), isolationCtx);
 
     const targetKbCodes =
       kbCodes && kbCodes.length > 0
@@ -119,7 +117,7 @@ export class KbSearchTool extends BaseTool {
             query,
             topN,
             similarityThresh,
-          });
+          }, isolationCtx);
 
           if (retrievalResult && retrievalResult.list && retrievalResult.list.length > 0) {
             results.push({

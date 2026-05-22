@@ -212,10 +212,11 @@ export class DocumentProcessor {
   }
 
   /**
-   * 切分文本
+   * 切分文本（按语义边界切分）
+   * 优先按段落、句子边界切分，避免语义截断
    * @param text 文本内容
-   * @param chunkSize 切片大小
-   * @param chunkOverlap 切片重叠
+   * @param chunkSize 切片大小（字符数）
+   * @param chunkOverlap 切片重叠（字符数）
    * @returns {string[]} 切片数组
    */
   private splitText(
@@ -223,23 +224,128 @@ export class DocumentProcessor {
     chunkSize: number,
     chunkOverlap: number,
   ): string[] {
-    const chunks: string[] = [];
-    let start = 0;
+    if (!text || text.trim().length === 0) return [];
 
-    while (start < text.length) {
-      const end = start + chunkSize;
-      const chunk = text.slice(start, end);
-      chunks.push(chunk.trim());
-      start = end - chunkOverlap;
+    const paragraphs = this.splitIntoParagraphs(text);
+    const chunks: string[] = [];
+    let currentChunk = '';
+
+    for (const para of paragraphs) {
+      if (para.trim().length === 0) continue;
+
+      if (currentChunk.length + para.length + 2 > chunkSize && currentChunk.length > 0) {
+        chunks.push(currentChunk.trim());
+        const overlapText = this.getOverlapText(currentChunk, chunkOverlap);
+        currentChunk = overlapText ? overlapText + '\n\n' + para : para;
+      } else {
+        currentChunk = currentChunk ? currentChunk + '\n\n' + para : para;
+      }
+    }
+
+    if (currentChunk.trim().length > 0) {
+      chunks.push(currentChunk.trim());
+    }
+
+    if (chunks.length === 0 && text.trim().length > 0) {
+      chunks.push(text.trim());
     }
 
     return chunks.filter((chunk) => chunk.length > 0);
   }
 
   /**
+   * 将文本拆分为段落
+   * 优先按双换行（段落分隔），其次按单换行（行分隔），最后按句子分隔
+   * @param text 原始文本
+   * @returns {string[]} 段落数组
+   */
+  private splitIntoParagraphs(text: string): string[] {
+    const doubleNewlineParts = text.split(/\n{2,}/);
+    const paragraphs: string[] = [];
+
+    for (const part of doubleNewlineParts) {
+      if (part.trim().length === 0) continue;
+
+      if (part.length <= 800) {
+        paragraphs.push(part.trim());
+      } else {
+        const subParagraphs = this.splitLongText(part);
+        paragraphs.push(...subParagraphs);
+      }
+    }
+
+    return paragraphs;
+  }
+
+  /**
+   * 将长文本按句子边界拆分
+   * 支持中英文句子分隔符
+   * @param text 长文本
+   * @returns {string[]} 子段落数组
+   */
+  private splitLongText(text: string): string[] {
+    const sentenceEndings = /([。！？.!?\n])/g;
+    const sentences: string[] = [];
+    let remaining = text;
+
+    while (remaining.length > 0) {
+      const match = sentenceEndings.exec(remaining);
+      if (!match) {
+        sentences.push(remaining);
+        break;
+      }
+
+      const endIdx = match.index + match[0].length;
+      const sentence = remaining.slice(0, endIdx);
+      sentences.push(sentence);
+      remaining = remaining.slice(endIdx);
+      sentenceEndings.lastIndex = 0;
+    }
+
+    const result: string[] = [];
+    let current = '';
+
+    for (const sentence of sentences) {
+      if (current.length + sentence.length > 800 && current.length > 0) {
+        result.push(current.trim());
+        current = sentence;
+      } else {
+        current += sentence;
+      }
+    }
+
+    if (current.trim().length > 0) {
+      result.push(current.trim());
+    }
+
+    return result;
+  }
+
+  /**
+   * 获取文本末尾的重叠部分
+   * 按句子边界截取，确保重叠部分语义完整
+   * @param text 原始文本
+   * @param overlapSize 重叠字符数
+   * @returns {string} 重叠文本
+   */
+  private getOverlapText(text: string, overlapSize: number): string {
+    if (overlapSize <= 0 || text.length <= overlapSize) return text;
+
+    const tail = text.slice(-overlapSize);
+    const sentenceBreak = tail.search(/[。！？.!?\n]/);
+
+    if (sentenceBreak >= 0 && sentenceBreak < tail.length - 1) {
+      return tail.slice(sentenceBreak + 1).trim();
+    }
+
+    return tail;
+  }
+
+  /**
    * 生成文本向量
    * @param text 文本内容
    * @returns {Promise<number[]>} 向量数组
+   * @throws 当Embedding服务不可用时抛出错误，文档处理将标记为失败
    */
   private async generateEmbedding(text: string): Promise<number[]> {
     try {
@@ -257,12 +363,11 @@ export class DocumentProcessor {
       } else if (data && Array.isArray(data) && data[0] && data[0].embedding) {
         return data[0].embedding as number[];
       } else {
-        this.logger.warn('Embedding服务不可用，使用随机向量');
-        return Array(1536).fill(0).map(() => Math.random() * 2 - 1);
+        throw new Error('Embedding服务返回数据格式异常，无法解析向量');
       }
     } catch (error: any) {
-      this.logger.warn('Embedding生成失败，使用随机向量:', error.message);
-      return Array(1536).fill(0).map(() => Math.random() * 2 - 1);
+      this.logger.error(`Embedding生成失败: ${error.message}`);
+      throw error;
     }
   }
 }

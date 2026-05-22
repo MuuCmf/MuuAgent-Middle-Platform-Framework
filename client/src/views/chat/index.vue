@@ -160,6 +160,7 @@
         :workspace-is-active="chatStore.workspaceIsActive"
         :workspace-dir-name="chatStore.workspaceDirName"
         @send="handleSendMessage"
+        @stop="chatStore.stopGeneration"
         @mode-change="handleModeChangeFromInput"
         @agent-change="handleAgentChange"
         @workspace-select="handleWorkspaceSelect"

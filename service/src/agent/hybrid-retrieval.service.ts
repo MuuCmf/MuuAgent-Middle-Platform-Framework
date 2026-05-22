@@ -134,7 +134,7 @@ export class HybridRetrievalService {
     this.logger.log(`[AutoRetrieval] 开始自动检索, agentId=${agentId}`);
 
     try {
-      const kbCodes = await this.skillKbService.resolveKbCodes(agentSkills, isolationContext);
+      const kbCodes = await this.skillKbService.getAgentKbCodes(agentId, isolationContext);
 
       if (kbCodes.length === 0) {
         this.logger.log(`[AutoRetrieval] Agent未绑定知识库, 跳过检索`);

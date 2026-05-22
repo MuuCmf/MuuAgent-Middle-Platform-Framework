@@ -77,7 +77,7 @@ export class ContextBuilder {
     const resolution = await this.skillResolution.resolve(agentSkills, isoCtx, agentMcpServers);
     this.logger.debug(`Resolved MCP Servers: ${JSON.stringify(resolution.resolvedMcpServers)}`);
 
-    const resolvedKbCodes = await this.skillKbService.resolveKbCodes(agentSkills, isoCtx);
+    const resolvedKbCodes = await this.skillKbService.getAgentKbCodes(String(agent.id), isoCtx);
 
     const kbRetrievalConfig = this.hybridRetrievalService.parseConfig(agent);
     this.logger.debug(`知识库检索策略: ${kbRetrievalConfig.strategy}`);

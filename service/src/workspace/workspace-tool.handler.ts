@@ -38,12 +38,14 @@ export class WorkspaceToolHandler {
 
     this.logger.log(`[Workspace] 下发工具调用: ${toolName}, callId: ${callId}`);
 
-    // 等待客户端回传结果（超时 30s）
+    /** 危险操作可能需要用户确认，超时时间设为 60s */
+    const timeout = ['delete_file'].includes(toolName) ? 60000 : 30000;
+
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingCalls.delete(callId);
         reject(new Error(`工作目录操作超时: ${toolName}`));
-      }, 30000);
+      }, timeout);
 
       this.pendingCalls.set(callId, { resolve, reject, timer });
     });

@@ -442,7 +442,7 @@ model KbInfo {
   embeddingModel  String   @default("doubao-embedding-v1") @map("embedding_model") /// 向量模型
   chunkSize       Int      @default(500) @map("chunk_size") /// 切片大小
   chunkOverlap    Int      @default(100) @map("chunk_overlap") /// 切片重叠
-  similarityThresh Float   @default(0.7) @map("similarity_thresh") /// 相似度阈值
+  similarityThresh Float   @default(0.5) @map("similarity_thresh") /// 相似度阈值
   topN            Int      @default(5) /// 召回条数
   retrievalMethod String   @default("vector") @map("retrieval_method") /// 检索方式: vector=向量检索, bm25=BM25检索
 
