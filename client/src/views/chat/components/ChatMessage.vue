@@ -19,6 +19,7 @@
         :content="message.content"
         :thinking-content="message.thinkingContent"
         :sources="message.sources"
+        :is-streaming="isStreaming"
       />
       
       <!-- 检索结果显示 -->

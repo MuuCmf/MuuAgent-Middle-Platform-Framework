@@ -6,8 +6,20 @@
       <div class="thinking-content">{{ thinkingContent }}</div>
     </div>
     
-    <!-- 回答内容 -->
-    <div class="rag-content">{{ content }}</div>
+    <!-- 回答内容：使用 Markdown 组件渲染 -->
+    <div class="rag-content">
+      <Markdown
+        :content="processedContent"
+        :mode="isStreaming ? 'streaming' : 'static'"
+        :controls="markdownControls"
+        :codeOptions="codeOptions"
+        :shikiOptions="shikiOptions"
+      />
+      <!-- 流式输出时的打字光标 -->
+      <div v-if="isStreaming" class="typing-cursor">
+        <span class="cursor"></span>
+      </div>
+    </div>
     
     <!-- 参考来源 -->
     <div v-if="sources && sources.length > 0" class="rag-sources">
@@ -22,13 +34,65 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { RetrievalItem } from '../../../api/retrieval'
+import { Markdown } from 'vue-stream-markdown'
+import type { ControlsConfig, CodeOptions, ShikiOptions } from 'vue-stream-markdown'
+import { preprocessMarkdown } from '../../../utils/markdown'
+import 'vue-stream-markdown/index.css'
+import '../../../styles/markdown.css'
 
-defineProps<{
+const props = withDefaults(defineProps<{
+  /** 回答内容 */
   content: string
+  /** 思考过程内容 */
   thinkingContent?: string
+  /** 参考来源列表 */
   sources?: RetrievalItem[]
-}>()
+  /** 是否正在流式输出 */
+  isStreaming?: boolean
+}>(), {
+  isStreaming: false
+})
+
+/**
+ * 预处理后的内容，修正 markdown 格式问题
+ */
+const processedContent = computed(() => {
+  return preprocessMarkdown(props.content)
+})
+
+/** Markdown 控件配置 */
+const markdownControls: ControlsConfig = {
+  code: {
+    copy: true,
+    download: true,
+    fullscreen: false,
+    collapse: true
+  },
+  table: {
+    copy: true,
+    download: true,
+    fullscreen: true
+  },
+  image: {
+    preview: true,
+    download: true
+  }
+}
+
+/** 代码块渲染选项 */
+const codeOptions: CodeOptions = {
+  lineNumbers: true,
+  languageIcon: true,
+  languageName: true,
+  maxHeight: '500px'
+}
+
+/** Shiki 主题配置 */
+const shikiOptions: ShikiOptions = {
+  theme: ['github-light', 'github-dark']
+}
 </script>
 
 <style scoped lang="scss">
@@ -63,9 +127,33 @@ defineProps<{
 
 /* 回答内容样式 */
 .rag-content {
-  white-space: pre-wrap;
   line-height: 1.8;
   color: #333;
+}
+
+/* 打字光标样式 */
+.typing-cursor {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.typing-cursor .cursor {
+  display: inline-block;
+  width: 2px;
+  height: 18px;
+  background: #6366f1;
+  animation: blink 1s infinite;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
 }
 
 /* 参考来源样式 */
