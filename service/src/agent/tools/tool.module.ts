@@ -20,7 +20,7 @@ import {
   RegisteredToolDispatcher,
   McpToolDispatcher,
   KbSearchDispatcher,
-  WorkspaceToolDispatcher,
+  ClientToolDispatcher,
   BuiltinFunctionDispatcher,
 } from './dispatchers';
 
@@ -28,7 +28,7 @@ import {
 import { SkillModule } from '../../skill/skill.module';
 import { McpServerModule } from '../../mcp-server/mcp-server.module';
 import { RetrievalModule } from '../../retrieval/retrieval.module';
-import { WorkspaceModule } from '../../workspace/workspace.module';
+import { ClientToolModule } from '../../client-tool';
 
 /**
  * 工具模块
@@ -49,7 +49,7 @@ import { WorkspaceModule } from '../../workspace/workspace.module';
  */
 @Global()
 @Module({
-  imports: [DiscoveryModule, ConfigModule, SkillModule, McpServerModule, RetrievalModule, WorkspaceModule],
+  imports: [DiscoveryModule, ConfigModule, SkillModule, McpServerModule, RetrievalModule, ClientToolModule],
   controllers: [ToolController],
   providers: [
     // 核心服务
@@ -72,7 +72,7 @@ import { WorkspaceModule } from '../../workspace/workspace.module';
     RegisteredToolDispatcher,
     McpToolDispatcher,
     KbSearchDispatcher,
-    WorkspaceToolDispatcher,
+    ClientToolDispatcher,
     BuiltinFunctionDispatcher,
     {
       provide: TOOL_DISPATCHERS,
@@ -80,14 +80,14 @@ import { WorkspaceModule } from '../../workspace/workspace.module';
         registered: RegisteredToolDispatcher,
         mcp: McpToolDispatcher,
         kb: KbSearchDispatcher,
-        workspace: WorkspaceToolDispatcher,
+        clientTool: ClientToolDispatcher,
         builtin: BuiltinFunctionDispatcher,
-      ) => [registered, mcp, kb, workspace, builtin],
+      ) => [registered, mcp, kb, clientTool, builtin],
       inject: [
         RegisteredToolDispatcher,
         McpToolDispatcher,
         KbSearchDispatcher,
-        WorkspaceToolDispatcher,
+        ClientToolDispatcher,
         BuiltinFunctionDispatcher,
       ],
     },

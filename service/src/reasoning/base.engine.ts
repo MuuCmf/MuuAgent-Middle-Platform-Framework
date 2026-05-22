@@ -8,8 +8,7 @@ import { ToolExecutor } from '../agent/tools/tool-executor';
 import { ToolNameSanitizer } from '../ai/providers/tool-name-sanitizer';
 import { parseAiError, getErrorCode } from '../ai/utils/error-parser';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { WORKSPACE_TOOL_NAMES } from '../workspace/workspace-tool.definitions';
-import { WorkspaceToolHandler } from '../workspace/workspace-tool.handler';
+import { ClientToolRegistry, ClientToolEntry } from '../client-tool';
 import type { ModelMessage } from 'ai';
 
 /**
@@ -55,7 +54,7 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     protected readonly conversationService: ConversationService,
     protected readonly toolExecutor: ToolExecutor,
     protected readonly prisma: PrismaService,
-    protected readonly workspaceToolHandler: WorkspaceToolHandler,
+    protected readonly clientToolRegistry: ClientToolRegistry,
   ) {
     this.logger = new Logger(this.constructor.name);
   }
@@ -323,8 +322,9 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     try {
       let result: unknown;
 
-      if (WORKSPACE_TOOL_NAMES.has(toolName)) {
-        result = await this.executeWorkspaceTool(toolCall, emitter);
+      const entry = this.clientToolRegistry.getEntryByToolName(toolName);
+      if (entry) {
+        result = await this.executeClientTool(entry, toolCall, emitter);
       } else {
         result = await this.executeNormalTool(toolCall, context);
       }
@@ -353,17 +353,23 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     }
   }
 
-  private async executeWorkspaceTool(toolCall: ToolCallInfo, emitter?: StreamEmitter): Promise<unknown> {
+  /**
+   * 执行客户端工具（通用）
+   * @param entry 注册条目
+   * @param toolCall 工具调用信息
+   * @param emitter SSE发射器
+   */
+  private async executeClientTool(entry: ClientToolEntry, toolCall: ToolCallInfo, emitter?: StreamEmitter): Promise<unknown> {
     if (!emitter) {
-      throw new Error('Workspace工具需要流式发射器');
+      throw new Error(`客户端工具 ${toolCall.name} 需要流式发射器`);
     }
-    const workspaceResult = await this.workspaceToolHandler.dispatchToClient(
+    const clientResult = await entry.handler.dispatchToClient(
       emitter, toolCall.name, toolCall.args,
     );
-    if (!workspaceResult.success) {
-      throw new Error(workspaceResult.error || '客户端执行失败');
+    if (!clientResult.success) {
+      throw new Error(clientResult.error || '客户端执行失败');
     }
-    return workspaceResult.result;
+    return clientResult.result;
   }
 
   private async executeNormalTool(toolCall: ToolCallInfo, context: ExecutionContext): Promise<unknown> {

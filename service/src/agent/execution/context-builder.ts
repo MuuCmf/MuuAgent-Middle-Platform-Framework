@@ -96,7 +96,6 @@ export class ContextBuilder {
       resolution,
       resolvedKbCodes,
       agent,
-      !!dto.workspace,
       enableToolRetrieval,
       toolConfig,
     );

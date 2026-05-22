@@ -27,9 +27,10 @@ import { RetrievalModule } from '../retrieval/retrieval.module';
 import { AiModule } from '../ai/ai.module';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { CacheModule } from '../cache/cache.module';
+import { ClientToolModule } from '../client-tool';
 
 @Module({
-  imports: [RetrievalModule, AiModule, PrismaModule, CacheModule],
+  imports: [RetrievalModule, AiModule, PrismaModule, CacheModule, ClientToolModule],
   controllers: [SkillController],
   providers: [
     BuiltinExecutor,

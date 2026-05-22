@@ -17,10 +17,10 @@ export enum StreamEventType {
   DONE = 'done',
   /** 错误事件 */
   ERROR = 'error',
-  /** 工作目录工具调用事件 - 下发给客户端执行 */
-  WORKSPACE_TOOL_CALL = 'workspace_tool_call',
-  /** 工作目录工具结果事件 - 客户端回传 */
-  WORKSPACE_TOOL_RESULT = 'workspace_tool_result',
+  /** 客户端工具调用事件（通用） */
+  CLIENT_TOOL_CALL = 'client_tool_call',
+  /** 客户端工具结果事件（通用） */
+  CLIENT_TOOL_RESULT = 'client_tool_result',
 }
 
 /**
@@ -45,8 +45,8 @@ export type StreamEventPayload =
   | SourcesPayload
   | DonePayload
   | ErrorPayload
-  | WorkspaceToolCallPayload
-  | WorkspaceToolResultPayload;
+  | ClientToolCallPayload
+  | ClientToolResultPayload;
 
 /** 会话ID载荷 */
 export interface ConversationIdPayload {
@@ -99,18 +99,29 @@ export interface ErrorPayload {
   code?: string;
 }
 
-/** 工作目录工具调用载荷 - 服务端下发给客户端 */
-export interface WorkspaceToolCallPayload {
+/** 客户端工具调用载荷（通用） - 服务端下发给客户端 */
+export interface ClientToolCallPayload {
+  /** 模块名称，如 'workspace', 'browser' */
+  moduleName: string;
+  /** 调用ID */
   callId: string;
+  /** 工具名称 */
   toolName: string;
+  /** 工具参数 */
   args: Record<string, unknown>;
 }
 
-/** 工作目录工具结果载荷 - 客户端回传给服务端 */
-export interface WorkspaceToolResultPayload {
+/** 客户端工具结果载荷（通用） - 客户端回传给服务端 */
+export interface ClientToolResultPayload {
+  /** 模块名称 */
+  moduleName: string;
+  /** 调用ID */
   callId: string;
+  /** 是否成功 */
   success: boolean;
+  /** 执行结果 */
   result?: unknown;
+  /** 错误信息 */
   error?: string;
 }
 
@@ -153,13 +164,13 @@ export const StreamEvents = {
     payload: { message, code },
   }),
 
-  workspaceToolCall: (callId: string, toolName: string, args: Record<string, unknown>): StreamEvent => ({
-    type: StreamEventType.WORKSPACE_TOOL_CALL,
-    payload: { callId, toolName, args },
+  clientToolCall: (moduleName: string, callId: string, toolName: string, args: Record<string, unknown>): StreamEvent => ({
+    type: StreamEventType.CLIENT_TOOL_CALL,
+    payload: { moduleName, callId, toolName, args },
   }),
 
-  workspaceToolResult: (callId: string, success: boolean, result?: unknown, error?: string): StreamEvent => ({
-    type: StreamEventType.WORKSPACE_TOOL_RESULT,
-    payload: { callId, success, result, error },
+  clientToolResult: (moduleName: string, callId: string, success: boolean, result?: unknown, error?: string): StreamEvent => ({
+    type: StreamEventType.CLIENT_TOOL_RESULT,
+    payload: { moduleName, callId, success, result, error },
   }),
 };

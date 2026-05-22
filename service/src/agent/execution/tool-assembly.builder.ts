@@ -4,7 +4,7 @@ import { McpServerService } from '../../mcp-server/mcp-server.service';
 import { McpServerRegistry } from '../../mcp-server/mcp-server-registry';
 import { KbSearchTool } from '../tools/builtin/kb-search.tool';
 import { ToolDefinition } from '../tools/abstract/tool.interface';
-import { WORKSPACE_TOOLS } from '../../workspace/workspace-tool.definitions';
+import { ClientToolRegistry } from '../../client-tool';
 import { SkillResolutionResult } from './skill-resolution.builder';
 
 @Injectable()
@@ -16,13 +16,13 @@ export class ToolAssemblyBuilder {
     private readonly mcpServerService: McpServerService,
     private readonly mcpServerRegistry: McpServerRegistry,
     private readonly kbSearchTool: KbSearchTool,
+    private readonly clientToolRegistry: ClientToolRegistry,
   ) {}
 
   async buildTools(
     resolution: SkillResolutionResult,
     resolvedKbCodes: string[],
     agent: { id: any; workspaceConfig?: any; allowedBuiltinTools?: string },
-    workspaceEnabled: boolean,
     enableKbTool: boolean = true,
     kbToolConfig?: {
       defaultTopN: number;
@@ -116,16 +116,9 @@ export class ToolAssemblyBuilder {
       }
     }
 
-    // Workspace 工具
-    if (workspaceEnabled && agent.workspaceConfig) {
-      const config = typeof agent.workspaceConfig === 'string'
-        ? JSON.parse(agent.workspaceConfig)
-        : agent.workspaceConfig;
-
-      if (config.enabled) {
-        tools.push(...WORKSPACE_TOOLS);
-      }
-    }
+    // 客户端工具（通过注册表获取）
+    const clientTools = this.clientToolRegistry.getToolsForAgent(agent);
+    tools.push(...clientTools);
 
     return tools;
   }

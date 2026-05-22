@@ -1,12 +1,10 @@
 import { httpClient } from '../utils/request'
 import { API_ENDPOINTS } from './config'
 
-export interface WorkspaceToolCallPayload {
-  callId: string
-  toolName: string
-  args: Record<string, unknown>
-}
-
+/**
+ * 工作区工具结果载荷
+ * 用于将客户端执行结果回传给服务端
+ */
 export interface WorkspaceToolResultPayload {
   callId: string
   success: boolean

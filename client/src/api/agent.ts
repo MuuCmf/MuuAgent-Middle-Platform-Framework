@@ -1,8 +1,7 @@
 import { httpClient } from '../utils/request'
 import { API_ENDPOINTS } from './config'
-import { streamRequest } from './stream'
+import { streamRequest, type ClientToolCallPayload } from './stream'
 import type { ReasoningStep } from './reasoning'
-import type { WorkspaceToolCallPayload } from './workspace'
 
 /**
  * 智能体接口
@@ -63,7 +62,7 @@ export const agentApi = {
     onComplete: () => void,
     onConversationId?: (conversationId: string) => void,
     onReasoningStep?: (step: ReasoningStep) => void,
-    onWorkspaceToolCall?: (payload: WorkspaceToolCallPayload) => void,
+    onClientToolCall?: (payload: ClientToolCallPayload) => void,
     signal?: AbortSignal,
   ): Promise<void> {
     const baseURL = window.location.origin
@@ -78,7 +77,7 @@ export const agentApi = {
         onComplete,
         onConversationId,
         onReasoningStep,
-        onWorkspaceToolCall,
+        onClientToolCall,
       },
       signal,
     })

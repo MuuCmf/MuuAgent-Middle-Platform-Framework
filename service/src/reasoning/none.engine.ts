@@ -6,7 +6,7 @@ import { AiService } from '../ai/ai.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ToolExecutor } from '../agent/tools/tool-executor';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { WorkspaceToolHandler } from '../workspace/workspace-tool.handler';
+import { ClientToolRegistry } from '../client-tool';
 import { BaseReasoningEngine, ToolCallInfo } from './base.engine';
 import type { ModelMessage } from 'ai';
 
@@ -21,9 +21,9 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
     conversationService: ConversationService,
     toolExecutor: ToolExecutor,
     prisma: PrismaService,
-    workspaceToolHandler: WorkspaceToolHandler,
+    clientToolRegistry: ClientToolRegistry,
   ) {
-    super(aiService, conversationService, toolExecutor, prisma, workspaceToolHandler);
+    super(aiService, conversationService, toolExecutor, prisma, clientToolRegistry);
   }
 
   async executeSync(context: ExecutionContext): Promise<ReasoningResult> {

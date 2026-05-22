@@ -1,7 +1,16 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import type { ReasoningStep } from './reasoning'
-import type { WorkspaceToolCallPayload } from './workspace'
 import { getApiKey, getUid } from '../utils/auth'
+
+/**
+ * 通用客户端工具调用载荷
+ */
+export interface ClientToolCallPayload {
+  moduleName: string
+  callId: string
+  toolName: string
+  args: Record<string, unknown>
+}
 
 /**
  * SSE 流式响应回调接口
@@ -12,7 +21,8 @@ export interface StreamCallbacks {
   onComplete: () => void
   onConversationId?: (conversationId: string) => void
   onReasoningStep?: (step: ReasoningStep) => void
-  onWorkspaceToolCall?: (payload: WorkspaceToolCallPayload) => void
+  /** 通用客户端工具调用回调 */
+  onClientToolCall?: (payload: ClientToolCallPayload) => void
 }
 
 /**
@@ -71,13 +81,17 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
     return
   }
 
-  if (data.startsWith('[WORKSPACE_TOOL]')) {
+  // 客户端工具调用 [CLIENT_TOOL:moduleName]
+  const clientToolMatch = data.match(/^\[CLIENT_TOOL:(\w+)\]\s*(.+)$/s)
+  if (clientToolMatch) {
     try {
-      const payload = JSON.parse(data.substring('[WORKSPACE_TOOL]'.length).trim())
-      console.log('[SSE] Received [WORKSPACE_TOOL]:', payload.toolName, payload.callId)
-      callbacks.onWorkspaceToolCall?.(payload)
+      const moduleName = clientToolMatch[1]
+      const payload = JSON.parse(clientToolMatch[2].trim())
+      console.log(`[SSE] Received [CLIENT_TOOL:${moduleName}]:`, payload.toolName, payload.callId)
+      const clientPayload: ClientToolCallPayload = { moduleName, ...payload }
+      callbacks.onClientToolCall?.(clientPayload)
     } catch (e) {
-      console.error('[SSE] Failed to parse WORKSPACE_TOOL payload:', e)
+      console.error('[SSE] Failed to parse CLIENT_TOOL payload:', e)
     }
     return
   }

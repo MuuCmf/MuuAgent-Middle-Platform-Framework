@@ -154,9 +154,9 @@ export class StreamEmitter {
         return `[ERROR] ${payload.message}`;
       }
 
-      case StreamEventType.WORKSPACE_TOOL_CALL: {
-        const payload = event.payload as { callId: string; toolName: string; args: Record<string, unknown> };
-        return `[WORKSPACE_TOOL] ${JSON.stringify({ callId: payload.callId, toolName: payload.toolName, args: payload.args })}`;
+      case StreamEventType.CLIENT_TOOL_CALL: {
+        const payload = event.payload as { moduleName: string; callId: string; toolName: string; args: Record<string, unknown> };
+        return `[CLIENT_TOOL:${payload.moduleName}] ${JSON.stringify({ callId: payload.callId, toolName: payload.toolName, args: payload.args })}`;
       }
 
       default:

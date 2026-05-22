@@ -1,40 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { StreamEmitter, StreamEvents } from '../stream';
+import { IClientToolHandler, ClientToolCallResult } from '../client-tool';
 import * as crypto from 'crypto';
 
-/**
- * 工作目录工具调用结果
- */
-export interface WorkspaceCallResult {
-  callId: string;
-  success: boolean;
-  result?: unknown;
-  error?: string;
-}
-
 @Injectable()
-export class WorkspaceToolHandler {
+export class WorkspaceToolHandler implements IClientToolHandler {
   private readonly logger = new Logger(WorkspaceToolHandler.name);
 
   /** 等待客户端回传结果的 Promise 映射 */
   private pendingCalls = new Map<string, {
-    resolve: (result: WorkspaceCallResult) => void;
+    resolve: (result: ClientToolCallResult) => void;
     reject: (error: Error) => void;
     timer: NodeJS.Timeout;
   }>();
 
   /**
    * 将工作目录工具调用下发给客户端并等待结果
+   * @param emitter SSE流发射器
+   * @param toolName 工具名称
+   * @param args 工具参数
+   * @returns {Promise<ClientToolCallResult>} 执行结果
    */
   async dispatchToClient(
     emitter: StreamEmitter,
     toolName: string,
     args: Record<string, unknown>,
-  ): Promise<WorkspaceCallResult> {
+  ): Promise<ClientToolCallResult> {
     const callId = crypto.randomUUID();
 
-    // 通过 SSE 下发给客户端
-    emitter.emit(StreamEvents.workspaceToolCall(callId, toolName, args));
+    emitter.emit(StreamEvents.clientToolCall('workspace', callId, toolName, args));
 
     this.logger.log(`[Workspace] 下发工具调用: ${toolName}, callId: ${callId}`);
 
@@ -53,8 +47,10 @@ export class WorkspaceToolHandler {
 
   /**
    * 接收客户端回传的结果
+   * @param callId 调用ID
+   * @param result 执行结果
    */
-  resolveCall(callId: string, result: WorkspaceCallResult): void {
+  resolveCall(callId: string, result: ClientToolCallResult): void {
     const pending = this.pendingCalls.get(callId);
     if (!pending) {
       this.logger.warn(`收到未知 callId 的结果: ${callId}`);

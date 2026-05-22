@@ -1,7 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AiModule } from '../ai/ai.module';
 import { ConversationModule } from '../conversation/conversation.module';
-import { WorkspaceModule } from '../workspace/workspace.module';
+import { ClientToolModule } from '../client-tool';
 import { CommonModule } from '../common/common.module';
 import { AgentModule } from '../agent/agent.module';
 
@@ -15,7 +15,7 @@ import { ReasoningEngineFactory } from './reasoning.factory';
   imports: [
     AiModule,
     ConversationModule,
-    WorkspaceModule,
+    ClientToolModule,
     CommonModule,
     forwardRef(() => AgentModule),
   ],

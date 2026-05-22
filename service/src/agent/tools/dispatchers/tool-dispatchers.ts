@@ -4,7 +4,7 @@ import { McpServerService } from '../../../mcp-server/mcp-server.service';
 import { McpServerRegistry } from '../../../mcp-server/mcp-server-registry';
 import { KbSearchTool } from '../builtin/kb-search.tool';
 import { BuiltinExecutor } from '../../../skill/executors/builtin.executor';
-import { WORKSPACE_TOOL_NAMES } from '../../../workspace/workspace-tool.definitions';
+import { ClientToolRegistry } from '../../../client-tool';
 import { ToolExecutionContext } from '../abstract/tool.interface';
 import { TOOL_DISPATCHERS } from '../constants';
 
@@ -107,13 +107,15 @@ export class KbSearchDispatcher implements IToolDispatcher {
 }
 
 /**
- * 工作区工具分发器
- * 处理工作区相关工具（客户端执行）
+ * 客户端工具分发器（通用）
+ * 处理所有通过 ClientToolRegistry 注册的客户端工具
  */
 @Injectable()
-export class WorkspaceToolDispatcher implements IToolDispatcher {
+export class ClientToolDispatcher implements IToolDispatcher {
+  constructor(private readonly clientToolRegistry: ClientToolRegistry) {}
+
   canHandle(name: string): boolean {
-    return WORKSPACE_TOOL_NAMES.has(name);
+    return this.clientToolRegistry.isClientTool(name);
   }
 
   async execute(
@@ -121,7 +123,7 @@ export class WorkspaceToolDispatcher implements IToolDispatcher {
     _args: Record<string, unknown>,
     _context: ToolExecutionContext,
   ): Promise<unknown> {
-    throw new Error(`工作目录工具 "${name}" 需要在客户端执行，不应在服务端直接调用`);
+    throw new Error(`客户端工具 "${name}" 需要在客户端执行，不应在服务端直接调用`);
   }
 }
 

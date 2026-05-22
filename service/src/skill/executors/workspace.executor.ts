@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { IExecutor } from '../interfaces/executor.interface';
-import { WORKSPACE_TOOL_NAMES } from '../../workspace/workspace-tool.definitions';
+import { ClientToolRegistry } from '../../client-tool';
 
 /**
  * Workspace 工具执行器桩（统一 IExecutor 接口）
@@ -12,8 +12,11 @@ import { WORKSPACE_TOOL_NAMES } from '../../workspace/workspace-tool.definitions
 export class WorkspaceExecutor implements IExecutor {
   readonly name = 'workspace';
 
+  constructor(private readonly clientToolRegistry: ClientToolRegistry) {}
+
   canExecute(toolName: string): boolean {
-    return WORKSPACE_TOOL_NAMES.has(toolName);
+    const entry = this.clientToolRegistry.getEntryByToolName(toolName);
+    return entry?.name === 'workspace';
   }
 
   async execute(_args: Record<string, unknown>): Promise<{ success: boolean; data?: unknown; error?: string }> {
