@@ -44,7 +44,6 @@ export class AgentService {
       reasoningMode: dto.reasoningMode || 'NONE',
       reasoningPrompt: dto.reasoningPrompt,
       kbRetrievalConfig: dto.kbRetrievalConfig || JSON.stringify({ strategy: 'TOOL' }),
-      workspaceConfig: dto.workspaceConfig ? JSON.stringify(dto.workspaceConfig) : null,
       appCode: dto.appCode,
       isPublic: dto.isPublic ?? false,
     }, context || { appCode: null, isSuperAdmin: false });
@@ -60,9 +59,6 @@ export class AgentService {
     }
 
     const updateData: any = { ...dto };
-    if (dto.workspaceConfig !== undefined) {
-      updateData.workspaceConfig = dto.workspaceConfig ? JSON.stringify(dto.workspaceConfig) : null;
-    }
 
     return this.prisma.agent.update({
       where: { id: id as any },

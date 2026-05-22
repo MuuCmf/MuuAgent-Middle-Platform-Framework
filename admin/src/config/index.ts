@@ -52,13 +52,6 @@ export const appConfig = getAppConfig()
  * @returns {boolean} 配置是否有效
  */
 export const validateConfig = (): boolean => {
-  const config = getAppConfig()
-  
-  if (!config.apiKey) {
-    console.error('API密钥未配置，请在.env文件中设置VITE_API_KEY')
-    return false
-  }
-  
   return true
 }
 
@@ -71,7 +64,6 @@ export const printConfig = (): void => {
     console.log('API基础路径:', appConfig.apiBaseUrl)
     console.log('应用标题:', appConfig.appTitle)
     console.log('应用端口:', appConfig.port)
-    console.log('API密钥:', appConfig.apiKey ? '已配置' : '未配置')
     console.groupEnd()
   }
 }

@@ -8,6 +8,8 @@ export interface SkillRequires {
   knowledgeBases?: string[];
   tools?: string[];
   skills?: string[];
+  /** 是否需要 workspace 文件操作能力 */
+  workspace?: boolean;
 }
 
 /**

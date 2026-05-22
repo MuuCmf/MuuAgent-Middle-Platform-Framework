@@ -151,6 +151,11 @@ export class SkillMdParser {
         .map((v: string) => v.trim());
     }
 
+    const workspace = raw.workspace;
+    if (typeof workspace === 'boolean') {
+      result.workspace = workspace;
+    }
+
     return Object.keys(result).length > 0 ? result : undefined;
   }
 

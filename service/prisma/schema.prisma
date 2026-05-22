@@ -135,9 +135,6 @@ model Agent {
   reasoningMode     String  @default("NONE") @map("reasoning_mode") /// 推理模式: NONE/REACT/PLAN/REFLECT
   reasoningPrompt   String? @map("reasoning_prompt") @db.Text /// 自定义推理提示词
 
-  // ===== 工作目录文件操作配置 =====
-  workspaceConfig   String?  @map("workspace_config") @db.Text /// 工作目录配置(JSON): { enabled, allowedOperations, maxFileSize, deniedExtensions }
-
   // ===== 知识库检索配置 =====
   knowledgeBases    String?  @map("knowledge_bases") @db.Text /// 绑定的知识库列表(JSON): ["kb-code1", "kb-code2"]
   kbRetrievalConfig String?  @map("kb_retrieval_config") @db.Text /// 知识库检索配置(JSON): { strategy, autoRetrieval, toolRetrieval }

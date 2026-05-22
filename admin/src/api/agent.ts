@@ -1,13 +1,6 @@
 import { adminRequest } from '@/utils/request'
 import type { AxiosResponse } from 'axios'
 
-export interface WorkspaceAgentConfig {
-  enabled: boolean
-  allowedOperations?: string[]
-  maxFileSize?: number
-  deniedExtensions?: string[]
-}
-
 export interface CustomModelParams {
   temperature?: number
   topP?: number
@@ -65,7 +58,6 @@ export interface Agent {
   customModelParams?: string
   reasoningMode?: string
   reasoningPrompt?: string
-  workspaceConfig?: WorkspaceAgentConfig | string
   knowledgeBases?: string
   kbRetrievalConfig?: KbRetrievalConfig | string
   appCode?: string
@@ -87,7 +79,6 @@ export interface AgentForm {
   customModelParams?: string
   reasoningMode?: string
   reasoningPrompt?: string
-  workspaceConfig: WorkspaceAgentConfig
   knowledgeBases?: string
   kbRetrievalConfig?: string
   appCode?: string

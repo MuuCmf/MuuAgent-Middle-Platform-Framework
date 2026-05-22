@@ -17,7 +17,7 @@ export const WORKSPACE_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'write_file',
-    description: '在工作目录中写入文件。如果父目录不存在会自动创建。',
+    description: '在工作目录中写入文件。如果父目录不存在会自动创建。文件大小限制：1024KB。禁止的文件类型：.exe, .bat, .sh, .cmd, .js, .vbs',
     parameters: {
       type: 'object',
       properties: {
@@ -72,7 +72,7 @@ export const WORKSPACE_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'delete_file',
-    description: '删除工作目录中的文件。',
+    description: '删除工作目录中的文件。危险操作，需要用户手动确认。',
     parameters: {
       type: 'object',
       properties: {

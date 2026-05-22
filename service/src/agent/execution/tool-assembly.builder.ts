@@ -22,7 +22,7 @@ export class ToolAssemblyBuilder {
   async buildTools(
     resolution: SkillResolutionResult,
     resolvedKbCodes: string[],
-    agent: { id: any; workspaceConfig?: any; allowedBuiltinTools?: string },
+    agent: { id: any; allowedBuiltinTools?: string },
     enableKbTool: boolean = true,
     kbToolConfig?: {
       defaultTopN: number;
@@ -116,9 +116,14 @@ export class ToolAssemblyBuilder {
       }
     }
 
-    // 客户端工具（通过注册表获取）
-    const clientTools = this.clientToolRegistry.getToolsForAgent(agent);
-    tools.push(...clientTools);
+    // 客户端工具（通过技能解析结果决定是否启用）
+    if (resolution.resolvedWorkspace) {
+      const clientTools = this.clientToolRegistry.getToolsForAgent({
+        ...agent,
+        _workspaceEnabled: true,
+      });
+      tools.push(...clientTools);
+    }
 
     return tools;
   }

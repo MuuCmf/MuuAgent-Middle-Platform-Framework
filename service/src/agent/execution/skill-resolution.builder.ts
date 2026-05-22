@@ -7,6 +7,11 @@ export interface SkillResolutionResult {
   boundSkills: SkillDescriptor[];
   availableSkillNames: string;
   resolvedMcpServers: string[];
+  /**
+   * 工作目录能力是否已启用
+   * 当任意绑定的技能声明 requires.workspace = true 时启用
+   */
+  resolvedWorkspace: boolean;
 }
 
 @Injectable()
@@ -53,10 +58,15 @@ export class SkillResolutionBuilder {
       }
     }
 
+    const resolvedWorkspace = boundSkills.some(
+      skill => skill.frontmatter?.requires?.workspace === true,
+    );
+
     return {
       boundSkills,
       availableSkillNames,
       resolvedMcpServers: Array.from(resolvedMcpServers),
+      resolvedWorkspace,
     };
   }
 

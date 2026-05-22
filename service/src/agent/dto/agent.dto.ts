@@ -13,16 +13,6 @@ import {
 import { Transform } from 'class-transformer';
 
 /**
- * 工作目录智能体配置
- */
-export interface WorkspaceAgentConfig {
-  enabled: boolean;
-  allowedOperations?: string[];
-  maxFileSize?: number;
-  deniedExtensions?: string[];
-}
-
-/**
  * 自定义模型参数
  */
 export interface CustomModelParams {
@@ -139,13 +129,6 @@ export class CreateAgentDto {
   @IsBoolean()
   @IsOptional()
   isPublic?: boolean;
-
-  // ===== 工作目录配置 =====
-
-  @ApiPropertyOptional({ description: '工作目录配置(JSON对象)' })
-  @IsObject()
-  @IsOptional()
-  workspaceConfig?: WorkspaceAgentConfig;
 }
 
 /**
@@ -250,13 +233,6 @@ export class UpdateAgentDto {
   @IsBoolean()
   @IsOptional()
   isPublic?: boolean;
-
-  // ===== 工作目录配置 =====
-
-  @ApiPropertyOptional({ description: '工作目录配置(JSON对象)' })
-  @IsObject()
-  @IsOptional()
-  workspaceConfig?: WorkspaceAgentConfig;
 }
 
 /**

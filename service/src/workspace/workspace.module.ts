@@ -21,11 +21,7 @@ export class WorkspaceModule implements OnModuleInit {
       toolNames: new Set(WORKSPACE_TOOLS.map(t => t.name)),
       toolDefinitions: WORKSPACE_TOOLS,
       isEnabled: (agent) => {
-        if (!agent.workspaceConfig) return false;
-        const config = typeof agent.workspaceConfig === 'string'
-          ? JSON.parse(agent.workspaceConfig)
-          : agent.workspaceConfig;
-        return !!config.enabled;
+        return agent._workspaceEnabled === true;
       },
       eventPrefix: 'WORKSPACE_TOOL',
       handler: this.workspaceToolHandler,

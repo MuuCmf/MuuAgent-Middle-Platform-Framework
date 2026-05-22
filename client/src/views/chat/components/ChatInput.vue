@@ -100,7 +100,6 @@ interface Agent {
   name: string
   description?: string
   status?: boolean
-  workspaceConfig?: string
 }
 
 interface Props {
@@ -141,18 +140,10 @@ const currentMode = ref<'chat' | 'rag' | 'retrieval'>(props.mode)
 const selectedAgent = ref<string>('')
 
 /**
- * 判断当前选中的智能体是否支持工作目录
+ * 判断当前选中的智能体是否支持工作目录（通过技能绑定驱动）
  */
 const isWorkspaceEnabledForSelectedAgent = computed(() => {
-  if (!selectedAgent.value) return false
-  const agent = props.agents.find(a => a.id === selectedAgent.value)
-  if (!agent?.workspaceConfig) return false
-  try {
-    const config = JSON.parse(agent.workspaceConfig)
-    return config.enabled === true
-  } catch {
-    return false
-  }
+  return !!selectedAgent.value
 })
 
 watch(() => props.mode, (newMode) => {

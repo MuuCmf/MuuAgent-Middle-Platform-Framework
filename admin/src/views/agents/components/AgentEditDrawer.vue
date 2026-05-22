@@ -378,47 +378,6 @@ Final Answer: 最终答案</pre>
       </div>
 
       <div class="form-section">
-        <div class="section-title">{{ $t('agent.workspace') }}</div>
-        <div class="section-desc">{{ $t('agent.enableWorkspaceDesc') }}</div>
-
-        <el-form-item :label="$t('agent.enableWorkspace')">
-          <el-switch v-model="form.workspaceConfig.enabled" :active-text="$t('agent.enable')" :inactive-text="$t('agent.disable')" />
-
-        </el-form-item>
-
-        <template v-if="form.workspaceConfig.enabled">
-          <el-form-item :label="$t('agent.allowedOperations')">
-            <el-checkbox-group v-model="form.workspaceConfig.allowedOperations">
-              <el-checkbox value="read_file">{{ $t('agent.readFile') }}</el-checkbox>
-              <el-checkbox value="read_dir">{{ $t('agent.readDir') }}</el-checkbox>
-              <el-checkbox value="write_file">{{ $t('agent.writeFile') }}</el-checkbox>
-              <el-checkbox value="append_file">{{ $t('agent.appendFile') }}</el-checkbox>
-              <el-checkbox value="create_dir">{{ $t('agent.createDir') }}</el-checkbox>
-              <el-checkbox value="delete_file">{{ $t('agent.deleteFile') }}</el-checkbox>
-            </el-checkbox-group>
-            <div class="field-tip">{{ $t('agent.allowedOperationsTip') }}</div>
-          </el-form-item>
-
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item :label="$t('agent.fileSizeLimit')">
-                <el-input-number v-model="form.workspaceConfig.maxFileSize" :min="1" :max="10240" :step="100"
-                  class="w-full" />
-                <div class="field-tip">{{ $t('agent.fileSizeLimitTip') }}</div>
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="16">
-            <el-form-item :label="$t('agent.deniedExtensions')">
-              <el-input v-model="deniedExtensionsStr" :placeholder="$t('agent.deniedExtensionsPlaceholder')"
-                @change="handleDeniedExtensionsChange" />
-              <div class="field-tip">{{ $t('agent.deniedExtensionsTip') }}</div>
-            </el-form-item>
-          </el-row>
-        </template>
-      </div>
-
-      <div class="form-section">
         <div class="section-title">{{ $t('agent.advancedSettings') }}</div>
         <el-row :gutter="16">
           <el-col :span="12">
@@ -510,7 +469,7 @@ import { ref, watch, computed, reactive, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, InfoFilled, Warning } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import type { Agent, AgentForm, WorkspaceAgentConfig, KbRetrievalConfig as KbRetrievalConfigType } from '@/api/agent'
+import type { Agent, AgentForm, KbRetrievalConfig as KbRetrievalConfigType } from '@/api/agent'
 import { useI18n } from 'vue-i18n'
 import BuiltinToolSelector from './BuiltinToolSelector.vue'
 
@@ -537,7 +496,6 @@ interface InternalAgentForm {
   customModelParams?: string
   reasoningMode?: string
   reasoningPrompt?: string
-  workspaceConfig: WorkspaceAgentConfig
   knowledgeBases: string
   kbRetrievalConfig: KbRetrievalConfigType
   appCode?: string
@@ -588,12 +546,6 @@ const form = ref<InternalAgentForm>({
   customModelParams: '',
   reasoningMode: 'NONE',
   reasoningPrompt: '',
-  workspaceConfig: {
-    enabled: false,
-    allowedOperations: [],
-    maxFileSize: 1024,
-    deniedExtensions: ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs'],
-  },
   knowledgeBases: '[]',
   kbRetrievalConfig: {
     strategy: 'HYBRID',
@@ -643,8 +595,6 @@ const mcpServerSearchForm = reactive({
 })
 
 const promptMode = ref<'template' | 'custom'>('template')
-
-const deniedExtensionsStr = ref('.exe,.bat,.sh,.cmd,.js,.vbs')
 
 const modelTemplates = ref<ModelTemplate[]>([])
 const selectedModelTemplate = ref<ModelTemplate | null>(null)
@@ -711,14 +661,6 @@ const formatDiff = (diff: number): string => {
   return `${prefix}${diff.toFixed(diff % 1 === 0 ? 0 : 2)}`
 }
 
-const handleDeniedExtensionsChange = () => {
-  if (form.value.workspaceConfig) {
-    form.value.workspaceConfig.deniedExtensions = deniedExtensionsStr.value
-      .split(',')
-      .map(s => s.trim())
-      .filter(s => s.startsWith('.'))
-  }
-}
 const promptTemplates = ref<PromptTemplate[]>([])
 const selectedTemplateCode = ref<string>('')
 const selectedTemplate = ref<PromptTemplate | null>(null)
@@ -752,12 +694,6 @@ watch(() => props.visible, (newVal) => {
         mcpServers: editingAgent.value.mcpServers || '[]',
         appCode: editingAgent.value.appCode || '',
         isPublic: editingAgent.value.isPublic ?? false,
-        workspaceConfig: {
-          enabled: false,
-          allowedOperations: [],
-          maxFileSize: 1024,
-          deniedExtensions: ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs'],
-        },
         knowledgeBases: (editingAgent.value as any).knowledgeBases || '[]',
         kbRetrievalConfig: {
           strategy: 'HYBRID',
@@ -774,30 +710,6 @@ watch(() => props.visible, (newVal) => {
       }
       selectedSkillCodes.value = parseJsonSafe(editingAgent.value.skills || '[]')
       selectedMcpServerNames.value = parseJsonSafe(editingAgent.value.mcpServers || '[]')
-
-      // 解析 workspaceConfig
-      const rawConfig = editingAgent.value.workspaceConfig
-      const defaultDenied = ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs']
-      if (rawConfig) {
-        const config: WorkspaceAgentConfig = typeof rawConfig === 'string'
-          ? JSON.parse(rawConfig)
-          : rawConfig
-        form.value.workspaceConfig = {
-          enabled: config.enabled ?? false,
-          allowedOperations: config.allowedOperations || [],
-          maxFileSize: config.maxFileSize ?? 1024,
-          deniedExtensions: config.deniedExtensions || defaultDenied,
-        }
-        deniedExtensionsStr.value = (config.deniedExtensions || defaultDenied).join(',')
-      } else {
-        form.value.workspaceConfig = {
-          enabled: false,
-          allowedOperations: [],
-          maxFileSize: 1024,
-          deniedExtensions: defaultDenied,
-        }
-        deniedExtensionsStr.value = defaultDenied.join(',')
-      }
 
       // 解析 kbRetrievalConfig
       const rawKbConfig = (editingAgent.value as any).kbRetrievalConfig
@@ -882,12 +794,6 @@ const resetForm = () => {
     customModelParams: '',
     reasoningMode: 'NONE',
     reasoningPrompt: '',
-    workspaceConfig: {
-      enabled: false,
-      allowedOperations: [],
-      maxFileSize: 1024,
-      deniedExtensions: ['.exe', '.bat', '.sh', '.cmd', '.js', '.vbs'],
-    },
     knowledgeBases: '[]',
     kbRetrievalConfig: {
       strategy: 'HYBRID',
@@ -904,7 +810,6 @@ const resetForm = () => {
     appCode: '',
     isPublic: false,
   }
-  deniedExtensionsStr.value = '.exe,.bat,.sh,.cmd,.js,.vbs'
   enableCustomParams.value = false
   currentPreset.value = ''
   customParams.value = {

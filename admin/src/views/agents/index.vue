@@ -66,13 +66,6 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('agent.workspace')" width="90">
-          <template #default="{ row }">
-            <el-tag :type="isWorkspaceEnabled(row) ? 'success' : 'info'" size="small">
-              {{ isWorkspaceEnabled(row) ? $t('agent.workspaceEnabled') : $t('agent.workspaceDisabled') }}
-            </el-tag>
-          </template>
-        </el-table-column>
         <el-table-column prop="status" :label="$t('common.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status ? 'success' : 'danger'" size="small">
@@ -143,17 +136,6 @@ const getReasoningTagType = (mode: string) => {
     REFLECT: 'danger',
   }
   return types[mode] || 'info'
-}
-
-const isWorkspaceEnabled = (agent: Agent) => {
-  try {
-    const config = typeof agent.workspaceConfig === 'string'
-      ? JSON.parse(agent.workspaceConfig)
-      : agent.workspaceConfig
-    return config?.enabled === true
-  } catch {
-    return false
-  }
 }
 
 const handleAdd = () => {
