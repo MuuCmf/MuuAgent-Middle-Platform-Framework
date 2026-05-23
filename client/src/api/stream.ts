@@ -1,6 +1,7 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import type { ReasoningStep } from './reasoning'
 import { getApiKey, getUid } from '../utils/auth'
+import type { ClientToolModulePolicy } from '../executor/types'
 
 /**
  * 通用客户端工具调用载荷
@@ -23,6 +24,8 @@ export interface StreamCallbacks {
   onReasoningStep?: (step: ReasoningStep) => void
   /** 通用客户端工具调用回调 */
   onClientToolCall?: (payload: ClientToolCallPayload) => void
+  /** 客户端工具权限策略回调 */
+  onClientToolPolicy?: (policies: ClientToolModulePolicy[]) => void
 }
 
 /**
@@ -92,6 +95,21 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
       callbacks.onClientToolCall?.(clientPayload)
     } catch (e) {
       console.error('[SSE] Failed to parse CLIENT_TOOL payload:', e)
+    }
+    return
+  }
+
+  // 客户端工具权限策略 [CLIENT_TOOL_POLICY]
+  const policyMatch = data.match(/^\[CLIENT_TOOL_POLICY\]\s*(.+)$/s)
+  if (policyMatch) {
+    try {
+      const payload = JSON.parse(policyMatch[1].trim())
+      console.log('[SSE] Received [CLIENT_TOOL_POLICY]:', payload.policies?.length, 'modules')
+      if (callbacks.onClientToolPolicy && payload.policies) {
+        callbacks.onClientToolPolicy(payload.policies as ClientToolModulePolicy[])
+      }
+    } catch (e) {
+      console.error('[SSE] Failed to parse CLIENT_TOOL_POLICY payload:', e)
     }
     return
   }

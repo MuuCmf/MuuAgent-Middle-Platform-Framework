@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ToolDefinition } from '../agent/tools/abstract/tool.interface';
 import { ClientToolEntry } from './client-tool-entry';
+import { IClientToolHandler } from './client-tool-handler.interface';
 
 /**
  * 客户端工具注册表
@@ -12,6 +13,9 @@ export class ClientToolRegistry {
   /** 已注册的客户端工具条目映射 */
   private entries = new Map<string, ClientToolEntry>();
 
+  /** callId → handler 的映射，用于统一结果回传路由 */
+  private callIdToHandler = new Map<string, IClientToolHandler>();
+
   /**
    * 注册一个客户端工具条目
    * @param entry 工具条目
@@ -19,6 +23,33 @@ export class ClientToolRegistry {
   register(entry: ClientToolEntry): void {
     this.entries.set(entry.name, entry);
     this.logger.log(`客户端工具已注册: ${entry.name}, 工具: ${[...entry.toolNames].join(', ')}`);
+  }
+
+  /**
+   * 注册 callId → handler 映射
+   * 当 handler 调用 dispatchToClient 生成 callId 时调用
+   * @param callId 调用ID
+   * @param handler 对应的处理器
+   */
+  registerCallId(callId: string, handler: IClientToolHandler): void {
+    this.callIdToHandler.set(callId, handler);
+  }
+
+  /**
+   * 注销 callId 映射（结果回传后清理）
+   * @param callId 调用ID
+   */
+  unregisterCallId(callId: string): void {
+    this.callIdToHandler.delete(callId);
+  }
+
+  /**
+   * 根据 callId 查找对应的 handler
+   * @param callId 调用ID
+   * @returns {IClientToolHandler | undefined} 对应的处理器
+   */
+  getHandlerByCallId(callId: string): IClientToolHandler | undefined {
+    return this.callIdToHandler.get(callId);
   }
 
   /**

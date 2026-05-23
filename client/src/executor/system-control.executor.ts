@@ -1,21 +1,14 @@
 import type { ClientToolCallPayload } from '../api/stream'
-import { submitSystemControlResult } from '../api/system-control'
+import type { IClientToolExecutor } from './types'
 
 /**
  * 系统控制工具执行器
- * 接收 SSE 下发的系统控制工具调用，通过 Electron IPC 执行，并回传结果
+ * 接收 SSE 下发的系统控制工具调用，通过 Electron IPC 执行
+ * 结果回传由 ClientToolRouter 统一处理
  */
-export class SystemControlExecutor {
-  /** 当前会话ID */
-  private conversationId: string = ''
-
-  /**
-   * 设置当前会话ID
-   * @param id 会话ID
-   */
-  setConversationId(id: string): void {
-    this.conversationId = id
-  }
+export class SystemControlExecutor implements IClientToolExecutor {
+  /** 模块名称 */
+  moduleName = 'system_control' as const
 
   /**
    * 执行系统控制工具调用
@@ -46,24 +39,8 @@ export class SystemControlExecutor {
 
     try {
       const result = await electronAPI.systemControl(toolName, args)
-
-      /** 回传结果给服务端 */
-      await submitSystemControlResult(this.conversationId, {
-        callId,
-        success: result.success,
-        result: result.result,
-        error: result.error,
-      })
-
       return { callId, success: result.success, result: result.result, error: result.error }
     } catch (e: any) {
-      /** 回传错误结果给服务端 */
-      await submitSystemControlResult(this.conversationId, {
-        callId,
-        success: false,
-        error: e.message,
-      })
-
       return { callId, success: false, error: e.message }
     }
   }

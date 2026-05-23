@@ -1,8 +1,46 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { StreamEmitter, StreamEvents } from '../stream';
-import { IClientToolHandler, ClientToolCallResult, ClientToolProvider, IClientToolProvider } from '../client-tool';
+import { IClientToolHandler, ClientToolCallResult, ClientToolProvider, IClientToolProvider, ClientToolRegistry } from '../client-tool';
+import { ClientToolModulePolicy } from '../client-tool/client-tool-entry';
 import { WORKSPACE_TOOLS } from './workspace-tool.definitions';
 import * as crypto from 'crypto';
+
+/** 工作目录模块默认权限策略 */
+const WORKSPACE_DEFAULT_POLICY: ClientToolModulePolicy = {
+  moduleName: 'workspace',
+  defaultConfirmMode: 'auto',
+  defaultTimeout: 30000,
+  tools: [
+    {
+      toolName: 'read_file',
+      confirmMode: 'auto',
+    },
+    {
+      toolName: 'write_file',
+      confirmMode: 'confirm',
+      confirmMessage: '确定要写入文件 {args.path} 吗？',
+    },
+    {
+      toolName: 'append_file',
+      confirmMode: 'confirm',
+      confirmMessage: '确定要追加内容到文件 {args.path} 吗？',
+    },
+    {
+      toolName: 'create_dir',
+      confirmMode: 'auto',
+    },
+    {
+      toolName: 'read_dir',
+      confirmMode: 'auto',
+    },
+    {
+      toolName: 'delete_file',
+      confirmMode: 'confirm',
+      confirmMessage: '确定要删除文件 {args.path} 吗？此操作不可撤销。',
+      timeout: 60000,
+    },
+  ],
+};
 
 /**
  * 工作目录工具处理器
@@ -19,6 +57,8 @@ export class WorkspaceToolHandler implements IClientToolHandler, IClientToolProv
     reject: (error: Error) => void;
     timer: NodeJS.Timeout;
   }>();
+
+  constructor(private readonly clientToolRegistry: ClientToolRegistry) {}
 
   /**
    * 将工作目录工具调用下发给客户端并等待结果
@@ -38,12 +78,16 @@ export class WorkspaceToolHandler implements IClientToolHandler, IClientToolProv
 
     this.logger.log(`[Workspace] 下发工具调用: ${toolName}, callId: ${callId}`);
 
+    /** 注册 callId → handler 映射，供统一结果回传路由 */
+    this.clientToolRegistry.registerCallId(callId, this);
+
     /** 危险操作可能需要用户确认，超时时间设为 60s */
     const timeout = ['delete_file'].includes(toolName) ? 60000 : 30000;
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingCalls.delete(callId);
+        this.clientToolRegistry.unregisterCallId(callId);
         reject(new Error(`工作目录操作超时: ${toolName}`));
       }, timeout);
 
@@ -64,6 +108,7 @@ export class WorkspaceToolHandler implements IClientToolHandler, IClientToolProv
     }
     clearTimeout(pending.timer);
     this.pendingCalls.delete(callId);
+    this.clientToolRegistry.unregisterCallId(callId);
     pending.resolve(result);
   }
 
@@ -91,6 +136,7 @@ export class WorkspaceToolHandler implements IClientToolHandler, IClientToolProv
       isEnabled: (agent: Record<string, any>) => agent._workspaceEnabled === true,
       eventPrefix: 'WORKSPACE_TOOL',
       handler: this,
+      defaultPolicy: WORKSPACE_DEFAULT_POLICY,
     };
   }
 }

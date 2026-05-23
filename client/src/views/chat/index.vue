@@ -73,6 +73,15 @@
         </div>
       </div>
 
+      <!-- 客户端工具权限配置 -->
+      <div v-if="chatMode === 'chat' && toolPolicies.length > 0" class="tool-policy-section">
+        <div class="section-header">
+          <span class="section-title">工具权限</span>
+          <span class="section-badge">{{ toolPolicies.length }} 个模块</span>
+        </div>
+        <ToolPolicyPanel :policies="toolPolicies" />
+      </div>
+
       <!-- 会话列表 -->
       <ConversationList
         v-if="chatMode === 'chat' || chatMode === 'rag'"
@@ -182,6 +191,8 @@ import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import ModelSelector from './components/ModelSelector.vue'
 import ConversationList from './components/ConversationList.vue'
+import ToolPolicyPanel from './components/ToolPolicyPanel.vue'
+import { clientToolRouter } from '../../executor/client-tool-router'
 
 const chatStore = useChatStore()
 const messagesRef = ref<HTMLElement>()
@@ -200,6 +211,10 @@ const selectedKbInfo = computed(() => {
 
 const enabledAgents = computed(() => {
   return chatStore.agents.filter(a => a.status === true)
+})
+
+const toolPolicies = computed(() => {
+  return clientToolRouter.getAllPolicies()
 })
 
 const isMessageStreaming = (index: number): boolean => {
@@ -569,7 +584,8 @@ onMounted(async () => {
 
 .model-selector-section,
 .agent-selector-section,
-.kb-selector-section {
+.kb-selector-section,
+.tool-policy-section {
   padding: 12px 16px;
   border-bottom: 1px solid #f0f0f0;
 }

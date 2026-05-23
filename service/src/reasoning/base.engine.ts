@@ -110,7 +110,9 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
               { action: resolvedName, actionInput: toolCall.args },
             ));
 
-            const resultText = this.formatToolResult(toolResult.result);
+            const resultText = toolResult.success
+              ? this.formatToolResult(toolResult.result)
+              : `工具执行失败: ${toolResult.error || '未知错误'}`;
             steps.push(this.createStep(steps.length + 1, 'observation', resultText, { observation: resultText }));
 
             this.pushSyncToolMessages(messages, stepText, toolCall, resultText);
@@ -218,7 +220,9 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     const toolResult = await this.executeTool({ name: toolName, args }, context, emitter);
     this.emitToolCall(emitter, toolName, args, toolResult.result);
 
-    const resultText = this.formatToolResult(toolResult.result);
+    const resultText = toolResult.success
+      ? this.formatToolResult(toolResult.result)
+      : `工具执行失败: ${toolResult.error || '未知错误'}`;
 
     const observationStep = this.createStep(steps.length + 1, 'observation', resultText, { observation: resultText });
     steps.push(observationStep);
@@ -227,7 +231,7 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     messages.push({ role: 'assistant', content: stepText });
     messages.push({
       role: 'user',
-      content: this.buildToolResultPrompt(toolName, resultText),
+      content: this.buildToolResultPrompt(toolName, resultText, toolResult.success),
     });
 
     await this.afterStreamToolExecution(context, messages, steps, emitter, stepIndex);
@@ -271,8 +275,11 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     } as any);
   }
 
-  protected buildToolResultPrompt(toolName: string, resultText: string): string {
-    return `工具 ${toolName} 返回结果:\n${resultText}\n\n请基于以上结果继续回答用户问题。`;
+  protected buildToolResultPrompt(toolName: string, resultText: string, success: boolean = true): string {
+    if (success) {
+      return `工具 ${toolName} 执行成功，返回结果:\n${resultText}\n\n请基于以上结果继续回答用户问题。`;
+    }
+    return `工具 ${toolName} 执行失败: ${resultText}\n\n此工具不可用，请不要再次调用该工具，请直接告知用户该工具无法使用，或尝试其他方式回答用户问题。`;
   }
 
   // ================================================================

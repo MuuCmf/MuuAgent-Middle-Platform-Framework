@@ -10,7 +10,8 @@ import {
   AgentChatDto,
   QueryAgentDto,
 } from './dto/agent.dto';
-import { StreamEmitter, StreamEventType } from '../stream';
+import { StreamEmitter, StreamEventType, StreamEvents } from '../stream';
+import { ClientToolPolicyService } from '../client-tool';
 
 @Injectable()
 export class AgentService {
@@ -21,6 +22,7 @@ export class AgentService {
     private isolationService: IsolationService,
     private contextBuilder: ContextBuilder,
     private reasoningEngineFactory: ReasoningEngineFactory,
+    private clientToolPolicyService: ClientToolPolicyService,
   ) {}
 
   /**
@@ -161,6 +163,23 @@ export class AgentService {
 
     if (context.conversationId) {
       emitter.emit({ type: StreamEventType.CONVERSATION_ID, payload: { conversationId: context.conversationId } });
+    }
+
+    const policies = this.clientToolPolicyService.getAllPolicies();
+    if (policies.length > 0) {
+      emitter.emit(StreamEvents.clientToolPolicy(
+        policies.map(p => ({
+          moduleName: p.moduleName,
+          defaultConfirmMode: p.defaultConfirmMode,
+          defaultTimeout: p.defaultTimeout,
+          tools: p.tools.map(t => ({
+            toolName: t.toolName,
+            confirmMode: t.confirmMode,
+            confirmMessage: t.confirmMessage,
+            timeout: t.timeout,
+          })),
+        })),
+      ));
     }
 
     const reasoningMode = (agent.reasoningMode as ReasoningMode) || ReasoningMode.NONE;

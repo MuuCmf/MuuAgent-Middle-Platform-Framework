@@ -1,11 +1,54 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { StreamEmitter, StreamEvents } from '../stream';
-import { IClientToolHandler, ClientToolCallResult, ClientToolProvider, IClientToolProvider } from '../client-tool';
+import { IClientToolHandler, ClientToolCallResult, ClientToolProvider, IClientToolProvider, ClientToolRegistry } from '../client-tool';
+import { ClientToolModulePolicy } from '../client-tool/client-tool-entry';
 import { SYSTEM_CONTROL_TOOLS, SYSTEM_CONTROL_TOOL_NAMES } from './system-control.definitions';
 import * as crypto from 'crypto';
 
 /** 高危操作工具列表，需要更长超时等待用户确认 */
 const HIGH_RISK_TOOLS = ['delete_file', 'shutdown', 'sleep', 'execute_command'];
+
+/** 系统控制模块默认权限策略 */
+const SYSTEM_CONTROL_DEFAULT_POLICY: ClientToolModulePolicy = {
+  moduleName: 'system_control',
+  defaultConfirmMode: 'confirm',
+  defaultTimeout: 30000,
+  tools: [
+    {
+      toolName: 'execute_command',
+      confirmMode: 'confirm',
+      confirmMessage: '确定要执行命令 "{args.command}" 吗？',
+      timeout: 60000,
+    },
+    {
+      toolName: 'shutdown',
+      confirmMode: 'confirm',
+      confirmMessage: '确定要关闭计算机吗？此操作不可撤销。',
+      timeout: 60000,
+    },
+    {
+      toolName: 'sleep',
+      confirmMode: 'confirm',
+      confirmMessage: '确定要使计算机进入睡眠状态吗？',
+      timeout: 60000,
+    },
+    {
+      toolName: 'screenshot',
+      confirmMode: 'auto',
+    },
+    {
+      toolName: 'open_file',
+      confirmMode: 'confirm',
+      confirmMessage: '确定要打开文件 {args.path} 吗？',
+    },
+    {
+      toolName: 'delete_file',
+      confirmMode: 'confirm',
+      confirmMessage: '确定要删除文件 {args.path} 吗？此操作不可撤销。',
+      timeout: 60000,
+    },
+  ],
+};
 
 /**
  * 系统控制工具处理器
@@ -26,6 +69,8 @@ export class SystemControlHandler implements IClientToolHandler, IClientToolProv
     timer: NodeJS.Timeout;
   }>();
 
+  constructor(private readonly clientToolRegistry: ClientToolRegistry) {}
+
   /**
    * 将系统控制工具调用下发给客户端并等待结果
    * @param emitter SSE流发射器
@@ -44,12 +89,16 @@ export class SystemControlHandler implements IClientToolHandler, IClientToolProv
 
     this.logger.log(`[SystemControl] 下发工具调用: ${toolName}, callId: ${callId}`);
 
+    /** 注册 callId → handler 映射，供统一结果回传路由 */
+    this.clientToolRegistry.registerCallId(callId, this);
+
     /** 高危操作需要用户确认，超时时间设为 60s */
     const timeout = HIGH_RISK_TOOLS.includes(toolName) ? 60000 : 30000;
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingCalls.delete(callId);
+        this.clientToolRegistry.unregisterCallId(callId);
         reject(new Error(`系统控制操作超时: ${toolName}`));
       }, timeout);
 
@@ -70,6 +119,7 @@ export class SystemControlHandler implements IClientToolHandler, IClientToolProv
     }
     clearTimeout(pending.timer);
     this.pendingCalls.delete(callId);
+    this.clientToolRegistry.unregisterCallId(callId);
     pending.resolve(result);
   }
 
@@ -97,6 +147,7 @@ export class SystemControlHandler implements IClientToolHandler, IClientToolProv
       isEnabled: (agent: Record<string, any>) => agent._systemControlEnabled === true,
       eventPrefix: 'SYSTEM_CONTROL',
       handler: this,
+      defaultPolicy: SYSTEM_CONTROL_DEFAULT_POLICY,
     };
   }
 }

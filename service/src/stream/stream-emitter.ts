@@ -159,6 +159,11 @@ export class StreamEmitter {
         return `[CLIENT_TOOL:${payload.moduleName}] ${JSON.stringify({ callId: payload.callId, toolName: payload.toolName, args: payload.args })}`;
       }
 
+      case StreamEventType.CLIENT_TOOL_POLICY: {
+        const payload = event.payload as { policies: unknown[] };
+        return `[CLIENT_TOOL_POLICY] ${JSON.stringify({ policies: payload.policies })}`;
+      }
+
       default:
         // 其他事件类型统一 JSON 序列化
         return JSON.stringify({

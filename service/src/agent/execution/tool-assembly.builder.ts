@@ -6,6 +6,7 @@ import { KbSearchTool } from '../tools/builtin/kb-search.tool';
 import { ToolDefinition } from '../tools/abstract/tool.interface';
 import { ClientToolRegistry } from '../../client-tool';
 import { SkillResolutionResult } from './skill-resolution.builder';
+import { AGENT_TOOL } from '../tools/constants/tool.constants';
 
 @Injectable()
 export class ToolAssemblyBuilder {
@@ -56,6 +57,8 @@ export class ToolAssemblyBuilder {
     const registeredTools = this.toolRegistry.getAll();
     for (const tool of registeredTools) {
       const def = tool.definition;
+      const metadata = Reflect.getMetadata(AGENT_TOOL, tool.constructor);
+      const category = metadata?.category || 'builtin';
 
       if (def.name === 'use_skill') {
         tools.push({
@@ -87,22 +90,8 @@ export class ToolAssemblyBuilder {
             },
           });
         }
-      } else if (def.name === 'run_code') {
-        // 检查是否允许使用代码执行工具
-        if (allowedBuiltinTools.includes('run_code')) {
-          tools.push(def);
-        }
-      } else if (def.name === 'http_request') {
-        // 检查是否允许使用HTTP请求工具
-        if (allowedBuiltinTools.includes('http_request')) {
-          const existing = tools.find(t => t.name === def.name);
-          if (!existing) {
-            tools.push(def);
-          }
-        }
-      } else if (def.name === 'db_query') {
-        // 检查是否允许使用数据库查询工具
-        if (allowedBuiltinTools.includes('db_query')) {
+      } else if (category === 'builtin') {
+        if (allowedBuiltinTools.includes(def.name)) {
           const existing = tools.find(t => t.name === def.name);
           if (!existing) {
             tools.push(def);
@@ -178,8 +167,7 @@ export class ToolAssemblyBuilder {
    */
   private parseAllowedBuiltinTools(config?: string): string[] {
     if (!config) {
-      // 未配置时默认允许所有内置工具（向后兼容）
-      return ['http_request', 'kb_search', 'db_query', 'run_code'];
+      return [];
     }
 
     try {

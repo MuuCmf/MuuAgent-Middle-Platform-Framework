@@ -4,10 +4,11 @@ import { ElMessageBox } from 'element-plus'
 import { aiApi, agentApi, conversationApi, type Message, type Conversation } from '../api'
 import type { ReasoningStep } from '../api/reasoning'
 import type { ClientToolCallPayload } from '../api/stream'
-import { submitWorkspaceResult } from '../api/workspace'
+import type { ClientToolModulePolicy } from '../executor/types'
 import { useWorkspace } from '../composables/useWorkspace'
 import { WorkspaceExecutor } from '../executor/workspace.executor'
 import { systemControlExecutor } from '../executor/system-control.executor'
+import { clientToolRouter } from '../executor/client-tool-router'
 
 /**
  * 处理思考内容和回答内容的分割
@@ -147,6 +148,12 @@ export const useChatStore = defineStore('chat', () => {
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading.value) return
 
+    /** 注册客户端工具执行器到路由器 */
+    if (workspace.dirHandle.value) {
+      clientToolRouter.registerExecutor(new WorkspaceExecutor(workspace.dirHandle.value))
+    }
+    clientToolRouter.registerExecutor(systemControlExecutor)
+
     const userMessage: Message = { role: 'user', content }
     messages.value.push(userMessage)
     isLoading.value = true
@@ -246,49 +253,20 @@ export const useChatStore = defineStore('chat', () => {
               }
             },
             (payload: ClientToolCallPayload) => {
-              if (payload.moduleName === 'workspace') {
-                if (!workspace.dirHandle.value) return
-                const executor = new WorkspaceExecutor(workspace.dirHandle.value)
-
-                /**
-                 * 需要用户确认的危险操作列表
-                 */
-                const DANGEROUS_OPERATIONS: Record<string, (args: Record<string, unknown>) => string> = {
-                  delete_file: (args) => `确定要删除文件 "${args.path}" 吗？此操作不可撤销。`,
-                }
-
-                const confirmMessage = DANGEROUS_OPERATIONS[payload.toolName]?.(payload.args)
-                if (confirmMessage) {
-                  ElMessageBox.confirm(confirmMessage, '操作确认', {
+              clientToolRouter.handleCall(
+                payload,
+                (message) => {
+                  return ElMessageBox.confirm(message, '操作确认', {
                     confirmButtonText: '确定',
                     cancelButtonText: '取消',
                     type: 'warning',
-                  }).then(() => {
-                    executor.execute(payload).then(result => {
-                      if (currentConversationId.value) {
-                        submitWorkspaceResult(currentConversationId.value, result)
-                      }
-                    })
-                  }).catch(() => {
-                    if (currentConversationId.value) {
-                      submitWorkspaceResult(currentConversationId.value, {
-                        callId: payload.callId,
-                        success: false,
-                        error: '用户取消了操作',
-                      })
-                    }
-                  })
-                } else {
-                  executor.execute(payload).then(result => {
-                    if (currentConversationId.value) {
-                      submitWorkspaceResult(currentConversationId.value, result)
-                    }
-                  })
-                }
-              } else if (payload.moduleName === 'system_control') {
-                systemControlExecutor.setConversationId(currentConversationId.value || '')
-                systemControlExecutor.execute(payload)
-              }
+                  }).then(() => true).catch(() => false)
+                },
+                currentConversationId.value,
+              )
+            },
+            (policies: ClientToolModulePolicy[]) => {
+              clientToolRouter.updatePolicies(policies)
             },
             controller.signal,
           )

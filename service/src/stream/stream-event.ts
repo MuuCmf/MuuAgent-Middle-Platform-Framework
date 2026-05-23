@@ -21,6 +21,8 @@ export enum StreamEventType {
   CLIENT_TOOL_CALL = 'client_tool_call',
   /** 客户端工具结果事件（通用） */
   CLIENT_TOOL_RESULT = 'client_tool_result',
+  /** 客户端工具权限策略事件 - 会话开始时下发权限策略 */
+  CLIENT_TOOL_POLICY = 'client_tool_policy',
 }
 
 /**
@@ -46,7 +48,8 @@ export type StreamEventPayload =
   | DonePayload
   | ErrorPayload
   | ClientToolCallPayload
-  | ClientToolResultPayload;
+  | ClientToolResultPayload
+  | ClientToolPolicyPayload;
 
 /** 会话ID载荷 */
 export interface ConversationIdPayload {
@@ -126,6 +129,33 @@ export interface ClientToolResultPayload {
 }
 
 /**
+ * 客户端工具权限策略载荷 - 服务端在会话开始时下发给客户端
+ * 客户端根据此策略决定工具的执行权限（自动执行/需确认/禁止）
+ */
+export interface ClientToolPolicyPayload {
+  /** 权限策略列表，每个模块一条 */
+  policies: Array<{
+    /** 模块名称 */
+    moduleName: string;
+    /** 模块默认确认模式 */
+    defaultConfirmMode: 'auto' | 'confirm' | 'deny';
+    /** 模块默认超时时间 */
+    defaultTimeout: number;
+    /** 各工具的权限策略 */
+    tools: Array<{
+      /** 工具名称 */
+      toolName: string;
+      /** 确认模式 */
+      confirmMode: 'auto' | 'confirm' | 'deny';
+      /** 确认提示消息模板 */
+      confirmMessage?: string;
+      /** 超时时间 */
+      timeout?: number;
+    }>;
+  }>;
+}
+
+/**
  * StreamEvent 工厂函数 - 类型安全的创建事件
  */
 export const StreamEvents = {
@@ -172,5 +202,10 @@ export const StreamEvents = {
   clientToolResult: (moduleName: string, callId: string, success: boolean, result?: unknown, error?: string): StreamEvent => ({
     type: StreamEventType.CLIENT_TOOL_RESULT,
     payload: { moduleName, callId, success, result, error },
+  }),
+
+  clientToolPolicy: (policies: ClientToolPolicyPayload['policies']): StreamEvent => ({
+    type: StreamEventType.CLIENT_TOOL_POLICY,
+    payload: { policies },
   }),
 };

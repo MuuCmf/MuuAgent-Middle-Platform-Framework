@@ -1,5 +1,5 @@
 import type { ClientToolCallPayload } from '../api/stream'
-import type { WorkspaceToolResultPayload } from '../api/workspace'
+import type { IClientToolExecutor } from './types'
 
 interface WorkspaceFileEntry {
   name: string
@@ -40,10 +40,18 @@ interface ResolvedPath {
   handle?: FileSystemFileHandle | FileSystemDirectoryHandle
 }
 
-export class WorkspaceExecutor {
+export class WorkspaceExecutor implements IClientToolExecutor {
+  /** 模块名称 */
+  moduleName = 'workspace' as const
+
   constructor(private dirHandle: FileSystemDirectoryHandle) {}
 
-  async execute(call: ClientToolCallPayload): Promise<WorkspaceToolResultPayload> {
+  async execute(call: ClientToolCallPayload): Promise<{
+    callId: string
+    success: boolean
+    result?: unknown
+    error?: string
+  }> {
     const { callId, toolName, args } = call
     try {
       let result: unknown
