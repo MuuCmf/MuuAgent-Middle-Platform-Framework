@@ -7,8 +7,11 @@ export default defineConfig(({ mode }) => {
 
   const env = loadEnv(mode, process.cwd())
 
+  /** 是否为 Electron 桌面端构建 */
+  const isElectron = mode === "electron"
+
   return {
-    base: "/client/",
+    base: isElectron ? "./" : "/client/",
     plugins: [vue()],
     resolve: {
       alias: {
@@ -26,7 +29,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      outDir: "../service/public/client",
+      outDir: isElectron ? "../desktop/dist/client" : "../service/public/client",
       emptyOutDir: true,
     },
   };

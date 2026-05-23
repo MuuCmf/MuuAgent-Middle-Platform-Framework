@@ -125,6 +125,18 @@ export class ToolAssemblyBuilder {
       tools.push(...clientTools);
     }
 
+    if (resolution.resolvedSystemControl) {
+      const systemControlTools = this.clientToolRegistry.getToolsForAgent({
+        ...agent,
+        _systemControlEnabled: true,
+      });
+      for (const tool of systemControlTools) {
+        if (!tools.find(t => t.name === tool.name)) {
+          tools.push(tool);
+        }
+      }
+    }
+
     return tools;
   }
 

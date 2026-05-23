@@ -44,7 +44,10 @@ export interface ScanResult {
 }
 
 const DEFAULT_CONFIG: ScannerConfig = {
-  rootDirs: [path.join(process.cwd(), 'skills', 'standard')],
+  rootDirs: [
+    path.join(process.cwd(), 'skills', 'standard'),
+    path.join(process.cwd(), '.agents', 'skills'),
+  ],
   excludePatterns: ['node_modules', '.git', '__pycache__', '.DS_Store'],
   watchEnabled: false,
 };

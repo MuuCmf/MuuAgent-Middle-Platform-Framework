@@ -4,7 +4,7 @@ export interface ToolDefinition {
   name: string;
   description: string;
   parameters: Record<string, any>;
-  type: 'builtin' | 'skill-meta' | 'mcp' | 'kb' | 'workspace';
+  type: 'builtin' | 'skill-meta' | 'mcp' | 'kb' | 'workspace' | 'system_control';
 }
 
 export interface ToolExecutionContext {

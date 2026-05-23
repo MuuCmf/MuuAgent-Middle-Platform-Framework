@@ -11,6 +11,7 @@ import { KbModule } from '../../kb/kb.module';
 import { OAuthModule } from '../../oauth/oauth.module';
 import { McpServerModule } from '../../mcp-server/mcp-server.module';
 import { AdminModule } from '../../admin/admin.module';
+import { SystemControlModule } from '../../system-control/system-control.module';
 
 // Mid-level modules
 import { IntentModule } from '../../intent/intent.module';
@@ -38,6 +39,7 @@ export const KNOWN_BUSINESS_MODULES: Type[] = [
   OAuthModule,
   McpServerModule,
   AdminModule,
+  SystemControlModule,
   IntentModule,
   ModelRoutingModule,
   DocumentModule,

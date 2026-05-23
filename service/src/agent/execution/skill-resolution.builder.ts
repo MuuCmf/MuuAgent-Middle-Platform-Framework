@@ -12,6 +12,11 @@ export interface SkillResolutionResult {
    * 当任意绑定的技能声明 requires.workspace = true 时启用
    */
   resolvedWorkspace: boolean;
+  /**
+   * 系统控制能力是否已启用
+   * 当任意绑定的技能声明 requires.systemControl = true 时启用
+   */
+  resolvedSystemControl: boolean;
 }
 
 @Injectable()
@@ -62,11 +67,16 @@ export class SkillResolutionBuilder {
       skill => skill.frontmatter?.requires?.workspace === true,
     );
 
+    const resolvedSystemControl = boundSkills.some(
+      skill => skill.frontmatter?.requires?.systemControl === true,
+    );
+
     return {
       boundSkills,
       availableSkillNames,
       resolvedMcpServers: Array.from(resolvedMcpServers),
       resolvedWorkspace,
+      resolvedSystemControl,
     };
   }
 

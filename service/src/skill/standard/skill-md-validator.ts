@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as path from 'path';
 
 /**
  * 技能依赖配置
@@ -10,19 +11,34 @@ export interface SkillRequires {
   skills?: string[];
   /** 是否需要 workspace 文件操作能力 */
   workspace?: boolean;
+  /** 是否需要 system_control 系统控制能力 */
+  systemControl?: boolean;
 }
 
 /**
  * SKILL.md Frontmatter 字段定义
+ * 对齐 Agent Skills Open Specification V1.0 (agentskills.io)
+ *
+ * 标准必填字段：name, description
+ * 标准可选字段：version, license, compatibility, allowed-tools, metadata
+ * 平台扩展字段：requires（MuuAgent 特有，声明依赖）
  */
 export interface SkillFrontmatter {
+  /** 技能唯一标识，小写字母+数字+连字符，最长64字符，须与目录名一致 */
   name: string;
+  /** 语义版本号（标准可选） */
   version?: string;
+  /** 技能描述及触发条件，最长1024字符 */
   description: string;
+  /** 许可协议标识（如 MIT, Apache-2.0） */
   license?: string;
+  /** 环境兼容性说明 */
   compatibility?: string;
+  /** 平台扩展元数据（标准允许的自定义键值对） */
   metadata?: Record<string, string>;
+  /** 预授权工具列表（逗号或空格分隔） */
   allowedTools?: string;
+  /** 依赖声明（MuuAgent 扩展，标准不定义此字段） */
   requires?: SkillRequires;
 }
 
@@ -73,6 +89,7 @@ export class SkillMdValidator {
 
   /**
    * 校验解析后的技能文件
+   * 对齐 Agent Skills Open Specification V1.0 校验规则
    */
   validate(parsed: ParsedSkillFile): ValidationResult {
     const errors: ValidationError[] = [];
@@ -80,9 +97,12 @@ export class SkillMdValidator {
 
     this.validateName(parsed, errors);
     this.validateDescription(parsed, errors);
+    this.validateVersion(parsed, warnings);
     this.validateLicense(parsed, warnings);
     this.validateCompatibility(parsed, errors);
+    this.validateAllowedTools(parsed, warnings);
     this.validateBody(parsed, errors, warnings);
+    this.validateDirectoryStructure(parsed, warnings);
 
     return {
       valid: errors.length === 0,
@@ -177,6 +197,71 @@ export class SkillMdValidator {
         message: `compatibility 长度不能超过 ${this.maxCompatibilityLength} 个字符（当前 ${compatibility.length} 字符）`,
         code: 'LENGTH_EXCEEDED',
       });
+    }
+  }
+
+  /**
+   * 校验 version 字段（语义版本号格式）
+   * @param parsed 解析后的技能文件
+   * @param warnings 警告列表
+   */
+  private validateVersion(parsed: ParsedSkillFile, warnings: string[]): void {
+    const { version } = parsed.frontmatter;
+    if (!version) return;
+
+    const semverPattern = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$/;
+    if (!semverPattern.test(version)) {
+      warnings.push(`version "${version}" 不符合语义版本号规范（推荐格式：1.0.0）`);
+    }
+  }
+
+  /**
+   * 校验 allowed-tools 字段格式
+   * @param parsed 解析后的技能文件
+   * @param warnings 警告列表
+   */
+  private validateAllowedTools(parsed: ParsedSkillFile, warnings: string[]): void {
+    const { allowedTools } = parsed.frontmatter;
+    if (!allowedTools) return;
+
+    const tools = allowedTools.split(/[\s,]+/).filter(Boolean);
+    const toolPattern = /^[a-zA-Z0-9_-]+$/;
+
+    for (const tool of tools) {
+      if (!toolPattern.test(tool)) {
+        warnings.push(`allowed-tools 中的 "${tool}" 包含非法字符，推荐仅使用字母、数字、连字符和下划线`);
+      }
+    }
+  }
+
+  /**
+   * 校验目录结构是否符合 Agent Skills 标准
+   * 标准目录结构：skill-name/SKILL.md + scripts/ + references/ + assets/
+   * @param parsed 解析后的技能文件
+   * @param warnings 警告列表
+   */
+  private validateDirectoryStructure(parsed: ParsedSkillFile, warnings: string[]): void {
+    const dir = parsed.directoryPath;
+    const dirName = dir.split(/[/\\]/).pop() || '';
+
+    /** 检查目录名是否符合标准命名规范 */
+    if (dirName && !this.namePattern.test(dirName)) {
+      warnings.push(
+        `目录名 "${dirName}" 不符合 Agent Skills 标准命名规范（小写字母+数字+连字符），跨平台共享时可能不被识别`,
+      );
+    }
+
+    /** 检查是否缺少标准子目录（仅提示，不阻断） */
+    const standardDirs = ['scripts', 'references', 'assets'];
+    const fs = require('fs');
+    for (const sub of standardDirs) {
+      const subPath = path.join(dir, sub);
+      if (!fs.existsSync(subPath)) {
+        /** 仅当 SKILL.md 正文引用了该子目录时才警告 */
+        if (parsed.body.includes(`${sub}/`)) {
+          warnings.push(`正文引用了 ${sub}/ 目录但该目录不存在`);
+        }
+      }
     }
   }
 

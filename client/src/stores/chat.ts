@@ -7,6 +7,7 @@ import type { ClientToolCallPayload } from '../api/stream'
 import { submitWorkspaceResult } from '../api/workspace'
 import { useWorkspace } from '../composables/useWorkspace'
 import { WorkspaceExecutor } from '../executor/workspace.executor'
+import { systemControlExecutor } from '../executor/system-control.executor'
 
 /**
  * 处理思考内容和回答内容的分割
@@ -284,6 +285,9 @@ export const useChatStore = defineStore('chat', () => {
                     }
                   })
                 }
+              } else if (payload.moduleName === 'system_control') {
+                systemControlExecutor.setConversationId(currentConversationId.value || '')
+                systemControlExecutor.execute(payload)
               }
             },
             controller.signal,

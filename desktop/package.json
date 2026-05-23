@@ -1,0 +1,52 @@
+{
+  "name": "muu-agent-desktop",
+  "version": "1.0.0",
+  "description": "MuuAgent 桌面端 - 语音+文本双模控制电脑",
+  "main": "dist/electron/main.js",
+  "scripts": {
+    "dev:client": "cd ../client && npm run dev",
+    "dev:electron": "tsc -p tsconfig.electron.json && electron .",
+    "dev": "concurrently \"npm run dev:client\" \"wait-on http://localhost:5174/client/ && npm run dev:electron\"",
+    "build:client": "cd ../client && npx vite build --mode electron",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build": "npm run build:client && npm run build:electron && electron-builder",
+    "pack": "npm run build:electron && electron-builder --dir"
+  },
+  "dependencies": {
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.3.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.6.0",
+    "wait-on": "^8.0.0"
+  },
+  "build": {
+    "appId": "com.muu.agent.desktop",
+    "productName": "MuuAgent",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://your-update-server.com/updates"
+    }
+  }
+}
