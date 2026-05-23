@@ -95,7 +95,7 @@ function interpolateMsg(template: string): string {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .tool-policy-panel {
   font-size: 13px;
 }
@@ -139,10 +139,10 @@ function interpolateMsg(template: string): string {
   padding: 6px 8px;
   border-radius: 6px;
   transition: background 0.2s;
-}
 
-.tool-item:hover {
-  background: var(--bg-tertiary);
+  &:hover {
+    background: var(--bg-tertiary);
+  }
 }
 
 .tool-info {
@@ -182,22 +182,22 @@ function interpolateMsg(template: string): string {
   cursor: pointer;
   outline: none;
   transition: border-color 0.2s;
-}
 
-.mode-select:focus {
-  border-color: var(--primary-color);
-}
+  &:focus {
+    border-color: var(--primary-color);
+  }
 
-.mode-select.mode-auto {
-  color: #67c23a;
-}
+  &.mode-auto {
+    color: #67c23a;
+  }
 
-.mode-select.mode-confirm {
-  color: #e6a23c;
-}
+  &.mode-confirm {
+    color: #e6a23c;
+  }
 
-.mode-select.mode-deny {
-  color: #f56c6c;
+  &.mode-deny {
+    color: #f56c6c;
+  }
 }
 
 .empty-hint {

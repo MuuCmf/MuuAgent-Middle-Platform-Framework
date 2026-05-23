@@ -514,7 +514,7 @@ const getPlaceholder = (): string => {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .chat-input {
   padding: 16px 24px 24px;
   background: var(--white);
@@ -539,9 +539,9 @@ const getPlaceholder = (): string => {
   padding: 2px 0;
   scrollbar-width: none;
   -ms-overflow-style: none;
-}
 
-.agent-chips-row::-webkit-scrollbar { display: none; }
+  &::-webkit-scrollbar { display: none; }
+}
 
 .agent-chip {
   display: inline-flex;
@@ -557,21 +557,21 @@ const getPlaceholder = (): string => {
   white-space: nowrap;
   flex-shrink: 0;
   border: 1px solid transparent;
-}
 
-.agent-chip:hover {
-  color: var(--primary-color);
-  background: var(--bg-tertiary);
-  border-color: var(--border-color);
-}
+  &:hover {
+    color: var(--primary-color);
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+  }
 
-.agent-chip.active {
-  background: var(--primary-gradient);
-  color: white;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
-}
+  &.active {
+    background: var(--primary-gradient);
+    color: white;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
 
-.agent-chip.active .el-icon { color: white; }
+    .el-icon { color: white; }
+  }
+}
 
 .command-menu {
   position: absolute;
@@ -595,11 +595,11 @@ const getPlaceholder = (): string => {
   padding: 10px 16px;
   cursor: pointer;
   transition: background 0.15s;
-}
 
-.command-item:hover,
-.command-item.active {
-  background: var(--bg-color);
+  &:hover,
+  &.active {
+    background: var(--bg-color);
+  }
 }
 
 .command-name {
@@ -647,18 +647,16 @@ const getPlaceholder = (): string => {
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
-}
 
-.model-trigger:hover,
-.workspace-trigger:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--border-color);
-}
+  &:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+  }
 
-.model-trigger .el-icon,
-.workspace-trigger .el-icon {
-  color: var(--primary-color);
-  flex-shrink: 0;
+  .el-icon {
+    color: var(--primary-color);
+    flex-shrink: 0;
+  }
 }
 
 .model-trigger-text,
@@ -675,15 +673,15 @@ const getPlaceholder = (): string => {
 .workspace-trigger {
   border-style: dashed;
   border-color: var(--border-color);
-}
 
-.workspace-trigger:hover {
-  border-style: solid;
-  border-color: var(--primary-color);
-}
+  &:hover {
+    border-style: solid;
+    border-color: var(--primary-color);
+  }
 
-.workspace-trigger .el-icon {
-  color: #67c23a;
+  .el-icon {
+    color: #67c23a;
+  }
 }
 
 .workspace-trigger-clear {
@@ -691,11 +689,11 @@ const getPlaceholder = (): string => {
   transition: color 0.2s;
   padding: 2px;
   border-radius: 50%;
-}
 
-.workspace-trigger-clear:hover {
-  color: #f56c6c !important;
-  background: rgba(245, 108, 108, 0.1);
+  &:hover {
+    color: #f56c6c !important;
+    background: rgba(245, 108, 108, 0.1);
+  }
 }
 
 .model-trigger-arrow {
@@ -707,7 +705,6 @@ const getPlaceholder = (): string => {
   color: var(--primary-color) !important;
 }
 
-/* 模式触发器 */
 .mode-trigger {
   display: inline-flex;
   align-items: center;
@@ -719,11 +716,11 @@ const getPlaceholder = (): string => {
   transition: all 0.2s ease;
   user-select: none;
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
-}
 
-.mode-trigger:hover {
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
-  transform: translateY(-1px);
+  &:hover {
+    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
+    transform: translateY(-1px);
+  }
 }
 
 .mode-trigger-icon {
@@ -741,7 +738,6 @@ const getPlaceholder = (): string => {
   color: rgba(255, 255, 255, 0.7) !important;
 }
 
-/* 模式选择面板 */
 .mode-sheet-overlay {
   position: fixed;
   inset: 0;
@@ -784,10 +780,10 @@ const getPlaceholder = (): string => {
   cursor: pointer;
   color: var(--text-tertiary);
   transition: color 0.2s;
-}
 
-.mode-sheet-close:hover {
-  color: var(--text-color);
+  &:hover {
+    color: var(--text-color);
+  }
 }
 
 .mode-sheet-body {
@@ -803,15 +799,15 @@ const getPlaceholder = (): string => {
   cursor: pointer;
   transition: all 0.2s ease;
   border: 2px solid transparent;
-}
 
-.mode-sheet-item:hover {
-  background: var(--bg-secondary);
-}
+  &:hover {
+    background: var(--bg-secondary);
+  }
 
-.mode-sheet-item.active {
-  background: var(--bg-color);
-  border-color: var(--primary-color);
+  &.active {
+    background: var(--bg-color);
+    border-color: var(--primary-color);
+  }
 }
 
 .mode-sheet-icon {
@@ -841,16 +837,18 @@ const getPlaceholder = (): string => {
   background: linear-gradient(135deg, #f0f9eb 0%, #e0f5d8 100%);
 }
 
-html.dark .mode-icon-chat {
-  background: linear-gradient(135deg, #1a2540 0%, #1e3050 100%);
-}
+html.dark {
+  .mode-icon-chat {
+    background: linear-gradient(135deg, #1a2540 0%, #1e3050 100%);
+  }
 
-html.dark .mode-icon-rag {
-  background: linear-gradient(135deg, #3d2e0a 0%, #4a3510 100%);
-}
+  .mode-icon-rag {
+    background: linear-gradient(135deg, #3d2e0a 0%, #4a3510 100%);
+  }
 
-html.dark .mode-icon-retrieval {
-  background: linear-gradient(135deg, #1a2e15 0%, #1f3a18 100%);
+  .mode-icon-retrieval {
+    background: linear-gradient(135deg, #1a2e15 0%, #1f3a18 100%);
+  }
 }
 
 .mode-sheet-info {
@@ -875,7 +873,6 @@ html.dark .mode-icon-retrieval {
   flex-shrink: 0;
 }
 
-/* sheet 过渡动画 */
 .sheet-fade-enter-active,
 .sheet-fade-leave-active {
   transition: all 0.25s ease;
@@ -884,14 +881,12 @@ html.dark .mode-icon-retrieval {
 .sheet-fade-enter-from,
 .sheet-fade-leave-to {
   opacity: 0;
+
+  .mode-sheet-panel {
+    transform: translateY(30px);
+  }
 }
 
-.sheet-fade-enter-from .mode-sheet-panel,
-.sheet-fade-leave-to .mode-sheet-panel {
-  transform: translateY(30px);
-}
-
-/* 模型选择弹出面板 */
 .model-sheet-overlay {
   position: fixed;
   inset: 0;
@@ -936,10 +931,10 @@ html.dark .mode-icon-retrieval {
   color: var(--text-tertiary);
   transition: color 0.2s;
   flex-shrink: 0;
-}
 
-.model-sheet-close:hover {
-  color: var(--text-color);
+  &:hover {
+    color: var(--text-color);
+  }
 }
 
 .model-sheet-body {
@@ -957,15 +952,15 @@ html.dark .mode-icon-retrieval {
   cursor: pointer;
   transition: all 0.2s ease;
   border: 2px solid transparent;
-}
 
-.model-sheet-item:hover {
-  background: var(--bg-secondary);
-}
+  &:hover {
+    background: var(--bg-secondary);
+  }
 
-.model-sheet-item.active {
-  background: var(--bg-color);
-  border-color: var(--primary-color);
+  &.active {
+    background: var(--bg-color);
+    border-color: var(--primary-color);
+  }
 }
 
 .model-sheet-icon {
@@ -978,11 +973,11 @@ html.dark .mode-icon-retrieval {
   background: var(--bg-tertiary);
   color: var(--primary-color);
   flex-shrink: 0;
-}
 
-.model-sheet-icon.mcp-icon {
-  background: linear-gradient(135deg, #fff3e6 0%, #ffe8cc 100%);
-  color: #f59e0b;
+  &.mcp-icon {
+    background: linear-gradient(135deg, #fff3e6 0%, #ffe8cc 100%);
+    color: #f59e0b;
+  }
 }
 
 html.dark .model-sheet-icon.mcp-icon {
@@ -1022,20 +1017,20 @@ html.dark .model-sheet-icon.mcp-icon {
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-}
 
-.model-sheet-divider::before,
-.model-sheet-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-color);
-}
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+  }
 
-.model-sheet-divider span {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  white-space: nowrap;
+  span {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+  }
 }
 
 .model-sheet-empty {
@@ -1049,7 +1044,6 @@ html.dark .model-sheet-icon.mcp-icon {
   font-size: 13px;
 }
 
-/* 弹出动画 */
 .model-sheet-enter-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1058,19 +1052,14 @@ html.dark .model-sheet-icon.mcp-icon {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.model-sheet-enter-from .model-sheet-panel {
-  transform: scale(0.9) translateY(20px);
-  opacity: 0;
-}
-
-.model-sheet-leave-to .model-sheet-panel {
-  transform: scale(0.9) translateY(20px);
-  opacity: 0;
-}
-
 .model-sheet-enter-from,
 .model-sheet-leave-to {
   opacity: 0;
+
+  .model-sheet-panel {
+    transform: scale(0.9) translateY(20px);
+    opacity: 0;
+  }
 }
 
 .model-sheet-enter-to,
@@ -1085,12 +1074,12 @@ html.dark .model-sheet-icon.mcp-icon {
   display: flex;
   gap: 8px;
   align-items: center;
-}
 
-.input-actions .el-button {
-  padding: 0;
-  width: 44px;
-  height: 44px;
+  .el-button {
+    padding: 0;
+    width: 44px;
+    height: 44px;
+  }
 }
 
 :deep(.el-textarea__inner) {
@@ -1102,11 +1091,11 @@ html.dark .model-sheet-icon.mcp-icon {
   transition: all 0.3s ease;
   background: var(--white);
   color: var(--text-color);
-}
 
-:deep(.el-textarea__inner:focus) {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+  &:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+  }
 }
 
 :deep(.el-button--primary) {
@@ -1116,16 +1105,16 @@ html.dark .model-sheet-icon.mcp-icon {
   height: 44px;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
   transition: all 0.3s ease;
-}
 
-:deep(.el-button--primary:hover) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
-}
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+  }
 
-:deep(.el-button--primary:disabled) {
-  background: var(--bg-tertiary);
-  box-shadow: none;
+  &:disabled {
+    background: var(--bg-tertiary);
+    box-shadow: none;
+  }
 }
 
 :deep(.el-button--danger) {
@@ -1135,11 +1124,11 @@ html.dark .model-sheet-icon.mcp-icon {
   height: 44px;
   box-shadow: 0 4px 12px rgba(245, 108, 108, 0.4);
   transition: all 0.3s ease;
-}
 
-:deep(.el-button--danger:hover) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(245, 108, 108, 0.5);
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(245, 108, 108, 0.5);
+  }
 }
 
 @media (max-width: 768px) {

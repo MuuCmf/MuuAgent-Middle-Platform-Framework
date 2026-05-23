@@ -85,7 +85,7 @@ const selectModel = (code: string) => {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .model-selector-container {
   display: flex;
   flex-direction: column;
@@ -101,15 +101,19 @@ const selectModel = (code: string) => {
   cursor: pointer;
   transition: all 0.2s ease;
   border: 2px solid transparent;
-}
 
-.model-card:hover {
-  background: var(--bg-tertiary);
-}
+  &:hover {
+    background: var(--bg-tertiary);
+  }
 
-.model-card.active {
-  background: var(--bg-color);
-  border-color: var(--primary-color);
+  &.active {
+    background: var(--bg-color);
+    border-color: var(--primary-color);
+
+    .model-check {
+      background: var(--primary-color);
+    }
+  }
 }
 
 .model-icon {
@@ -122,11 +126,11 @@ const selectModel = (code: string) => {
   background: var(--bg-tertiary);
   color: var(--primary-color);
   flex-shrink: 0;
-}
 
-.model-icon.mcp-icon {
-  background: linear-gradient(135deg, #fff3e6 0%, #ffe8cc 100%);
-  color: #f59e0b;
+  &.mcp-icon {
+    background: linear-gradient(135deg, #fff3e6 0%, #ffe8cc 100%);
+    color: #f59e0b;
+  }
 }
 
 html.dark .model-icon.mcp-icon {
@@ -168,28 +172,24 @@ html.dark .model-icon.mcp-icon {
   flex-shrink: 0;
 }
 
-.model-card.active .model-check {
-  background: var(--primary-color);
-}
-
 .divider {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-}
 
-.divider::before,
-.divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-color);
-}
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+  }
 
-.divider span {
-  font-size: 11px;
-  color: var(--text-tertiary);
+  span {
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
 }
 
 .empty-state {
@@ -199,10 +199,10 @@ html.dark .model-icon.mcp-icon {
   justify-content: center;
   padding: 24px;
   color: var(--text-tertiary);
-}
 
-.empty-state div {
-  margin-top: 8px;
-  font-size: 13px;
+  div {
+    margin-top: 8px;
+    font-size: 13px;
+  }
 }
 </style>

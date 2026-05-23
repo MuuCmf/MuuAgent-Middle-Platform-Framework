@@ -81,7 +81,7 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .app-shell {
   display: flex;
   height: 100vh;
@@ -89,6 +89,16 @@ onBeforeUnmount(() => {
   overflow: hidden;
   position: relative;
   background: var(--bg-color);
+
+  &.sidebar-collapsed {
+    .app-sidebar {
+      width: 0 !important;
+    }
+  }
+
+  &:not(.sidebar-collapsed) .sidebar-toggle {
+    left: v-bind(sidebarWidth + 'px');
+  }
 }
 
 .app-sidebar {
@@ -117,10 +127,10 @@ onBeforeUnmount(() => {
   background: transparent;
   transition: background 0.2s;
   z-index: 10;
-}
 
-.sidebar-resize-handle:hover {
-  background: var(--primary-color);
+  &:hover {
+    background: var(--primary-color);
+  }
 }
 
 .app-main {
@@ -157,16 +167,12 @@ onBeforeUnmount(() => {
   transition: all 0.3s ease;
   box-shadow: var(--shadow-sm);
   color: var(--text-secondary);
-}
 
-.sidebar-toggle:hover {
-  background: var(--bg-color);
-  width: 28px;
-  color: var(--primary-color);
-}
-
-.app-shell:not(.sidebar-collapsed) .sidebar-toggle {
-  left: v-bind(sidebarWidth + 'px');
+  &:hover {
+    background: var(--bg-color);
+    width: 28px;
+    color: var(--primary-color);
+  }
 }
 
 @media (max-width: 768px) {
@@ -181,10 +187,6 @@ onBeforeUnmount(() => {
 
   .sidebar-toggle {
     display: none;
-  }
-
-  .app-shell.sidebar-collapsed .app-sidebar {
-    width: 0 !important;
   }
 }
 

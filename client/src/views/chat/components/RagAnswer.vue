@@ -40,7 +40,7 @@ import { Markdown } from 'vue-stream-markdown'
 import type { ControlsConfig, CodeOptions, ShikiOptions } from 'vue-stream-markdown'
 import { preprocessMarkdown } from '../../../utils/markdown'
 import 'vue-stream-markdown/index.css'
-import '../../../styles/markdown.css'
+import '../../../styles/markdown.scss'
 
 const props = withDefaults(defineProps<{
   /** 回答内容 */
@@ -142,7 +142,7 @@ const shikiOptions: ShikiOptions = {
   display: inline-block;
   width: 2px;
   height: 18px;
-  background: #6366f1;
+  background: var(--primary-color);
   animation: blink 1s infinite;
   margin-left: 2px;
 }
@@ -163,7 +163,7 @@ const shikiOptions: ShikiOptions = {
   border-top: 1px dashed #e8e8e8;
 
   .sources-title {
-    color: #667eea;
+    color: var(--primary-color);
     font-weight: 600;
     margin-bottom: 8px;
   }

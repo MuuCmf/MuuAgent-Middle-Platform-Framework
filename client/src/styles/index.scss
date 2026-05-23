@@ -1,5 +1,5 @@
 :root {
-  --primary-color: #667eea;
+  --primary-color: #03B8CF;
   --primary-gradient: #03B8CF;
   --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
   --text-color: #333;
@@ -16,10 +16,17 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  --el-color-primary: #03B8CF;
+  --el-color-primary-light-3: #35c9da;
+  --el-color-primary-light-5: #5dd5e2;
+  --el-color-primary-light-7: #86e0e9;
+  --el-color-primary-light-8: #9ae6ed;
+  --el-color-primary-light-9: #b0ecf1;
+  --el-color-primary-dark-2: #0293a5;
 }
 
 html.dark {
-  --primary-color: #8b9cf7;
+  --primary-color: #03B8CF;
   --text-color: #e1e4e8;
   --text-secondary: #8b949e;
   --text-tertiary: #6e7681;
@@ -31,6 +38,11 @@ html.dark {
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+  body {
+    background: var(--bg-color);
+    color: var(--text-color);
+  }
 }
 
 html,
@@ -42,59 +54,60 @@ body {
   overflow: hidden;
 }
 
-html.dark body {
-  background: var(--bg-color);
-  color: var(--text-color);
-}
-
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
+
+  &-track {
+    background: transparent;
+    border-radius: 4px;
+  }
+
+  &-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+
+    &:hover {
+      background: #a8a8a8;
+    }
+  }
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 4px;
+html.dark {
+  ::-webkit-scrollbar-thumb {
+    background: #484f58;
+
+    &:hover {
+      background: #6e7681;
+    }
+  }
 }
 
-::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+.fade {
+  &-enter-active,
+  &-leave-active {
+    transition: opacity 0.3s ease;
+  }
+
+  &-enter-from,
+  &-leave-to {
+    opacity: 0;
+  }
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
+.slide {
+  &-enter-active,
+  &-leave-active {
+    transition: all 0.3s ease;
+  }
 
-html.dark ::-webkit-scrollbar-thumb {
-  background: #484f58;
-}
+  &-enter-from {
+    transform: translateX(-100%);
+  }
 
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #6e7681;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-.slide-enter-active,
-.slide-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-enter-from {
-  transform: translateX(-100%);
-}
-
-.slide-leave-to {
-  transform: translateX(100%);
+  &-leave-to {
+    transform: translateX(100%);
+  }
 }
 
 @keyframes fadeIn {

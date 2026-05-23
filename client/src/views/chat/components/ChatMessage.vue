@@ -97,7 +97,7 @@ import { Markdown } from 'vue-stream-markdown'
 import type { ControlsConfig, CodeOptions, ShikiOptions } from 'vue-stream-markdown'
 import { preprocessMarkdown } from '../../../utils/markdown'
 import 'vue-stream-markdown/index.css'
-import '../../../styles/markdown.css'
+import '../../../styles/markdown.scss'
 
 interface Props {
   /** 消息对象 */
@@ -185,16 +185,32 @@ const formatTime = (timestamp?: number | string): string => {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .message {
   display: flex;
   gap: 12px;
   padding: 16px 0;
   animation: fadeIn 0.3s ease-in-out;
-}
 
-.message.message-grouped {
-  padding-top: 4px;
+  &.message-grouped {
+    padding-top: 4px;
+  }
+
+  &.user {
+    flex-direction: row-reverse;
+
+    .message-body {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+  }
+
+  &.assistant .message-text {
+    background: var(--bg-tertiary);
+    border-bottom-left-radius: 4px;
+    color: var(--text-color);
+  }
 }
 
 @keyframes fadeIn {
@@ -206,10 +222,6 @@ const formatTime = (timestamp?: number | string): string => {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.message.user {
-  flex-direction: row-reverse;
 }
 
 .avatar-spacer {
@@ -244,12 +256,6 @@ const formatTime = (timestamp?: number | string): string => {
   flex: 1;
   max-width: 75%;
   min-width: 0;
-}
-
-.message.user .message-body {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
 }
 
 .message-sender {
@@ -301,25 +307,19 @@ const formatTime = (timestamp?: number | string): string => {
   border-bottom-right-radius: 4px;
 }
 
-.message.assistant .message-text {
-  background: var(--bg-tertiary);
-  border-bottom-left-radius: 4px;
-  color: var(--text-color);
-}
-
 .typing-cursor {
   display: inline-flex;
   align-items: center;
   margin-left: 8px;
-}
 
-.typing-cursor .cursor {
-  display: inline-block;
-  width: 2px;
-  height: 18px;
-  background: var(--primary-color);
-  animation: blink 1s infinite;
-  margin-left: 2px;
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 18px;
+    background: var(--primary-color);
+    animation: blink 1s infinite;
+    margin-left: 2px;
+  }
 }
 
 @keyframes blink {
@@ -332,61 +332,61 @@ const formatTime = (timestamp?: number | string): string => {
   border-radius: var(--radius-md);
   padding: 16px;
   width: 100%;
-}
 
-.retrieval-results .results-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--primary-color);
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-color);
-}
+  .results-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+  }
 
-.retrieval-results .result-item {
-  padding: 12px;
-  margin-bottom: 8px;
-  background: var(--white);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
-}
+  .result-item {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: var(--white);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
 
-.retrieval-results .result-item:last-child {
-  margin-bottom: 0;
-}
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
 
-.retrieval-results .result-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
+  .result-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
 
-.retrieval-results .result-index {
-  color: var(--text-tertiary);
-  font-size: 12px;
-}
+  .result-index {
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
 
-.retrieval-results .result-name {
-  font-weight: 500;
-  color: var(--text-color);
-}
+  .result-name {
+    font-weight: 500;
+    color: var(--text-color);
+  }
 
-.retrieval-results .result-score {
-  margin-left: auto;
-  font-size: 12px;
-  color: #52c41a;
-  background: #f6ffed;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
+  .result-score {
+    margin-left: auto;
+    font-size: 12px;
+    color: #52c41a;
+    background: #f6ffed;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
 
-.retrieval-results .result-content {
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
+  .result-content {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
 }
 
 .thinking-section {
@@ -395,73 +395,73 @@ const formatTime = (timestamp?: number | string): string => {
   overflow: hidden;
   border: 1px solid #ffe0b2;
   background: linear-gradient(135deg, #fff8e1 0%, #fff3e0 100%);
-}
 
-html.dark .thinking-section {
-  border-color: #5d4037;
-  background: linear-gradient(135deg, #3e2723 0%, #4e342e 100%);
-}
+  html.dark & {
+    border-color: #5d4037;
+    background: linear-gradient(135deg, #3e2723 0%, #4e342e 100%);
+  }
 
-.thinking-section .thinking-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.2s;
-}
+  .thinking-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
 
-.thinking-section .thinking-header:hover {
-  background: rgba(255, 152, 0, 0.08);
-}
+    &:hover {
+      background: rgba(255, 152, 0, 0.08);
+    }
+  }
 
-.thinking-section .thinking-icon {
-  font-size: 16px;
-}
+  .thinking-icon {
+    font-size: 16px;
+  }
 
-.thinking-section .thinking-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #e65100;
-}
+  .thinking-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e65100;
 
-html.dark .thinking-section .thinking-label {
-  color: #ffb74d;
-}
+    html.dark & {
+      color: #ffb74d;
+    }
+  }
 
-.thinking-section .thinking-toggle {
-  color: #e65100;
-  margin-left: auto;
-}
+  .thinking-toggle {
+    color: #e65100;
+    margin-left: auto;
 
-html.dark .thinking-section .thinking-toggle {
-  color: #ffb74d;
-}
+    html.dark & {
+      color: #ffb74d;
+    }
+  }
 
-.thinking-section .thinking-content {
-  padding: 0 14px 12px;
-  white-space: pre-wrap;
-  line-height: 1.8;
-  color: #bf360c;
-  font-style: italic;
-  font-size: 13px;
-  border-top: 1px solid #ffe0b2;
-  padding-top: 10px;
-}
+  .thinking-content {
+    padding: 0 14px 12px;
+    white-space: pre-wrap;
+    line-height: 1.8;
+    color: #bf360c;
+    font-style: italic;
+    font-size: 13px;
+    border-top: 1px solid #ffe0b2;
+    padding-top: 10px;
 
-html.dark .thinking-section .thinking-content {
-  color: #ffcc80;
-  border-top-color: #5d4037;
+    html.dark & {
+      color: #ffcc80;
+      border-top-color: #5d4037;
+    }
+  }
 }
 
 .message-meta {
   margin-top: 6px;
-}
 
-.message-meta .message-time {
-  font-size: 11px;
-  color: var(--text-tertiary);
+  .message-time {
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
 }
 
 @media (max-width: 768px) {

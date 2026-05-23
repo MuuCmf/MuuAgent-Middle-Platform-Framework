@@ -87,18 +87,22 @@ const filteredSteps = computed(() => {
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .reasoning-container {
   margin-bottom: 12px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   overflow: hidden;
   background: #ffffff;
-}
 
-.reasoning-container.streaming {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+  &.streaming {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(3, 184, 207, 0.1);
+
+    .reasoning-header {
+      background: linear-gradient(135deg, #e6fafc 0%, #d5f4f7 100%);
+    }
+  }
 }
 
 .reasoning-header {
@@ -110,14 +114,10 @@ const filteredSteps = computed(() => {
   cursor: pointer;
   user-select: none;
   transition: background 0.2s;
-}
 
-.reasoning-container.streaming .reasoning-header {
-  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
-}
-
-.reasoning-header:hover {
-  background: #f1f5f9;
+  &:hover {
+    background: #f1f5f9;
+  }
 }
 
 .reasoning-title-row {
@@ -148,10 +148,10 @@ const filteredSteps = computed(() => {
   font-size: 10px;
   color: #9ca3af;
   transition: transform 0.2s;
-}
 
-.expand-icon.expanded {
-  transform: rotate(180deg);
+  &.expanded {
+    transform: rotate(180deg);
+  }
 }
 
 .reasoning-content {
@@ -165,12 +165,12 @@ const filteredSteps = computed(() => {
   margin-bottom: 8px;
   padding-bottom: 8px;
   border-bottom: 1px solid #f3f4f6;
-}
 
-.step-item:last-child {
-  margin-bottom: 0;
-  padding-bottom: 0;
-  border-bottom: none;
+  &:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
 }
 
 .step-header {
@@ -187,7 +187,7 @@ const filteredSteps = computed(() => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #6366f1;
+  background: var(--primary-color);
   color: white;
   font-size: 10px;
   font-weight: 600;
@@ -196,18 +196,18 @@ const filteredSteps = computed(() => {
 .step-type {
   font-size: 11px;
   font-weight: 500;
-}
 
-.step-type.type-thought {
-  color: #8b5cf6;
-}
+  &.type-thought {
+    color: var(--primary-color);
+  }
 
-.step-type.type-action {
-  color: #f59e0b;
-}
+  &.type-action {
+    color: #f59e0b;
+  }
 
-.step-type.type-observation {
-  color: #10b981;
+  &.type-observation {
+    color: #10b981;
+  }
 }
 
 .step-body p {
@@ -223,15 +223,15 @@ const filteredSteps = computed(() => {
   border-radius: 4px;
   padding: 4px 8px;
   overflow-x: auto;
-}
 
-.code-block code,
-.code-block pre {
-  font-size: 10px;
-  font-family: 'Courier New', monospace;
-  color: #374151;
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
+  code,
+  pre {
+    font-size: 10px;
+    font-family: 'Courier New', monospace;
+    color: #374151;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
 }
 </style>

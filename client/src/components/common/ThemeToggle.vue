@@ -28,7 +28,7 @@ const themeTooltip = computed(() => {
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .theme-toggle {
   display: flex;
   align-items: center;
@@ -39,10 +39,10 @@ const themeTooltip = computed(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   color: var(--text-secondary);
-}
 
-.theme-toggle:hover {
-  background: var(--bg-tertiary);
-  color: var(--primary-color);
+  &:hover {
+    background: var(--bg-tertiary);
+    color: var(--primary-color);
+  }
 }
 </style>

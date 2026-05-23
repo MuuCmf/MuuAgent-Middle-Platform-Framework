@@ -181,7 +181,7 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .chat-main {
   flex: 1;
   display: flex;
@@ -190,14 +190,16 @@ onMounted(() => {
   height: 100%;
 }
 
-.header-info h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.header-info {
+  h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #03B8CF 0%, #0199AD 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 }
 
 .header-tags {
@@ -224,8 +226,8 @@ onMounted(() => {
 }
 
 .specified-tag {
-  background: #f0f5ff;
-  color: #667eea;
+  background: #e6fafc;
+  color: var(--primary-color);
 }
 
 .agent-tag {
@@ -268,17 +270,17 @@ onMounted(() => {
   justify-content: center;
   padding: 80px 20px;
   color: #999;
-}
 
-.empty-state h3 {
-  margin-top: 20px;
-  font-size: 20px;
-  font-weight: 500;
-  color: #666;
-}
+  h3 {
+    margin-top: 20px;
+    font-size: 20px;
+    font-weight: 500;
+    color: #666;
+  }
 
-.empty-state p {
-  margin-top: 8px;
-  font-size: 14px;
+  p {
+    margin-top: 8px;
+    font-size: 14px;
+  }
 }
 </style>

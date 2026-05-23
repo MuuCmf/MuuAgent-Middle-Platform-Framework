@@ -169,7 +169,7 @@ const handleCommand = (command: string, id: string) => {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .conversation-list {
   height: 100%;
   display: flex;
@@ -206,15 +206,28 @@ const handleCommand = (command: string, id: string) => {
   padding: 10px 12px 10px 16px;
   cursor: pointer;
   transition: all 0.2s ease;
-}
 
-.conversation-item:hover {
-  background: var(--bg-tertiary);
-}
+  &:hover {
+    background: var(--bg-tertiary);
+  }
 
-.conversation-item.active {
-  background: var(--primary-gradient);
-  color: white;
+  &.active {
+    background: var(--primary-gradient);
+    color: white;
+
+    .conv-icon {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .conv-meta {
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    .more-btn {
+      opacity: 1;
+      color: white;
+    }
+  }
 }
 
 .conv-icon {
@@ -226,10 +239,6 @@ const handleCommand = (command: string, id: string) => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-
-.conversation-item.active .conv-icon {
-  background: rgba(255, 255, 255, 0.2);
 }
 
 .conv-info {
@@ -251,10 +260,6 @@ const handleCommand = (command: string, id: string) => {
   color: var(--text-tertiary);
 }
 
-.conversation-item.active .conv-meta {
-  color: rgba(255, 255, 255, 0.75);
-}
-
 .more-btn {
   opacity: 0;
   transition: opacity 0.2s;
@@ -263,10 +268,5 @@ const handleCommand = (command: string, id: string) => {
 
 .conversation-item:hover .more-btn {
   opacity: 1;
-}
-
-.conversation-item.active .more-btn {
-  opacity: 1;
-  color: white;
 }
 </style>
