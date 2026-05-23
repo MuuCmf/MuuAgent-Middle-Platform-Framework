@@ -19,6 +19,30 @@ export interface ClientToolResultPayload {
 }
 
 /**
+ * 动态客户端工具定义（含执行配置）
+ */
+export interface DynamicClientToolDefinition {
+  /** 工具名称 */
+  name: string
+  /** 显示名称 */
+  displayName: string | null
+  /** 工具描述 */
+  description: string
+  /** 参数 JSON Schema */
+  parameters: Record<string, unknown>
+  /** 执行模板类型 */
+  executorType: string
+  /** 执行模板配置 */
+  executorConfig: Record<string, unknown>
+  /** 确认模式 */
+  confirmMode: string
+  /** 确认消息 */
+  confirmMessage: string | null
+  /** 超时时间 */
+  timeout: number
+}
+
+/**
  * 统一提交客户端工具执行结果
  * 所有客户端工具（workspace、system_control 等）统一使用此接口回传结果
  * @param result 工具执行结果
@@ -35,4 +59,25 @@ export async function submitClientToolResult(
   if (response.data?.code !== 200) {
     throw new Error(response.data?.message || '提交客户端工具结果失败')
   }
+}
+
+/**
+ * 从服务端同步动态客户端工具定义
+ * @param appCode 应用标识
+ * @returns {Promise<DynamicClientToolDefinition[]>} 工具定义列表
+ */
+export async function syncDynamicClientTools(
+  appCode?: string,
+): Promise<DynamicClientToolDefinition[]> {
+  const params = appCode ? { appCode } : {}
+  const response = await httpClient.getInstance().get(
+    `${API_ENDPOINTS.agents}/dynamic-client-tools/client/sync`,
+    { params },
+  )
+
+  if (response.data?.code === 200) {
+    return response.data.data || []
+  }
+
+  throw new Error(response.data?.message || '同步动态工具定义失败')
 }

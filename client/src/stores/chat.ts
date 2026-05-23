@@ -8,6 +8,9 @@ import type { ClientToolModulePolicy } from '../executor/types'
 import { useWorkspace } from '../composables/useWorkspace'
 import { WorkspaceExecutor } from '../executor/workspace.executor'
 import { systemControlExecutor } from '../executor/system-control.executor'
+import { dynamicClientToolExecutor } from '../executor/dynamic-client-tool.executor'
+import { dynamicPluginRegistry } from '../executor/dynamic-plugin-registry'
+import { syncDynamicClientTools } from '../api/client-tool'
 import { clientToolRouter } from '../executor/client-tool-router'
 
 /**
@@ -148,11 +151,30 @@ export const useChatStore = defineStore('chat', () => {
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading.value) return
 
+    /** 同步动态客户端工具定义到插件注册表 */
+    try {
+      const definitions = await syncDynamicClientTools()
+      dynamicPluginRegistry.sync(definitions.map(d => ({
+        name: d.name,
+        displayName: d.displayName || undefined,
+        description: d.description,
+        parameters: d.parameters,
+        executorType: d.executorType as 'http_request' | 'script' | 'command',
+        executorConfig: d.executorConfig,
+        confirmMode: d.confirmMode as 'auto' | 'confirm' | 'deny',
+        confirmMessage: d.confirmMessage || undefined,
+        timeout: d.timeout,
+      })))
+    } catch (e) {
+      console.warn('[Chat] 同步动态工具定义失败:', e)
+    }
+
     /** 注册客户端工具执行器到路由器 */
     if (workspace.dirHandle.value) {
       clientToolRouter.registerExecutor(new WorkspaceExecutor(workspace.dirHandle.value))
     }
     clientToolRouter.registerExecutor(systemControlExecutor)
+    clientToolRouter.registerExecutor(dynamicClientToolExecutor)
 
     const userMessage: Message = { role: 'user', content }
     messages.value.push(userMessage)

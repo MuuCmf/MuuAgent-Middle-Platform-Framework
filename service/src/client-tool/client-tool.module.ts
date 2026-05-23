@@ -5,6 +5,7 @@ import { ClientToolDiscoveryService } from './client-tool-discovery.service';
 import { ClientToolPolicyService } from './client-tool-policy.service';
 import { ClientToolPolicyController } from './client-tool-policy.controller';
 import { ClientToolResultController } from './client-tool-result.controller';
+import { DynamicClientToolModule } from './dynamic/dynamic-client-tool.module';
 
 /**
  * 客户端工具全局模块
@@ -16,10 +17,13 @@ import { ClientToolResultController } from './client-tool-result.controller';
  *
  * 统一结果回传：所有客户端工具的执行结果通过 ClientToolResultController 统一接收，
  * 新增工具模块无需额外创建结果回传 Controller
+ *
+ * 动态扩展：DynamicClientToolModule 提供用户自扩展客户端工具能力，
+ * 用户通过 API 注册工具后自动生效，无需服务端代码变更
  */
 @Global()
 @Module({
-  imports: [DiscoveryModule],
+  imports: [DiscoveryModule, DynamicClientToolModule],
   providers: [ClientToolRegistry, ClientToolDiscoveryService, ClientToolPolicyService],
   controllers: [ClientToolPolicyController, ClientToolResultController],
   exports: [ClientToolRegistry, ClientToolDiscoveryService, ClientToolPolicyService],

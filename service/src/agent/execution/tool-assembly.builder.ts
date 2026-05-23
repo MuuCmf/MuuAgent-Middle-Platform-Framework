@@ -126,6 +126,14 @@ export class ToolAssemblyBuilder {
       }
     }
 
+    // 动态客户端工具（用户自扩展，不依赖技能解析，有启用的工具即自动可用）
+    const dynamicTools = this.clientToolRegistry.getToolsForAgent(agent);
+    for (const tool of dynamicTools) {
+      if (!tools.find(t => t.name === tool.name)) {
+        tools.push(tool);
+      }
+    }
+
     return tools;
   }
 

@@ -304,6 +304,7 @@ model AppTenant {
   skillInvokeLogs SkillInvokeLog[]
   kbRetrievalLogs KbRetrievalLog[]
   appUsages     AppUsage[]
+  dynamicClientTools DynamicClientTool[]
 
   @@index([code])
   @@index([apiKey])
@@ -998,4 +999,43 @@ model SkillReference {
   @@unique([skillId, filePath])
   @@index([skillId])
   @@map("skill_references")
+}
+
+/// 动态客户端工具定义表
+model DynamicClientTool {
+  id             BigInt  @id @default(0)
+  /// 工具名称，如 my_http_tool
+  name           String
+  /// 显示名称
+  displayName    String?  @map("display_name")
+  /// 工具描述（给 LLM 看的）
+  description    String   @db.Text
+  /// 参数定义(JSON Schema)
+  parameters     String   @db.Text
+  /// 执行模板类型: http_request / script / command
+  executorType   String   @map("executor_type")
+  /// 执行模板配置(JSON)
+  executorConfig String   @map("executor_config") @db.Text
+  /// 确认模式: auto / confirm / deny
+  confirmMode    String   @default("confirm") @map("confirm_mode")
+  /// 确认提示消息模板
+  confirmMessage String?  @map("confirm_message") @db.Text
+  /// 超时时间(毫秒)
+  timeout        Int      @default(30000)
+  /// 是否启用
+  enabled        Boolean  @default(true)
+  /// 创建者
+  createdBy      String?  @map("created_by")
+  /// 所属应用标识
+  appCode        String?  @map("app_code")
+
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  app            AppTenant? @relation(fields: [appCode], references: [code])
+
+  @@unique([name, appCode])
+  @@index([enabled])
+  @@index([appCode])
+  @@map("dynamic_client_tools")
 }
