@@ -12,7 +12,6 @@ import { HttpRequestTool, DbQueryTool, RunCodeTool, KbSearchTool } from './built
 import { UseSkillTool, LoadReferenceTool, RunScriptTool } from './skill-meta';
 
 import {
-  TOOL_DISPATCHERS,
   RegisteredToolDispatcher,
   McpToolDispatcher,
   KbSearchDispatcher,
@@ -64,37 +63,10 @@ export const DISPATCHER_PROVIDERS = [
  * 工具模块
  *
  * 提供即插即用的工具注册和执行能力：
- * - 自动发现并注册带有 @AgentTool 装饰器的工具
- * - 自动收集带有 @ToolDispatcher 装饰器的分发器
+ * - 自动发现并注册带有 @AgentTool 装饰器的工具（ToolDiscoveryService）
+ * - 自动收集带有 @ToolDispatcher 装饰器的分发器（DispatcherCollectorService）
  * - 支持配置化启用/禁用工具
- * - 提供统一的工具执行接口
- *
- * @example
- * 新增内置工具只需两步：
- * ```typescript
- * // 1. 创建工具类并使用 @AgentTool 装饰器
- * @AgentTool({ name: 'my_tool', enabled: true, category: 'builtin' })
- * export class MyTool extends BaseTool { ... }
- *
- * // 2. 在 BUILTIN_TOOL_PROVIDERS 数组中添加
- * export const BUILTIN_TOOL_PROVIDERS = [
- *   ...,
- *   MyTool,
- * ];
- * ```
- *
- * 新增分发器只需两步：
- * ```typescript
- * // 1. 创建分发器类并使用 @ToolDispatcher 装饰器
- * @ToolDispatcher({ name: 'my_dispatcher', order: 60 })
- * export class MyDispatcher implements IToolDispatcher { ... }
- *
- * // 2. 在 DISPATCHER_PROVIDERS 数组中添加
- * export const DISPATCHER_PROVIDERS = [
- *   ...,
- *   MyDispatcher,
- * ];
- * ```
+ * - 提供统一的工具执行接口（ToolExecutor）
  */
 @Global()
 @Module({
@@ -109,12 +81,6 @@ export const DISPATCHER_PROVIDERS = [
     ...BUILTIN_TOOL_PROVIDERS,
     ...SKILL_META_TOOL_PROVIDERS,
     ...DISPATCHER_PROVIDERS,
-
-    {
-      provide: TOOL_DISPATCHERS,
-      useFactory: (collector: DispatcherCollectorService) => collector.getDispatchers(),
-      inject: [DispatcherCollectorService],
-    },
   ],
   exports: [ToolRegistry, ToolExecutor, ToolDiscoveryService, KbSearchTool],
 })

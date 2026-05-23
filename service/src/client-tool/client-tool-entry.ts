@@ -61,7 +61,7 @@ export interface ParamConstraint {
  * 由服务端定义默认策略，用户可通过管理界面覆盖
  */
 export interface ClientToolModulePolicy {
-  /** 模块名称，如 'workspace', 'system_control' */
+  /** 模块名称，如 'workspace' */
   moduleName: string;
 
   /** 各工具的权限策略 */

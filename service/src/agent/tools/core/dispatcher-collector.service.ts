@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { DiscoveryService } from '@nestjs/core';
 import { TOOL_DISPATCHER } from '../constants/tool.constants';
 import { DispatcherMetadata, getDispatcherMetadata } from '../decorators/tool.decorator';
@@ -20,13 +20,10 @@ export interface DispatcherCollectionStats {
  * 通过 NestJS DiscoveryService 自动扫描并收集带有 @ToolDispatcher 装饰器的分发器类。
  * 收集后按 order 排序，供 ToolExecutor 使用。
  *
- * 新增分发器只需：
- * 1. 创建分发器类并使用 @ToolDispatcher 装饰器
- * 2. 将分发器类添加到 ToolModule 的 providers 中
- * 3. 本服务会自动发现并收集
+ * 使用 OnApplicationBootstrap 确保所有 provider 已实例化后再收集。
  */
 @Injectable()
-export class DispatcherCollectorService implements OnModuleInit {
+export class DispatcherCollectorService implements OnApplicationBootstrap {
   private readonly logger = new Logger(DispatcherCollectorService.name);
   private stats: DispatcherCollectionStats = {
     collected: 0,
@@ -37,9 +34,9 @@ export class DispatcherCollectorService implements OnModuleInit {
   constructor(private readonly discovery: DiscoveryService) {}
 
   /**
-   * 模块初始化时自动收集分发器
+   * 应用启动后自动收集分发器
    */
-  onModuleInit(): void {
+  onApplicationBootstrap(): void {
     this.collectAndSort();
   }
 

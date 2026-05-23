@@ -6,16 +6,6 @@ import { contextBridge, ipcRenderer } from 'electron'
  */
 contextBridge.exposeInMainWorld('electronAPI', {
   /**
-   * 执行系统控制工具
-   * @param toolName 工具名称
-   * @param args 工具参数
-   * @returns {Promise<unknown>} 执行结果
-   */
-  systemControl: (toolName: string, args: Record<string, unknown>): Promise<unknown> => {
-    return ipcRenderer.invoke('system-control:execute', { toolName, args })
-  },
-
-  /**
    * 获取系统信息（只读）
    * @returns {Promise<unknown>} 系统信息
    */
@@ -24,14 +14,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   /**
-   * 监听主进程事件（如确认弹窗响应）
+   * 监听主进程事件
    * @param channel 事件频道
    * @param callback 回调函数
    */
   onMainEvent: (channel: string, callback: (...args: unknown[]) => void): void => {
     const allowedChannels = [
-      'system-control:confirm',
-      'system-control:progress',
       'voice:status',
       'update:available',
       'update:progress',

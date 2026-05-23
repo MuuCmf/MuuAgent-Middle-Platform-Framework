@@ -92,7 +92,8 @@ export class ToolAssemblyBuilder {
           });
         }
       } else if (category === 'builtin') {
-        if (allowedBuiltinTools.includes(def.name)) {
+        const isAllowed = allowedBuiltinTools.length === 0 || allowedBuiltinTools.includes(def.name);
+        if (isAllowed) {
           const existing = tools.find(t => t.name === def.name);
           if (!existing) {
             tools.push(def);
@@ -113,18 +114,6 @@ export class ToolAssemblyBuilder {
         _workspaceEnabled: true,
       });
       tools.push(...clientTools);
-    }
-
-    if (resolution.resolvedSystemControl) {
-      const systemControlTools = this.clientToolRegistry.getToolsForAgent({
-        ...agent,
-        _systemControlEnabled: true,
-      });
-      for (const tool of systemControlTools) {
-        if (!tools.find(t => t.name === tool.name)) {
-          tools.push(tool);
-        }
-      }
     }
 
     // 动态客户端工具（用户自扩展，按 appCode+uid 应用级隔离）
@@ -174,8 +163,8 @@ export class ToolAssemblyBuilder {
 
   /**
    * 解析允许使用的内置工具列表
-   * @param config JSON字符串配置
-   * @returns {string[]} 工具名称列表
+   * @param config JSON字符串配置，为空时默认允许所有内置工具
+   * @returns {string[]} 工具名称列表，空数组表示允许所有
    */
   private parseAllowedBuiltinTools(config?: string): string[] {
     if (!config) {

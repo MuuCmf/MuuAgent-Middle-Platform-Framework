@@ -34,7 +34,7 @@ interface CachedToolDefinition {
 /**
  * 动态客户端工具通用处理器
  *
- * 与 workspace/system_control 等硬编码模块不同，此处理器：
+ * 与 workspace 等硬编码模块不同，此处理器：
  * 1. 从数据库读取用户注册的工具定义
  * 2. 统一下发到客户端 'dynamic' 模块执行
  * 3. 工具定义和权限策略完全由用户配置，无需服务端代码变更

@@ -1,7 +1,5 @@
-import { app, BrowserWindow, ipcMain, globalShortcut } from 'electron'
+import { app, BrowserWindow, globalShortcut } from 'electron'
 import * as path from 'path'
-import { registerSystemControlIpc } from './ipc/system-control.ipc'
-import { appIndex } from './tools/app-index'
 
 /** 修复 Windows 下 GPU 缓存权限问题 */
 app.commandLine.appendSwitch('disk-cache-dir', path.join(app.getPath('userData'), 'cache'))
@@ -65,10 +63,6 @@ function registerGlobalShortcuts(): void {
 app.whenReady().then(() => {
   const win = createMainWindow()
 
-  /** 后台构建应用索引，不阻塞窗口显示 */
-  appIndex.build().catch(err => console.error('AppIndex build failed:', err))
-
-  registerSystemControlIpc()
   registerGlobalShortcuts()
 
   if (!isDev) {

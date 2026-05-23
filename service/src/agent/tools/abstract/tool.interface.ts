@@ -4,7 +4,7 @@ export interface ToolDefinition {
   name: string;
   description: string;
   parameters: Record<string, any>;
-  type: 'builtin' | 'skill-meta' | 'mcp' | 'kb' | 'workspace' | 'system_control' | 'dynamic';
+  type: 'builtin' | 'skill-meta' | 'mcp' | 'kb' | 'workspace' | 'dynamic';
   /** 所属应用标识（动态工具隔离） */
   appCode?: string | null;
   /** 创建者用户ID（动态工具隔离） */

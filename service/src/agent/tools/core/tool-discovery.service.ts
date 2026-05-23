@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { DiscoveryService } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ToolRegistry } from '../tool-registry';
@@ -26,25 +26,14 @@ export interface ToolDiscoveryStats {
  * 通过 NestJS DiscoveryService 自动扫描并注册带有 @AgentTool 装饰器的工具类。
  * 支持通过配置文件控制工具的启用/禁用。
  *
+ * 使用 OnApplicationBootstrap 而非 OnModuleInit，确保所有 provider
+ * 都已实例化后再执行发现，避免懒加载 provider 被跳过。
+ *
  * 即插即用：新增工具只需在 ToolModule 的 providers 中添加工具类，
  * 本服务会自动发现并注册到 ToolRegistry，无需其他手动配置。
- *
- * @example
- * ```typescript
- * // 步骤1：创建工具类
- * @AgentTool({ name: 'my_tool', enabled: true, category: 'builtin' })
- * export class MyTool extends BaseTool { ... }
- *
- * // 步骤2：在 ToolModule 的 providers 中添加
- * providers: [
- *   ...BUILTIN_TOOL_PROVIDERS,
- *   MyTool,
- * ]
- * // 完成！ToolDiscoveryService 会自动发现并注册
- * ```
  */
 @Injectable()
-export class ToolDiscoveryService implements OnModuleInit {
+export class ToolDiscoveryService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ToolDiscoveryService.name);
   private stats: ToolDiscoveryStats = {
     registered: 0,
@@ -60,9 +49,9 @@ export class ToolDiscoveryService implements OnModuleInit {
   ) {}
 
   /**
-   * 模块初始化时自动发现并注册工具
+   * 应用启动后自动发现并注册工具
    */
-  onModuleInit(): void {
+  onApplicationBootstrap(): void {
     this.discoverAndRegister();
   }
 
@@ -109,7 +98,7 @@ export class ToolDiscoveryService implements OnModuleInit {
     this.stats.registeredNames = registeredNames;
 
     this.logger.log(
-      `工具发现完成: 注册 ${this.stats.registered} 个, 禁用 ${this.stats.disabled} 个, 无效 ${this.stats.invalid} 个`,
+      `工具发现完成: 注册 ${this.stats.registered} 个 [${registeredNames.join(', ')}], 禁用 ${this.stats.disabled} 个, 无效 ${this.stats.invalid} 个`,
     );
   }
 

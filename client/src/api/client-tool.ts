@@ -44,7 +44,7 @@ export interface DynamicClientToolDefinition {
 
 /**
  * 统一提交客户端工具执行结果
- * 所有客户端工具（workspace、system_control 等）统一使用此接口回传结果
+ * 所有客户端工具（workspace 等）统一使用此接口回传结果
  * @param result 工具执行结果
  * @returns {Promise<void>}
  */

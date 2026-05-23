@@ -15,6 +15,8 @@ export interface Message {
   type?: 'rag' | 'retrieval'
   sources?: RetrievalItem[]
   results?: RetrievalItem[]
+  /** 消息时间戳 */
+  timestamp?: number | string
 }
 
 /**

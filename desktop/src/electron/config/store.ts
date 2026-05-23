@@ -19,8 +19,6 @@ interface DesktopConfig {
   security: {
     /** 是否启用命令执行工具 */
     executeCommandEnabled: boolean
-    /** 是否启用系统控制工具 */
-    systemControlEnabled: boolean
     /** 确认超时时间（秒） */
     confirmTimeout: number
   }
@@ -44,7 +42,6 @@ const defaults: DesktopConfig = {
   },
   security: {
     executeCommandEnabled: false,
-    systemControlEnabled: true,
     confirmTimeout: 60,
   },
   update: {

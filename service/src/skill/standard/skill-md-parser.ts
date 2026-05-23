@@ -156,11 +156,6 @@ export class SkillMdParser {
       result.workspace = workspace;
     }
 
-    const systemControl = raw['system-control'] || raw.systemControl;
-    if (typeof systemControl === 'boolean') {
-      result.systemControl = systemControl;
-    }
-
     return Object.keys(result).length > 0 ? result : undefined;
   }
 

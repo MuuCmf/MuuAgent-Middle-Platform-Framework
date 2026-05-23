@@ -7,7 +7,7 @@ import { success as apiSuccess } from '../common/response/api.response';
 /**
  * 统一客户端工具结果回传控制器
  *
- * 所有客户端工具（workspace、system_control 等）的执行结果
+ * 所有客户端工具（workspace 等）的执行结果
  * 统一通过此接口回传，无需为每个工具模块单独创建结果接口。
  *
  * 路由原理：

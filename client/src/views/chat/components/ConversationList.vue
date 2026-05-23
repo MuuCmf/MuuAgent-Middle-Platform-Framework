@@ -1,88 +1,171 @@
 <template>
   <div class="conversation-list">
-    <div class="list-header">
-      <h3>历史会话</h3>
-      <el-button
-        type="primary"
+    <div v-if="showSearch" class="search-bar">
+      <el-input
+        v-model="searchQuery"
+        placeholder="搜索会话..."
+        prefix-icon="Search"
+        clearable
         size="small"
-        @click="handleNewConversation"
-        circle
-      >
-        <el-icon><Plus /></el-icon>
-      </el-button>
+      />
     </div>
     <div class="list-content">
       <el-scrollbar>
-        <div
-          v-for="conv in conversations"
-          :key="conv.id"
-          :class="['conversation-item', { active: conv.id === currentId }]"
-          @click="handleSelect(conv.id)"
-        >
-          <div class="conv-icon">
-            <el-icon><ChatLineRound /></el-icon>
-          </div>
-          <div class="conv-info">
-            <div class="conv-title">{{ conv.title }}</div>
-            <div class="conv-meta">
-              {{ formatTime(conv.lastMessageAt) }} · {{ conv.messageCount }}条消息
+        <template v-if="filteredConversations.length > 0">
+          <div v-for="group in groupedConversations" :key="group.label" class="conv-group">
+            <div class="group-label">{{ group.label }}</div>
+            <div
+              v-for="conv in group.items"
+              :key="conv.id"
+              :class="['conversation-item', { active: conv.id === currentId }]"
+              @click="handleSelect(conv.id)"
+            >
+              <div class="conv-icon">
+                <el-icon><ChatLineRound /></el-icon>
+              </div>
+              <div class="conv-info">
+                <div class="conv-title">{{ conv.title }}</div>
+                <div class="conv-meta">
+                  {{ formatTime(conv.lastMessageAt) }} · {{ conv.messageCount }}条消息
+                </div>
+              </div>
+              <el-dropdown trigger="click" @command="(cmd: string) => handleCommand(cmd, conv.id)">
+                <el-button class="more-btn" type="default" size="small" text @click.stop>
+                  <el-icon><MoreFilled /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="rename">
+                      <el-icon><Edit /></el-icon>重命名
+                    </el-dropdown-item>
+                    <el-dropdown-item command="delete" divided>
+                      <el-icon><Delete /></el-icon>删除
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
           </div>
-          <el-button
-            class="delete-btn"
-            type="danger"
-            size="small"
-            text
-            @click.stop="handleDelete(conv.id)"
-          >
-            <el-icon><Delete /></el-icon>
-          </el-button>
-        </div>
-        <el-empty v-if="conversations.length === 0" description="暂无历史会话" />
+        </template>
+        <el-empty v-else description="暂无历史会话" />
       </el-scrollbar>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ChatLineRound, Plus, Delete } from '@element-plus/icons-vue'
-import type { Conversation } from '@/api'
+import { ref, computed } from 'vue'
+import { ChatLineRound, MoreFilled, Edit, Delete } from '@element-plus/icons-vue'
+import type { Conversation } from '../../../services/ConversationService'
 
 interface Props {
+  /** 会话列表 */
   conversations: Conversation[]
+  /** 当前选中的会话ID */
   currentId: string | null
+  /** 是否显示搜索栏 */
+  showSearch?: boolean
 }
 
-defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showSearch: true,
+})
 
 const emit = defineEmits<{
+  /** 选择会话 */
   select: [id: string]
+  /** 删除会话 */
   delete: [id: string]
+  /** 重命名会话 */
+  rename: [id: string]
+  /** 新建会话 */
   new: []
 }>()
 
-const formatTime = (time: string) => {
+/** 搜索关键词 */
+const searchQuery = ref('')
+
+/**
+ * 按关键词过滤会话
+ */
+const filteredConversations = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return props.conversations
+  return props.conversations.filter(conv =>
+    conv.title.toLowerCase().includes(q)
+  )
+})
+
+/**
+ * 按时间分组会话
+ */
+const groupedConversations = computed(() => {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today.getTime() - 86400000)
+  const weekAgo = new Date(today.getTime() - 7 * 86400000)
+
+  const groups: { label: string; items: Conversation[] }[] = [
+    { label: '今天', items: [] },
+    { label: '昨天', items: [] },
+    { label: '最近7天', items: [] },
+    { label: '更早', items: [] },
+  ]
+
+  for (const conv of filteredConversations.value) {
+    const date = new Date(conv.lastMessageAt)
+    if (date >= today) {
+      groups[0].items.push(conv)
+    } else if (date >= yesterday) {
+      groups[1].items.push(conv)
+    } else if (date >= weekAgo) {
+      groups[2].items.push(conv)
+    } else {
+      groups[3].items.push(conv)
+    }
+  }
+
+  return groups.filter(g => g.items.length > 0)
+})
+
+/**
+ * 格式化时间显示
+ * @param time 时间字符串
+ * @returns 格式化后的时间文本
+ */
+const formatTime = (time: string): string => {
   const date = new Date(time)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
 
-  if (days === 0) return '今天'
+  if (days === 0) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
   if (days === 1) return '昨天'
   if (days < 7) return `${days}天前`
-  return date.toLocaleDateString()
+  return date.toLocaleDateString('zh-CN')
 }
 
+/**
+ * 选择会话
+ * @param id 会话ID
+ */
 const handleSelect = (id: string) => {
   emit('select', id)
 }
 
-const handleDelete = (id: string) => {
-  emit('delete', id)
-}
-
-const handleNewConversation = () => {
-  emit('new')
+/**
+ * 处理下拉菜单命令
+ * @param command 命令类型
+ * @param id 会话ID
+ */
+const handleCommand = (command: string, id: string) => {
+  if (command === 'delete') {
+    emit('delete', id)
+  } else if (command === 'rename') {
+    emit('rename', id)
+  }
 }
 </script>
 
@@ -91,21 +174,11 @@ const handleNewConversation = () => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: white;
 }
 
-.list-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #e8e8e8;
-}
-
-.list-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+.search-bar {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .list-content {
@@ -113,30 +186,42 @@ const handleNewConversation = () => {
   overflow: hidden;
 }
 
+.conv-group {
+  margin-bottom: 4px;
+}
+
+.group-label {
+  padding: 8px 16px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .conversation-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 10px 12px 10px 16px;
   cursor: pointer;
-  transition: all 0.3s;
-  border-bottom: 1px solid #f0f0f0;
+  transition: all 0.2s ease;
 }
 
 .conversation-item:hover {
-  background: #f5f7fa;
+  background: var(--bg-tertiary);
 }
 
 .conversation-item.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-gradient);
   color: white;
 }
 
 .conv-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #f0f0f0;
+  background: var(--bg-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -153,29 +238,35 @@ const handleNewConversation = () => {
 }
 
 .conv-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .conv-meta {
-  font-size: 12px;
-  color: #999;
+  font-size: 11px;
+  color: var(--text-tertiary);
 }
 
 .conversation-item.active .conv-meta {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.75);
 }
 
-.delete-btn {
+.more-btn {
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity 0.2s;
+  color: var(--text-tertiary);
 }
 
-.conversation-item:hover .delete-btn {
+.conversation-item:hover .more-btn {
   opacity: 1;
+}
+
+.conversation-item.active .more-btn {
+  opacity: 1;
+  color: white;
 }
 </style>

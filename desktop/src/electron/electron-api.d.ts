@@ -1,17 +1,4 @@
-import { SystemControlTools } from './tools/system-control'
-
 export interface ElectronAPI {
-  /**
-   * 执行系统控制工具
-   * @param toolName 工具名称
-   * @param args 工具参数
-   * @returns {Promise<{success: boolean; result?: unknown; error?: string}>} 执行结果
-   */
-  systemControl(
-    toolName: string,
-    args: Record<string, unknown>,
-  ): Promise<{ success: boolean; result?: unknown; error?: string }>
-
   /**
    * 获取系统信息
    * @returns {Promise<{platform: string; arch: string; hostname: string; username: string}>} 系统信息

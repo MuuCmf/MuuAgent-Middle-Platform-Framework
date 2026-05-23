@@ -1,6 +1,6 @@
-import { Injectable, Logger, OnModuleDestroy, Inject } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ToolCall, ToolExecutionResult, ToolExecutionContext } from './abstract/tool.interface';
-import { IToolDispatcher, TOOL_DISPATCHERS } from './dispatchers';
+import { DispatcherCollectorService } from './core/dispatcher-collector.service';
 import { LruCache, CacheStats } from './utils/lru-cache';
 
 /**
@@ -53,7 +53,7 @@ export class ToolExecutor implements OnModuleDestroy {
   /** 缓存配置 */
   private readonly cacheConfig: ToolCacheConfig;
 
-  constructor(@Inject(TOOL_DISPATCHERS) private readonly dispatchers: IToolDispatcher[]) {
+  constructor(private readonly dispatcherCollector: DispatcherCollectorService) {
     this.cacheConfig = { ...DEFAULT_CACHE_CONFIG };
     this.cache = new LruCache<string, unknown>({
       maxSize: this.cacheConfig.maxSize,
@@ -216,7 +216,8 @@ export class ToolExecutor implements OnModuleDestroy {
     args: Record<string, unknown>,
     context: ToolExecutionContext,
   ): Promise<unknown> {
-    for (const d of this.dispatchers) {
+    const dispatchers = this.dispatcherCollector.getDispatchers();
+    for (const d of dispatchers) {
       if (d.canHandle(name)) {
         return d.execute(name, args, context);
       }

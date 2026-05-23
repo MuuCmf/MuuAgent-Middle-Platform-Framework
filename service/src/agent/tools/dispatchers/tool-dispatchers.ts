@@ -6,10 +6,7 @@ import { KbSearchTool } from '../builtin/kb-search.tool';
 import { BuiltinExecutor } from '../../../skill/executors/builtin.executor';
 import { ClientToolRegistry } from '../../../client-tool';
 import { ToolExecutionContext } from '../abstract/tool.interface';
-import { TOOL_DISPATCHERS } from '../constants';
 import { ToolDispatcher } from '../decorators';
-
-export { TOOL_DISPATCHERS };
 
 /**
  * 工具分发器接口

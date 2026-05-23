@@ -11,8 +11,6 @@ export interface SkillRequires {
   skills?: string[];
   /** 是否需要 workspace 文件操作能力 */
   workspace?: boolean;
-  /** 是否需要 system_control 系统控制能力 */
-  systemControl?: boolean;
 }
 
 /**

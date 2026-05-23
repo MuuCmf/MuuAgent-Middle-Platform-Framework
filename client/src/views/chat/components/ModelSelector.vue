@@ -1,59 +1,46 @@
 <template>
   <div class="model-selector-container">
-    <div class="selector-header">
-      <span class="selector-title">模型选择</span>
-      <span v-if="selectedModelInfo" class="model-tag">
-        {{ selectedModelInfo.type === 'mcp-llm' ? '自动调度' : '指定模型' }}
-      </span>
+    <div
+      :class="['model-card', { active: modelCode === 'mcp-llm' || !modelCode }]"
+      @click="selectModel('mcp-llm')"
+    >
+      <div class="model-icon mcp-icon">
+        <el-icon :size="22"><Star /></el-icon>
+      </div>
+      <div class="model-info">
+        <div class="model-name">MCP智能调度</div>
+        <div class="model-desc">自动选择最优模型，支持负载均衡和故障转移</div>
+      </div>
+      <div class="model-check">
+        <el-icon v-if="modelCode === 'mcp-llm' || !modelCode"><Check /></el-icon>
+      </div>
     </div>
-    
-    <div class="selector-body">
-      <!-- MCP调度选项 -->
-      <div
-        :class="['model-card', { active: modelCode === 'mcp-llm' || !modelCode }]"
-        @click="selectModel('mcp-llm')"
-      >
-        <div class="model-icon mcp-icon">
-          <el-icon :size="24"><Star /></el-icon>
-        </div>
-        <div class="model-info">
-          <div class="model-name">MCP智能调度</div>
-          <div class="model-desc">自动选择最优模型，支持负载均衡和故障转移</div>
-        </div>
-        <div class="model-check">
-          <el-icon v-if="modelCode === 'mcp-llm' || !modelCode"><Check /></el-icon>
-        </div>
-      </div>
 
-      <!-- 分隔线 -->
-      <div class="divider">
-        <span>指定模型</span>
-      </div>
+    <div class="divider">
+      <span>指定模型</span>
+    </div>
 
-      <!-- 可用模型列表 -->
-      <div
-        v-for="model in enabledModels"
-        :key="model.id"
-        :class="['model-card', { active: modelCode === model.code }]"
-        @click="selectModel(model.code)"
-      >
-        <div class="model-icon">
-          <el-icon :size="24"><Cpu /></el-icon>
-        </div>
-        <div class="model-info">
-          <div class="model-name">{{ model.name }}</div>
-          <div class="model-desc">{{ model.description || 'LLM模型' }}</div>
-        </div>
-        <div class="model-check">
-          <el-icon v-if="modelCode === model.code"><Check /></el-icon>
-        </div>
+    <div
+      v-for="model in enabledModels"
+      :key="model.id"
+      :class="['model-card', { active: modelCode === model.code }]"
+      @click="selectModel(model.code)"
+    >
+      <div class="model-icon">
+        <el-icon :size="22"><Cpu /></el-icon>
       </div>
+      <div class="model-info">
+        <div class="model-name">{{ model.name }}</div>
+        <div class="model-desc">{{ model.description || 'LLM模型' }}</div>
+      </div>
+      <div class="model-check">
+        <el-icon v-if="modelCode === model.code"><Check /></el-icon>
+      </div>
+    </div>
 
-      <!-- 空状态 -->
-      <div v-if="enabledModels.length === 0" class="empty-state">
-        <el-icon :size="48" color="#ddd"><Cpu /></el-icon>
-        <div>暂无可用模型</div>
-      </div>
+    <div v-if="enabledModels.length === 0" class="empty-state">
+      <el-icon :size="40" color="var(--text-tertiary)"><Cpu /></el-icon>
+      <div>暂无可用模型</div>
     </div>
   </div>
 </template>
@@ -63,7 +50,9 @@ import { computed } from 'vue'
 import { Check, Star, Cpu } from '@element-plus/icons-vue'
 
 interface Props {
+  /** 当前选中的模型编码 */
   modelCode: string
+  /** 模型列表 */
   models: any[]
 }
 
@@ -73,22 +62,23 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
+  /** 模型编码更新 */
   'update:modelCode': [value: string]
+  /** 模型变更 */
   change: [value: string]
 }>()
 
+/**
+ * 已启用的模型列表
+ */
 const enabledModels = computed(() => {
   return props.models.filter(m => m.status === true && m.type === 'llm')
 })
 
-const selectedModelInfo = computed(() => {
-  if (props.modelCode === 'mcp-llm' || !props.modelCode) {
-    return { type: 'mcp-llm', name: 'MCP智能调度' }
-  }
-  const model = enabledModels.value.find(m => m.code === props.modelCode)
-  return model ? { type: 'specified', name: model.name } : null
-})
-
+/**
+ * 选择模型
+ * @param code 模型编码
+ */
 const selectModel = (code: string) => {
   emit('update:modelCode', code)
   emit('change', code)
@@ -97,73 +87,51 @@ const selectModel = (code: string) => {
 
 <style scoped>
 .model-selector-container {
-  background: #fff;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-}
-
-.selector-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 16px;
-  border-bottom: 1px solid #f0f0f0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.selector-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-}
-
-.model-tag {
-  font-size: 12px;
-  padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 20px;
-  color: #fff;
-}
-
-.selector-body {
-  padding: 8px;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .model-card {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 8px;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s ease;
   border: 2px solid transparent;
 }
 
 .model-card:hover {
-  background: #f8f9fa;
+  background: var(--bg-tertiary);
 }
 
 .model-card.active {
-  background: #f0f5ff;
-  border-color: #667eea;
+  background: var(--bg-color);
+  border-color: var(--primary-color);
 }
 
 .model-icon {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f0f5ff 0%, #e8ecf5 100%);
-  color: #667eea;
+  background: var(--bg-tertiary);
+  color: var(--primary-color);
+  flex-shrink: 0;
 }
 
 .model-icon.mcp-icon {
   background: linear-gradient(135deg, #fff3e6 0%, #ffe8cc 100%);
   color: #f59e0b;
+}
+
+html.dark .model-icon.mcp-icon {
+  background: linear-gradient(135deg, #3d2e0a 0%, #4a3510 100%);
+  color: #fbbf24;
 }
 
 .model-info {
@@ -172,15 +140,15 @@ const selectModel = (code: string) => {
 }
 
 .model-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-color);
   margin-bottom: 2px;
 }
 
 .model-desc {
-  font-size: 12px;
-  color: #999;
+  font-size: 11px;
+  color: var(--text-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -190,25 +158,25 @@ const selectModel = (code: string) => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #e8e8e8;
+  background: var(--bg-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--white);
   font-size: 12px;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .model-card.active .model-check {
-  background: #667eea;
+  background: var(--primary-color);
 }
 
 .divider {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  margin: 4px 0;
+  padding: 6px 10px;
 }
 
 .divider::before,
@@ -216,12 +184,12 @@ const selectModel = (code: string) => {
   content: '';
   flex: 1;
   height: 1px;
-  background: #e8e8e8;
+  background: var(--border-color);
 }
 
 .divider span {
-  font-size: 12px;
-  color: #999;
+  font-size: 11px;
+  color: var(--text-tertiary);
 }
 
 .empty-state {
@@ -229,12 +197,12 @@ const selectModel = (code: string) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px;
-  color: #999;
+  padding: 24px;
+  color: var(--text-tertiary);
 }
 
 .empty-state div {
   margin-top: 8px;
-  font-size: 14px;
+  font-size: 13px;
 }
 </style>

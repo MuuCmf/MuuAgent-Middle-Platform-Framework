@@ -11,7 +11,7 @@ export interface ToolMetadata {
   /** 优先级（数值越大优先级越高） */
   priority?: number;
   /** 工具分类 */
-  category?: 'builtin' | 'skill-meta' | 'mcp' | 'kb' | 'workspace' | 'system_control';
+  category?: 'builtin' | 'skill-meta' | 'mcp' | 'kb' | 'workspace';
 }
 
 /**
@@ -63,7 +63,7 @@ export interface DispatcherMetadata {
  * 新增分发器只需：
  * 1. 创建分发器类并使用 @ToolDispatcher 装饰器
  * 2. 将分发器类添加到 ToolModule 的 providers 中
- * 3. DispatcherCollector 会自动发现并收集到 TOOL_DISPATCHERS
+ * 3. DispatcherCollector 会自动发现并收集
  *
  * @example
  * ```typescript

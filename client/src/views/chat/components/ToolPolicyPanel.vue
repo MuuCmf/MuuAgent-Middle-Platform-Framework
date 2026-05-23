@@ -1,9 +1,5 @@
 <template>
   <div class="tool-policy-panel">
-    <div class="panel-header">
-      <span class="panel-title">客户端工具权限</span>
-      <button class="btn-reset" @click="resetAll" title="恢复全部默认">重置</button>
-    </div>
     <div v-for="modulePolicy in policies" :key="modulePolicy.moduleName" class="module-section">
       <div class="module-header">
         <span class="module-name">{{ getModuleLabel(modulePolicy.moduleName) }}</span>
@@ -24,7 +20,7 @@
           <div class="tool-controls">
             <select
               :value="getEffectiveMode(modulePolicy.moduleName, tool)"
-              class="mode-select"
+              :class="['mode-select', `mode-${getEffectiveMode(modulePolicy.moduleName, tool)}`]"
               @change="onModeChange(modulePolicy.moduleName, tool.toolName, ($event.target as HTMLSelectElement).value)"
             >
               <option value="auto">自动执行</option>
@@ -42,42 +38,58 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { ClientToolModulePolicy, ToolPermissionPolicy } from '../../../executor/types'
 import { clientToolRouter } from '../../../executor/client-tool-router'
 
 const props = defineProps<{
+  /** 工具权限策略列表 */
   policies: ClientToolModulePolicy[]
 }>()
 
+/**
+ * 模块标签映射
+ */
 const MODULE_LABELS: Record<string, string> = {
   workspace: '工作目录',
-  system_control: '系统控制',
 }
 
+/**
+ * 获取模块标签
+ * @param name 模块名称
+ * @returns 模块标签
+ */
 function getModuleLabel(name: string): string {
   return MODULE_LABELS[name] || name
 }
 
+/**
+ * 获取工具生效的确认模式
+ * @param moduleName 模块名称
+ * @param tool 工具权限策略
+ * @returns 确认模式
+ */
 function getEffectiveMode(moduleName: string, tool: ToolPermissionPolicy): string {
   const policy = clientToolRouter.getToolPolicy(moduleName, tool.toolName)
   return policy.confirmMode
 }
 
+/**
+ * 处理确认模式变更
+ * @param moduleName 模块名称
+ * @param toolName 工具名称
+ * @param mode 确认模式
+ */
 function onModeChange(moduleName: string, toolName: string, mode: string): void {
   clientToolRouter.setLocalOverride(moduleName, toolName, {
     confirmMode: mode as 'auto' | 'confirm' | 'deny',
   })
 }
 
-function resetAll(): void {
-  for (const policy of props.policies) {
-    for (const tool of policy.tools) {
-      clientToolRouter.deleteLocalOverride(policy.moduleName, tool.toolName)
-    }
-  }
-}
-
+/**
+ * 插值消息模板
+ * @param template 消息模板
+ * @returns 插值后的消息
+ */
 function interpolateMsg(template: string): string {
   return template.replace(/\{args\.(\w+)\}/g, (_, key) => `<${key}>`)
 }
@@ -85,38 +97,7 @@ function interpolateMsg(template: string): string {
 
 <style scoped>
 .tool-policy-panel {
-  padding: 12px;
   font-size: 13px;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.panel-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: #303133;
-}
-
-.btn-reset {
-  background: none;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  padding: 2px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  color: #909399;
-}
-
-.btn-reset:hover {
-  color: #409eff;
-  border-color: #409eff;
 }
 
 .module-section {
@@ -129,18 +110,18 @@ function interpolateMsg(template: string): string {
   gap: 8px;
   margin-bottom: 6px;
   padding-bottom: 4px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .module-name {
   font-weight: 500;
-  color: #606266;
+  color: var(--text-color);
 }
 
 .module-badge {
   font-size: 11px;
-  color: #909399;
-  background: #f5f7fa;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
   padding: 1px 6px;
   border-radius: 10px;
 }
@@ -155,13 +136,13 @@ function interpolateMsg(template: string): string {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
   transition: background 0.2s;
 }
 
 .tool-item:hover {
-  background: #f5f7fa;
+  background: var(--bg-tertiary);
 }
 
 .tool-info {
@@ -175,12 +156,12 @@ function interpolateMsg(template: string): string {
 .tool-name {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 12px;
-  color: #303133;
+  color: var(--text-color);
 }
 
 .tool-msg {
   font-size: 11px;
-  color: #909399;
+  color: var(--text-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -193,34 +174,35 @@ function interpolateMsg(template: string): string {
 
 .mode-select {
   font-size: 12px;
-  padding: 2px 6px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  background: #fff;
-  color: #606266;
+  padding: 3px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--text-color);
   cursor: pointer;
   outline: none;
+  transition: border-color 0.2s;
 }
 
 .mode-select:focus {
-  border-color: #409eff;
+  border-color: var(--primary-color);
 }
 
-.mode-select option[value="auto"] {
+.mode-select.mode-auto {
   color: #67c23a;
 }
 
-.mode-select option[value="confirm"] {
+.mode-select.mode-confirm {
   color: #e6a23c;
 }
 
-.mode-select option[value="deny"] {
+.mode-select.mode-deny {
   color: #f56c6c;
 }
 
 .empty-hint {
   text-align: center;
-  color: #c0c4cc;
+  color: var(--text-tertiary);
   padding: 20px 0;
   font-size: 12px;
 }

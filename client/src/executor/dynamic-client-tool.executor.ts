@@ -6,7 +6,7 @@ import { dynamicPluginRegistry } from './dynamic-plugin-registry'
  * 动态客户端工具执行器
  *
  * 接收 SSE 下发的动态工具调用，通过插件注册表查找执行模板并执行。
- * 与 workspace/system_control 等硬编码执行器不同，此执行器：
+ * 与 workspace 等硬编码执行器不同，此执行器：
  * 1. 从 dynamicPluginRegistry 查找工具的执行模板
  * 2. 根据模板类型（http_request/script/command）执行
  * 3. 结果回传由 ClientToolRouter 统一处理

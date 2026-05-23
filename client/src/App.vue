@@ -7,11 +7,17 @@
 import { ref, onMounted } from 'vue'
 import ApiKeyDialog from './components/ApiKeyDialog.vue'
 import { hasCredentials } from './utils/auth'
+import { useTheme } from './composables/useTheme'
 
 /**
  * API Key 配置弹窗引用
  */
 const apiKeyDialogRef = ref<InstanceType<typeof ApiKeyDialog>>()
+
+/**
+ * 初始化主题系统
+ */
+const { effectiveTheme } = useTheme()
 
 onMounted(() => {
   if (!hasCredentials()) {
@@ -39,5 +45,14 @@ body {
     'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background: #0d1117;
+  color: #e1e4e8;
 }
 </style>
