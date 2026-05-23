@@ -22,17 +22,25 @@ export interface ToolDiscoveryStats {
 
 /**
  * 工具自动发现服务
- * 
+ *
  * 通过 NestJS DiscoveryService 自动扫描并注册带有 @AgentTool 装饰器的工具类。
  * 支持通过配置文件控制工具的启用/禁用。
  *
+ * 即插即用：新增工具只需在 ToolModule 的 providers 中添加工具类，
+ * 本服务会自动发现并注册到 ToolRegistry，无需其他手动配置。
+ *
  * @example
  * ```typescript
- * // 在模块中引入
- * @Module({
- *   providers: [ToolDiscoveryService, ...tools],
- * })
- * export class ToolModule {}
+ * // 步骤1：创建工具类
+ * @AgentTool({ name: 'my_tool', enabled: true, category: 'builtin' })
+ * export class MyTool extends BaseTool { ... }
+ *
+ * // 步骤2：在 ToolModule 的 providers 中添加
+ * providers: [
+ *   ...BUILTIN_TOOL_PROVIDERS,
+ *   MyTool,
+ * ]
+ * // 完成！ToolDiscoveryService 会自动发现并注册
  * ```
  */
 @Injectable()

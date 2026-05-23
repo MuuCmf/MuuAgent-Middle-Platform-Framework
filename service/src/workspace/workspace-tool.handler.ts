@@ -1,10 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { StreamEmitter, StreamEvents } from '../stream';
-import { IClientToolHandler, ClientToolCallResult } from '../client-tool';
+import { IClientToolHandler, ClientToolCallResult, ClientToolProvider, IClientToolProvider } from '../client-tool';
+import { WORKSPACE_TOOLS } from './workspace-tool.definitions';
 import * as crypto from 'crypto';
 
+/**
+ * 工作目录工具处理器
+ * 使用 @ClientToolProvider 装饰器标记，支持自动发现和注册
+ */
 @Injectable()
-export class WorkspaceToolHandler implements IClientToolHandler {
+@ClientToolProvider({ name: 'workspace' })
+export class WorkspaceToolHandler implements IClientToolHandler, IClientToolProvider {
   private readonly logger = new Logger(WorkspaceToolHandler.name);
 
   /** 等待客户端回传结果的 Promise 映射 */
@@ -70,5 +76,21 @@ export class WorkspaceToolHandler implements IClientToolHandler {
       pending.reject(new Error('流已结束'));
     }
     this.pendingCalls.clear();
+  }
+
+  /**
+   * 获取客户端工具注册条目
+   * 供 ClientToolDiscoveryService 自动发现使用
+   * @returns 客户端工具注册条目
+   */
+  getClientToolEntry() {
+    return {
+      name: 'workspace',
+      toolNames: new Set(WORKSPACE_TOOLS.map(t => t.name)),
+      toolDefinitions: WORKSPACE_TOOLS,
+      isEnabled: (agent: Record<string, any>) => agent._workspaceEnabled === true,
+      eventPrefix: 'WORKSPACE_TOOL',
+      handler: this,
+    };
   }
 }

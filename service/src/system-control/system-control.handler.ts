@@ -1,13 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { StreamEmitter, StreamEvents } from '../stream';
-import { IClientToolHandler, ClientToolCallResult } from '../client-tool';
+import { IClientToolHandler, ClientToolCallResult, ClientToolProvider, IClientToolProvider } from '../client-tool';
+import { SYSTEM_CONTROL_TOOLS, SYSTEM_CONTROL_TOOL_NAMES } from './system-control.definitions';
 import * as crypto from 'crypto';
 
 /** 高危操作工具列表，需要更长超时等待用户确认 */
 const HIGH_RISK_TOOLS = ['delete_file', 'shutdown', 'sleep', 'execute_command'];
 
+/**
+ * 系统控制工具处理器
+ * 使用 @ClientToolProvider 装饰器标记，支持自动发现和注册
+ */
 @Injectable()
-export class SystemControlHandler implements IClientToolHandler {
+@ClientToolProvider({ name: 'system_control' })
+export class SystemControlHandler implements IClientToolHandler, IClientToolProvider {
   private readonly logger = new Logger(SystemControlHandler.name);
 
   /** 等待客户端回传结果的 Promise 映射 */
@@ -76,5 +82,21 @@ export class SystemControlHandler implements IClientToolHandler {
       pending.reject(new Error('流已结束'));
     }
     this.pendingCalls.clear();
+  }
+
+  /**
+   * 获取客户端工具注册条目
+   * 供 ClientToolDiscoveryService 自动发现使用
+   * @returns 客户端工具注册条目
+   */
+  getClientToolEntry() {
+    return {
+      name: 'system_control',
+      toolNames: SYSTEM_CONTROL_TOOL_NAMES,
+      toolDefinitions: SYSTEM_CONTROL_TOOLS,
+      isEnabled: (agent: Record<string, any>) => agent._systemControlEnabled === true,
+      eventPrefix: 'SYSTEM_CONTROL',
+      handler: this,
+    };
   }
 }

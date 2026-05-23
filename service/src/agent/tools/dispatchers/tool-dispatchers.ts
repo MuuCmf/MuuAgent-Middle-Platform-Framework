@@ -7,6 +7,7 @@ import { BuiltinExecutor } from '../../../skill/executors/builtin.executor';
 import { ClientToolRegistry } from '../../../client-tool';
 import { ToolExecutionContext } from '../abstract/tool.interface';
 import { TOOL_DISPATCHERS } from '../constants';
+import { ToolDispatcher } from '../decorators';
 
 export { TOOL_DISPATCHERS };
 
@@ -27,6 +28,7 @@ export interface IToolDispatcher {
  * 处理通过 ToolRegistry 注册的工具
  */
 @Injectable()
+@ToolDispatcher({ name: 'registered', order: 10 })
 export class RegisteredToolDispatcher implements IToolDispatcher {
   constructor(private readonly toolRegistry: ToolRegistry) {}
 
@@ -49,6 +51,7 @@ export class RegisteredToolDispatcher implements IToolDispatcher {
  * 处理 MCP 服务器提供的工具
  */
 @Injectable()
+@ToolDispatcher({ name: 'mcp', order: 20 })
 export class McpToolDispatcher implements IToolDispatcher {
   private readonly logger = new Logger(McpToolDispatcher.name);
 
@@ -90,6 +93,7 @@ export class McpToolDispatcher implements IToolDispatcher {
  * 处理 kb_search 工具
  */
 @Injectable()
+@ToolDispatcher({ name: 'kb', order: 30 })
 export class KbSearchDispatcher implements IToolDispatcher {
   constructor(private readonly kbSearchTool: KbSearchTool) {}
 
@@ -111,6 +115,7 @@ export class KbSearchDispatcher implements IToolDispatcher {
  * 处理所有通过 ClientToolRegistry 注册的客户端工具
  */
 @Injectable()
+@ToolDispatcher({ name: 'client', order: 40 })
 export class ClientToolDispatcher implements IToolDispatcher {
   constructor(private readonly clientToolRegistry: ClientToolRegistry) {}
 
@@ -132,6 +137,7 @@ export class ClientToolDispatcher implements IToolDispatcher {
  * 处理内置函数调用
  */
 @Injectable()
+@ToolDispatcher({ name: 'builtin', order: 50 })
 export class BuiltinFunctionDispatcher implements IToolDispatcher {
   constructor(private readonly builtinExecutor: BuiltinExecutor) {}
 
