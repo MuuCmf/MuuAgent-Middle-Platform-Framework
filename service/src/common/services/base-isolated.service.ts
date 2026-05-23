@@ -9,6 +9,8 @@ export interface IsolationContext {
   appCode: string | null;
   /** 是否为超级管理员 */
   isSuperAdmin: boolean;
+  /** 用户唯一标识 */
+  uid?: string;
 }
 
 /**
@@ -173,6 +175,7 @@ export class IsolationService {
     return {
       appCode: request.appCode || null,
       isSuperAdmin: request.isSuperAdmin || false,
+      uid: request.headers?.['x-uid'] || undefined,
     };
   }
 

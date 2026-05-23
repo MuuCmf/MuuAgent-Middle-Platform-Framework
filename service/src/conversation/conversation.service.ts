@@ -70,7 +70,7 @@ export class ConversationService {
     if (conversationId) {
       const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
       const existing = await this.prisma.conversation.findFirst({
-        where: { id: conversationId, ...isolationWhere },
+        where: { id: conversationId, ...isolationWhere, status: { not: 'deleted' } },
       });
 
       if (existing) {
@@ -105,7 +105,11 @@ export class ConversationService {
    * @returns 更新后的会话
    */
   async update(id: string, dto: UpdateConversationDto, context?: IsolationContext) {
-    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const safeContext = context || { appCode: null, isSuperAdmin: false };
+    const where = this.isolationService.buildOwnerWhere(id, safeContext);
+    if (safeContext.uid && !safeContext.isSuperAdmin) {
+      where.uid = safeContext.uid;
+    }
     const conversation = await this.prisma.conversation.findFirst({
       where: { ...where },
     });
@@ -126,7 +130,11 @@ export class ConversationService {
    * @param context 隔离上下文
    */
   async remove(id: string, context?: IsolationContext) {
-    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const safeContext = context || { appCode: null, isSuperAdmin: false };
+    const where = this.isolationService.buildOwnerWhere(id, safeContext);
+    if (safeContext.uid && !safeContext.isSuperAdmin) {
+      where.uid = safeContext.uid;
+    }
     const conversation = await this.prisma.conversation.findFirst({
       where: { ...where },
     });
@@ -150,8 +158,11 @@ export class ConversationService {
    */
   async findOne(id: string, messageLimit?: number, context?: IsolationContext) {
     const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
+    if (context?.uid && !context.isSuperAdmin) {
+      isolationWhere.uid = context.uid;
+    }
     const conversation = await this.prisma.conversation.findFirst({
-      where: { id, ...isolationWhere },
+      where: { id, ...isolationWhere, status: { not: 'deleted' } },
     });
 
     if (!conversation) {
@@ -202,7 +213,14 @@ export class ConversationService {
     if (conversationType) where.conversationType = conversationType;
     if (targetId) where.targetId = targetId;
     if (uid) where.uid = uid;
-    if (status) where.status = status;
+    if (context?.uid && !context.isSuperAdmin) {
+      where.uid = context.uid;
+    }
+    if (status) {
+      where.status = status;
+    } else {
+      where.status = { not: 'deleted' };
+    }
     if (keyword) {
       where.title = { contains: keyword };
     }

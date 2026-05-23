@@ -35,20 +35,6 @@
         />
       </div>
 
-      <!-- 模型与智能体面板 -->
-      <div v-show="activePanel === 'models'" class="panel-content">
-        <div class="panel-header">
-          <span class="panel-title">模型与智能体</span>
-        </div>
-        <div class="panel-body">
-          <ModelSelector
-            :model-code="selectedLlmModel"
-            :models="models"
-            @change="emit('llmModelChange', $event)"
-          />
-        </div>
-      </div>
-
       <!-- 工具面板 -->
       <div v-show="activePanel === 'tools'" class="panel-content">
         <div class="panel-header">
@@ -130,8 +116,7 @@
 
 <script setup lang="ts">
 import { ref, watch, type Component } from 'vue'
-import { Plus, ChatLineRound, Cpu, SetUp, Reading } from '@element-plus/icons-vue'
-import ModelSelector from './ModelSelector.vue'
+import { Plus, ChatLineRound, SetUp, Reading } from '@element-plus/icons-vue'
 import ConversationList from './ConversationList.vue'
 import ToolPolicyPanel from './ToolPolicyPanel.vue'
 import ThemeToggle from '../../../components/common/ThemeToggle.vue'
@@ -142,13 +127,11 @@ import type { Conversation } from '../../../services/ConversationService'
 /**
  * 侧边栏面板类型
  */
-type SidebarPanel = 'conversations' | 'models' | 'tools' | 'knowledge'
+type SidebarPanel = 'conversations' | 'tools' | 'knowledge'
 
 interface Props {
   /** 聊天模式 */
   chatMode: 'chat' | 'rag' | 'retrieval'
-  /** 选中的LLM模型 */
-  selectedLlmModel: string
   /** 选中的智能体 */
   selectedAgent: string
   /** 选中的知识库ID */
@@ -167,8 +150,6 @@ interface Props {
   conversations: Conversation[]
   /** 当前会话ID */
   currentConversationId: string | null
-  /** 模型列表 */
-  models: any[]
   /** 智能体列表 */
   agents: any[]
 }
@@ -176,8 +157,6 @@ interface Props {
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  /** LLM模型变更 */
-  llmModelChange: [value: string]
   /** 智能体变更 */
   agentChange: [value: string]
   /** 知识库变更 */
@@ -204,7 +183,6 @@ const activePanel = ref<SidebarPanel>('conversations')
  */
 const navItems: { key: SidebarPanel; label: string; icon: Component }[] = [
   { key: 'conversations', label: '会话', icon: ChatLineRound },
-  { key: 'models', label: '模型', icon: Cpu },
   { key: 'tools', label: '工具', icon: SetUp },
   { key: 'knowledge', label: '知识库', icon: Reading },
 ]

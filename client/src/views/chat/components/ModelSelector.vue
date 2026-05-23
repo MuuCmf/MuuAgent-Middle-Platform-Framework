@@ -8,7 +8,7 @@
         <el-icon :size="22"><Star /></el-icon>
       </div>
       <div class="model-info">
-        <div class="model-name">MCP智能调度</div>
+        <div class="model-name">Auto 智能调度</div>
         <div class="model-desc">自动选择最优模型，支持负载均衡和故障转移</div>
       </div>
       <div class="model-check">

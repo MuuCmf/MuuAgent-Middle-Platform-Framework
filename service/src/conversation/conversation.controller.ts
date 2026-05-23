@@ -67,6 +67,7 @@ export class ConversationController {
   async findAll(@Query() query: QueryConversationDto, @Req() req: Request) {
     // 获取租户信息
     const context = extractIsolationContext(req);
+    console.log(context);
     const result = await this.conversationService.findAll(query, context);
     return page(result.list, result.total, result.page, result.pageSize);
   }

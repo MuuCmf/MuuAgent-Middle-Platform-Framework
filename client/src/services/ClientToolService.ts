@@ -1,6 +1,5 @@
 import { httpClient } from '../utils/request'
 import { API_ENDPOINTS } from '../api/config'
-import { clientToolRouter } from '../executor/client-tool-router'
 import { dynamicPluginRegistry } from '../executor/dynamic-plugin-registry'
 import { getUid } from '../utils/auth'
 
@@ -114,37 +113,6 @@ export class ClientToolService {
     } catch (e) {
       console.warn('[ClientToolService] 同步动态工具定义失败:', e)
     }
-  }
-
-  /**
-   * 获取所有客户端工具权限策略
-   * @returns 策略列表
-   */
-  getAllPolicies() {
-    return clientToolRouter.getAllPolicies()
-  }
-
-  /**
-   * 更新客户端工具权限策略
-   * @param policies 策略列表
-   */
-  updatePolicies(policies: import('../executor/types').ClientToolModulePolicy[]) {
-    clientToolRouter.updatePolicies(policies)
-  }
-
-  /**
-   * 处理客户端工具调用
-   * @param call 工具调用载荷
-   * @param confirmFn 确认函数
-   * @param conversationId 会话ID
-   * @returns 执行结果
-   */
-  async handleCall(
-    call: import('../api/stream').ClientToolCallPayload,
-    confirmFn: (message: string) => Promise<boolean>,
-    conversationId?: string | null,
-  ) {
-    return clientToolRouter.handleCall(call, confirmFn, conversationId)
   }
 }
 

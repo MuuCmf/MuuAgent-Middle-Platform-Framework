@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { RetrievalItem } from '../../../api/retrieval'
+import type { RetrievalItem } from '../../../api/types'
 import { Markdown } from 'vue-stream-markdown'
 import type { ControlsConfig, CodeOptions, ShikiOptions } from 'vue-stream-markdown'
 import { preprocessMarkdown } from '../../../utils/markdown'

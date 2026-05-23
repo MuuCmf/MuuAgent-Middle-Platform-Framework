@@ -1,55 +1,24 @@
 <template>
   <div class="chat-input">
     <div class="input-wrapper">
-      <div class="mode-selector-bar">
-        <div class="mode-tabs">
+      <div v-if="currentMode === 'chat'" class="agent-chips-bar">
+        <div class="agent-chips-row">
           <div
-            v-for="item in modeOptions"
-            :key="item.value"
-            :class="['mode-tab', { active: currentMode === item.value }]"
-            @click="handleModeChange(item.value)"
+            :class="['agent-chip', { active: !selectedAgent }]"
+            @click="handleAgentSelect('')"
           >
-            <span class="mode-icon">{{ item.icon }}</span>
-            <span class="mode-label">{{ item.label }}</span>
+            <el-icon :size="13"><Cpu /></el-icon>
+            <span>大模型</span>
           </div>
-        </div>
-        <div class="mode-indicator">
-          <span class="indicator-dot" />
-          <span class="indicator-text">{{ getCurrentModeText() }}</span>
-        </div>
-      </div>
-
-      <div v-if="currentMode === 'chat'" class="workspace-agent-bar">
-        <div class="agent-scroll-section">
-          <div class="agent-scroll-container">
-            <div
-              :class="['agent-chip', { active: !selectedAgent }]"
-              @click="handleAgentSelect('')"
-            >
-              <el-icon :size="14"><Cpu /></el-icon>
-              <span>大模型对话</span>
-              <el-icon v-if="!selectedAgent" :size="12" class="check-icon"><Check /></el-icon>
-            </div>
-            <div
-              v-for="agent in agents"
-              :key="agent.id"
-              :class="['agent-chip', { active: selectedAgent === agent.id }]"
-              @click="handleAgentSelect(agent.id)"
-            >
-              <el-icon :size="14"><User /></el-icon>
-              <span>{{ agent.name }}</span>
-              <el-icon v-if="selectedAgent === agent.id" :size="12" class="check-icon"><Check /></el-icon>
-            </div>
+          <div
+            v-for="agent in agents"
+            :key="agent.id"
+            :class="['agent-chip', { active: selectedAgent === agent.id }]"
+            @click="handleAgentSelect(agent.id)"
+          >
+            <el-icon :size="13"><User /></el-icon>
+            <span>{{ agent.name }}</span>
           </div>
-        </div>
-        <div v-if="isWorkspaceEnabledForSelectedAgent" class="workspace-section">
-          <WorkspaceIndicator
-            :is-active="workspaceIsActive"
-            :dir-name="workspaceDirName"
-            @select="handleWorkspaceSelect"
-            @change="handleWorkspaceSelect"
-            @clear="handleWorkspaceClear"
-          />
         </div>
       </div>
 
@@ -66,7 +35,117 @@
         </div>
       </div>
 
+      <!-- 上拉模型选择器 -->
+      <Teleport to="body">
+        <Transition name="model-sheet">
+          <div v-if="showModelSheet" class="model-sheet-overlay" @click.self="showModelSheet = false">
+            <div class="model-sheet-panel">
+              <div class="model-sheet-header">
+                <span class="model-sheet-title">选择模型</span>
+                <el-icon class="model-sheet-close" :size="20" @click="showModelSheet = false"><Close /></el-icon>
+              </div>
+              <div class="model-sheet-body">
+                <div
+                  :class="['model-sheet-item', { active: internalModelCode === 'mcp-llm' || !internalModelCode }]"
+                  @click="selectModel('mcp-llm')"
+                >
+                  <div class="model-sheet-icon mcp-icon">
+                    <el-icon :size="20"><Star /></el-icon>
+                  </div>
+                  <div class="model-sheet-info">
+                    <span class="model-sheet-name">Auto 智能调度</span>
+                    <span class="model-sheet-desc">自动选择最优模型，支持负载均衡和故障转移</span>
+                  </div>
+                  <el-icon v-if="internalModelCode === 'mcp-llm' || !internalModelCode" class="model-sheet-check" :size="18"><Check /></el-icon>
+                </div>
+
+                <div class="model-sheet-divider">
+                  <span>指定模型</span>
+                </div>
+
+                <div
+                  v-for="model in enabledModels"
+                  :key="model.id"
+                  :class="['model-sheet-item', { active: internalModelCode === model.code }]"
+                  @click="selectModel(model.code)"
+                >
+                  <div class="model-sheet-icon">
+                    <el-icon :size="20"><Cpu /></el-icon>
+                  </div>
+                  <div class="model-sheet-info">
+                    <span class="model-sheet-name">{{ model.name }}</span>
+                    <span class="model-sheet-desc">{{ model.description || 'LLM模型' }}</span>
+                  </div>
+                  <el-icon v-if="internalModelCode === model.code" class="model-sheet-check" :size="18"><Check /></el-icon>
+                </div>
+
+                <div v-if="enabledModels.length === 0" class="model-sheet-empty">
+                  <el-icon :size="40" color="var(--text-tertiary)"><Cpu /></el-icon>
+                  <span>暂无可用模型</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
+      <!-- 上拉模式选择器 -->
+      <Teleport to="body">
+        <Transition name="sheet-fade">
+          <div v-if="showModeSheet" class="mode-sheet-overlay" @click.self="showModeSheet = false">
+            <div class="mode-sheet-panel">
+              <div class="mode-sheet-header">
+                <span class="mode-sheet-title">选择模式</span>
+                <el-icon class="mode-sheet-close" :size="20" @click="showModeSheet = false"><Close /></el-icon>
+              </div>
+              <div class="mode-sheet-body">
+                <div
+                  v-for="item in modeOptions"
+                  :key="item.value"
+                  :class="['mode-sheet-item', { active: currentMode === item.value }]"
+                  @click="handleModeSheetSelect(item.value)"
+                >
+                  <div :class="['mode-sheet-icon', `mode-icon-${item.value}`]">
+                    <span class="mode-sheet-emoji">{{ item.icon }}</span>
+                  </div>
+                  <div class="mode-sheet-info">
+                    <span class="mode-sheet-name">{{ item.label }}</span>
+                    <span class="mode-sheet-desc">{{ item.description }}</span>
+                  </div>
+                  <el-icon v-if="currentMode === item.value" class="mode-sheet-check" :size="18"><Check /></el-icon>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
       <div class="input-container">
+        <div class="input-bottom-bar">
+          <div class="bottom-bar-left">
+            <div class="mode-trigger" @click="showModeSheet = true">
+              <span class="mode-trigger-icon">{{ currentModeIcon }}</span>
+              <span class="mode-trigger-text">{{ currentModeLabel }}</span>
+              <el-icon :size="12" class="mode-trigger-arrow"><ArrowUp /></el-icon>
+            </div>
+            <div class="model-trigger" @click="showModelSheet = true">
+              <el-icon :size="14"><Cpu /></el-icon>
+              <span class="model-trigger-text">{{ currentModelDisplayName }}</span>
+              <el-icon :size="12" class="model-trigger-arrow"><ArrowUp /></el-icon>
+            </div>
+            <div v-if="currentMode === 'chat'" class="workspace-trigger" @click="handleWorkspaceTrigger">
+              <template v-if="workspaceIsActive">
+                <el-icon :size="14"><FolderOpened /></el-icon>
+                <span class="workspace-trigger-text">{{ workspaceDirName || '已选择' }}</span>
+                <el-icon :size="12" class="workspace-trigger-clear" @click.stop="handleWorkspaceClear"><Close /></el-icon>
+              </template>
+              <template v-else>
+                <el-icon :size="14"><Folder /></el-icon>
+                <span class="workspace-trigger-text">工作目录</span>
+              </template>
+            </div>
+          </div>
+        </div>
         <el-input
           ref="inputRef"
           v-model="inputText"
@@ -104,8 +183,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
-import { Promotion, Check, Cpu, User, VideoPause } from '@element-plus/icons-vue'
-import WorkspaceIndicator from '@/views/chat/components/WorkspaceIndicator.vue'
+import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check } from '@element-plus/icons-vue'
 
 /**
  * 斜杠命令定义
@@ -144,6 +222,10 @@ interface Props {
   workspaceIsActive?: boolean
   /** 工作目录名称 */
   workspaceDirName?: string | null
+  /** 模型列表 */
+  models?: any[]
+  /** 当前选中的模型编码 */
+  selectedLlmModel?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -151,7 +233,27 @@ const props = withDefaults(defineProps<Props>(), {
   agents: () => [],
   workspaceIsActive: false,
   workspaceDirName: null,
+  models: () => [],
+  selectedLlmModel: 'mcp-llm',
 })
+
+/**
+ * 模型定义
+ */
+interface ModelItem {
+  /** 模型ID */
+  id: number
+  /** 模型编码 */
+  code: string
+  /** 模型名称 */
+  name: string
+  /** 模型描述 */
+  description?: string
+  /** 状态 */
+  status?: boolean
+  /** 类型 */
+  type?: string
+}
 
 const emit = defineEmits<{
   /** 发送消息 */
@@ -168,7 +270,16 @@ const emit = defineEmits<{
   'workspace-select': []
   /** 工作目录清除 */
   'workspace-clear': []
+  /** LLM模型变更 */
+  'llm-model-change': [modelCode: string]
 }>()
+
+/** 内部模型编码（用于本地响应式） */
+const internalModelCode = ref<string>(props.selectedLlmModel)
+/** 模型上拉面板是否显示 */
+const showModelSheet = ref(false)
+/** 模式上拉面板是否显示 */
+const showModeSheet = ref(false)
 
 /** 输入文本 */
 const inputText = ref('')
@@ -204,21 +315,74 @@ const filteredCommands = computed(() => {
 })
 
 /**
- * 判断当前选中的智能体是否支持工作目录
+ * 处理工作目录触发器点击
  */
-const isWorkspaceEnabledForSelectedAgent = computed(() => {
-  return !!selectedAgent.value
-})
+const handleWorkspaceTrigger = () => {
+  if (props.workspaceIsActive) {
+    emit('workspace-select')
+  } else {
+    emit('workspace-select')
+  }
+}
 
 watch(() => props.mode, (newMode) => {
   currentMode.value = newMode
 })
 
+/** 监听外部模型变更 */
+watch(() => props.selectedLlmModel, (newVal) => {
+  internalModelCode.value = newVal
+})
+
+/**
+ * 已启用的LLM模型列表
+ */
+const enabledModels = computed(() => {
+  return props.models.filter((m: ModelItem) => m.status === true && m.type === 'llm')
+})
+
+/**
+ * 当前模型显示名称
+ */
+const currentModelDisplayName = computed(() => {
+  if (internalModelCode.value === 'mcp-llm' || !internalModelCode.value) {
+    return 'Auto 智能调度'
+  }
+  const model = props.models.find((m: ModelItem) => m.code === internalModelCode.value)
+  return model?.name || internalModelCode.value
+})
+
+/**
+ * 选择模型
+ * @param code 模型编码
+ */
+const selectModel = (code: string) => {
+  internalModelCode.value = code
+  emit('llm-model-change', code)
+  showModelSheet.value = false
+}
+
+/**
+ * 当前模式显示图标
+ */
+const currentModeIcon = computed(() => {
+  const item = modeOptions.find((m) => m.value === currentMode.value)
+  return item?.icon || '💬'
+})
+
+/**
+ * 当前模式显示标签
+ */
+const currentModeLabel = computed(() => {
+  const item = modeOptions.find((m) => m.value === currentMode.value)
+  return item?.label || '对话'
+})
+
 /** 模式选项 */
 const modeOptions = [
-  { value: 'chat' as const, label: '对话', icon: '💬' },
-  { value: 'rag' as const, label: 'RAG', icon: '📚' },
-  { value: 'retrieval' as const, label: '检索', icon: '🔍' },
+  { value: 'chat' as const, label: '对话', icon: '💬', description: '直接与大模型对话交流' },
+  { value: 'rag' as const, label: 'RAG', icon: '📚', description: '基于知识库进行检索增强问答' },
+  { value: 'retrieval' as const, label: '检索', icon: '🔍', description: '纯向量检索，查看相关文档片段' },
 ]
 
 /**
@@ -309,6 +473,15 @@ const handleModeChange = (mode: 'chat' | 'rag' | 'retrieval') => {
 }
 
 /**
+ * 处理模式上拉面板选择
+ * @param mode 目标模式
+ */
+const handleModeSheetSelect = (mode: 'chat' | 'rag' | 'retrieval') => {
+  handleModeChange(mode)
+  showModeSheet.value = false
+}
+
+/**
  * 处理智能体选择
  * @param agentId 智能体ID
  */
@@ -318,32 +491,10 @@ const handleAgentSelect = (agentId: string) => {
 }
 
 /**
- * 处理工作目录选择
- */
-const handleWorkspaceSelect = () => {
-  emit('workspace-select')
-}
-
-/**
  * 处理工作目录清除
  */
 const handleWorkspaceClear = () => {
   emit('workspace-clear')
-}
-
-/**
- * 获取当前模式文本
- * @returns 模式文本
- */
-const getCurrentModeText = (): string => {
-  if (currentMode.value === 'chat') {
-    return selectedAgent.value ? '智能体对话' : '大模型对话'
-  }
-  switch (currentMode.value) {
-    case 'rag': return 'RAG问答模式'
-    case 'retrieval': return '向量检索模式'
-    default: return ''
-  }
 }
 
 /**
@@ -376,132 +527,51 @@ const getPlaceholder = (): string => {
   position: relative;
 }
 
-.mode-selector-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  padding: 8px;
-  background: var(--bg-secondary);
-  border-radius: 14px;
-  box-shadow: var(--shadow-sm);
-}
-
-.mode-tabs {
-  display: flex;
-  gap: 4px;
-}
-
-.mode-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: transparent;
-}
-
-.mode-tab:hover {
-  background: var(--bg-tertiary);
-}
-
-.mode-tab.active {
-  background: var(--primary-gradient);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
-}
-
-.mode-tab.active .mode-icon { font-size: 16px; }
-.mode-tab.active .mode-label { color: white; font-weight: 600; }
-.mode-icon { font-size: 14px; }
-.mode-label { font-size: 14px; color: var(--text-secondary); font-weight: 500; }
-
-.mode-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  background: var(--bg-tertiary);
-  border-radius: 20px;
-}
-
-.indicator-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--primary-gradient);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.2); }
-}
-
-.indicator-text {
-  font-size: 12px;
-  color: var(--primary-color);
-  font-weight: 500;
-}
-
-.workspace-agent-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.workspace-section { flex-shrink: 0; }
-
-.agent-scroll-section {
-  flex: 1;
+.agent-chips-bar {
+  margin-bottom: 10px;
   overflow: hidden;
-  min-width: 0;
 }
 
-.agent-scroll-container {
+.agent-chips-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
-  padding: 8px 4px;
+  padding: 2px 0;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-.agent-scroll-container::-webkit-scrollbar { display: none; }
+.agent-chips-row::-webkit-scrollbar { display: none; }
 
 .agent-chip {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 20px;
-  background: var(--white);
-  border: 1.5px solid var(--border-color);
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  background: var(--bg-secondary);
+  color: var(--text-tertiary);
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: all 0.2s ease;
   white-space: nowrap;
   flex-shrink: 0;
+  border: 1px solid transparent;
 }
 
 .agent-chip:hover {
-  border-color: var(--primary-color);
-  background: var(--bg-color);
-  transform: translateY(-1px);
+  color: var(--primary-color);
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
 }
 
 .agent-chip.active {
   background: var(--primary-gradient);
-  border-color: transparent;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
 }
 
-.agent-chip.active span { color: white; }
 .agent-chip.active .el-icon { color: white; }
-.agent-chip .check-icon { margin-left: 2px; }
-.agent-chip span { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
-.agent-chip .el-icon { color: var(--primary-color); }
 
 .command-menu {
   position: absolute;
@@ -550,6 +620,462 @@ const getPlaceholder = (): string => {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   overflow: hidden;
+}
+
+.input-bottom-bar {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px 0;
+}
+
+.bottom-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.model-trigger,
+.workspace-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.model-trigger:hover,
+.workspace-trigger:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+.model-trigger .el-icon,
+.workspace-trigger .el-icon {
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.model-trigger-text,
+.workspace-trigger-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-trigger {
+  border-style: dashed;
+  border-color: var(--border-color);
+}
+
+.workspace-trigger:hover {
+  border-style: solid;
+  border-color: var(--primary-color);
+}
+
+.workspace-trigger .el-icon {
+  color: #67c23a;
+}
+
+.workspace-trigger-clear {
+  color: var(--text-tertiary) !important;
+  transition: color 0.2s;
+  padding: 2px;
+  border-radius: 50%;
+}
+
+.workspace-trigger-clear:hover {
+  color: #f56c6c !important;
+  background: rgba(245, 108, 108, 0.1);
+}
+
+.model-trigger-arrow {
+  color: var(--text-tertiary) !important;
+  transition: color 0.2s;
+}
+
+.model-trigger:hover .model-trigger-arrow {
+  color: var(--primary-color) !important;
+}
+
+/* 模式触发器 */
+.mode-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.mode-trigger:hover {
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
+  transform: translateY(-1px);
+}
+
+.mode-trigger-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.mode-trigger-text {
+  font-size: 12px;
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.mode-trigger-arrow {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* 模式选择面板 */
+.mode-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.mode-sheet-panel {
+  width: 100%;
+  max-width: 420px;
+  background: var(--white);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+  margin: 0 20px;
+}
+
+.mode-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.mode-sheet-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.mode-sheet-close {
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: color 0.2s;
+}
+
+.mode-sheet-close:hover {
+  color: var(--text-color);
+}
+
+.mode-sheet-body {
+  padding: 8px;
+}
+
+.mode-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.mode-sheet-item:hover {
+  background: var(--bg-secondary);
+}
+
+.mode-sheet-item.active {
+  background: var(--bg-color);
+  border-color: var(--primary-color);
+}
+
+.mode-sheet-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mode-sheet-emoji {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.mode-icon-chat {
+  background: linear-gradient(135deg, #e8f0ff 0%, #d4e0ff 100%);
+}
+
+.mode-icon-rag {
+  background: linear-gradient(135deg, #fff3e6 0%, #ffe8cc 100%);
+}
+
+.mode-icon-retrieval {
+  background: linear-gradient(135deg, #f0f9eb 0%, #e0f5d8 100%);
+}
+
+html.dark .mode-icon-chat {
+  background: linear-gradient(135deg, #1a2540 0%, #1e3050 100%);
+}
+
+html.dark .mode-icon-rag {
+  background: linear-gradient(135deg, #3d2e0a 0%, #4a3510 100%);
+}
+
+html.dark .mode-icon-retrieval {
+  background: linear-gradient(135deg, #1a2e15 0%, #1f3a18 100%);
+}
+
+.mode-sheet-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mode-sheet-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.mode-sheet-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.mode-sheet-check {
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+/* sheet 过渡动画 */
+.sheet-fade-enter-active,
+.sheet-fade-leave-active {
+  transition: all 0.25s ease;
+}
+
+.sheet-fade-enter-from,
+.sheet-fade-leave-to {
+  opacity: 0;
+}
+
+.sheet-fade-enter-from .mode-sheet-panel,
+.sheet-fade-leave-to .mode-sheet-panel {
+  transform: translateY(30px);
+}
+
+/* 模型选择弹出面板 */
+.model-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.model-sheet-panel {
+  width: 100%;
+  max-width: 500px;
+  max-height: 70vh;
+  background: var(--white);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+  margin: 0 20px;
+}
+
+.model-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.model-sheet-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.model-sheet-close {
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.model-sheet-close:hover {
+  color: var(--text-color);
+}
+
+.model-sheet-body {
+  overflow-y: auto;
+  padding: 8px;
+  flex: 1;
+}
+
+.model-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.model-sheet-item:hover {
+  background: var(--bg-secondary);
+}
+
+.model-sheet-item.active {
+  background: var(--bg-color);
+  border-color: var(--primary-color);
+}
+
+.model-sheet-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.model-sheet-icon.mcp-icon {
+  background: linear-gradient(135deg, #fff3e6 0%, #ffe8cc 100%);
+  color: #f59e0b;
+}
+
+html.dark .model-sheet-icon.mcp-icon {
+  background: linear-gradient(135deg, #3d2e0a 0%, #4a3510 100%);
+  color: #fbbf24;
+}
+
+.model-sheet-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.model-sheet-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.model-sheet-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.model-sheet-check {
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.model-sheet-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+}
+
+.model-sheet-divider::before,
+.model-sheet-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.model-sheet-divider span {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.model-sheet-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  gap: 10px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+/* 弹出动画 */
+.model-sheet-enter-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.model-sheet-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.model-sheet-enter-from .model-sheet-panel {
+  transform: scale(0.9) translateY(20px);
+  opacity: 0;
+}
+
+.model-sheet-leave-to .model-sheet-panel {
+  transform: scale(0.9) translateY(20px);
+  opacity: 0;
+}
+
+.model-sheet-enter-from,
+.model-sheet-leave-to {
+  opacity: 0;
+}
+
+.model-sheet-enter-to,
+.model-sheet-leave-from {
+  opacity: 1;
 }
 
 .input-actions {

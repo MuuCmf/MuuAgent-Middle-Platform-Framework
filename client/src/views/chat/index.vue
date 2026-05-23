@@ -3,24 +3,21 @@
     <template #sidebar>
       <ChatSidebar
         :chat-mode="chatMode"
-        :selected-llm-model="selectedLlmModel"
         :selected-agent="selectedAgent"
-        :selected-kb="ragController.selectedKb.value"
-        :kb-list="ragController.kbList.value"
-        :selected-kb-info="ragController.selectedKbInfo.value"
-        :top-n="ragController.topN.value"
-        :similarity-thresh="ragController.similarityThresh.value"
+        :selected-kb="selectedKb"
+        :kb-list="kbList"
+        :selected-kb-info="selectedKbInfo"
+        :top-n="topN"
+        :similarity-thresh="similarityThresh"
         :tool-policies="toolPolicies"
         :conversations="conversations"
         :current-conversation-id="currentConversationId"
-        :models="models"
         :agents="enabledAgents"
-        @llm-model-change="handleLlmModelChange"
         @agent-change="handleAgentChange"
         @kb-change="handleKbChange"
-        @kb-select="ragController.setSelectedKb"
-        @top-n-change="ragController.topN.value = $event"
-        @similarity-thresh-change="ragController.similarityThresh.value = $event"
+        @kb-select="(val: string) => selectedKb = val"
+        @top-n-change="(val: number) => topN = val"
+        @similarity-thresh-change="(val: number) => similarityThresh = val"
         @select-conversation="handleSelectConversation"
         @delete-conversation="handleDeleteConversation"
         @new-conversation="handleNewConversation"
@@ -36,7 +33,7 @@
               <div class="header-tags">
                 <span v-if="selectedLlmModel === 'mcp-llm'" class="model-tag mcp-tag">
                   <el-icon :size="14"><Star /></el-icon>
-                  MCP智能调度
+                  Auto 智能调度
                 </span>
                 <span v-else class="model-tag specified-tag">
                   <el-icon :size="14"><Cpu /></el-icon>
@@ -47,11 +44,11 @@
                   {{ getAgentName(selectedAgent) }}
                 </span>
                 <span
-                  v-if="ragController.selectedKb.value && (chatMode === 'rag' || chatMode === 'retrieval')"
+                  v-if="selectedKb && (chatMode === 'rag' || chatMode === 'retrieval')"
                   class="kb-tag"
                 >
                   <el-icon :size="14"><ChatLineRound /></el-icon>
-                  {{ ragController.getKbName(ragController.selectedKb.value) }}
+                  {{ getKbName(selectedKb) }}
                 </span>
               </div>
             </div>
@@ -109,12 +106,15 @@
           :agents="enabledAgents"
           :workspace-is-active="workspaceIsActive"
           :workspace-dir-name="workspaceDirName"
+          :models="models"
+          :selected-llm-model="selectedLlmModel"
           @send="handleSendMessage"
           @stop="handleStopGeneration"
           @mode-change="handleModeChange"
           @agent-change="handleAgentChange"
           @workspace-select="handleWorkspaceSelect"
           @workspace-clear="handleWorkspaceClear"
+          @llm-model-change="handleLlmModelChange"
         />
       </div>
     </template>
@@ -131,7 +131,6 @@ import ChatSidebar from './components/ChatSidebar.vue'
 import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import { useChat } from '../../composables/useChat'
-import { ragController } from '../../controllers/RagController'
 
 const {
   chatMode,
@@ -150,6 +149,11 @@ const {
   enableThinkingMode,
   workspaceIsActive,
   workspaceDirName,
+  kbList,
+  selectedKb,
+  selectedKbInfo,
+  topN,
+  similarityThresh,
   isMessageStreaming,
   handleModeChange,
   handleLlmModelChange,
@@ -166,6 +170,7 @@ const {
   handleWorkspaceClear,
   getModelName,
   getAgentName,
+  getKbName,
   getEmptyTitle,
   getEmptyDescription,
   init,

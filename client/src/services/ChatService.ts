@@ -4,7 +4,7 @@ import { streamRequest } from '../api/stream'
 import type { ReasoningStep } from '../api/reasoning'
 import type { ClientToolCallPayload } from '../api/stream'
 import type { ClientToolModulePolicy } from '../executor/types'
-import type { Message } from '../api/ai'
+import type { Message } from '../api/types'
 
 /**
  * 流式聊天参数
