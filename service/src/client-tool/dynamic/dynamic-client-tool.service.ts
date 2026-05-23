@@ -26,6 +26,8 @@ export interface CreateDynamicClientToolDto {
   timeout?: number;
   /** 所属应用标识 */
   appCode?: string;
+  /** 创建者用户ID（应用级隔离） */
+  uid?: string;
 }
 
 /**
@@ -55,6 +57,7 @@ export interface UpdateDynamicClientToolDto {
 /**
  * 动态客户端工具管理服务
  * 提供工具的 CRUD 操作，变更后自动刷新 Handler 缓存
+ * 支持 appCode + uid 应用级隔离
  */
 @Injectable()
 export class DynamicClientToolService {
@@ -84,13 +87,14 @@ export class DynamicClientToolService {
         confirmMessage: dto.confirmMessage,
         timeout: dto.timeout || 30000,
         appCode: dto.appCode,
+        uid: dto.uid,
         createdBy,
       },
     });
 
     await this.dynamicHandler.refreshDefinitions();
 
-    this.logger.log(`动态客户端工具已创建: ${dto.name}`);
+    this.logger.log(`动态客户端工具已创建: ${dto.name} (appCode=${dto.appCode}, uid=${dto.uid})`);
     return tool;
   }
 
@@ -140,12 +144,15 @@ export class DynamicClientToolService {
   }
 
   /**
-   * 获取所有动态客户端工具列表
+   * 获取动态客户端工具列表（按 appCode + uid 过滤）
    * @param appCode 应用标识
+   * @param uid 用户ID
    * @returns {Promise<any[]>} 工具列表
    */
-  async findAll(appCode?: string): Promise<any[]> {
-    const where = appCode ? { appCode } : {};
+  async findAll(appCode?: string, uid?: string): Promise<any[]> {
+    const where: Record<string, unknown> = {};
+    if (appCode) where.appCode = appCode;
+    if (uid) where.uid = uid;
     return this.prisma.dynamicClientTool.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -164,11 +171,13 @@ export class DynamicClientToolService {
   }
 
   /**
-   * 获取指定应用可用的动态工具定义（含执行配置，供客户端同步）
+   * 获取指定应用+用户可用的动态工具定义（含执行配置，供客户端同步）
+   * 隔离规则：只返回匹配 appCode + uid 的工具，以及全局工具（appCode=null, uid=null）
    * @param appCode 应用标识
+   * @param uid 用户ID
    * @returns {Promise<Array>} 工具定义列表
    */
-  async getDefinitionsForClient(appCode?: string): Promise<Array<{
+  async getDefinitionsForClient(appCode?: string, uid?: string): Promise<Array<{
     /** 工具名称 */
     name: string;
     /** 显示名称 */
@@ -188,14 +197,29 @@ export class DynamicClientToolService {
     /** 超时时间 */
     timeout: number;
   }>> {
-    const where: Record<string, unknown> = { enabled: true };
-    if (appCode) {
-      where.OR = [
-        { appCode },
-        { appCode: null },
-      ];
+    const orConditions: Record<string, unknown>[] = [];
+
+    if (appCode && uid) {
+      orConditions.push(
+        { appCode, uid, enabled: true },
+        { appCode, uid: null, enabled: true },
+        { appCode: null, uid: null, enabled: true },
+      );
+    } else if (appCode) {
+      orConditions.push(
+        { appCode, uid: null, enabled: true },
+        { appCode: null, uid: null, enabled: true },
+      );
+    } else if (uid) {
+      orConditions.push(
+        { appCode: null, uid, enabled: true },
+        { appCode: null, uid: null, enabled: true },
+      );
+    } else {
+      orConditions.push({ appCode: null, uid: null, enabled: true });
     }
 
+    const where = orConditions.length > 1 ? { OR: orConditions } : orConditions[0];
     const tools = await this.prisma.dynamicClientTool.findMany({ where });
 
     return tools.map(tool => ({

@@ -23,13 +23,14 @@ export class ToolAssemblyBuilder {
   async buildTools(
     resolution: SkillResolutionResult,
     resolvedKbCodes: string[],
-    agent: { id: any; allowedBuiltinTools?: string },
+    agent: { id: any; allowedBuiltinTools?: string; appCode?: string },
     enableKbTool: boolean = true,
     kbToolConfig?: {
       defaultTopN: number;
       defaultSimilarityThresh: number;
       allowSpecifyKb: boolean;
     },
+    uid?: string,
   ): Promise<ToolDefinition[]> {
     const tools: ToolDefinition[] = [];
 
@@ -126,8 +127,11 @@ export class ToolAssemblyBuilder {
       }
     }
 
-    // 动态客户端工具（用户自扩展，不依赖技能解析，有启用的工具即自动可用）
-    const dynamicTools = this.clientToolRegistry.getToolsForAgent(agent);
+    // 动态客户端工具（用户自扩展，按 appCode+uid 应用级隔离）
+    const dynamicTools = this.clientToolRegistry.getToolsForAgent({
+      ...agent,
+      _uid: uid,
+    });
     for (const tool of dynamicTools) {
       if (!tools.find(t => t.name === tool.name)) {
         tools.push(tool);

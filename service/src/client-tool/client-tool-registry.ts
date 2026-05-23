@@ -75,14 +75,26 @@ export class ClientToolRegistry {
 
   /**
    * 获取指定 Agent 可用的所有客户端工具定义
-   * @param agent Agent实体
+   * 动态工具按 appCode + uid 过滤，实现应用级隔离
+   * @param agent Agent实体（需包含 appCode 和 _uid 字段）
    * @returns {ToolDefinition[]} 工具定义列表
    */
   getToolsForAgent(agent: Record<string, any>): ToolDefinition[] {
     const tools: ToolDefinition[] = [];
+    const agentAppCode = agent.appCode || null;
+    const agentUid = agent._uid || null;
+
     for (const entry of this.entries.values()) {
       if (entry.isEnabled(agent)) {
-        tools.push(...entry.toolDefinitions);
+        for (const def of entry.toolDefinitions) {
+          if (def.type === 'dynamic') {
+            if (def.appCode && def.appCode !== agentAppCode) continue;
+            if (def.uid && def.uid !== agentUid) continue;
+            if (!agentAppCode && def.appCode) continue;
+            if (!agentUid && def.uid) continue;
+          }
+          tools.push(def);
+        }
       }
     }
     return tools;

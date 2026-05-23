@@ -52,6 +52,11 @@ class CreateDynamicClientToolBody {
   @IsString()
   @IsOptional()
   appCode?: string;
+
+  @ApiPropertyOptional({ description: '创建者用户ID（应用级隔离）' })
+  @IsString()
+  @IsOptional()
+  uid?: string;
 }
 
 class UpdateDynamicClientToolBody {
@@ -127,33 +132,43 @@ export class DynamicClientToolController {
       confirmMessage: body.confirmMessage,
       timeout: body.timeout,
       appCode: body.appCode,
+      uid: body.uid,
     };
     const tool = await this.dynamicClientToolService.create(dto);
     return apiSuccess(tool);
   }
 
   /**
-   * 获取动态客户端工具列表
+   * 获取动态客户端工具列表（按 appCode + uid 过滤）
    * @param appCode 应用标识
+   * @param uid 用户ID
    * @returns {object} 工具列表
    */
   @Get()
   @ApiOperation({ summary: '获取动态客户端工具列表' })
-  async findAll(@Query('appCode') appCode?: string) {
-    const tools = await this.dynamicClientToolService.findAll(appCode);
+  async findAll(
+    @Query('appCode') appCode?: string,
+    @Query('uid') uid?: string,
+  ) {
+    const tools = await this.dynamicClientToolService.findAll(appCode, uid);
     return apiSuccess(tools);
   }
 
   /**
    * 客户端同步动态工具定义（含执行配置）
+   * 隔离规则：只返回匹配 appCode + uid 的工具，以及全局工具
    * 注意：此路由必须在 :id 路由之前，否则 "client" 会被当作 id 参数
    * @param appCode 应用标识
+   * @param uid 用户ID
    * @returns {object} 工具定义列表
    */
   @Get('client/sync')
   @ApiOperation({ summary: '客户端同步动态工具定义' })
-  async syncForClient(@Query('appCode') appCode?: string) {
-    const definitions = await this.dynamicClientToolService.getDefinitionsForClient(appCode);
+  async syncForClient(
+    @Query('appCode') appCode?: string,
+    @Query('uid') uid?: string,
+  ) {
+    const definitions = await this.dynamicClientToolService.getDefinitionsForClient(appCode, uid);
     return apiSuccess(definitions);
   }
 

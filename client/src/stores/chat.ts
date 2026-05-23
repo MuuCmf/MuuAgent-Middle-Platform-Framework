@@ -11,6 +11,7 @@ import { systemControlExecutor } from '../executor/system-control.executor'
 import { dynamicClientToolExecutor } from '../executor/dynamic-client-tool.executor'
 import { dynamicPluginRegistry } from '../executor/dynamic-plugin-registry'
 import { syncDynamicClientTools } from '../api/client-tool'
+import { getUid } from '../utils/auth'
 import { clientToolRouter } from '../executor/client-tool-router'
 
 /**
@@ -151,9 +152,10 @@ export const useChatStore = defineStore('chat', () => {
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading.value) return
 
-    /** 同步动态客户端工具定义到插件注册表 */
+    /** 同步动态客户端工具定义到插件注册表（按 appCode+uid 应用级隔离） */
     try {
-      const definitions = await syncDynamicClientTools()
+      const uid = getUid() || undefined
+      const definitions = await syncDynamicClientTools(undefined, uid)
       dynamicPluginRegistry.sync(definitions.map(d => ({
         name: d.name,
         displayName: d.displayName || undefined,

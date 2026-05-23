@@ -64,12 +64,16 @@ export async function submitClientToolResult(
 /**
  * 从服务端同步动态客户端工具定义
  * @param appCode 应用标识
+ * @param uid 用户ID
  * @returns {Promise<DynamicClientToolDefinition[]>} 工具定义列表
  */
 export async function syncDynamicClientTools(
   appCode?: string,
+  uid?: string,
 ): Promise<DynamicClientToolDefinition[]> {
-  const params = appCode ? { appCode } : {}
+  const params: Record<string, string> = {}
+  if (appCode) params.appCode = appCode
+  if (uid) params.uid = uid
   const response = await httpClient.getInstance().get(
     `${API_ENDPOINTS.agents}/dynamic-client-tools/client/sync`,
     { params },

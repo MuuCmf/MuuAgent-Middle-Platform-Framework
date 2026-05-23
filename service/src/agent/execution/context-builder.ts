@@ -98,6 +98,7 @@ export class ContextBuilder {
       agent,
       enableToolRetrieval,
       toolConfig,
+      uid,
     );
 
     let finalSystemPrompt = this.systemPrompt.build(agent, tools);
