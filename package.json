@@ -4,6 +4,11 @@
   "description": "MuuAgent - 企业级AI中台服务框架",
   "private": true,
   "scripts": {
+    "cli": "node cli/dist/index.js",
+    "muu": "node cli/dist/index.js",
+    "dev": "node cli/dist/index.js dev",
+    "chat": "node cli/dist/index.js chat",
+    "health": "node cli/dist/index.js health",
     "sync-version": "node scripts/sync-version.js",
     "version:patch": "npm version patch && npm run sync-version",
     "version:minor": "npm version minor && npm run sync-version",
