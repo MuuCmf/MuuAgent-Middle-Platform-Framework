@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { StreamEmitter, StreamEvents } from '../../stream';
-import { IClientToolHandler, ClientToolCallResult, ClientToolProvider, IClientToolProvider, ClientToolRegistry } from '..';
+import { IClientToolHandler, ClientToolCallResult, ClientToolRegistry } from '..';
+import { ClientToolProvider, IClientToolProvider } from '../client-tool-provider.decorator';
 import { ClientToolModulePolicy, ToolPermissionPolicy } from '../client-tool-entry';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import * as crypto from 'crypto';

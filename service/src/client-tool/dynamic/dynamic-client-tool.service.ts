@@ -71,10 +71,9 @@ export class DynamicClientToolService {
   /**
    * 创建动态客户端工具
    * @param dto 创建 DTO
-   * @param createdBy 创建者
    * @returns {Promise<any>} 创建的工具记录
    */
-  async create(dto: CreateDynamicClientToolDto, createdBy?: string): Promise<any> {
+  async create(dto: CreateDynamicClientToolDto): Promise<any> {
     const tool = await this.prisma.dynamicClientTool.create({
       data: {
         name: dto.name,
@@ -88,7 +87,6 @@ export class DynamicClientToolService {
         timeout: dto.timeout || 30000,
         appCode: dto.appCode,
         uid: dto.uid,
-        createdBy,
       },
     });
 
