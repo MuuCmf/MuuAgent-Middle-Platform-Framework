@@ -150,6 +150,11 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     try {
       await this.beforeStreamLoop(context, messages, steps, emitter);
 
+      let blockIndex = 0;
+
+      emitter.emitContentBlockStart('thinking', blockIndex);
+      blockIndex++;
+
       for (let i = 0; i < context.maxSteps; i++) {
         this.logger.debug(`[${this.mode} Stream] Step ${i + 1}/${context.maxSteps}`);
 
@@ -173,10 +178,16 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
           onToolCall: async (toolCall: { name: string; args: any }) => {
             hasToolCall = true;
             const resolvedName = nameMap[toolCall.name] || toolCall.name;
+            emitter.emitContentBlockStop('thinking', blockIndex - 1);
+            emitter.emitContentBlockStart('tool_call', blockIndex, resolvedName);
+            blockIndex++;
             await this.handleStreamToolCall(
               context, messages, steps, emitter,
               stepText, resolvedName, toolCall.args, i,
             );
+            emitter.emitContentBlockStop('tool_call', blockIndex - 1);
+            emitter.emitContentBlockStart('thinking', blockIndex);
+            blockIndex++;
           },
         });
 
@@ -188,6 +199,8 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
           break;
         }
       }
+
+      emitter.emitContentBlockStop('thinking', blockIndex - 1);
 
       await this.finalizeStreamResponse(context, emitter, finalResponse, steps);
     } catch (error) {

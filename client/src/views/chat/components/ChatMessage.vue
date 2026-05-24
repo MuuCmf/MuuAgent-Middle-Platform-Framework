@@ -53,29 +53,106 @@
         >{{ message.content }}</div>
 
         <template v-else-if="message.role === 'assistant' && !message.type">
-          <div v-if="message.thinkingContent && message.thinkingContent.trim()" class="thinking-section">
-            <div class="thinking-header" @click="thinkingExpanded = !thinkingExpanded">
-              <span class="thinking-icon">💭</span>
-              <span class="thinking-label">思考过程</span>
-              <el-icon :size="12" class="thinking-toggle">
-                <component :is="thinkingExpanded ? 'ArrowUp' : 'ArrowDown'" />
-              </el-icon>
+          <template v-if="message.contentBlocks && message.contentBlocks.length > 0">
+            <div
+              v-for="(block, idx) in message.contentBlocks"
+              :key="`block-${idx}`"
+              class="content-block"
+            >
+              <!-- 文本块 -->
+              <div v-if="block.type === 'text'" class="content-block-text">
+                <Markdown
+                  :content="block.content"
+                  :mode="isStreaming ? 'streaming' : 'static'"
+                  :controls="markdownControls"
+                  :codeOptions="codeOptions"
+                  :shikiOptions="shikiOptions"
+                  @copied="handleCopied"
+                />
+              </div>
+
+              <!-- 工具调用块 -->
+              <div v-else-if="block.type === 'tool_call'" class="content-block-tool">
+                <div class="tool-card" :class="block.toolStatus">
+                  <div class="tool-header">
+                    <span class="tool-status-icon">{{ toolStatusConfig[block.toolStatus || 'running']?.icon || '🔧' }}</span>
+                    <span class="tool-name">工具调用: {{ block.toolName || '未知工具' }}</span>
+                    <span class="tool-status-label">{{ toolStatusConfig[block.toolStatus || 'running']?.label || '' }}</span>
+                    <span v-if="block.toolStatus === 'running'" class="tool-spinner"></span>
+                  </div>
+                  <div v-if="block.toolArgs && Object.keys(block.toolArgs).length > 0" class="tool-args">
+                    <pre>{{ JSON.stringify(block.toolArgs, null, 2) }}</pre>
+                  </div>
+                  <div v-if="block.toolStatus === 'completed' && block.toolResult !== undefined" class="tool-result">
+                    <pre>{{ typeof block.toolResult === 'string' ? block.toolResult : JSON.stringify(block.toolResult, null, 2) }}</pre>
+                  </div>
+                  <div v-if="block.toolStatus === 'error'" class="tool-error">
+                    错误: {{ block.content || '工具执行失败' }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- 思考块 -->
+              <div v-else-if="block.type === 'thinking'" class="content-block-thinking">
+                <div class="thinking-block-header" @click="toggleThinkingBlock(idx)">
+                  <span class="thinking-icon">💭</span>
+                  <span class="thinking-label">思考过程 {{ idx + 1 }}</span>
+                  <el-icon :size="12" class="thinking-toggle">
+                    <component :is="thinkingBlockExpanded[idx] !== false ? 'ArrowUp' : 'ArrowDown'" />
+                  </el-icon>
+                </div>
+                <div v-show="thinkingBlockExpanded[idx] !== false" class="thinking-block-content">
+                  <pre>{{ block.content }}</pre>
+                </div>
+              </div>
+
+              <div v-if="block.type === 'text' && isStreaming" class="block-cursor">
+                <span class="cursor" />
+              </div>
             </div>
-            <div v-show="thinkingExpanded" class="thinking-content">{{ message.thinkingContent }}</div>
-          </div>
 
-          <Markdown
-            :content="processedContent"
-            :mode="isStreaming ? 'streaming' : 'static'"
-            :controls="markdownControls"
-            :codeOptions="codeOptions"
-            :shikiOptions="shikiOptions"
-            @copied="handleCopied"
-          />
+            <!-- 兜底：如果 contentBlocks 中没有 text 块，显示原始 content -->
+            <div v-if="!hasTextBlock && message.content" class="content-block-text fallback-text">
+              <Markdown
+                :content="processedContent"
+                :mode="isStreaming ? 'streaming' : 'static'"
+                :controls="markdownControls"
+                :codeOptions="codeOptions"
+                :shikiOptions="shikiOptions"
+                @copied="handleCopied"
+              />
+            </div>
 
-          <div v-if="isStreaming" class="typing-cursor">
-            <span class="cursor" />
-          </div>
+            <div v-if="isStreaming" class="typing-cursor">
+              <span class="cursor" />
+            </div>
+          </template>
+
+          <template v-else>
+            <div v-if="message.thinkingContent && message.thinkingContent.trim()" class="thinking-section">
+              <div class="thinking-header" @click="thinkingExpanded = !thinkingExpanded">
+                <span class="thinking-icon">💭</span>
+                <span class="thinking-label">思考过程</span>
+                <el-icon :size="12" class="thinking-toggle">
+                  <component :is="thinkingExpanded ? 'ArrowUp' : 'ArrowDown'" />
+                </el-icon>
+              </div>
+              <div v-show="thinkingExpanded" class="thinking-content">{{ message.thinkingContent }}</div>
+            </div>
+
+            <Markdown
+              :content="processedContent"
+              :mode="isStreaming ? 'streaming' : 'static'"
+              :controls="markdownControls"
+              :codeOptions="codeOptions"
+              :shikiOptions="shikiOptions"
+              @copied="handleCopied"
+            />
+
+            <div v-if="isStreaming" class="typing-cursor">
+              <span class="cursor" />
+            </div>
+          </template>
         </template>
       </div>
 
@@ -90,7 +167,7 @@
 import { ref, computed } from 'vue'
 import { User, Monitor } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import type { Message } from '../../../api'
+import type { Message, ContentBlock } from '../../../api'
 import ReasoningProcess from './ReasoningProcess.vue'
 import RagAnswer from './RagAnswer.vue'
 import { Markdown } from 'vue-stream-markdown'
@@ -122,6 +199,20 @@ const props = withDefaults(defineProps<Props>(), {
 /** 思考内容展开状态 */
 const thinkingExpanded = ref(true)
 
+/** 思考块展开状态（按索引） */
+const thinkingBlockExpanded = ref<Record<number, boolean>>({})
+
+/**
+ * 切换思考块展开状态
+ * @param idx 块索引
+ */
+const toggleThinkingBlock = (idx: number) => {
+  thinkingBlockExpanded.value = {
+    ...thinkingBlockExpanded.value,
+    [idx]: thinkingBlockExpanded.value[idx] !== false ? false : true,
+  }
+}
+
 /**
  * 是否显示头像
  */
@@ -132,6 +223,13 @@ const showAvatar = computed(() => !props.isGrouped)
  */
 const processedContent = computed(() => {
   return preprocessMarkdown(props.message.content)
+})
+
+/**
+ * contentBlocks 中是否包含 text 块
+ */
+const hasTextBlock = computed(() => {
+  return props.message.contentBlocks?.some((b) => b.type === 'text') ?? false
 })
 
 /** Markdown 控件配置 */
@@ -182,6 +280,14 @@ const formatTime = (timestamp?: number | string): string => {
   if (!timestamp) return ''
   const date = new Date(timestamp)
   return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+/** 工具状态图标映射 */
+const toolStatusConfig: Record<string, { icon: string; label: string }> = {
+  running: { icon: '⏳', label: '执行中' },
+  completed: { icon: '✅', label: '已完成' },
+  error: { icon: '❌', label: '失败' },
+  streaming: { icon: '📝', label: '生成中' },
 }
 </script>
 
@@ -453,6 +559,200 @@ const formatTime = (timestamp?: number | string): string => {
       border-top-color: #5d4037;
     }
   }
+}
+
+.content-block {
+  margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.content-block-text {
+  :deep(.markdown-body) {
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    padding: 14px 18px;
+    border-bottom-left-radius: 4px;
+  }
+
+  &.fallback-text {
+    margin-top: 8px;
+
+    :deep(.markdown-body) {
+      border-left: 3px solid var(--primary-color);
+    }
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 18px;
+    background: var(--primary-color);
+    animation: blink 1s infinite;
+    margin-left: 2px;
+  }
+}
+
+.content-block-tool {
+  .tool-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.3s;
+
+    &.running {
+      border-color: #faad14;
+      background: linear-gradient(135deg, #fffbe6 0%, #fff7e6 100%);
+
+      html.dark & {
+        border-color: #d48806;
+        background: linear-gradient(135deg, #3e2723 0%, #4e342e 100%);
+      }
+    }
+
+    &.completed {
+      border-color: #52c41a;
+    }
+
+    &.error {
+      border-color: #ff4d4f;
+    }
+  }
+
+  .tool-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+
+    .tool-status-icon {
+      font-size: 16px;
+    }
+
+    .tool-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-color);
+      flex: 1;
+    }
+
+    .tool-status-label {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    .tool-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #faad14;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+  }
+
+  .tool-args,
+  .tool-result {
+    padding: 8px 14px 12px;
+    border-top: 1px solid var(--border-color);
+
+    pre {
+      margin: 0;
+      font-size: 12px;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  }
+
+  .tool-error {
+    padding: 8px 14px 12px;
+    border-top: 1px solid #ff4d4f;
+    font-size: 12px;
+    color: #ff4d4f;
+  }
+}
+
+.content-block-thinking {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #c4b5fd;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+
+  html.dark & {
+    border-color: #4c1d95;
+    background: linear-gradient(135deg, #2e1065 0%, #3b0764 100%);
+  }
+
+  .thinking-block-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+
+    &:hover {
+      background: rgba(139, 92, 246, 0.08);
+    }
+
+    .thinking-icon {
+      font-size: 16px;
+    }
+
+    .thinking-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #6d28d9;
+
+      html.dark & {
+        color: #c4b5fd;
+      }
+    }
+
+    .thinking-toggle {
+      color: #6d28d9;
+      margin-left: auto;
+
+      html.dark & {
+        color: #c4b5fd;
+      }
+    }
+  }
+
+  .thinking-block-content {
+    padding: 0 14px 12px;
+    border-top: 1px solid #c4b5fd;
+    padding-top: 10px;
+
+    html.dark & {
+      border-top-color: #4c1d95;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      line-height: 1.8;
+      color: #5b21b6;
+      font-size: 13px;
+      font-style: italic;
+
+      html.dark & {
+        color: #ddd6fe;
+      }
+    }
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .message-meta {

@@ -361,6 +361,9 @@ export class AiService {
         context,
       };
 
+      let blockIndex = 0;
+      let currentBlockType: 'text' | 'tool_call' | null = null;
+
       for await (const chunk of this.modelExecutor.stream(executionParams)) {
         if (emitter.completed) {
           this.logger.debug(`[Stream] 流式传输被取消: requestId=${context.requestId}`);
@@ -370,16 +373,36 @@ export class AiService {
         chunks.push(chunk);
 
         if (chunk.type === 'text-delta' && chunk.delta) {
+          if (currentBlockType !== 'text') {
+            if (currentBlockType !== null) {
+              emitter.emitContentBlockStop(currentBlockType, blockIndex - 1);
+            }
+            emitter.emitContentBlockStart('text', blockIndex);
+            currentBlockType = 'text';
+            blockIndex++;
+          }
           accumulatedContent += chunk.delta;
           emitter.emitTextDelta(chunk.delta);
         } else if (chunk.type === 'tool-call' && chunk.toolCall) {
+          if (currentBlockType !== null) {
+            emitter.emitContentBlockStop(currentBlockType, blockIndex - 1);
+          }
+          emitter.emitContentBlockStart('tool_call', blockIndex, chunk.toolCall.toolName);
+          currentBlockType = 'tool_call';
+          blockIndex++;
           emitter.emit(StreamEvents.toolCall(
             chunk.toolCall.toolName,
             chunk.toolCall.args as Record<string, unknown>,
           ));
+          emitter.emitContentBlockStop('tool_call', blockIndex - 1);
+          currentBlockType = null;
         } else if (chunk.type === 'error' && chunk.error) {
           throw new Error(chunk.error.message);
         }
+      }
+
+      if (currentBlockType !== null) {
+        emitter.emitContentBlockStop(currentBlockType, blockIndex - 1);
       }
 
       if (emitter.completed) {

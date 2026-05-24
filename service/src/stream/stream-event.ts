@@ -23,7 +23,17 @@ export enum StreamEventType {
   CLIENT_TOOL_RESULT = 'client_tool_result',
   /** 客户端工具权限策略事件 - 会话开始时下发权限策略 */
   CLIENT_TOOL_POLICY = 'client_tool_policy',
+  /** 内容块开始事件 - 告知客户端新内容块开始（文本/工具调用/思考） */
+  CONTENT_BLOCK_START = 'content_block_start',
+  /** 内容块结束事件 - 告知客户端当前内容块结束 */
+  CONTENT_BLOCK_STOP = 'content_block_stop',
 }
+
+/**
+ * 内容块类型
+ * 对应 Claude 的 content_block 概念，区分不同渲染区域
+ */
+export type ContentBlockType = 'text' | 'tool_call' | 'thinking';
 
 /**
  * 统一流式事件接口
@@ -49,7 +59,9 @@ export type StreamEventPayload =
   | ErrorPayload
   | ClientToolCallPayload
   | ClientToolResultPayload
-  | ClientToolPolicyPayload;
+  | ClientToolPolicyPayload
+  | ContentBlockStartPayload
+  | ContentBlockStopPayload;
 
 /** 会话ID载荷 */
 export interface ConversationIdPayload {
@@ -156,6 +168,30 @@ export interface ClientToolPolicyPayload {
 }
 
 /**
+ * 内容块开始载荷
+ * 告知前端新内容块开始，前端据此渲染对应的占位区域
+ */
+export interface ContentBlockStartPayload {
+  /** 内容块类型 */
+  blockType: ContentBlockType;
+  /** 块索引（同一响应中从0递增） */
+  index: number;
+  /** 工具调用时的工具名称 */
+  toolName?: string;
+}
+
+/**
+ * 内容块结束载荷
+ * 告知前端当前内容块结束
+ */
+export interface ContentBlockStopPayload {
+  /** 内容块类型 */
+  blockType: ContentBlockType;
+  /** 对应的块索引 */
+  index: number;
+}
+
+/**
  * StreamEvent 工厂函数 - 类型安全的创建事件
  */
 export const StreamEvents = {
@@ -207,5 +243,15 @@ export const StreamEvents = {
   clientToolPolicy: (policies: ClientToolPolicyPayload['policies']): StreamEvent => ({
     type: StreamEventType.CLIENT_TOOL_POLICY,
     payload: { policies },
+  }),
+
+  contentBlockStart: (blockType: ContentBlockType, index: number, toolName?: string): StreamEvent => ({
+    type: StreamEventType.CONTENT_BLOCK_START,
+    payload: { blockType, index, toolName },
+  }),
+
+  contentBlockStop: (blockType: ContentBlockType, index: number): StreamEvent => ({
+    type: StreamEventType.CONTENT_BLOCK_STOP,
+    payload: { blockType, index },
   }),
 };

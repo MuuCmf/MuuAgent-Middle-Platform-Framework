@@ -1,5 +1,5 @@
 import { Subject } from 'rxjs';
-import { StreamEvent, StreamEventType } from './stream-event';
+import { StreamEvent, StreamEventType, ContentBlockType } from './stream-event';
 
 /**
  * 流式发射器
@@ -91,6 +91,31 @@ export class StreamEmitter {
   }
 
   /**
+   * 发射内容块开始事件（便捷方法）
+   * @param blockType 内容块类型（text/tool_call/thinking）
+   * @param index 块索引
+   * @param toolName 工具调用时的工具名称
+   */
+  emitContentBlockStart(blockType: ContentBlockType, index: number, toolName?: string): void {
+    this.emit({
+      type: StreamEventType.CONTENT_BLOCK_START,
+      payload: { blockType, index, toolName },
+    });
+  }
+
+  /**
+   * 发射内容块结束事件（便捷方法）
+   * @param blockType 内容块类型
+   * @param index 块索引
+   */
+  emitContentBlockStop(blockType: ContentBlockType, index: number): void {
+    this.emit({
+      type: StreamEventType.CONTENT_BLOCK_STOP,
+      payload: { blockType, index },
+    });
+  }
+
+  /**
    * 完成流（不再接受新事件）
    */
   complete(): void {
@@ -162,6 +187,25 @@ export class StreamEmitter {
       case StreamEventType.CLIENT_TOOL_POLICY: {
         const payload = event.payload as { policies: unknown[] };
         return `[CLIENT_TOOL_POLICY] ${JSON.stringify({ policies: payload.policies })}`;
+      }
+
+      case StreamEventType.CONTENT_BLOCK_START: {
+        const payload = event.payload as { blockType: string; index: number; toolName?: string };
+        return JSON.stringify({
+          type: 'content_block_start',
+          blockType: payload.blockType,
+          index: payload.index,
+          toolName: payload.toolName,
+        });
+      }
+
+      case StreamEventType.CONTENT_BLOCK_STOP: {
+        const payload = event.payload as { blockType: string; index: number };
+        return JSON.stringify({
+          type: 'content_block_stop',
+          blockType: payload.blockType,
+          index: payload.index,
+        });
       }
 
       default:

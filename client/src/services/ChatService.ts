@@ -1,6 +1,6 @@
 import { httpClient } from '../utils/request'
 import { API_ENDPOINTS } from '../api/config'
-import { streamRequest } from '../api/stream'
+import { streamRequest, type StreamCallbacks } from '../api/stream'
 import type { Message } from '../api/types'
 
 /**
@@ -17,19 +17,8 @@ export interface StreamChatParams {
   conversationId?: string | null
 }
 
-/**
- * 流式聊天回调接口
- */
-export interface StreamChatCallbacks {
-  /** 消息回调 */
-  onMessage: (content: string) => void
-  /** 错误回调 */
-  onError: (error: Error) => void
-  /** 完成回调 */
-  onComplete: () => void
-  /** 会话ID回调 */
-  onConversationId?: (conversationId: string) => void
-}
+/** 流式聊天回调接口（直接使用 StreamCallbacks） */
+export type StreamChatCallbacks = StreamCallbacks
 
 /**
  * AI聊天服务
@@ -58,12 +47,7 @@ export class ChatService {
         conversationId: params.conversationId,
         messages: params.messages,
       },
-      callbacks: {
-        onMessage: callbacks.onMessage,
-        onError: callbacks.onError,
-        onComplete: callbacks.onComplete,
-        onConversationId: callbacks.onConversationId,
-      },
+      callbacks,
       signal,
     })
   }

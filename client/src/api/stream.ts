@@ -14,6 +14,28 @@ export interface ClientToolCallPayload {
 }
 
 /**
+ * 内容块开始载荷
+ */
+export interface ContentBlockStartPayload {
+  /** 内容块类型 */
+  blockType: 'text' | 'tool_call' | 'thinking'
+  /** 块索引 */
+  index: number
+  /** 工具名称（tool_call 类型时） */
+  toolName?: string
+}
+
+/**
+ * 内容块结束载荷
+ */
+export interface ContentBlockStopPayload {
+  /** 内容块类型 */
+  blockType: 'text' | 'tool_call' | 'thinking'
+  /** 块索引 */
+  index: number
+}
+
+/**
  * SSE 流式响应回调接口
  */
 export interface StreamCallbacks {
@@ -26,6 +48,10 @@ export interface StreamCallbacks {
   onClientToolCall?: (payload: ClientToolCallPayload) => void
   /** 客户端工具权限策略回调 */
   onClientToolPolicy?: (policies: ClientToolModulePolicy[]) => void
+  /** 内容块开始回调 */
+  onContentBlockStart?: (payload: ContentBlockStartPayload) => void
+  /** 内容块结束回调 */
+  onContentBlockStop?: (payload: ContentBlockStopPayload) => void
 }
 
 /**
@@ -151,6 +177,21 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
           step.toolArgs = parsed.args
         }
         callbacks.onReasoningStep(step)
+      }
+    } else if (parsed.type === 'content_block_start' && parsed.blockType) {
+      if (callbacks.onContentBlockStart) {
+        callbacks.onContentBlockStart({
+          blockType: parsed.blockType,
+          index: parsed.index ?? 0,
+          toolName: parsed.toolName,
+        })
+      }
+    } else if (parsed.type === 'content_block_stop' && parsed.blockType) {
+      if (callbacks.onContentBlockStop) {
+        callbacks.onContentBlockStop({
+          blockType: parsed.blockType,
+          index: parsed.index ?? 0,
+        })
       }
     } else if (parsed.type === 'error' && parsed.content) {
       callbacks.onError(new Error(parsed.content))

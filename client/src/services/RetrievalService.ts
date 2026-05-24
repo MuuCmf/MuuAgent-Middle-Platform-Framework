@@ -2,6 +2,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { httpClient } from '../utils/request'
 import { API_CONFIG } from '../api/config'
 import { getApiKey, getUid } from '../utils/auth'
+import type { ContentBlockStartPayload, ContentBlockStopPayload } from '../api/stream'
 
 /**
  * 检索结果项
@@ -69,6 +70,10 @@ export interface RagStreamCallbacks {
   onComplete: (sources?: RetrievalItem[]) => void
   /** 会话ID回调 */
   onConversationId?: (conversationId: string) => void
+  /** 内容块开始回调 */
+  onContentBlockStart?: (payload: ContentBlockStartPayload) => void
+  /** 内容块结束回调 */
+  onContentBlockStop?: (payload: ContentBlockStopPayload) => void
 }
 
 /**
@@ -168,7 +173,7 @@ export class RetrievalService {
     },
     callbacks: RagStreamCallbacks,
   ): Promise<void> {
-    const { onMessage, onError, onComplete, onConversationId } = callbacks
+    const { onMessage, onError, onComplete, onConversationId, onContentBlockStart, onContentBlockStop } = callbacks
     const abortController = new AbortController()
     let sources: RetrievalItem[] = []
 
@@ -222,6 +227,21 @@ export class RetrievalService {
               }
             } else if (parsed.type === 'text_delta' && parsed.delta) {
               onMessage(parsed.delta)
+            } else if (parsed.type === 'content_block_start' && parsed.blockType) {
+              if (onContentBlockStart) {
+                onContentBlockStart({
+                  blockType: parsed.blockType,
+                  index: parsed.index ?? 0,
+                  toolName: parsed.toolName,
+                })
+              }
+            } else if (parsed.type === 'content_block_stop' && parsed.blockType) {
+              if (onContentBlockStop) {
+                onContentBlockStop({
+                  blockType: parsed.blockType,
+                  index: parsed.index ?? 0,
+                })
+              }
             } else if (parsed.choices && parsed.choices[0]?.delta?.content) {
               onMessage(safeTextDecode(parsed.choices[0].delta.content))
             } else if (parsed.message) {

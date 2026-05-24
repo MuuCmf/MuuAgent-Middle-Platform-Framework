@@ -12,10 +12,163 @@ import { dynamicClientToolExecutor } from '../executor/dynamic-client-tool.execu
 import { DesktopExecutor } from '../executor/desktop.executor'
 import { clientToolRouter } from '../executor/client-tool-router'
 import { processThinkingContent, THINKING_SYSTEM_PROMPT } from '../utils/thinking'
-import type { Message } from '../api/types'
+import type { Message, ContentBlock, ContentBlockType, ContentBlockStatus } from '../api/types'
 import type { ReasoningStep } from '../api/reasoning'
-import type { ClientToolCallPayload } from '../api/stream'
+import type { ClientToolCallPayload, ContentBlockStartPayload, ContentBlockStopPayload } from '../api/stream'
 import type { ClientToolModulePolicy } from '../executor/types'
+
+/**
+ * 创建 rAF 节流的消息写入器
+ * 将高频 token 更新合并到每帧一次，避免渲染卡顿
+ * @param getMessage 获取目标消息的 getter（始终返回最新引用）
+ * @returns { flush: () => void } flush 方法供流结束时调用
+ */
+function createRafThrottledWriter(
+  getMessage: () => Message,
+): { write: (chunk: string) => void; flush: () => void } {
+  let pending = ''
+  let rafId: number | null = null
+  let updateFn: ((chunk: string) => void) | null = null
+
+  /**
+   * 设置消息更新函数
+   * @param fn 更新函数
+   */
+  const setUpdateFn = (fn: (chunk: string) => void) => {
+    updateFn = fn
+  }
+
+  /**
+   * 写入 chunk（节流到下一帧）
+   * @param chunk 文本增量
+   */
+  const write = (chunk: string) => {
+    pending += chunk
+    if (rafId === null) {
+      rafId = requestAnimationFrame(() => {
+        if (updateFn && pending) {
+          updateFn(pending)
+        }
+        pending = ''
+        rafId = null
+      })
+    }
+  }
+
+  /**
+   * 立即刷出所有缓冲内容
+   */
+  const flush = () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
+    if (updateFn && pending) {
+      updateFn(pending)
+    }
+    pending = ''
+  }
+
+  return { write, flush, setUpdateFn }
+}
+
+/**
+ * 创建内容块管理器
+ * 处理 content_block_start / content_block_stop 事件，维护消息的内容块列表
+ * @param getMessage 获取目标消息的 getter
+ * @returns 内容块事件处理回调
+ */
+function createContentBlockManager(getMessage: () => Message) {
+  /**
+   * 处理 content_block_start 事件
+   * @param payload 内容块开始载荷
+   */
+  const onContentBlockStart = (payload: ContentBlockStartPayload) => {
+    const msg = getMessage()
+    if (!msg.contentBlocks) {
+      msg.contentBlocks = []
+    }
+    const block: ContentBlock = {
+      type: payload.blockType,
+      index: payload.index,
+      content: '',
+      toolName: payload.toolName,
+      toolStatus: payload.blockType === 'tool_call' ? 'running' : 'streaming',
+      reasoningSteps: payload.blockType === 'thinking' ? [] : undefined,
+    }
+    msg.contentBlocks.push(block)
+  }
+
+  /**
+   * 处理 content_block_stop 事件
+   * @param payload 内容块结束载荷
+   */
+  const onContentBlockStop = (payload: ContentBlockStopPayload) => {
+    const msg = getMessage()
+    if (!msg.contentBlocks) return
+    const block = msg.contentBlocks.find(
+      (b) => b.type === payload.blockType && b.index === payload.index,
+    )
+    if (block) {
+      if (block.toolStatus === 'running') {
+        block.toolStatus = 'completed'
+      } else if (block.toolStatus === 'streaming') {
+        block.toolStatus = 'completed'
+      }
+    }
+  }
+
+  /**
+   * 更新当前文本块的累积内容
+   * 如果不存在文本块则自动创建
+   * @param chunk 文本增量
+   */
+  const appendToCurrentTextBlock = (chunk: string) => {
+    const msg = getMessage()
+    if (!msg.contentBlocks) {
+      msg.contentBlocks = []
+    }
+    const lastBlock = msg.contentBlocks[msg.contentBlocks.length - 1]
+    if (lastBlock && lastBlock.type === 'text') {
+      lastBlock.content += chunk
+    } else {
+      const block: ContentBlock = {
+        type: 'text',
+        index: msg.contentBlocks.length,
+        content: chunk,
+        toolStatus: 'streaming',
+      }
+      msg.contentBlocks.push(block)
+    }
+  }
+
+  /**
+   * 更新工具调用块的状态
+   * @param toolName 工具名称
+   * @param status 新状态
+   * @param result 执行结果
+   * @param error 错误信息
+   */
+  const updateToolBlock = (
+    toolName: string,
+    status: ContentBlockStatus,
+    result?: unknown,
+    error?: string,
+  ) => {
+    const msg = getMessage()
+    if (!msg.contentBlocks) return
+    const block = msg.contentBlocks.find(
+      (b) => b.type === 'tool_call' && b.toolName === toolName && b.toolStatus === 'running',
+    )
+    if (block) {
+      block.toolStatus = status
+      if (result !== undefined) block.toolResult = result
+      if (error) block.toolResult = error
+    }
+  }
+
+  return { onContentBlockStart, onContentBlockStop, appendToCurrentTextBlock, updateToolBlock }
+}
 
 /**
  * 聊天模式类型
@@ -352,6 +505,7 @@ export function useChat() {
       role: 'assistant',
       content: '',
       reasoningSteps: [],
+      contentBlocks: [],
       timestamp: Date.now(),
     }
     messages.value.push(assistantMessage)
@@ -384,6 +538,12 @@ export function useChat() {
     messagesToSend.push(userMessage)
 
     await new Promise<void>((resolve, reject) => {
+      const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
+      throttled.setUpdateFn((chunk: string) => {
+        processThinkingContent(messages.value[assistantIndex], chunk)
+      })
+      const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
+
       chatService.streamChat(
         {
           modelCode: currentModelCode.value,
@@ -392,13 +552,16 @@ export function useChat() {
         },
         {
           onMessage: (chunk: string) => {
-            processThinkingContent(messages.value[assistantIndex], chunk)
+            throttled.write(chunk)
+            blockMgr.appendToCurrentTextBlock(chunk)
           },
           onError: (error: Error) => {
+            throttled.flush()
             messages.value[assistantIndex].content = `错误: ${error.message}`
             reject(error)
           },
           onComplete: () => {
+            throttled.flush()
             isLoading.value = false
             abortController.value = null
             loadConversations()
@@ -407,6 +570,8 @@ export function useChat() {
           onConversationId: (conversationId: string) => {
             currentConversationId.value = conversationId
           },
+          onContentBlockStart: blockMgr.onContentBlockStart,
+          onContentBlockStop: blockMgr.onContentBlockStop,
         },
         signal,
       )
@@ -420,6 +585,13 @@ export function useChat() {
     signal: AbortSignal,
   ) => {
     await new Promise<void>((resolve, reject) => {
+      const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
+      throttled.setUpdateFn((chunk: string) => {
+        processThinkingContent(messages.value[assistantIndex], chunk)
+      })
+
+      const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
+
       agentService.streamChat(
         {
           agentId: selectedAgent.value,
@@ -436,13 +608,16 @@ export function useChat() {
         },
         {
           onMessage: (chunk: string) => {
-            processThinkingContent(messages.value[assistantIndex], chunk)
+            throttled.write(chunk)
+            blockMgr.appendToCurrentTextBlock(chunk)
           },
           onError: (error: Error) => {
+            throttled.flush()
             messages.value[assistantIndex].content = `错误: ${error.message}`
             reject(error)
           },
           onComplete: () => {
+            throttled.flush()
             isLoading.value = false
             abortController.value = null
             loadConversations()
@@ -451,12 +626,15 @@ export function useChat() {
           onConversationId: (conversationId: string) => {
             currentConversationId.value = conversationId
           },
+          onContentBlockStart: blockMgr.onContentBlockStart,
+          onContentBlockStop: blockMgr.onContentBlockStop,
           onReasoningStep: (step: ReasoningStep) => {
             if (debugMode.value && messages.value[assistantIndex].reasoningSteps) {
               messages.value[assistantIndex].reasoningSteps!.push(step)
             }
           },
           onClientToolCall: (payload: ClientToolCallPayload) => {
+            blockMgr.updateToolBlock(payload.toolName, 'completed')
             clientToolRouter.handleCall(
               payload,
               (message) => {
@@ -471,6 +649,7 @@ export function useChat() {
               currentConversationId.value,
             ).catch((err) => {
               console.error('[useChat] handleCall 未处理异常:', err)
+              blockMgr.updateToolBlock(payload.toolName, 'error', undefined, String(err))
             })
           },
           onClientToolPolicy: (policies: ClientToolModulePolicy[]) => {
@@ -499,12 +678,19 @@ export function useChat() {
       content: '',
       type: 'rag',
       sources: [],
+      contentBlocks: [],
       timestamp: Date.now(),
     }
     messages.value.push(assistantMessage)
     const assistantIndex = messages.value.length - 1
 
     try {
+      const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
+      throttled.setUpdateFn((chunk: string) => {
+        processThinkingContent(messages.value[assistantIndex], chunk)
+      })
+      const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
+
       await retrievalService.ragChatStream(
         {
           kbId: selectedKb.value,
@@ -516,14 +702,17 @@ export function useChat() {
         },
         {
           onMessage: (content: string) => {
-            processThinkingContent(messages.value[assistantIndex], content)
+            throttled.write(content)
+            blockMgr.appendToCurrentTextBlock(content)
           },
           onError: (error: Error) => {
+            throttled.flush()
             messages.value[assistantIndex].content = '错误: ' + error.message
             ElMessage.error('RAG问答失败: ' + error.message)
             isLoading.value = false
           },
           onComplete: (sources?: RetrievalItem[]) => {
+            throttled.flush()
             if (sources && sources.length > 0) {
               messages.value[assistantIndex].sources = sources
             }
@@ -533,6 +722,8 @@ export function useChat() {
           onConversationId: (conversationId: string) => {
             currentConversationId.value = conversationId
           },
+          onContentBlockStart: blockMgr.onContentBlockStart,
+          onContentBlockStop: blockMgr.onContentBlockStop,
         },
       )
     } catch (error: any) {

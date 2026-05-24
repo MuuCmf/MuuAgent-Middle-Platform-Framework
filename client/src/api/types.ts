@@ -1,6 +1,40 @@
 import type { ReasoningStep } from './reasoning'
 
 /**
+ * 内容块类型
+ * 对应服务端的 content_block 概念
+ */
+export type ContentBlockType = 'text' | 'tool_call' | 'thinking'
+
+/**
+ * 内容块状态
+ */
+export type ContentBlockStatus = 'pending' | 'streaming' | 'running' | 'completed' | 'error'
+
+/**
+ * 内容块接口
+ * 服务端通过 content_block_start/content_block_stop 事件下发
+ */
+export interface ContentBlock {
+  /** 内容块类型 */
+  type: ContentBlockType
+  /** 块索引 */
+  index: number
+  /** 文本内容（text 类型使用） */
+  content: string
+  /** 工具名称（tool_call 类型使用） */
+  toolName?: string
+  /** 工具参数 */
+  toolArgs?: Record<string, unknown>
+  /** 工具执行结果 */
+  toolResult?: unknown
+  /** 工具执行状态 */
+  toolStatus?: ContentBlockStatus
+  /** 推理步骤列表（thinking 类型使用） */
+  reasoningSteps?: ReasoningStep[]
+}
+
+/**
  * 检索结果项
  */
 export interface RetrievalItem {
@@ -50,8 +84,10 @@ export interface Message {
   content: string
   /** 思考过程内容 */
   thinkingContent?: string
-  /** 推理步骤 */
+  /** 推理步骤（ReAct 模式使用） */
   reasoningSteps?: ReasoningStep[]
+  /** 内容块列表（流式 content_block 模式下使用） */
+  contentBlocks?: ContentBlock[]
   /** 消息类型 */
   type?: 'rag' | 'retrieval'
   /** 参考来源 */

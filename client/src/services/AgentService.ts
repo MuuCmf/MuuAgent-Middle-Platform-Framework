@@ -1,6 +1,6 @@
 import { httpClient } from '../utils/request'
 import { API_ENDPOINTS } from '../api/config'
-import { streamRequest, type ClientToolCallPayload } from '../api/stream'
+import { streamRequest, type ClientToolCallPayload, type StreamCallbacks } from '../api/stream'
 import type { ReasoningStep } from '../api/reasoning'
 import type { ClientToolModulePolicy } from '../executor/types'
 
@@ -57,18 +57,8 @@ export interface AgentStreamChatParams {
   }
 }
 
-/**
- * 智能体流式聊天回调接口
- */
-export interface AgentStreamChatCallbacks {
-  /** 消息回调 */
-  onMessage: (content: string) => void
-  /** 错误回调 */
-  onError: (error: Error) => void
-  /** 完成回调 */
-  onComplete: () => void
-  /** 会话ID回调 */
-  onConversationId?: (conversationId: string) => void
+/** 智能体流式聊天回调接口（扩展 StreamCallbacks） */
+export type AgentStreamChatCallbacks = StreamCallbacks & {
   /** 推理步骤回调 */
   onReasoningStep?: (step: ReasoningStep) => void
   /** 客户端工具调用回调 */
@@ -118,15 +108,7 @@ export class AgentService {
     await streamRequest({
       url,
       body: params,
-      callbacks: {
-        onMessage: callbacks.onMessage,
-        onError: callbacks.onError,
-        onComplete: callbacks.onComplete,
-        onConversationId: callbacks.onConversationId,
-        onReasoningStep: callbacks.onReasoningStep,
-        onClientToolCall: callbacks.onClientToolCall,
-        onClientToolPolicy: callbacks.onClientToolPolicy,
-      },
+      callbacks,
       signal,
     })
   }
