@@ -74,20 +74,23 @@
               <!-- 工具调用块 -->
               <div v-else-if="block.type === 'tool_call'" class="content-block-tool">
                 <div class="tool-card" :class="block.toolStatus">
-                  <div class="tool-header">
-                    <span class="tool-status-icon">{{ toolStatusConfig[block.toolStatus || 'running']?.icon || '🔧' }}</span>
-                    <span class="tool-name">工具调用: {{ block.toolName || '未知工具' }}</span>
-                    <span class="tool-status-label">{{ toolStatusConfig[block.toolStatus || 'running']?.label || '' }}</span>
-                    <span v-if="block.toolStatus === 'running'" class="tool-spinner"></span>
+                  <div class="tool-card-header">
+                    <span class="tool-status-dot" />
+                    <span class="tool-name">{{ block.toolName || '未知工具' }}</span>
+                    <span class="tool-status-badge" :class="block.toolStatus">{{ toolStatusConfig[block.toolStatus || 'running']?.label || '' }}</span>
+                    <span v-if="block.toolStatus === 'running'" class="tool-pulse" />
                   </div>
-                  <div v-if="block.toolArgs && Object.keys(block.toolArgs).length > 0" class="tool-args">
-                    <pre>{{ JSON.stringify(block.toolArgs, null, 2) }}</pre>
+                  <div v-if="block.toolArgs && Object.keys(block.toolArgs).length > 0" class="tool-section">
+                    <div class="tool-section-label">参数</div>
+                    <pre class="tool-code">{{ JSON.stringify(block.toolArgs, null, 2) }}</pre>
                   </div>
-                  <div v-if="block.toolStatus === 'completed' && block.toolResult !== undefined" class="tool-result">
-                    <pre>{{ typeof block.toolResult === 'string' ? block.toolResult : JSON.stringify(block.toolResult, null, 2) }}</pre>
+                  <div v-if="block.toolStatus === 'completed' && block.toolResult !== undefined" class="tool-section">
+                    <div class="tool-section-label">结果</div>
+                    <pre class="tool-code">{{ typeof block.toolResult === 'string' ? block.toolResult : JSON.stringify(block.toolResult, null, 2) }}</pre>
                   </div>
-                  <div v-if="block.toolStatus === 'error'" class="tool-error">
-                    错误: {{ block.content || '工具执行失败' }}
+                  <div v-if="block.toolStatus === 'error'" class="tool-section tool-section-error">
+                    <div class="tool-section-label">错误信息</div>
+                    <pre class="tool-code">{{ block.content || '工具执行失败' }}</pre>
                   </div>
                 </div>
               </div>
@@ -633,35 +636,72 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
     border: 1px solid var(--border-color);
     border-radius: 10px;
     overflow: hidden;
-    transition: border-color 0.3s;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    position: relative;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      transition: background 0.3s;
+    }
 
     &.running {
-      border-color: #faad14;
-      background: linear-gradient(135deg, #fffbe6 0%, #fff7e6 100%);
+      border-color: rgba(250, 173, 20, 0.3);
 
-      html.dark & {
-        border-color: #d48806;
-        background: linear-gradient(135deg, #3e2723 0%, #4e342e 100%);
+      &::before {
+        background: #faad14;
       }
     }
 
     &.completed {
-      border-color: #52c41a;
+      border-color: rgba(82, 196, 26, 0.25);
+
+      &::before {
+        background: #52c41a;
+      }
+
+      &:hover {
+        box-shadow: var(--shadow-sm);
+      }
     }
 
     &.error {
-      border-color: #ff4d4f;
+      border-color: rgba(255, 77, 79, 0.3);
+
+      &::before {
+        background: #ff4d4f;
+      }
     }
   }
 
-  .tool-header {
+  .tool-card-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 14px;
+    padding: 10px 14px 10px 17px;
 
-    .tool-status-icon {
-      font-size: 16px;
+    .tool-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-tertiary);
+      flex-shrink: 0;
+
+      .running & {
+        background: #faad14;
+      }
+
+      .completed & {
+        background: #52c41a;
+      }
+
+      .error & {
+        background: #ff4d4f;
+      }
     }
 
     .tool-name {
@@ -669,44 +709,84 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
       font-weight: 600;
       color: var(--text-color);
       flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
-    .tool-status-label {
-      font-size: 12px;
-      color: var(--text-tertiary);
+    .tool-status-badge {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 10px;
+      flex-shrink: 0;
+      transition: all 0.3s;
+
+      &.running {
+        background: rgba(250, 173, 20, 0.12);
+        color: #d48806;
+      }
+
+      &.completed {
+        background: rgba(82, 196, 26, 0.1);
+        color: #389e0d;
+      }
+
+      &.error {
+        background: rgba(255, 77, 79, 0.1);
+        color: #cf1322;
+      }
     }
 
-    .tool-spinner {
-      width: 14px;
-      height: 14px;
-      border: 2px solid #faad14;
-      border-top-color: transparent;
+    .tool-pulse {
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      background: #faad14;
+      animation: toolPulse 1.4s ease-in-out infinite;
+      flex-shrink: 0;
     }
   }
 
-  .tool-args,
-  .tool-result {
-    padding: 8px 14px 12px;
+  .tool-section {
+    padding: 8px 14px 12px 17px;
     border-top: 1px solid var(--border-color);
 
-    pre {
+    .tool-section-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .tool-code {
       margin: 0;
       font-size: 12px;
+      font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
       color: var(--text-secondary);
       white-space: pre-wrap;
       word-break: break-all;
-      max-height: 200px;
+      max-height: 240px;
       overflow-y: auto;
+      background: var(--bg-tertiary);
+      padding: 10px 12px;
+      border-radius: 6px;
+      line-height: 1.6;
     }
   }
 
-  .tool-error {
-    padding: 8px 14px 12px;
-    border-top: 1px solid #ff4d4f;
-    font-size: 12px;
-    color: #ff4d4f;
+  .tool-section-error {
+    .tool-section-label {
+      color: #ff4d4f;
+    }
+
+    .tool-code {
+      color: #ff4d4f;
+      background: rgba(255, 77, 79, 0.06);
+    }
   }
 }
 
@@ -781,9 +861,17 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
   }
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+@keyframes toolPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(250, 173, 20, 0.4);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.9);
+    box-shadow: 0 0 0 4px rgba(250, 173, 20, 0);
+  }
 }
 
 .message-meta {
