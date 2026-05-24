@@ -54,24 +54,6 @@
             </div>
           </template>
           <template #actions>
-            <div v-if="chatMode === 'chat' && selectedAgent" class="mode-switch">
-              <span class="switch-label">调试模式</span>
-              <el-switch
-                :model-value="debugMode"
-                @change="handleDebugModeChange"
-                active-color="#13ce66"
-                inactive-color="#ff4949"
-              />
-            </div>
-            <div v-if="chatMode === 'chat'" class="mode-switch">
-              <span class="switch-label">思考模式</span>
-              <el-switch
-                :model-value="enableThinkingMode"
-                @change="handleThinkingModeChange"
-                active-color="#ff9800"
-                inactive-color="#dcdfe6"
-              />
-            </div>
             <ThemeToggle />
             <el-button
               v-if="currentConversationId"
@@ -145,8 +127,6 @@ const {
   models,
   enabledAgents,
   toolPolicies,
-  debugMode,
-  enableThinkingMode,
   workspaceIsActive,
   workspaceDirName,
   kbList,
@@ -164,8 +144,6 @@ const {
   handleDeleteConversation,
   handleNewConversation,
   handleStopGeneration,
-  handleDebugModeChange,
-  handleThinkingModeChange,
   handleWorkspaceSelect,
   handleWorkspaceClear,
   getModelName,
@@ -238,17 +216,6 @@ onMounted(() => {
 .kb-tag {
   background: #fdf6ec;
   color: #e6a23c;
-}
-
-.mode-switch {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.switch-label {
-  font-size: 13px;
-  color: #606266;
 }
 
 .messages-container {

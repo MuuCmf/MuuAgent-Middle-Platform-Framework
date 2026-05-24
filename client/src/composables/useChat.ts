@@ -11,8 +11,7 @@ import { WorkspaceExecutor } from '../executor/workspace.executor'
 import { dynamicClientToolExecutor } from '../executor/dynamic-client-tool.executor'
 import { DesktopExecutor } from '../executor/desktop.executor'
 import { clientToolRouter } from '../executor/client-tool-router'
-import { processThinkingContent, THINKING_SYSTEM_PROMPT } from '../utils/thinking'
-import type { Message, ContentBlock, ContentBlockType, ContentBlockStatus } from '../api/types'
+import type { Message, ContentBlock, ContentBlockStatus } from '../api/types'
 import type { ReasoningStep } from '../api/reasoning'
 import type { ClientToolCallPayload, ContentBlockStartPayload, ContentBlockStopPayload } from '../api/stream'
 import type { ClientToolModulePolicy } from '../executor/types'
@@ -226,12 +225,6 @@ export function useChat() {
 
   /** 智能体列表 */
   const agents = ref<any[]>([])
-
-  /** 调试模式 */
-  const debugMode = ref(false)
-
-  /** 思考模式 */
-  const enableThinkingMode = ref(false)
 
   /** 当前流式请求的 AbortController */
   const abortController = ref<AbortController | null>(null)
@@ -572,20 +565,11 @@ export function useChat() {
     userMessage: Message,
     signal: AbortSignal,
   ) => {
-    const messagesToSend: Message[] = []
-
-    if (enableThinkingMode.value) {
-      messagesToSend.push({ role: 'system', content: THINKING_SYSTEM_PROMPT })
-    }
-
-    messagesToSend.push(userMessage)
+    const messagesToSend: Message[] = [userMessage]
 
     await new Promise<void>((resolve, reject) => {
       const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
       const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
-      throttled.setUpdateFn((chunk: string) => {
-        processThinkingContent(messages.value[assistantIndex], chunk)
-      })
 
       chatService.streamChat(
         {
@@ -634,9 +618,6 @@ export function useChat() {
     await new Promise<void>((resolve, reject) => {
       const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
       const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
-      throttled.setUpdateFn((chunk: string) => {
-        processThinkingContent(messages.value[assistantIndex], chunk)
-      })
 
       agentService.streamChat(
         {
@@ -644,7 +625,7 @@ export function useChat() {
           message: content,
           conversationId: currentConversationId.value,
           modelCode: currentModelCode.value,
-          showReasoning: debugMode.value,
+          showReasoning: false,
           workspace: workspace.isActive.value
             ? {
                 dirName: workspace.dirName.value!,
@@ -679,7 +660,7 @@ export function useChat() {
             blockMgr.onContentBlockStop(payload)
           },
           onReasoningStep: (step: ReasoningStep) => {
-            if (debugMode.value && messages.value[assistantIndex].reasoningSteps) {
+            if (messages.value[assistantIndex].reasoningSteps) {
               messages.value[assistantIndex].reasoningSteps!.push(step)
             }
           },
@@ -737,9 +718,6 @@ export function useChat() {
     try {
       const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
       const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
-      throttled.setUpdateFn((chunk: string) => {
-        processThinkingContent(messages.value[assistantIndex], chunk)
-      })
 
       await retrievalService.ragChatStream(
         {
@@ -848,16 +826,6 @@ export function useChat() {
     }
   }
 
-  /** 调试模式变更 */
-  const handleDebugModeChange = (value: boolean) => {
-    debugMode.value = value
-  }
-
-  /** 思考模式变更 */
-  const handleThinkingModeChange = (value: boolean) => {
-    enableThinkingMode.value = value
-  }
-
   /** 选择工作目录 */
   const handleWorkspaceSelect = async () => {
     try {
@@ -929,8 +897,6 @@ export function useChat() {
     agents,
     enabledAgents,
     toolPolicies,
-    debugMode,
-    enableThinkingMode,
     workspaceIsActive,
     workspaceDirName,
     kbList,
@@ -948,8 +914,6 @@ export function useChat() {
     handleDeleteConversation,
     handleNewConversation,
     handleStopGeneration,
-    handleDebugModeChange,
-    handleThinkingModeChange,
     handleWorkspaceSelect,
     handleWorkspaceClear,
     getModelName,
