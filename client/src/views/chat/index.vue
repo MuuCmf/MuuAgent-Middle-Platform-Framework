@@ -134,7 +134,6 @@ import { useChat } from '../../composables/useChat'
 
 const {
   chatMode,
-  messagesRef,
   selectedAgent,
   selectedLlmModel,
   messages,

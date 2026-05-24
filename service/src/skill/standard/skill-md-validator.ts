@@ -11,6 +11,8 @@ export interface SkillRequires {
   skills?: string[];
   /** 是否需要 workspace 文件操作能力 */
   workspace?: boolean;
+  /** 是否需要桌面自动化操作能力（鼠标、键盘、截屏、命令执行等） */
+  desktopAutomation?: boolean;
 }
 
 /**

@@ -11,7 +11,7 @@ import { computed } from 'vue'
 import { Sunny, Moon } from '@element-plus/icons-vue'
 import { useTheme } from '../../composables/useTheme'
 
-const { theme, toggleTheme, effectiveTheme } = useTheme()
+const { toggleTheme, effectiveTheme } = useTheme()
 
 /**
  * 主题图标

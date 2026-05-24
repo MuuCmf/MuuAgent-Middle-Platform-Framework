@@ -30,7 +30,6 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount } from 'vue'
-import { DArrowRight, DArrowLeft } from '@element-plus/icons-vue'
 import { useSidebar } from '../../composables/useSidebar'
 
 const { isCollapsed, sidebarWidth, toggleCollapse } = useSidebar()

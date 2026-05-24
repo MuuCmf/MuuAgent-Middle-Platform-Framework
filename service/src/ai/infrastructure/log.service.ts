@@ -121,16 +121,26 @@ export class LogService {
 
   /**
    * 序列化请求
+   * 截断大体积数据（如截图 Base64）防止 DB 列溢出
    * @param params 执行参数
    * @returns 序列化后的请求
    */
   private serializeRequest(params: ExecutionParams): string {
+    const MAX_MESSAGE_LENGTH = 500
+    const truncatedMessages = params.messages.map((msg) => {
+      const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+      if (content.length <= MAX_MESSAGE_LENGTH) return msg
+      return {
+        ...msg,
+        content: content.substring(0, MAX_MESSAGE_LENGTH) + `...[截断，原${content.length}字符]`,
+      }
+    })
     return JSON.stringify({
-      system: params.system,
-      messages: params.messages,
+      system: params.system?.substring(0, 1000),
+      messages: truncatedMessages,
       tools: params.tools ? Object.keys(params.tools) : [],
       options: params.options,
-    });
+    })
   }
 
   /**

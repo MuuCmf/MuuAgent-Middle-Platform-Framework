@@ -168,8 +168,8 @@ model AiInvokeLog {
   modelId     BigInt?  @map("model_id") /// 调用的模型ID
   modelCode   String   @map("model_code") /// 模型标识码
   modelType   String   @map("model_type") /// 模型类型
-  request     String   @db.Text /// 请求数据(JSON)
-  response    String?  @db.Text /// 响应数据(JSON)
+  request     String   @db.LongText /// 请求数据(JSON)
+  response    String?  @db.LongText /// 响应数据(JSON)
   costMs      Int      @map("cost_ms") /// 耗时(毫秒)
   inputTokens Int?     @map("input_tokens") /// 输入Token数
   outputTokens Int?    @map("output_tokens") /// 输出Token数

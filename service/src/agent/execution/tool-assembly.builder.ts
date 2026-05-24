@@ -116,6 +116,19 @@ export class ToolAssemblyBuilder {
       tools.push(...clientTools);
     }
 
+    // 桌面自动化工具（通过技能解析结果决定是否启用）
+    if (resolution.resolvedDesktopAutomation) {
+      const desktopTools = this.clientToolRegistry.getToolsForAgent({
+        ...agent,
+        _desktopEnabled: true,
+      });
+      for (const tool of desktopTools) {
+        if (!tools.find(t => t.name === tool.name)) {
+          tools.push(tool);
+        }
+      }
+    }
+
     // 动态客户端工具（用户自扩展，按 appCode+uid 应用级隔离）
     const dynamicTools = this.clientToolRegistry.getToolsForAgent({
       ...agent,

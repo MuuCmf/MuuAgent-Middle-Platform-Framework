@@ -7,17 +7,11 @@
 import { ref, onMounted } from 'vue'
 import ApiKeyDialog from './components/ApiKeyDialog.vue'
 import { hasCredentials } from './utils/auth'
-import { useTheme } from './composables/useTheme'
 
 /**
  * API Key 配置弹窗引用
  */
 const apiKeyDialogRef = ref<InstanceType<typeof ApiKeyDialog>>()
-
-/**
- * 初始化主题系统
- */
-const { effectiveTheme } = useTheme()
 
 onMounted(() => {
   if (!hasCredentials()) {

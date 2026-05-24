@@ -181,9 +181,7 @@ export class ClientToolRouter {
         success: false,
         error: `工具 ${toolName} 已被策略禁止执行`,
       }
-      if (conversationId) {
-        this.submitResult(conversationId, result)
-      }
+      this.submitResult(callId, conversationId, result)
       return result
     }
 
@@ -196,9 +194,7 @@ export class ClientToolRouter {
           success: false,
           error: '用户取消了操作',
         }
-        if (conversationId) {
-          this.submitResult(conversationId, result)
-        }
+        this.submitResult(callId, conversationId, result)
         return result
       }
     }
@@ -210,28 +206,43 @@ export class ClientToolRouter {
         success: false,
         error: `未注册的客户端工具模块: ${moduleName}`,
       }
-      if (conversationId) {
-        this.submitResult(conversationId, result)
-      }
+      this.submitResult(callId, conversationId, result)
       return result
     }
 
-    const result = await executor.execute(call)
-    if (conversationId) {
-      this.submitResult(conversationId, result)
+/** 执行工具调用 */
+    let result: { callId: string; success: boolean; result?: unknown; error?: string }
+    try {
+      result = await executor.execute(call)
+    } catch (e: any) {
+      console.error(`[ClientToolRouter] 执行器异常 [${moduleName}/${toolName}]:`, e)
+      result = {
+        callId,
+        success: false,
+        error: e.message || `执行器异常: ${toolName}`,
+      }
     }
+
+    /** 回传结果到 Service（无论成功失败都回传） */
+    this.submitResult(callId, conversationId, result)
     return result
   }
 
   /**
    * 统一提交执行结果到服务端
-   * @param conversationId 会话ID
+   * @param callId 调用ID
+   * @param conversationId 会话ID（可选，如果 Resend 或历史消息回放可能为空）
    * @param result 执行结果
    */
   private async submitResult(
-    conversationId: string,
+    callId: string,
+    conversationId: string | null | undefined,
     result: { callId: string; success: boolean; result?: unknown; error?: string },
   ): Promise<void> {
+    if (!conversationId) {
+      console.warn(`[ClientToolRouter] 缺少 conversationId，无法回传结果 [${callId}]:`, result.error || 'success')
+      return
+    }
     try {
       await submitClientToolResult({
         conversationId,

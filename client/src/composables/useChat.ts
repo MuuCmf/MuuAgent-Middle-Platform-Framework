@@ -9,6 +9,7 @@ import { kbService, type KbInfo } from '../services/KbService'
 import { useWorkspace } from './useWorkspace'
 import { WorkspaceExecutor } from '../executor/workspace.executor'
 import { dynamicClientToolExecutor } from '../executor/dynamic-client-tool.executor'
+import { DesktopExecutor } from '../executor/desktop.executor'
 import { clientToolRouter } from '../executor/client-tool-router'
 import { processThinkingContent, THINKING_SYSTEM_PROMPT } from '../utils/thinking'
 import type { Message } from '../api/types'
@@ -338,6 +339,7 @@ export function useChat() {
       clientToolRouter.registerExecutor(new WorkspaceExecutor(workspace.dirHandle.value))
     }
     clientToolRouter.registerExecutor(dynamicClientToolExecutor)
+    clientToolRouter.registerExecutor(new DesktopExecutor())
 
     const userMessage: Message = { role: 'user', content, timestamp: Date.now() }
     messages.value.push(userMessage)
@@ -467,7 +469,9 @@ export function useChat() {
                   .catch(() => false)
               },
               currentConversationId.value,
-            )
+            ).catch((err) => {
+              console.error('[useChat] handleCall 未处理异常:', err)
+            })
           },
           onClientToolPolicy: (policies: ClientToolModulePolicy[]) => {
             clientToolRouter.updatePolicies(policies)

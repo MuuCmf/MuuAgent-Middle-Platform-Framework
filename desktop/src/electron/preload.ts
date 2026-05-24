@@ -14,6 +14,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   /**
+   * 执行桌面自动化工具
+   * 将工具调用转发到 Electron 主进程的 DesktopMcpServer 执行
+   * @param callId 调用ID
+   * @param toolName 工具名称
+   * @param args 工具参数
+   * @returns {Promise<{callId: string; success: boolean; result?: unknown; error?: string}>} 执行结果
+   */
+  executeDesktopTool: async (
+    callId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<{ callId: string; success: boolean; result?: unknown; error?: string }> => {
+    return ipcRenderer.invoke('desktop:execute-tool', { callId, toolName, args })
+  },
+
+  /**
    * 监听主进程事件
    * @param channel 事件频道
    * @param callback 回调函数
@@ -24,6 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'update:available',
       'update:progress',
       'update:downloaded',
+      'automation:confirm:request',
     ]
     if (!allowedChannels.includes(channel)) return
     ipcRenderer.on(channel, (_event, ...args) => callback(...args))
@@ -36,5 +53,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   removeMainEventListener: (channel: string, callback: (...args: unknown[]) => void): void => {
     ipcRenderer.removeListener(channel, callback as any)
+  },
+
+  /**
+   * 桌面自动化确认弹窗响应
+   * @param confirmed 用户是否确认
+   * @param channel 回传频道
+   */
+  respondAutomationConfirm: (confirmed: boolean, channel: string): void => {
+    ipcRenderer.send('automation:confirm:response', { channel, confirmed })
   },
 })

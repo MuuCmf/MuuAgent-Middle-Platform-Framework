@@ -88,7 +88,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { User, Monitor, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
+import { User, Monitor } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { Message } from '../../../api'
 import ReasoningProcess from './ReasoningProcess.vue'

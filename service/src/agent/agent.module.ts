@@ -12,6 +12,7 @@ import { PromptTemplateModule } from '../prompt-template/prompt-template.module'
 import { ConversationModule } from '../conversation/conversation.module';
 import { IntentModule } from '../intent/intent.module';
 import { WorkspaceModule } from '../workspace/workspace.module';
+import { DesktopModule } from '../desktop/desktop.module';
 import { CommonModule } from '../common/common.module';
 
 import { ToolModule } from './tools';
@@ -45,6 +46,7 @@ import { ReasoningModule } from '../reasoning/reasoning.module';
     ConversationModule,
     IntentModule,
     WorkspaceModule,
+    DesktopModule,
     CommonModule,
     ToolModule,
     forwardRef(() => ReasoningModule),

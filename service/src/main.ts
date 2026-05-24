@@ -2,6 +2,7 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, ConsoleLogger } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { NestExpressApplication } from "@nestjs/platform-express";
+import { json } from "express";
 import { join } from "path";
 import { AppModule } from "./app.module";
 import { Request, Response, NextFunction } from "express";
@@ -95,6 +96,9 @@ async function bootstrap(): Promise<void> {
 
   // 启用CORS跨域
   app.enableCors();
+
+  /** 增大 Body Parser 限制，桌面自动化截图 Base64 数据较大 */
+  app.use(json({ limit: "10mb" }));
 
   // 全局验证管道
   app.useGlobalPipes(
