@@ -1,4 +1,4 @@
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { chatService } from '../services/ChatService'
 import { agentService } from '../services/AgentService'
@@ -25,7 +25,7 @@ import type { ClientToolModulePolicy } from '../executor/types'
  */
 function createRafThrottledWriter(
   getMessage: () => Message,
-): { write: (chunk: string) => void; flush: () => void } {
+): { write: (chunk: string) => void; flush: () => void; setUpdateFn: (fn: (chunk: string) => void) => void } {
   let pending = ''
   let rafId: number | null = null
   let updateFn: ((chunk: string) => void) | null = null
@@ -81,12 +81,21 @@ function createRafThrottledWriter(
 function createContentBlockManager(getMessage: () => Message) {
   /**
    * 处理 content_block_start 事件
+   * 如果已存在同类型同索引的块则跳过（防止前端自动创建与后端事件的冲突）
    * @param payload 内容块开始载荷
    */
   const onContentBlockStart = (payload: ContentBlockStartPayload) => {
     const msg = getMessage()
     if (!msg.contentBlocks) {
       msg.contentBlocks = []
+    }
+    // 防止重复创建（前端 appendToCurrentTextBlock 可能已自动创建）
+    const existing = msg.contentBlocks.find(
+      (b) => b.type === payload.blockType && b.index === payload.index,
+    )
+    if (existing) {
+      existing.toolStatus = payload.blockType === 'tool_call' ? 'running' : 'streaming'
+      return
     }
     const block: ContentBlock = {
       type: payload.blockType,
@@ -119,8 +128,8 @@ function createContentBlockManager(getMessage: () => Message) {
   }
 
   /**
-   * 更新当前文本块的累积内容
-   * 如果不存在文本块则自动创建
+   * 将文本增量追加到当前最后一个内容块（text 或 thinking）
+   * 文本块和思考块都接收 text_delta，工具块不接收
    * @param chunk 文本增量
    */
   const appendToCurrentTextBlock = (chunk: string) => {
@@ -129,7 +138,7 @@ function createContentBlockManager(getMessage: () => Message) {
       msg.contentBlocks = []
     }
     const lastBlock = msg.contentBlocks[msg.contentBlocks.length - 1]
-    if (lastBlock && lastBlock.type === 'text') {
+    if (lastBlock && (lastBlock.type === 'text' || lastBlock.type === 'thinking')) {
       lastBlock.content += chunk
     } else {
       const block: ContentBlock = {
@@ -285,12 +294,39 @@ export function useChat() {
   // ========== 工具方法 ==========
 
   /** 滚动到底部 */
-  const scrollToBottom = async () => {
-    await nextTick()
-    if (messagesRef.value) {
-      messagesRef.value.scrollTop = messagesRef.value.scrollHeight
-    }
+  const scrollToBottom = () => {
+    nextTick(() => {
+      const container = messagesRef.value
+      if (!container) return
+      container.scrollTop = container.scrollHeight
+      const lastMsg = container.querySelector('.message:last-child')
+      if (lastMsg) {
+        lastMsg.scrollIntoView({ block: 'end' })
+      }
+    })
   }
+
+  // ========== 自动滚动（流式输出时）==========
+
+  watch(
+    () => {
+      const msgs = messages.value
+      if (!isLoading.value || msgs.length === 0) return ''
+      const last = msgs[msgs.length - 1]
+      const blocks = last.contentBlocks ?? []
+      let key = ''
+      for (let i = 0; i < blocks.length; i++) {
+        key += blocks[i].content
+      }
+      return key
+    },
+    () => {
+      if (isLoading.value) {
+        scrollToBottom()
+      }
+    },
+    { flush: 'post' },
+  )
 
   /** 判断消息是否正在流式输出 */
   const isMessageStreaming = (index: number): boolean => {
@@ -490,6 +526,13 @@ export function useChat() {
 
     if (workspace.dirHandle.value) {
       clientToolRouter.registerExecutor(new WorkspaceExecutor(workspace.dirHandle.value))
+      // 工作目录为用户主动选择，读写操作无需弹窗确认
+      clientToolRouter.setLocalOverride('workspace', 'read_file', { confirmMode: 'auto' })
+      clientToolRouter.setLocalOverride('workspace', 'write_file', { confirmMode: 'auto' })
+      clientToolRouter.setLocalOverride('workspace', 'append_file', { confirmMode: 'auto' })
+      clientToolRouter.setLocalOverride('workspace', 'create_dir', { confirmMode: 'auto' })
+      clientToolRouter.setLocalOverride('workspace', 'read_dir', { confirmMode: 'auto' })
+      clientToolRouter.setLocalOverride('workspace', 'delete_file', { confirmMode: 'auto' })
     }
     clientToolRouter.registerExecutor(dynamicClientToolExecutor)
     clientToolRouter.registerExecutor(new DesktopExecutor())
@@ -539,10 +582,10 @@ export function useChat() {
 
     await new Promise<void>((resolve, reject) => {
       const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
+      const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
       throttled.setUpdateFn((chunk: string) => {
         processThinkingContent(messages.value[assistantIndex], chunk)
       })
-      const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
 
       chatService.streamChat(
         {
@@ -552,8 +595,8 @@ export function useChat() {
         },
         {
           onMessage: (chunk: string) => {
-            throttled.write(chunk)
             blockMgr.appendToCurrentTextBlock(chunk)
+            throttled.write(chunk)
           },
           onError: (error: Error) => {
             throttled.flush()
@@ -570,8 +613,12 @@ export function useChat() {
           onConversationId: (conversationId: string) => {
             currentConversationId.value = conversationId
           },
-          onContentBlockStart: blockMgr.onContentBlockStart,
-          onContentBlockStop: blockMgr.onContentBlockStop,
+          onContentBlockStart: (payload) => {
+            blockMgr.onContentBlockStart(payload)
+          },
+          onContentBlockStop: (payload) => {
+            blockMgr.onContentBlockStop(payload)
+          },
         },
         signal,
       )
@@ -586,11 +633,10 @@ export function useChat() {
   ) => {
     await new Promise<void>((resolve, reject) => {
       const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
+      const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
       throttled.setUpdateFn((chunk: string) => {
         processThinkingContent(messages.value[assistantIndex], chunk)
       })
-
-      const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
 
       agentService.streamChat(
         {
@@ -608,8 +654,8 @@ export function useChat() {
         },
         {
           onMessage: (chunk: string) => {
-            throttled.write(chunk)
             blockMgr.appendToCurrentTextBlock(chunk)
+            throttled.write(chunk)
           },
           onError: (error: Error) => {
             throttled.flush()
@@ -626,8 +672,12 @@ export function useChat() {
           onConversationId: (conversationId: string) => {
             currentConversationId.value = conversationId
           },
-          onContentBlockStart: blockMgr.onContentBlockStart,
-          onContentBlockStop: blockMgr.onContentBlockStop,
+          onContentBlockStart: (payload) => {
+            blockMgr.onContentBlockStart(payload)
+          },
+          onContentBlockStop: (payload) => {
+            blockMgr.onContentBlockStop(payload)
+          },
           onReasoningStep: (step: ReasoningStep) => {
             if (debugMode.value && messages.value[assistantIndex].reasoningSteps) {
               messages.value[assistantIndex].reasoningSteps!.push(step)
@@ -686,10 +736,10 @@ export function useChat() {
 
     try {
       const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
+      const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
       throttled.setUpdateFn((chunk: string) => {
         processThinkingContent(messages.value[assistantIndex], chunk)
       })
-      const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
 
       await retrievalService.ragChatStream(
         {
@@ -702,8 +752,8 @@ export function useChat() {
         },
         {
           onMessage: (content: string) => {
-            throttled.write(content)
             blockMgr.appendToCurrentTextBlock(content)
+            throttled.write(content)
           },
           onError: (error: Error) => {
             throttled.flush()
@@ -722,8 +772,12 @@ export function useChat() {
           onConversationId: (conversationId: string) => {
             currentConversationId.value = conversationId
           },
-          onContentBlockStart: blockMgr.onContentBlockStart,
-          onContentBlockStop: blockMgr.onContentBlockStop,
+          onContentBlockStart: (payload) => {
+            blockMgr.onContentBlockStart(payload)
+          },
+          onContentBlockStop: (payload) => {
+            blockMgr.onContentBlockStop(payload)
+          },
         },
       )
     } catch (error: any) {
@@ -817,6 +871,10 @@ export function useChat() {
   /** 清除工作目录 */
   const handleWorkspaceClear = () => {
     workspace.clear()
+    // 移除工作目录的自动确认策略
+    ;['read_file', 'write_file', 'append_file', 'create_dir', 'read_dir', 'delete_file'].forEach((tool) => {
+      clientToolRouter.deleteLocalOverride('workspace', tool)
+    })
     ElMessage.info('已清除工作目录')
   }
 

@@ -152,14 +152,12 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
 
       let blockIndex = 0;
 
-      emitter.emitContentBlockStart('thinking', blockIndex);
-      blockIndex++;
-
       for (let i = 0; i < context.maxSteps; i++) {
         this.logger.debug(`[${this.mode} Stream] Step ${i + 1}/${context.maxSteps}`);
 
         let stepText = '';
         let hasToolCall = false;
+        let thinkingOpened = false;
 
         await this.aiService.streamText({
           model: context.model,
@@ -172,13 +170,21 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
           uid: context.uid,
           appCode: context.appCode,
           onChunk: (chunk) => {
+            if (!thinkingOpened) {
+              thinkingOpened = true;
+              emitter.emitContentBlockStart('thinking', blockIndex);
+              blockIndex++;
+            }
             stepText += chunk;
             emitter.emitTextDelta(chunk);
           },
           onToolCall: async (toolCall: { name: string; args: any }) => {
             hasToolCall = true;
             const resolvedName = nameMap[toolCall.name] || toolCall.name;
-            emitter.emitContentBlockStop('thinking', blockIndex - 1);
+            if (thinkingOpened) {
+              emitter.emitContentBlockStop('thinking', blockIndex - 1);
+              thinkingOpened = false;
+            }
             emitter.emitContentBlockStart('tool_call', blockIndex, resolvedName);
             blockIndex++;
             await this.handleStreamToolCall(
@@ -186,21 +192,26 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
               stepText, resolvedName, toolCall.args, i,
             );
             emitter.emitContentBlockStop('tool_call', blockIndex - 1);
-            emitter.emitContentBlockStart('thinking', blockIndex);
             blockIndex++;
           },
         });
 
         if (!hasToolCall) {
+          if (thinkingOpened) {
+            emitter.emitContentBlockStop('thinking', blockIndex - 1);
+            thinkingOpened = false;
+          }
+          emitter.emitContentBlockStart('text', blockIndex);
           finalResponse = stepText.trim();
+          emitter.emitTextDelta(finalResponse);
+          emitter.emitContentBlockStop('text', blockIndex);
+          blockIndex++;
           const finalStep = this.createStep(steps.length + 1, 'final_answer', finalResponse);
           steps.push(finalStep);
           this.emitReasoningStep(emitter, finalStep);
           break;
         }
       }
-
-      emitter.emitContentBlockStop('thinking', blockIndex - 1);
 
       await this.finalizeStreamResponse(context, emitter, finalResponse, steps);
     } catch (error) {

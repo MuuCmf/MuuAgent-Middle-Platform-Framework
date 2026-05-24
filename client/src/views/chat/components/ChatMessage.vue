@@ -55,7 +55,7 @@
         <template v-else-if="message.role === 'assistant' && !message.type">
           <template v-if="message.contentBlocks && message.contentBlocks.length > 0">
             <div
-              v-for="(block, idx) in message.contentBlocks"
+              v-for="(block, idx) in visibleBlocks"
               :key="`block-${idx}`"
               class="content-block"
             >
@@ -96,7 +96,7 @@
               <div v-else-if="block.type === 'thinking'" class="content-block-thinking">
                 <div class="thinking-block-header" @click="toggleThinkingBlock(idx)">
                   <span class="thinking-icon">💭</span>
-                  <span class="thinking-label">思考过程 {{ idx + 1 }}</span>
+                  <span class="thinking-label">思考过程</span>
                   <el-icon :size="12" class="thinking-toggle">
                     <component :is="thinkingBlockExpanded[idx] !== false ? 'ArrowUp' : 'ArrowDown'" />
                   </el-icon>
@@ -111,8 +111,8 @@
               </div>
             </div>
 
-            <!-- 兜底：如果 contentBlocks 中没有 text 块，显示原始 content -->
-            <div v-if="!hasTextBlock && message.content" class="content-block-text fallback-text">
+            <!-- 兜底：如果没有 contentBlocks，显示原始 content -->
+            <div v-if="!hasAnyBlock && message.content" class="content-block-text fallback-text">
               <Markdown
                 :content="processedContent"
                 :mode="isStreaming ? 'streaming' : 'static'"
@@ -164,7 +164,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { User, Monitor } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { Message, ContentBlock } from '../../../api'
@@ -214,6 +214,26 @@ const toggleThinkingBlock = (idx: number) => {
 }
 
 /**
+ * 监听 contentBlocks 中 thinking 块完成并自动收起
+ */
+watch(
+  () => props.message.contentBlocks,
+  (blocks) => {
+    if (!blocks) return
+    for (let idx = 0; idx < blocks.length; idx++) {
+      const b = blocks[idx]
+      if (b.type === 'thinking' && b.toolStatus === 'completed') {
+        thinkingBlockExpanded.value = {
+          ...thinkingBlockExpanded.value,
+          [idx]: false,
+        }
+      }
+    }
+  },
+  { deep: true },
+)
+
+/**
  * 是否显示头像
  */
 const showAvatar = computed(() => !props.isGrouped)
@@ -226,10 +246,22 @@ const processedContent = computed(() => {
 })
 
 /**
- * contentBlocks 中是否包含 text 块
+ * contentBlocks 中是否有任何块
  */
-const hasTextBlock = computed(() => {
-  return props.message.contentBlocks?.some((b) => b.type === 'text') ?? false
+const hasAnyBlock = computed(() => {
+  return props.message.contentBlocks && props.message.contentBlocks.length > 0
+})
+
+/**
+ * 过滤掉空的思考块（无内容且无推理步骤）
+ */
+const visibleBlocks = computed(() => {
+  const blocks = props.message.contentBlocks
+  if (!blocks) return []
+  return blocks.filter(b => {
+    if (b.type !== 'thinking') return true
+    return (b.content && b.content.length > 0) || (b.reasoningSteps && b.reasoningSteps.length > 0)
+  })
 })
 
 /** Markdown 控件配置 */
@@ -679,72 +711,71 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
 }
 
 .content-block-thinking {
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
-  border: 1px solid #c4b5fd;
-  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--bg-secondary, #f9fafb);
+  transition: border-color 0.2s;
+
+  &:hover {
+    border-color: var(--text-tertiary, #9ca3af);
+  }
 
   html.dark & {
-    border-color: #4c1d95;
-    background: linear-gradient(135deg, #2e1065 0%, #3b0764 100%);
+    background: var(--bg-secondary, #1f2937);
   }
 
   .thinking-block-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
+    gap: 6px;
+    padding: 8px 12px;
     cursor: pointer;
     user-select: none;
-    transition: background 0.2s;
+    transition: background 0.15s;
 
     &:hover {
-      background: rgba(139, 92, 246, 0.08);
+      background: var(--hover-bg, rgba(0,0,0,0.03));
+
+      html.dark & {
+        background: var(--hover-bg, rgba(255,255,255,0.04));
+      }
     }
 
     .thinking-icon {
-      font-size: 16px;
+      font-size: 14px;
+      opacity: 0.6;
     }
 
     .thinking-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: #6d28d9;
-
-      html.dark & {
-        color: #c4b5fd;
-      }
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-tertiary, #9ca3af);
+      letter-spacing: 0.3px;
     }
 
     .thinking-toggle {
-      color: #6d28d9;
       margin-left: auto;
-
-      html.dark & {
-        color: #c4b5fd;
-      }
+      color: var(--text-tertiary, #9ca3af);
+      transition: transform 0.2s;
+      font-size: 11px;
     }
   }
 
   .thinking-block-content {
-    padding: 0 14px 12px;
-    border-top: 1px solid #c4b5fd;
-    padding-top: 10px;
-
-    html.dark & {
-      border-top-color: #4c1d95;
-    }
+    border-top: 1px solid var(--border-color, #e5e7eb);
 
     pre {
       margin: 0;
+      padding: 10px 12px;
       white-space: pre-wrap;
-      line-height: 1.8;
-      color: #5b21b6;
+      line-height: 1.7;
       font-size: 13px;
-      font-style: italic;
+      color: var(--text-secondary, #6b7280);
+      font-family: inherit;
 
       html.dark & {
-        color: #ddd6fe;
+        color: var(--text-secondary, #9ca3af);
       }
     }
   }
