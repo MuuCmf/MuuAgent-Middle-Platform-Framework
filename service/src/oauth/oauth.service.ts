@@ -1,7 +1,5 @@
 import { Injectable, BadRequestException, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
 /**
@@ -17,8 +15,6 @@ export class OAuthService {
    */
   constructor(
     private prisma: PrismaService,
-    private jwtService: JwtService,
-    private configService: ConfigService,
   ) {}
 
   /**

@@ -6,9 +6,6 @@
  * - execute: 执行类操作（独立权限）
  */
 export enum AdminScope {
-  // 应用管理
-  APP_READ = 'app:read',
-  APP_WRITE = 'app:write',
 
   // 模型管理
   MODEL_READ = 'model:read',
@@ -51,10 +48,6 @@ export enum AdminScope {
   MCP_SERVER_READ = 'mcp-server:read',
   MCP_SERVER_WRITE = 'mcp-server:write',
 
-  // OAuth
-  OAUTH_READ = 'oauth:read',
-  OAUTH_WRITE = 'oauth:write',
-
   // 限流
   RATE_LIMIT_READ = 'rate-limit:read',
   RATE_LIMIT_WRITE = 'rate-limit:write',
@@ -66,10 +59,6 @@ export enum AdminScope {
   // 日志
   LOG_READ = 'log:read',
   LOG_WRITE = 'log:write',
-
-  // 管理员
-  ADMIN_READ = 'admin:read',
-  ADMIN_WRITE = 'admin:write',
 
   // 意图关键词
   INTENT_KEYWORD_READ = 'intent-keyword:read',
@@ -91,7 +80,6 @@ export enum AdminScope {
  * write scope 自动包含对应 read scope
  */
 export const SCOPE_HIERARCHY: Record<string, string[]> = {
-  [AdminScope.APP_WRITE]: [AdminScope.APP_READ],
   [AdminScope.MODEL_WRITE]: [AdminScope.MODEL_READ],
   [AdminScope.MODEL_TEMPLATE_WRITE]: [AdminScope.MODEL_TEMPLATE_READ],
   [AdminScope.AGENT_WRITE]: [AdminScope.AGENT_READ],
@@ -102,11 +90,9 @@ export const SCOPE_HIERARCHY: Record<string, string[]> = {
   [AdminScope.PROMPT_TEMPLATE_WRITE]: [AdminScope.PROMPT_TEMPLATE_READ],
   [AdminScope.MODEL_ROUTING_WRITE]: [AdminScope.MODEL_ROUTING_READ],
   [AdminScope.MCP_SERVER_WRITE]: [AdminScope.MCP_SERVER_READ],
-  [AdminScope.OAUTH_WRITE]: [AdminScope.OAUTH_READ],
   [AdminScope.RATE_LIMIT_WRITE]: [AdminScope.RATE_LIMIT_READ],
   [AdminScope.TASK_WRITE]: [AdminScope.TASK_READ],
   [AdminScope.LOG_WRITE]: [AdminScope.LOG_READ],
-  [AdminScope.ADMIN_WRITE]: [AdminScope.ADMIN_READ],
   [AdminScope.INTENT_KEYWORD_WRITE]: [AdminScope.INTENT_KEYWORD_READ],
   [AdminScope.INTENT_CACHE_WRITE]: [AdminScope.INTENT_CACHE_READ],
 };
@@ -115,7 +101,6 @@ export const SCOPE_HIERARCHY: Record<string, string[]> = {
  * Scope 分组（用于授权页面展示和快速选择）
  */
 export const SCOPE_GROUPS: { label: string; scopes: AdminScope[] }[] = [
-  { label: '应用管理', scopes: [AdminScope.APP_READ, AdminScope.APP_WRITE] },
   { label: '模型管理', scopes: [AdminScope.MODEL_READ, AdminScope.MODEL_WRITE] },
   { label: '模型模板', scopes: [AdminScope.MODEL_TEMPLATE_READ, AdminScope.MODEL_TEMPLATE_WRITE] },
   { label: '智能体', scopes: [AdminScope.AGENT_READ, AdminScope.AGENT_WRITE] },
@@ -126,19 +111,15 @@ export const SCOPE_GROUPS: { label: string; scopes: AdminScope[] }[] = [
   { label: 'Prompt模板', scopes: [AdminScope.PROMPT_TEMPLATE_READ, AdminScope.PROMPT_TEMPLATE_WRITE] },
   { label: '模型路由调度', scopes: [AdminScope.MODEL_ROUTING_READ, AdminScope.MODEL_ROUTING_WRITE, AdminScope.INTENT_KEYWORD_READ, AdminScope.INTENT_KEYWORD_WRITE, AdminScope.INTENT_DASHBOARD_READ, AdminScope.INTENT_CACHE_READ, AdminScope.INTENT_CACHE_WRITE, AdminScope.INTENT_ROUTING_LOG_READ] },
   { label: 'MCP Server', scopes: [AdminScope.MCP_SERVER_READ, AdminScope.MCP_SERVER_WRITE] },
-  { label: 'OAuth', scopes: [AdminScope.OAUTH_READ, AdminScope.OAUTH_WRITE] },
   { label: '限流', scopes: [AdminScope.RATE_LIMIT_READ, AdminScope.RATE_LIMIT_WRITE] },
   { label: '任务', scopes: [AdminScope.TASK_READ, AdminScope.TASK_WRITE] },
   { label: '日志', scopes: [AdminScope.LOG_READ, AdminScope.LOG_WRITE] },
-  { label: '管理员', scopes: [AdminScope.ADMIN_READ, AdminScope.ADMIN_WRITE] },
 ];
 
 /**
  * Scope 描述映射（用于前端展示）
  */
 export const SCOPE_DESCRIPTIONS: Record<AdminScope, string> = {
-  [AdminScope.APP_READ]: '查看应用列表和详情',
-  [AdminScope.APP_WRITE]: '创建、更新、删除应用',
   [AdminScope.MODEL_READ]: '查看模型列表和详情',
   [AdminScope.MODEL_WRITE]: '创建、更新、删除模型',
   [AdminScope.MODEL_TEMPLATE_READ]: '查看模型参数模板',
@@ -166,14 +147,10 @@ export const SCOPE_DESCRIPTIONS: Record<AdminScope, string> = {
   [AdminScope.INTENT_ROUTING_LOG_READ]: '查看意图路由日志',
   [AdminScope.MCP_SERVER_READ]: '查看MCP Server',
   [AdminScope.MCP_SERVER_WRITE]: '管理MCP Server',
-  [AdminScope.OAUTH_READ]: '查看OAuth客户端和令牌',
-  [AdminScope.OAUTH_WRITE]: '管理OAuth客户端和令牌',
   [AdminScope.RATE_LIMIT_READ]: '查看限流规则和统计',
   [AdminScope.RATE_LIMIT_WRITE]: '管理限流规则',
   [AdminScope.TASK_READ]: '查看任务队列状态',
   [AdminScope.TASK_WRITE]: '清空队列和重试任务',
   [AdminScope.LOG_READ]: '查看操作日志和统计',
   [AdminScope.LOG_WRITE]: '管理日志（预留）',
-  [AdminScope.ADMIN_READ]: '查看管理员列表',
-  [AdminScope.ADMIN_WRITE]: '创建、更新、删除管理员',
 };
