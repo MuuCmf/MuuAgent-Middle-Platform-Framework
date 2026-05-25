@@ -26,6 +26,10 @@ export class SystemPromptBuilder {
       systemPrompt = reasoningPrompt + '\n\n' + systemPrompt;
     }
 
+    if (agent.reasoningMode && agent.reasoningMode !== 'NONE') {
+      systemPrompt += '\n\n' + this.getThinkingTagInstruction();
+    }
+
     if (tools.length === 0) {
       return systemPrompt;
     }
@@ -170,6 +174,30 @@ export class SystemPromptBuilder {
   }
 
   /**
+   * 获取 thinking 标签输出格式指令
+   * 无论使用默认还是自定义推理提示词，此指令都会被强制注入，
+   * 确保模型输出符合后端 ThinkingTagParser 的解析契约。
+   * @returns thinking 标签格式指令
+   */
+  private getThinkingTagInstruction(): string {
+    return `## 输出格式要求（必须遵守）
+
+每次响应必须使用 <thinking> 标签包裹你的内部推理过程，格式如下：
+
+<thinking>
+你的推理、分析、规划过程
+</thinking>
+然后调用工具或给出最终回答。
+
+**严格要求：**
+- 每次响应必须以 <thinking> 开头，以 </thinking> 结束
+- <thinking> 标签内是内部推理，标签外是对用户的回答
+- 如果需要调用工具，请在 </thinking> 后直接调用
+- 如果不需要调用工具，请在 </thinking> 后直接给出最终回答
+- 绝对不能省略 <thinking> 标签`;
+  }
+
+  /**
    * 获取默认推理提示词
    * @param mode 推理模式
    * @returns 推理提示词
@@ -178,32 +206,54 @@ export class SystemPromptBuilder {
     switch (mode) {
       case ReasoningMode.REACT:
         return `## 推理规则
-你是一个能够使用工具的智能助手。请按照以下格式进行思考和操作：
+你是一个能够使用工具的智能助手。请在每次响应中使用 <thinking> 标签包裹你的推理过程。
 
-思考：我需要分析当前问题，决定是否需要调用工具。
-行动：<工具名称>(<参数>)
-结果：工具返回的结果
-...（重复）
-最终答案：基于所有信息给出最终回答
+格式要求：
+<thinking>
+1. 分析用户问题和现有信息
+2. 判断是否需要调用工具
+3. 如果需要，说明调用哪个工具以及原因
+</thinking>
+然后调用工具或直接给出最终回答。
 
-请仔细思考何时需要调用工具，何时可以直接回答。`;
+重要规则：
+- 每次响应必须以 <thinking> 开头，以 </thinking> 结束
+- <thinking> 标签内是内部推理，标签外是最终回答
+- 如果不需要调用工具，在 </thinking> 后直接给出回答
+- 如果需要调用工具，在 </thinking> 后调用`;
       case ReasoningMode.PLAN:
         return `## 推理规则
-你是一个能够进行规划的智能助手。请按照以下步骤操作：
+你是一个能够进行规划的智能助手。请在每次响应中使用 <thinking> 标签包裹你的规划过程。
 
-1. 分析问题，制定详细的执行计划
-2. 按照计划逐步执行，调用必要的工具
-3. 汇总结果，给出最终答案
+格式要求：
+<thinking>
+1. 分析问题，明确目标
+2. 制定详细的执行计划
+3. 列出需要调用的工具和顺序
+</thinking>
+然后按照计划逐步执行。
 
-请先输出你的计划，然后逐步执行。`;
+重要规则：
+- 每次响应必须以 <thinking> 开头，以 </thinking> 结束
+- <thinking> 标签内是规划过程，标签外是执行
+- 制定计划后，按步骤执行并根据结果调整`;
       case ReasoningMode.REFLECT:
         return `## 推理规则
-你是一个具有反思能力的智能助手。在执行过程中，请定期反思：
-- 我当前的思路是否正确？
-- 是否有更好的方法？
-- 是否遗漏了重要信息？
+你是一个具有反思能力的智能助手。请在每次响应中使用 <thinking> 标签包裹你的推理和反思。
 
-请在每两步操作后进行一次反思。`;
+格式要求：
+<thinking>
+1. 分析当前情况和已有信息
+2. 反思之前的操作是否正确
+3. 检查是否有遗漏或更好的方法
+4. 决定下一步行动
+</thinking>
+然后继续执行。
+
+重要规则：
+- 每次响应必须以 <thinking> 开头，以 </thinking> 结束
+- <thinking> 标签内是推理和反思，标签外是行动
+- 每两步操作后进行一次反思`;
       default:
         return '';
     }

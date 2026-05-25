@@ -15,6 +15,7 @@ import { HybridRetrievalService } from '../hybrid-retrieval.service';
 import type { ModelMessage } from 'ai';
 import { ConversationType } from '../../conversation/dto/create-conversation.dto';
 import { WORKSPACE_TOOL_NAMES } from '../../workspace/workspace-tool.definitions';
+import { PromptTemplateService } from '../../prompt-template/prompt-template.service';
 
 @Injectable()
 export class ContextBuilder {
@@ -30,6 +31,7 @@ export class ContextBuilder {
     private readonly modelParams: ModelParamsBuilder,
     private readonly skillKbService: SkillKbService,
     private readonly hybridRetrievalService: HybridRetrievalService,
+    private readonly promptTemplateService: PromptTemplateService,
   ) {}
 
   async build(
@@ -102,6 +104,10 @@ export class ContextBuilder {
       uid,
     );
 
+    // Resolve reasoningPrompt template code before passing to system prompt
+    if (agent.reasoningPrompt) {
+      agent = { ...agent, reasoningPrompt: await this.resolveReasoningPrompt(agent.reasoningPrompt, isolationContext) };
+    }
     let finalSystemPrompt = this.systemPrompt.build(agent, tools);
 
     if (dto.workspace?.dirName) {
@@ -162,5 +168,28 @@ export class ContextBuilder {
       }));
     }
     return [];
+  }
+
+  /**
+   * 解析 reasoningPrompt 模板代码
+   * 如果 reasoningPrompt 是一个已知的模板代码（如 "react-reasoning-default"），
+   * 则解析为实际模板内容；否则原样返回。
+   * @param reasoningPrompt 推理提示词原始值
+   * @returns 解析后的推理提示词内容
+   */
+  private async resolveReasoningPrompt(reasoningPrompt: string, isolationContext?: IsolationContext): Promise<string> {
+    try {
+      const template = await this.promptTemplateService.findByCode(reasoningPrompt, isolationContext);
+      if (template) {
+        this.logger.warn(
+          `reasoningPrompt 是模板代码 "${reasoningPrompt}"，而非实际提示词。` +
+          `模板代码应通过 promptTemplateCode 字段配置。将回退到默认推理提示词。`,
+        );
+        return '';
+      }
+    } catch (err) {
+      this.logger.debug(`reasoningPrompt 非模板代码，使用原始值: ${reasoningPrompt}`);
+    }
+    return reasoningPrompt;
   }
 }

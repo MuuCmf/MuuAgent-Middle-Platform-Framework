@@ -106,6 +106,8 @@
                 <div class="thinking-block-header" @click="toggleThinkingBlock(idx)">
                   <span class="thinking-icon">💭</span>
                   <span class="thinking-label">思考过程</span>
+                  <span v-if="block.toolStatus === 'streaming'" class="tool-status-badge streaming">思考中</span>
+                  <span v-else class="tool-status-badge completed">已完成</span>
                   <el-icon :size="12" class="thinking-toggle">
                     <component :is="thinkingBlockExpanded[idx] !== false ? 'ArrowUp' : 'ArrowDown'" />
                   </el-icon>
@@ -827,6 +829,11 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
       &.running {
         background: rgba(250, 173, 20, 0.12);
         color: #d48806;
+      }
+
+      &.streaming {
+        background: rgba(24, 144, 255, 0.12);
+        color: #096dd9;
       }
 
       &.completed {

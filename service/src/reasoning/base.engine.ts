@@ -9,6 +9,7 @@ import { ToolNameSanitizer } from '../ai/providers/tool-name-sanitizer';
 import { parseAiError, getErrorCode } from '../ai/utils/error-parser';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { ClientToolRegistry, ClientToolEntry } from '../client-tool';
+import { ThinkingTagParser, ThinkingSegment } from './thinking-tag-parser';
 import type { ModelMessage } from 'ai';
 
 /**
@@ -158,6 +159,46 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
         let stepText = '';
         let hasToolCall = false;
         let textBlockOpened = false;
+        let thinkingBlockOpened = false;
+        const parser = new ThinkingTagParser();
+
+        /**
+         * 将解析器产生的段应用到 SSE 发射器
+         * @param segments 解析出的段列表
+         */
+        const applySegments = (segments: ThinkingSegment[]): void => {
+          for (const seg of segments) {
+            switch (seg.type) {
+              case 'begin_thinking':
+                if (textBlockOpened) {
+                  emitter.emitContentBlockStop('text', blockIndex - 1);
+                  textBlockOpened = false;
+                }
+                emitter.emitContentBlockStart('thinking', blockIndex);
+                blockIndex++;
+                thinkingBlockOpened = true;
+                break;
+              case 'end_thinking':
+                if (thinkingBlockOpened) {
+                  emitter.emitContentBlockStop('thinking', blockIndex - 1);
+                  thinkingBlockOpened = false;
+                }
+                break;
+              case 'text_delta':
+                if (thinkingBlockOpened) {
+                  emitter.emitTextDelta(seg.content ?? '');
+                } else {
+                  if (!textBlockOpened) {
+                    emitter.emitContentBlockStart('text', blockIndex);
+                    blockIndex++;
+                    textBlockOpened = true;
+                  }
+                  emitter.emitTextDelta(seg.content ?? '');
+                }
+                break;
+            }
+          }
+        };
 
         await this.aiService.streamText({
           model: context.model,
@@ -170,21 +211,24 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
           uid: context.uid,
           appCode: context.appCode,
           onChunk: (chunk) => {
-            if (!textBlockOpened) {
-              textBlockOpened = true;
-              emitter.emitContentBlockStart('text', blockIndex);
-              blockIndex++;
-            }
             stepText += chunk;
-            emitter.emitTextDelta(chunk);
+            applySegments(parser.process(chunk));
           },
           onToolCall: async (toolCall: { name: string; args: any }) => {
+            applySegments(parser.flush());
+
             hasToolCall = true;
             const resolvedName = nameMap[toolCall.name] || toolCall.name;
+
             if (textBlockOpened) {
               emitter.emitContentBlockStop('text', blockIndex - 1);
               textBlockOpened = false;
             }
+            if (thinkingBlockOpened) {
+              emitter.emitContentBlockStop('thinking', blockIndex - 1);
+              thinkingBlockOpened = false;
+            }
+
             emitter.emitContentBlockStart('tool_call', blockIndex, resolvedName);
             blockIndex++;
             await this.handleStreamToolCall(
@@ -193,14 +237,23 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
             );
             emitter.emitContentBlockStop('tool_call', blockIndex - 1);
             blockIndex++;
+
+            parser.reset();
           },
         });
 
         if (!hasToolCall) {
+          applySegments(parser.flush());
+
+          if (thinkingBlockOpened) {
+            emitter.emitContentBlockStop('thinking', blockIndex - 1);
+            thinkingBlockOpened = false;
+          }
           if (textBlockOpened) {
             emitter.emitContentBlockStop('text', blockIndex - 1);
             textBlockOpened = false;
           }
+
           finalResponse = stepText.trim();
           const finalStep = this.createStep(steps.length + 1, 'final_answer', finalResponse);
           steps.push(finalStep);
