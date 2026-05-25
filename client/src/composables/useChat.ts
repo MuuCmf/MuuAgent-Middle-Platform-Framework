@@ -311,6 +311,16 @@ export function useChat() {
   /** 工作目录名称 */
   const workspaceDirName = computed(() => workspace.dirName.value)
 
+  /** 用户是否已手动滚动离开底部（流式输出时暂停自动滚动） */
+  const userScrolledAway = ref(false)
+
+  /** 判断容器是否在底部附近（容差 60px） */
+  const isNearBottom = (): boolean => {
+    const container = messagesRef.value
+    if (!container) return true
+    return container.scrollHeight - container.scrollTop - container.clientHeight < 60
+  }
+
   // ========== 工具方法 ==========
 
   /** 滚动到底部 */
@@ -328,6 +338,15 @@ export function useChat() {
 
   // ========== 自动滚动（流式输出时）==========
 
+  /** 监听用户滚动行为：离开底部则暂停自动滚动，回到底部则恢复 */
+  watch(messagesRef, (container) => {
+    if (!container) return
+    const onScroll = () => {
+      userScrolledAway.value = !isNearBottom()
+    }
+    container.addEventListener('scroll', onScroll, { passive: true })
+  })
+
   watch(
     () => {
       const msgs = messages.value
@@ -341,7 +360,7 @@ export function useChat() {
       return key
     },
     () => {
-      if (isLoading.value) {
+      if (isLoading.value && !userScrolledAway.value) {
         scrollToBottom()
       }
     },
@@ -573,6 +592,8 @@ export function useChat() {
     }
     messages.value.push(assistantMessage)
     const assistantIndex = messages.value.length - 1
+    userScrolledAway.value = false
+    scrollToBottom()
 
     try {
       if (selectedType.value === 'model') {
@@ -761,6 +782,8 @@ export function useChat() {
     }
     messages.value.push(assistantMessage)
     const assistantIndex = messages.value.length - 1
+    userScrolledAway.value = false
+    scrollToBottom()
 
     try {
       const writer = createSegmentedStreamWriter(() => messages.value[assistantIndex])

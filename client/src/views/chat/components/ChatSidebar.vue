@@ -17,6 +17,21 @@
 
     <!-- 侧边栏面板内容 -->
     <div class="sidebar-main">
+      <div class="sidebar-brand">
+        <svg class="brand-logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="14" fill="url(#sidebar-brand-grad)" />
+          <path d="M10 18c0-4 2-7 6-7s6 3 6 7" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none" />
+          <circle cx="12" cy="14" r="1.5" fill="white" />
+          <circle cx="20" cy="14" r="1.5" fill="white" />
+          <defs>
+            <linearGradient id="sidebar-brand-grad" x1="2" y1="2" x2="30" y2="30">
+              <stop stop-color="#03B8CF" />
+              <stop offset="1" stop-color="#0199AD" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <span class="brand-name">MuuAgent 测试端</span>
+      </div>
       <div class="sidebar-panel">
         <!-- 会话面板 -->
         <div v-show="activePanel === 'conversations'" class="panel-content">
@@ -218,7 +233,7 @@ const handleKbSelect = (kbId: string) => {
 .chat-sidebar {
   display: flex;
   height: 100%;
-  background: #fafbfc;
+  background: var(--bg-secondary);
 }
 
 .sidebar-nav {
@@ -228,8 +243,8 @@ const handleKbSelect = (kbId: string) => {
   align-items: center;
   padding: 12px 0;
   gap: 4px;
-  background: #f0f2f5;
-  border-right: 1px solid #e8e8e8;
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -242,11 +257,11 @@ const handleKbSelect = (kbId: string) => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: #909399;
+  color: var(--text-tertiary);
 
   &:hover {
-    background: #e8eaed;
-    color: #606266;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
   }
 
   &.active {
@@ -258,6 +273,32 @@ const handleKbSelect = (kbId: string) => {
 
 .nav-spacer {
   flex: 1;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--white);
+  flex-shrink: 0;
+}
+
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #03B8CF 0%, #0199AD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.5px;
 }
 
 .sidebar-main {
@@ -285,14 +326,14 @@ const handleKbSelect = (kbId: string) => {
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
-  background: white;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--white);
 }
 
 .panel-title {
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-color);
 }
 
 .panel-body {
@@ -307,7 +348,7 @@ const handleKbSelect = (kbId: string) => {
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  color: #c0c4cc;
+  color: var(--text-tertiary);
 
   p {
     margin-top: 12px;
@@ -316,14 +357,15 @@ const handleKbSelect = (kbId: string) => {
 
   .empty-hint {
     font-size: 12px;
-    color: #dcdfe6;
+    color: var(--text-tertiary);
     margin-top: 4px;
+    opacity: 0.6;
   }
 }
 
 .kb-selector {
   .kb-info {
-    background: #f8f9fa;
+    background: var(--bg-tertiary);
     border-radius: 8px;
     padding: 10px;
     margin-top: 10px;
@@ -340,13 +382,13 @@ const handleKbSelect = (kbId: string) => {
   }
 
   .info-label {
-    color: #999;
+    color: var(--text-tertiary);
     width: 70px;
     flex-shrink: 0;
   }
 
   .info-item span:last-child {
-    color: #333;
+    color: var(--text-color);
   }
 
   .retrieval-params {
@@ -364,7 +406,7 @@ const handleKbSelect = (kbId: string) => {
   .param-label {
     display: block;
     font-size: 12px;
-    color: #666;
+    color: var(--text-secondary);
     margin-bottom: 6px;
   }
 }

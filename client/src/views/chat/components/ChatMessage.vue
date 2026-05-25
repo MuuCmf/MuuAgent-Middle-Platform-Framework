@@ -75,9 +75,11 @@
               <div v-else-if="block.type === 'tool_call'" class="content-block-tool">
                 <div class="tool-card" :class="block.toolStatus">
                   <div class="tool-card-header" @click="toggleToolBlock(idx)">
-                    <span class="tool-status-dot" />
-                    <span class="tool-name">{{ block.toolName || '未知工具' }}</span>
-                    <span v-if="block.toolArgs?.path" class="tool-file-path">{{ block.toolArgs.path }}</span>
+                    <div class="tool-header-left">
+                      <span class="tool-status-dot" />
+                      <span class="tool-name">{{ block.toolName || '未知工具' }}</span>
+                      <span v-if="block.toolArgs?.path" class="tool-file-path">{{ block.toolArgs.path }}</span>
+                    </div>
                     <span class="tool-status-badge" :class="block.toolStatus">{{ toolStatusConfig[block.toolStatus || 'running']?.label || '' }}</span>
                     <span v-if="block.toolStatus === 'running'" class="tool-pulse" />
                     <el-icon v-if="block.toolStatus === 'completed' || block.toolStatus === 'error'" :size="12" class="tool-toggle">
@@ -104,8 +106,10 @@
               <!-- 思考块 -->
               <div v-else-if="block.type === 'thinking'" class="content-block-thinking">
                 <div class="thinking-block-header" @click="toggleThinkingBlock(idx)">
-                  <span class="thinking-icon">💭</span>
-                  <span class="thinking-label">思考过程</span>
+                  <div class="thinking-header-left">
+                    <span class="thinking-icon">💭</span>
+                    <span class="thinking-label">思考过程</span>
+                  </div>
                   <span v-if="block.toolStatus === 'streaming'" class="tool-status-badge streaming">思考中</span>
                   <span v-else class="tool-status-badge completed">已完成</span>
                   <el-icon :size="12" class="thinking-toggle">
@@ -800,10 +804,19 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
       }
     }
 
+    .tool-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
     .tool-name {
       font-size: 13px;
       font-weight: 600;
       color: var(--text-color);
+      flex-shrink: 0;
     }
 
     .tool-file-path {
@@ -816,35 +829,6 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-    }
-
-    .tool-status-badge {
-      font-size: 11px;
-      font-weight: 500;
-      padding: 2px 8px;
-      border-radius: 10px;
-      flex-shrink: 0;
-      transition: all 0.3s;
-
-      &.running {
-        background: rgba(250, 173, 20, 0.12);
-        color: #d48806;
-      }
-
-      &.streaming {
-        background: rgba(24, 144, 255, 0.12);
-        color: #096dd9;
-      }
-
-      &.completed {
-        background: rgba(82, 196, 26, 0.1);
-        color: #389e0d;
-      }
-
-      &.error {
-        background: rgba(255, 77, 79, 0.1);
-        color: #cf1322;
-      }
     }
 
     .tool-pulse {
@@ -904,6 +888,35 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
   }
 }
 
+.tool-status-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  transition: all 0.3s;
+
+  &.running {
+    background: rgba(250, 173, 20, 0.12);
+    color: #d48806;
+  }
+
+  &.streaming {
+    background: rgba(24, 144, 255, 0.12);
+    color: #096dd9;
+  }
+
+  &.completed {
+    background: rgba(82, 196, 26, 0.1);
+    color: #389e0d;
+  }
+
+  &.error {
+    background: rgba(255, 77, 79, 0.1);
+    color: #cf1322;
+  }
+}
+
 .content-block-thinking {
   border-radius: 8px;
   overflow: hidden;
@@ -936,6 +949,14 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
       }
     }
 
+    .thinking-header-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+    }
+
     .thinking-icon {
       font-size: 14px;
       opacity: 0.6;
@@ -949,7 +970,6 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
     }
 
     .thinking-toggle {
-      margin-left: auto;
       color: var(--text-tertiary, #9ca3af);
       transition: transform 0.2s;
       font-size: 11px;
