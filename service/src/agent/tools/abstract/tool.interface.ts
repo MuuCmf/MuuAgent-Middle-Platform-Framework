@@ -16,6 +16,7 @@ export interface ToolExecutionContext {
   conversationId?: string;
   uid?: string;
   isolationContext?: IsolationContext;
+  clientIp?: string;
 }
 
 export interface IAgentTool {

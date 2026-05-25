@@ -463,6 +463,7 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
         conversationId: context.conversationId,
         uid: context.uid,
         isolationContext: context.isolationContext,
+        clientIp: context.clientIp,
       },
     );
     if (!toolResult.success) {

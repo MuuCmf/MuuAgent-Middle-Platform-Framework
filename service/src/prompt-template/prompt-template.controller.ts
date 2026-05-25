@@ -123,11 +123,13 @@ export class PromptTemplateController {
   async render(@Body() dto: RenderPromptTemplateDto, @Req() req: any) {
     const clientIp = req.ip || req.connection.remoteAddress;
     const uid = req.user?.uid;
+    const context = extractIsolationContext(req);
 
     const renderedPrompt = await this.promptTemplateService.renderWithLog(
       dto,
       clientIp,
       uid,
+      context,
     );
 
     return success({ renderedPrompt }, '模板渲染成功');

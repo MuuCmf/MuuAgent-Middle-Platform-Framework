@@ -276,13 +276,15 @@ export class PromptTemplateService {
    * 渲染模板
    * @param code 模板标识
    * @param variables 变量值
+   * @param context 隔离上下文
    * @returns 渲染后的 Prompt
    */
-  async render(code: string, variables: Record<string, any>): Promise<string> {
+  async render(code: string, variables: Record<string, any>, context?: IsolationContext): Promise<string> {
     const startTime = Date.now();
 
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
     const template = await this.prisma.promptTemplate.findFirst({
-      where: { code, status: true },
+      where: { code, status: true, ...isolationWhere },
     });
 
     if (!template) {
@@ -301,8 +303,10 @@ export class PromptTemplateService {
 
     let renderedPrompt = template.content;
     for (const [key, value] of Object.entries(variables)) {
-      const placeholder = `{{${key}}}`;
-      renderedPrompt = renderedPrompt.replace(new RegExp(placeholder, 'g'), String(value));
+      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const placeholder = `{{${escapedKey}}}`;
+      const escapedValue = String(value).replace(/\$/g, '$$$$');
+      renderedPrompt = renderedPrompt.replace(new RegExp(placeholder, 'g'), escapedValue);
     }
 
     const costMs = Date.now() - startTime;
@@ -316,17 +320,19 @@ export class PromptTemplateService {
    * @param dto 渲染 DTO
    * @param clientIp 客户端 IP
    * @param uid 用户 ID
+   * @param context 隔离上下文
    * @returns 渲染后的 Prompt
    */
   async renderWithLog(
     dto: RenderPromptTemplateDto,
     clientIp?: string,
     uid?: string,
+    context?: IsolationContext,
   ): Promise<string> {
     const startTime = Date.now();
 
     try {
-      const renderedPrompt = await this.render(dto.code, dto.variables);
+      const renderedPrompt = await this.render(dto.code, dto.variables, context);
 
       const template = await this.prisma.promptTemplate.findFirst({
         where: { code: dto.code },
@@ -501,15 +507,7 @@ export class PromptTemplateService {
     const builtinTemplates: Record<string, string> = {
       'agent-system-default': `{{basePrompt}}
 
-{{#if hasTools}}
-## 可用工具
-
-{{tools}}
-
-## 工具使用规则
-
-当用户的问题需要使用工具来获取信息时，你必须调用相应的工具。
-{{/if}}
+{{toolsSection}}
 
 ## 回答要求
 

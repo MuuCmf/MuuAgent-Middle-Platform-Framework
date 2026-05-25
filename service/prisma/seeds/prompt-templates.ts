@@ -54,15 +54,7 @@ async function main() {
       category: 'agent',
       content: `{{basePrompt}}
 
-{{#if hasTools}}
-## 可用工具
-
-{{tools}}
-
-## 工具使用规则
-
-当用户的问题需要使用工具来获取信息时，你必须调用相应的工具。
-{{/if}}
+{{toolsSection}}
 
 ## 回答要求
 
@@ -71,8 +63,7 @@ async function main() {
 3. 如果不确定，请明确说明`,
       variables: JSON.stringify([
         { name: 'basePrompt', type: 'string', required: true, description: '智能体的基础提示词' },
-        { name: 'hasTools', type: 'boolean', required: false, defaultValue: false, description: '是否有可用工具' },
-        { name: 'tools', type: 'string', required: false, description: '工具描述' }
+        { name: 'toolsSection', type: 'string', required: false, defaultValue: '', description: '工具使用规则部分内容' }
       ]),
       isDefault: true,
       status: true,

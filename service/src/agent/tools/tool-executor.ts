@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ToolCall, ToolExecutionResult, ToolExecutionContext } from './abstract/tool.interface';
 import { DispatcherCollectorService } from './core/dispatcher-collector.service';
 import { LruCache, CacheStats } from './utils/lru-cache';
+import { PrismaService } from '../../common/prisma/prisma.service';
 
 /**
  * 工具缓存配置
@@ -53,7 +54,10 @@ export class ToolExecutor implements OnModuleDestroy {
   /** 缓存配置 */
   private readonly cacheConfig: ToolCacheConfig;
 
-  constructor(private readonly dispatcherCollector: DispatcherCollectorService) {
+  constructor(
+    private readonly dispatcherCollector: DispatcherCollectorService,
+    private readonly prisma: PrismaService,
+  ) {
     this.cacheConfig = { ...DEFAULT_CACHE_CONFIG };
     this.cache = new LruCache<string, unknown>({
       maxSize: this.cacheConfig.maxSize,
@@ -88,6 +92,7 @@ export class ToolExecutor implements OnModuleDestroy {
 
     try {
       const args = this.parseArguments(argsString, name);
+      let result: unknown;
 
       if (this.shouldUseCache(name)) {
         const cacheKey = this.buildCacheKey(name, args);
@@ -105,25 +110,16 @@ export class ToolExecutor implements OnModuleDestroy {
           };
         }
 
-        const result = await this.dispatch(name, args, context);
+        result = await this.dispatch(name, args, context);
         this.cache.set(cacheKey, result);
-
-        const costMs = Date.now() - startTime;
-        this.logger.log(`[ToolExecutor] 工具执行成功: ${name}, 耗时: ${costMs}ms`);
-
-        return {
-          toolCallId: toolCall.id,
-          toolName: name,
-          args,
-          result,
-          success: true,
-          costMs,
-        };
+      } else {
+        result = await this.dispatch(name, args, context);
       }
 
-      const result = await this.dispatch(name, args, context);
       const costMs = Date.now() - startTime;
-      this.logger.log(`[ToolExecutor] 工具执行成功(无缓存): ${name}, 耗时: ${costMs}ms`);
+      this.logger.log(`[ToolExecutor] 工具执行成功: ${name}, 耗时: ${costMs}ms`);
+
+      await this.recordSkillLog(name, args, result, true, null, costMs, context);
 
       return {
         toolCallId: toolCall.id,
@@ -139,6 +135,8 @@ export class ToolExecutor implements OnModuleDestroy {
 
       this.logger.error(`[ToolExecutor] 工具执行失败: ${name}`, errorMsg);
 
+      await this.recordSkillLog(name, {}, null, false, errorMsg, costMs, context);
+
       return {
         toolCallId: toolCall.id,
         toolName: name,
@@ -149,6 +147,89 @@ export class ToolExecutor implements OnModuleDestroy {
         costMs,
       };
     }
+  }
+
+  /**
+   * 记录技能调用日志
+   * @param toolName 工具名称
+   * @param args 调用参数
+   * @param result 返回结果
+   * @param success 是否成功
+   * @param errorMessage 错误信息
+   * @param costMs 耗时(毫秒)
+   * @param context 执行上下文
+   */
+  private async recordSkillLog(
+    toolName: string,
+    args: Record<string, unknown>,
+    result: unknown,
+    success: boolean,
+    errorMessage: string | null,
+    costMs: number,
+    context: ToolExecutionContext,
+  ): Promise<void> {
+    if (!this.isSkillTool(toolName)) {
+      return;
+    }
+
+    try {
+      const skillCode = this.extractSkillCode(toolName, args);
+      if (!skillCode) {
+        return;
+      }
+
+      const appCode = this.getAppCode(context);
+
+      await this.prisma.skillInvokeLog.create({
+        data: {
+          skillCode,
+          params: args ? JSON.stringify(args) : null,
+          result: result !== null && result !== undefined ? JSON.stringify(result) : null,
+          success,
+          errorMessage,
+          costMs,
+          clientIp: context.clientIp,
+          uid: context.uid,
+          appCode,
+        },
+      });
+
+      this.logger.debug(`[ToolExecutor] 技能调用日志已记录: ${skillCode}`);
+    } catch (e) {
+      this.logger.error(`[ToolExecutor] 记录技能调用日志失败: ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * 判断是否是技能相关工具
+   */
+  private isSkillTool(toolName: string): boolean {
+    const skillTools = ['use_skill', 'run_script', 'load_reference'];
+    return skillTools.includes(toolName);
+  }
+
+  /**
+   * 从工具调用中提取技能标识
+   */
+  private extractSkillCode(toolName: string, args: Record<string, unknown>): string | null {
+    const skillName = args['skill_name'] || args['skillName'];
+    if (typeof skillName === 'string') {
+      return skillName;
+    }
+    return null;
+  }
+
+  /**
+   * 从上下文获取应用标识
+   */
+  private getAppCode(context: ToolExecutionContext): string | null {
+    if (context.isolationContext?.appCode) {
+      return context.isolationContext.appCode;
+    }
+    if (context.agent?.appCode) {
+      return context.agent.appCode;
+    }
+    return null;
   }
 
   /**
