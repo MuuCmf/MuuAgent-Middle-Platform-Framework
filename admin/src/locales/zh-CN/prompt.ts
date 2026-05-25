@@ -6,7 +6,7 @@ export default {
       title: '💡 模板管理说明',
       identifier: '模板的唯一标识符，用于在代码中引用模板',
       category: '模板的应用场景，如 agent、rag、react、skill 等',
-      variable: '模板中可替换的变量，使用 {{变量名}} 格式',
+      variable: '模板中可替换的变量，使用 &#123;&#123;变量名&#125;&#125; 格式',
       version: '模板支持版本管理，每次更新都会创建新版本',
       defaultTemplate: '每个分类可以有一个默认模板，智能体会自动使用',
     },
@@ -73,22 +73,14 @@ export default {
     content: {
       title: '模板内容',
       promptContent: 'Prompt 内容',
-      promptContentPlaceholder: '输入 Prompt 模板内容，使用 {{变量名}} 作为变量占位符',
+      promptContentPlaceholder: '输入 Prompt 模板内容，使用 &#123;&#123;变量名&#125;&#125; 作为变量占位符',
       syntaxHelpTitle: '📝 查看模板语法说明',
       variableSyntax: '变量语法：',
-      syntaxRule1: '使用 {{变量名}} 定义变量占位符',
-      syntaxRule2: '变量名建议使用驼峰命名，如：{{userName}}',
+      syntaxRule1: '使用 &#123;&#123;变量名&#125;&#125; 定义变量占位符',
+      syntaxRule2: '变量名建议使用驼峰命名，如：&#123;&#123;userName&#125;&#125;',
       syntaxRule3: '渲染时会自动替换为实际值',
       exampleTitle: '示例：',
-      exampleContent: `你是一个专业的问答助手。
-
-## 参考信息
-{{context}}
-
-## 用户问题
-{{query}}
-
-请基于参考信息回答用户问题。`,
+      exampleContent: '你是一个专业的问答助手。\n\n## 参考信息\n&#123;&#123;context&#125;&#125;\n\n## 用户问题\n&#123;&#123;query&#125;&#125;\n\n请基于参考信息回答用户问题。',
       variableConfigTip: '💡 变量会在下方"变量定义"中配置',
     },
     variables: {
@@ -116,7 +108,7 @@ export default {
       tags: '标签',
       tagsPlaceholder: '输入标签后回车添加',
       metadata: '元数据',
-      metadataPlaceholder: 'JSON 格式的元数据，如：{"author": "admin", "version": "1.0"}',
+      metadataPlaceholder: 'JSON 格式的元数据，如：&#123;"author": "admin", "version": "1.0"&#125;',
     },
     validation: {
       nameRequired: '请输入模板名称',

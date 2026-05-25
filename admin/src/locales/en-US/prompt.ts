@@ -6,7 +6,7 @@ export default {
       title: '💡 Template Management Guide',
       identifier: 'Unique identifier for referencing templates in code',
       category: 'Application scenario, such as agent, rag, react, skill, etc.',
-      variable: 'Replaceable variables in templates, use {{variableName}} format',
+      variable: 'Replaceable variables in templates, use &#123;&#123;variableName&#125;&#125; format',
       version: 'Templates support versioning, each update creates a new version',
       defaultTemplate: 'Each category can have a default template, used automatically by agents',
     },
@@ -73,22 +73,14 @@ export default {
     content: {
       title: 'Template Content',
       promptContent: 'Prompt Content',
-      promptContentPlaceholder: 'Enter prompt template content, use {{variableName}} as variable placeholder',
+      promptContentPlaceholder: 'Enter prompt template content, use &#123;&#123;variableName&#125;&#125; as variable placeholder',
       syntaxHelpTitle: '📝 View Template Syntax Guide',
       variableSyntax: 'Variable Syntax:',
-      syntaxRule1: 'Use {{variableName}} to define variable placeholders',
-      syntaxRule2: 'Variable names should use camelCase, e.g., {{userName}}',
+      syntaxRule1: 'Use &#123;&#123;variableName&#125;&#125; to define variable placeholders',
+      syntaxRule2: 'Variable names should use camelCase, e.g., &#123;&#123;userName&#125;&#125;',
       syntaxRule3: 'Automatically replaced with actual values during rendering',
       exampleTitle: 'Example:',
-      exampleContent: `You are a professional Q&A assistant.
-
-## Reference Information
-{{context}}
-
-## User Question
-{{query}}
-
-Please answer the user's question based on the reference information.`,
+      exampleContent: 'You are a professional Q&A assistant.\n\n## Reference Information\n&#123;&#123;context&#125;&#125;\n\n## User Question\n&#123;&#123;query&#125;&#125;\n\nPlease answer the user\'s question based on the reference information.',
       variableConfigTip: '💡 Variables will be configured in "Variable Definition" below',
     },
     variables: {
@@ -116,7 +108,7 @@ Please answer the user's question based on the reference information.`,
       tags: 'Tags',
       tagsPlaceholder: 'Press Enter to add tags',
       metadata: 'Metadata',
-      metadataPlaceholder: 'JSON format metadata, e.g., {"author": "admin", "version": "1.0"}',
+      metadataPlaceholder: 'JSON format metadata, e.g., &#123;"author": "admin", "version": "1.0"&#125;',
     },
     validation: {
       nameRequired: 'Please enter template name',
