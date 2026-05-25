@@ -133,7 +133,7 @@
               <span class="model-trigger-text">{{ currentModelDisplayName }}</span>
               <el-icon :size="12" class="model-trigger-arrow"><ArrowUp /></el-icon>
             </div>
-            <div v-if="currentMode === 'chat'" class="workspace-trigger" @click="handleWorkspaceTrigger">
+            <div v-if="currentMode === 'chat' && selectedAgent" class="workspace-trigger" @click="handleWorkspaceTrigger">
               <template v-if="workspaceIsActive">
                 <el-icon :size="14"><FolderOpened /></el-icon>
                 <span class="workspace-trigger-text">{{ workspaceDirName || '已选择' }}</span>
@@ -141,7 +141,7 @@
               </template>
               <template v-else>
                 <el-icon :size="14"><Folder /></el-icon>
-                <span class="workspace-trigger-text">工作目录</span>
+                <span class="workspace-trigger-text">请选择工作目录</span>
               </template>
             </div>
           </div>
@@ -706,20 +706,20 @@ const getPlaceholder = (): string => {
 }
 
 .mode-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: 14px;
-  background: var(--bg-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  user-select: none;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 14px;
+    background: var(--bg-secondary);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
 
   &:hover {
-    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
-    transform: translateY(-1px);
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
   }
 }
 

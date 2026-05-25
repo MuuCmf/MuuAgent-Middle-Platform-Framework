@@ -119,7 +119,6 @@ const {
   selectedAgent,
   selectedLlmModel,
   messages,
-  messagesRef,
   isLoading,
   currentConversationId,
   currentConversationTitle,
