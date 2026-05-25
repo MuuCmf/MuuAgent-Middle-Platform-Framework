@@ -20,6 +20,7 @@ export default {
     agentCode: 'Code',
     agentCodePlaceholder: 'e.g., weather_assistant',
     belongApp: 'Belong to Application',
+    global: 'Global',
     publicStatus: 'Public Status',
     public: 'Public',
     private: 'Private',

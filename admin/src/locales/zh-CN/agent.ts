@@ -20,6 +20,7 @@ export default {
     agentCode: '标识',
     agentCodePlaceholder: '如：weather_assistant',
     belongApp: '所属应用',
+    global: '全局',
     publicStatus: '公开状态',
     public: '公开',
     private: '私有',

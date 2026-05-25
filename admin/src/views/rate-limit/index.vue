@@ -125,7 +125,7 @@
             <el-table-column prop="circuitStatus" :label="t('rateLimit.circuitBreakerSection.circuitStatusColumn')" width="100">
               <template #default="{ row }">
                 <el-tag :type="getCircuitStatusTagType(row.circuitStatus)">
-                  {{ t(`rateLimit.circuitStatusLabels.${row.circuitStatus}`) }}
+                  {{ t(`rateLimit.circuitStatusLabels.${row.circuitStatus?.toLowerCase()}`) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -153,7 +153,7 @@
             <el-table-column prop="circuitStatus" :label="t('rateLimit.circuitBreakerSection.circuitStatusColumn')" width="120">
               <template #default="{ row }">
                 <el-tag :type="getCircuitStatusTagType(row.circuitStatus)">
-                  {{ t(`rateLimit.circuitStatusLabels.${row.circuitStatus}`) }}
+                  {{ t(`rateLimit.circuitStatusLabels.${row.circuitStatus?.toLowerCase()}`) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -395,7 +395,7 @@ const getLevelTagType = (level: string) => {
     interface: 'success',
     model: 'info'
   }
-  return types[level] || ''
+  return types[level] || 'info'
 }
 
 const getCircuitStatusTagType = (status: string) => {
@@ -404,7 +404,7 @@ const getCircuitStatusTagType = (status: string) => {
     open: 'danger',
     half_open: 'warning'
   }
-  return types[status] || ''
+  return types[status] || 'info'
 }
 
 const getTargetPlaceholder = () => {
