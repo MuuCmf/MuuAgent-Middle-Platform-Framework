@@ -28,7 +28,6 @@ vim service/.env
 
 | 变量             | 说明       | 生成命令                          |
 |-----------------|-----------|-----------------------------------|
-| API_KEY         | API 密钥   | `openssl rand -base64 32`         |
 | JWT_SECRET      | JWT 密钥   | `openssl rand -base64 64`         |
 | MYSQL_PASSWORD  | 数据库密码  | `openssl rand -base64 16`         |
 
@@ -138,6 +137,18 @@ docker-compose up -d
 
 # 检查静态文件是否已生成
 docker-compose exec app ls -la /app/public/
+```
+
+### 第三方 API 调用 401
+
+```bash
+# 确保请求头包含 x-api-key（租户 API 密钥）
+curl -H "x-api-key: tn_xxxxxxxx" http://localhost:3002/api/ai/chat
+
+# x-uid 为可选参数，用于用户数据隔离
+curl -H "x-api-key: tn_xxxxxxxx" \
+     -H "x-uid: user_12345" \
+     http://localhost:3002/api/ai/chat
 ```
 
 ---

@@ -23,7 +23,7 @@ interface ConfigCheckItem {
 /**
  * 敏感配置项列表（值需要脱敏）
  */
-const SENSITIVE_KEYS = ['API_KEY', 'JWT_SECRET', 'DATABASE_URL', 'REDIS_PASSWORD'];
+const SENSITIVE_KEYS = ['JWT_SECRET', 'DATABASE_URL', 'REDIS_PASSWORD'];
 
 /**
  * 对敏感值进行脱敏处理
@@ -49,7 +49,6 @@ function maskValue(key: string, value: string): string {
  */
 function isDefaultValue(key: string, value: string): boolean {
   const defaults: Record<string, string[]> = {
-    API_KEY: ['AI-SVC-2026-MCP-KEY-666', 'change', 'Change', 'CHANGE'],
     JWT_SECRET: ['your-jwt-secret-key-change-in-production', 'change', 'Change', 'CHANGE'],
   };
 
@@ -103,7 +102,6 @@ export function createConfigCommand(): Command {
       const requiredKeys = [
         { key: 'DATABASE_URL', desc: '数据库连接地址' },
         { key: 'PORT', desc: '服务端口' },
-        { key: 'API_KEY', desc: 'API 鉴权密钥' },
         { key: 'JWT_SECRET', desc: 'JWT 签名密钥' },
       ];
 

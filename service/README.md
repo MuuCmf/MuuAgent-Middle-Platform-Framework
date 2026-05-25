@@ -56,9 +56,6 @@ DATABASE_URL="file:./dev.db"
 # 服务端口
 PORT=3002
 
-# API鉴权密钥
-API_KEY="AI-SVC-2026-MCP-KEY-666"
-
 # JWT密钥
 JWT_SECRET="your-jwt-secret-key"
 
@@ -295,7 +292,6 @@ MuuAgent/
 |--------|------|--------|------|
 | DATABASE_URL | 数据库连接字符串 | - | 是 |
 | PORT | 服务端口 | 3002 | 否 |
-| API_KEY | API 鉴权密钥 | - | 是 |
 | JWT_SECRET | JWT 签名密钥 | - | 是 |
 | REDIS_URL | Redis 连接字符串 | - | 否 |
 | LOG_LEVEL | 日志级别 | info | 否 |
@@ -460,7 +456,7 @@ curl http://localhost:3002/health
 
 ## 🛡️ 安全建议
 
-1. **修改默认密钥**: 生产环境务必修改 API_KEY 和 JWT_SECRET
+1. **修改默认密钥**: 生产环境务必修改 JWT_SECRET
 2. **使用 HTTPS**: 配置 SSL 证书，启用 HTTPS
 3. **数据库安全**: 使用强密码，限制数据库用户权限
 4. **定期备份**: 设置自动备份任务

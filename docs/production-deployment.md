@@ -67,9 +67,6 @@ vim service/.env
 # 数据库配置
 DATABASE_URL="mysql://muu_ai:your-strong-password@mysql:3306/muu_ai_platform"
 
-# API 鉴权密钥（生成强密钥：openssl rand -base64 32）
-API_KEY="your-api-key"
-
 # JWT 签名密钥（生成强密钥：openssl rand -base64 64）
 JWT_SECRET="your-jwt-secret"
 
@@ -206,7 +203,6 @@ docker run --rm -v mysql_data:/source -v /backup:/dest alpine tar czf /dest/mysq
 cat > .env << EOF
 MYSQL_ROOT_PASSWORD=your-root-password
 MYSQL_PASSWORD=your-db-password
-API_KEY=your-api-key
 JWT_SECRET=your-jwt-secret
 APP_PORT=3002
 APP_MEMORY_LIMIT=4G
@@ -225,7 +221,6 @@ EOF
 |---------------------------|----------------------|---------------------|------|
 | DATABASE_URL              | MySQL 连接字符串       | -                   | 是   |
 | REDIS_URL                 | Redis 连接地址         | redis://redis:6379  | 否   |
-| API_KEY                   | API 鉴权密钥           | -                   | 是   |
 | JWT_SECRET                | JWT 签名密钥           | -                   | 是   |
 | PORT                      | 服务端口               | 3002                | 否   |
 | LOG_LEVEL                 | 日志级别               | warn                | 否   |
@@ -635,12 +630,10 @@ docker-compose exec app npx prisma migrate deploy
 
 ```bash
 # 生成强密码
-API_KEY=$(openssl rand -base64 32)
 JWT_SECRET=$(openssl rand -base64 64)
 MYSQL_PASSWORD=$(openssl rand -base64 16)
 
 # 更新 .env 文件
-sed -i "s/API_KEY=.*/API_KEY=$API_KEY/" .env
 sed -i "s/JWT_SECRET=.*/JWT_SECRET=$JWT_SECRET/" .env
 sed -i "s/MYSQL_PASSWORD=.*/MYSQL_PASSWORD=$MYSQL_PASSWORD/" .env
 ```
@@ -738,4 +731,28 @@ docker-compose ps                # 查看服务状态
 docker-compose build             # 构建镜像
 docker-compose pull              # 拉取镜像
 docker-compose config            # 验证配置
+```
+
+### 第三方应用接入头信息说明
+
+第三方应用调用业务 API 时，需通过 HTTP 请求头传递以下信息用于鉴权和租户隔离：
+
+| 请求头 | 说明 | 示例值 | 对应后端处理 |
+|--------|------|--------|------------|
+| `x-api-key` | 租户 API 密钥 | `tn_8a3f7b2c...` | [`TenantGuard`](file:///e:/MuuCmf/MuuAI-Middle-Platform/service/src/common/guards/tenant.guard.ts) — 从数据库验证租户身份和配额 |
+| `x-uid` | 用户标识（可选） | `user_12345` | [`extractIsolationContext()`](file:///e:/MuuCmf/MuuAI-Middle-Platform/service/src/common/services/base-isolated.service.ts#L178) — 用于数据隔离和操作记录 |
+
+**Nginx 透传配置**（已在默认配置中启用）：
+
+```nginx
+proxy_set_header X-Api-Key $http_x_api_key;
+proxy_set_header X-Uid $http_x_uid;
+```
+
+**调用示例**：
+
+```bash
+curl -H "x-api-key: tn_8a3f7b2c..." \
+     -H "x-uid: user_12345" \
+     https://your-domain.com/api/ai/chat
 ```

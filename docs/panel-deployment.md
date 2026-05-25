@@ -104,9 +104,6 @@ cp service/.env.example service/.env
 # 数据库配置（Docker 内使用服务名连接）
 DATABASE_URL="mysql://muu_ai:your-password@mysql:3306/muu_ai_platform?connection_limit=10&pool_timeout=30"
 
-# API 鉴权密钥（务必修改）
-API_KEY="your-api-key"
-
 # JWT 密钥（务必修改）
 JWT_SECRET="your-jwt-secret"
 
@@ -204,6 +201,8 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Api-Key $http_x_api_key;
+        proxy_set_header X-Uid $http_x_uid;
     }
 
     # ==========================================
@@ -214,6 +213,8 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Api-Key $http_x_api_key;
+        proxy_set_header X-Uid $http_x_uid;
     }
 
     # ==========================================
@@ -226,7 +227,8 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-Api-Key $http_x_api_key;
+        proxy_set_header X-Uid $http_x_uid;
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
@@ -242,7 +244,8 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-Api-Key $http_x_api_key;
+        proxy_set_header X-Uid $http_x_uid;
         proxy_buffering off;
         proxy_cache off;
         chunked_transfer_encoding on;
@@ -404,7 +407,6 @@ cp service/.env.example service/.env
 
 ```env
 DATABASE_URL="mysql://muu_ai:your-password@mysql:3306/muu_ai_platform?connection_limit=10&pool_timeout=30"
-API_KEY="your-api-key"
 JWT_SECRET="your-jwt-secret"
 LOG_LEVEL="warn"
 ```
@@ -487,6 +489,8 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Api-Key $http_x_api_key;
+        proxy_set_header X-Uid $http_x_uid;
     }
 
     # 用户端
@@ -495,6 +499,8 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Api-Key $http_x_api_key;
+        proxy_set_header X-Uid $http_x_uid;
     }
 
     # API 接口
@@ -505,7 +511,8 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-Api-Key $http_x_api_key;
+        proxy_set_header X-Uid $http_x_uid;
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
@@ -519,7 +526,8 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-Api-Key $http_x_api_key;
+        proxy_set_header X-Uid $http_x_uid;
         proxy_buffering off;
         proxy_cache off;
         chunked_transfer_encoding on;
@@ -665,4 +673,18 @@ docker compose logs -f app      # 1Panel
 ```bash
 docker-compose exec app ls -la /app/public/
 # 应包含 admin/ 和 client/ 目录
+```
+
+9. **第三方应用接入**：调用业务 API 时需传递以下请求头：
+
+| 请求头 | 说明 | 必填 |
+|--------|------|------|
+| `x-api-key` | 租户 API 密钥（在管理后台创建租户时生成） | 是 |
+| `x-uid` | 用户标识，用于数据隔离 | 否 |
+
+验证示例：
+```bash
+curl -H "x-api-key: tn_xxxxxxxx" \
+     -H "x-uid: user_12345" \
+     http://your-domain.com/api/ai/chat
 ```

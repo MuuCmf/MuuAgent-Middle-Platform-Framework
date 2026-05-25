@@ -87,22 +87,6 @@ function checkQdrant(envVars: Record<string, string>): HealthCheckItem {
 }
 
 /**
- * 检查 API Key 配置
- * @param envVars 环境变量
- * @returns {HealthCheckItem} 检查结果
- */
-function checkApiKey(envVars: Record<string, string>): HealthCheckItem {
-  const apiKey = envVars['API_KEY'];
-  if (!apiKey) {
-    return { name: 'API Key', status: 'error', message: 'API_KEY 未配置' };
-  }
-  if (apiKey.includes('change') || apiKey.includes('Change') || apiKey.includes('CHANGE')) {
-    return { name: 'API Key', status: 'warn', message: 'API_KEY 仍为默认值，请修改' };
-  }
-  return { name: 'API Key', status: 'ok', message: '已配置' };
-}
-
-/**
  * 检查 JWT 密钥配置
  * @param envVars 环境变量
  * @returns {HealthCheckItem} 检查结果
@@ -173,7 +157,6 @@ export function createHealthCommand(): Command {
           checks.push(checkMysql(envVars));
           checks.push(checkRedis(envVars));
           checks.push(checkQdrant(envVars));
-          checks.push(checkApiKey(envVars));
           checks.push(checkJwtSecret(envVars));
           checks.push(checkPrisma(paths.service));
         }

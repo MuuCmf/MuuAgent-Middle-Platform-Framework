@@ -218,7 +218,7 @@ cd MuuAgent
 
 # 2. 配置环境变量
 cp service/.env.example service/.env
-# 编辑 service/.env 修改密钥等配置（务必修改 API_KEY、JWT_SECRET、MYSQL_PASSWORD）
+# 编辑 service/.env 修改密钥等配置（务必修改 JWT_SECRET、MYSQL_PASSWORD）
 
 # 3. 构建并启动所有服务
 docker-compose build
