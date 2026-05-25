@@ -14,6 +14,7 @@ import { SkillKbService } from '../../skill/skill-kb.service';
 import { HybridRetrievalService } from '../hybrid-retrieval.service';
 import type { ModelMessage } from 'ai';
 import { ConversationType } from '../../conversation/dto/create-conversation.dto';
+import { WORKSPACE_TOOL_NAMES } from '../../workspace/workspace-tool.definitions';
 
 @Injectable()
 export class ContextBuilder {
@@ -102,6 +103,14 @@ export class ContextBuilder {
     );
 
     let finalSystemPrompt = this.systemPrompt.build(agent, tools);
+
+    if (dto.workspace?.dirName) {
+      const hasWorkspaceTool = tools.some(t => WORKSPACE_TOOL_NAMES.has(t.name));
+      if (hasWorkspaceTool) {
+        const toolNames = [...WORKSPACE_TOOL_NAMES].join('、');
+        finalSystemPrompt = `## 工作目录: ${dto.workspace.dirName}\n${toolNames} 等文件工具皆相对于此目录执行。\n\n${finalSystemPrompt}`;
+      }
+    }
 
     if (shouldAutoRetrieve && resolvedKbCodes.length > 0) {
       this.logger.debug(`执行自动检索...`);

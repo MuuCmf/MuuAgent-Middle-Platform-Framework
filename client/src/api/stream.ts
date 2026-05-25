@@ -33,6 +33,20 @@ export interface ContentBlockStopPayload {
   blockType: 'text' | 'tool_call' | 'thinking'
   /** 块索引 */
   index: number
+  /** 标记该块为最终回复（仅 thinking 块有效） */
+  isFinalAnswer?: boolean
+}
+
+/**
+ * 服务端工具执行结果载荷
+ */
+export interface ToolResultPayload {
+  /** 工具名称 */
+  name: string
+  /** 工具参数 */
+  args: Record<string, unknown>
+  /** 执行结果 */
+  result?: unknown
 }
 
 /**
@@ -44,6 +58,8 @@ export interface StreamCallbacks {
   onComplete: () => void
   onConversationId?: (conversationId: string) => void
   onReasoningStep?: (step: ReasoningStep) => void
+  /** 服务端工具执行结果回调 */
+  onToolResult?: (payload: ToolResultPayload) => void
   /** 通用客户端工具调用回调 */
   onClientToolCall?: (payload: ClientToolCallPayload) => void
   /** 客户端工具权限策略回调 */
@@ -178,6 +194,14 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
         }
         callbacks.onReasoningStep(step)
       }
+    } else if (parsed.type === 'tool_call' && parsed.name) {
+      if (callbacks.onToolResult) {
+        callbacks.onToolResult({
+          name: parsed.name,
+          args: parsed.args || {},
+          result: parsed.result,
+        })
+      }
     } else if (parsed.type === 'content_block_start' && parsed.blockType) {
       if (callbacks.onContentBlockStart) {
         callbacks.onContentBlockStart({
@@ -191,6 +215,7 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
         callbacks.onContentBlockStop({
           blockType: parsed.blockType,
           index: parsed.index ?? 0,
+          isFinalAnswer: parsed.isFinalAnswer,
         })
       }
     } else if (parsed.type === 'error' && parsed.content) {

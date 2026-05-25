@@ -56,14 +56,14 @@
           <template v-if="message.contentBlocks && message.contentBlocks.length > 0">
             <div
               v-for="(block, idx) in visibleBlocks"
-              :key="`block-${idx}`"
-              class="content-block"
+              :key="`block-${block.index}`"
+              :class="['content-block', { 'content-block-completed': block.toolStatus === 'completed' }]"
             >
               <!-- 文本块 -->
               <div v-if="block.type === 'text'" class="content-block-text">
                 <Markdown
                   :content="block.content"
-                  :mode="isStreaming ? 'streaming' : 'static'"
+                  :mode="getBlockRenderMode(block)"
                   :controls="markdownControls"
                   :codeOptions="codeOptions"
                   :shikiOptions="shikiOptions"
@@ -74,23 +74,29 @@
               <!-- 工具调用块 -->
               <div v-else-if="block.type === 'tool_call'" class="content-block-tool">
                 <div class="tool-card" :class="block.toolStatus">
-                  <div class="tool-card-header">
+                  <div class="tool-card-header" @click="toggleToolBlock(idx)">
                     <span class="tool-status-dot" />
                     <span class="tool-name">{{ block.toolName || '未知工具' }}</span>
+                    <span v-if="block.toolArgs?.path" class="tool-file-path">{{ block.toolArgs.path }}</span>
                     <span class="tool-status-badge" :class="block.toolStatus">{{ toolStatusConfig[block.toolStatus || 'running']?.label || '' }}</span>
                     <span v-if="block.toolStatus === 'running'" class="tool-pulse" />
+                    <el-icon v-if="block.toolStatus === 'completed' || block.toolStatus === 'error'" :size="12" class="tool-toggle">
+                      <component :is="toolBlockExpanded[idx] !== false ? 'ArrowUp' : 'ArrowDown'" />
+                    </el-icon>
                   </div>
-                  <div v-if="block.toolArgs && Object.keys(block.toolArgs).length > 0" class="tool-section">
-                    <div class="tool-section-label">参数</div>
-                    <pre class="tool-code">{{ JSON.stringify(block.toolArgs, null, 2) }}</pre>
-                  </div>
-                  <div v-if="block.toolStatus === 'completed' && block.toolResult !== undefined" class="tool-section">
-                    <div class="tool-section-label">结果</div>
-                    <pre class="tool-code">{{ typeof block.toolResult === 'string' ? block.toolResult : JSON.stringify(block.toolResult, null, 2) }}</pre>
-                  </div>
-                  <div v-if="block.toolStatus === 'error'" class="tool-section tool-section-error">
-                    <div class="tool-section-label">错误信息</div>
-                    <pre class="tool-code">{{ block.content || '工具执行失败' }}</pre>
+                  <div v-show="toolBlockExpanded[idx] !== false">
+                    <div v-if="block.toolArgs && Object.keys(block.toolArgs).length > 0" class="tool-section">
+                      <div class="tool-section-label">参数</div>
+                      <pre class="tool-code">{{ JSON.stringify(block.toolArgs, null, 2) }}</pre>
+                    </div>
+                    <div v-if="block.toolStatus === 'completed' && block.toolResult !== undefined" class="tool-section">
+                      <div class="tool-section-label">结果</div>
+                      <pre class="tool-code">{{ typeof block.toolResult === 'string' ? block.toolResult : JSON.stringify(block.toolResult, null, 2) }}</pre>
+                    </div>
+                    <div v-if="block.toolStatus === 'error'" class="tool-section tool-section-error">
+                      <div class="tool-section-label">错误信息</div>
+                      <pre class="tool-code">{{ block.content || '工具执行失败' }}</pre>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -109,7 +115,7 @@
                 </div>
               </div>
 
-              <div v-if="block.type === 'text' && isStreaming" class="block-cursor">
+              <div v-if="isBlockStreaming(block)" class="block-cursor">
                 <span class="cursor" />
               </div>
             </div>
@@ -126,7 +132,7 @@
               />
             </div>
 
-            <div v-if="isStreaming" class="typing-cursor">
+            <div v-if="isStreaming && !hasActiveStreamingBlock" class="typing-cursor">
               <span class="cursor" />
             </div>
           </template>
@@ -205,6 +211,9 @@ const thinkingExpanded = ref(true)
 /** 思考块展开状态（按索引） */
 const thinkingBlockExpanded = ref<Record<number, boolean>>({})
 
+/** 工具块展开状态（按索引，默认展开） */
+const toolBlockExpanded = ref<Record<number, boolean>>({})
+
 /**
  * 切换思考块展开状态
  * @param idx 块索引
@@ -213,6 +222,17 @@ const toggleThinkingBlock = (idx: number) => {
   thinkingBlockExpanded.value = {
     ...thinkingBlockExpanded.value,
     [idx]: thinkingBlockExpanded.value[idx] !== false ? false : true,
+  }
+}
+
+/**
+ * 切换工具块展开状态
+ * @param idx 块索引
+ */
+const toggleToolBlock = (idx: number) => {
+  toolBlockExpanded.value = {
+    ...toolBlockExpanded.value,
+    [idx]: toolBlockExpanded.value[idx] !== false ? false : true,
   }
 }
 
@@ -228,6 +248,12 @@ watch(
       if (b.type === 'thinking' && b.toolStatus === 'completed') {
         thinkingBlockExpanded.value = {
           ...thinkingBlockExpanded.value,
+          [idx]: false,
+        }
+      }
+      if (b.type === 'tool_call' && (b.toolStatus === 'completed' || b.toolStatus === 'error')) {
+        toolBlockExpanded.value = {
+          ...toolBlockExpanded.value,
           [idx]: false,
         }
       }
@@ -265,6 +291,52 @@ const visibleBlocks = computed(() => {
     if (b.type !== 'thinking') return true
     return (b.content && b.content.length > 0) || (b.reasoningSteps && b.reasoningSteps.length > 0)
   })
+})
+
+/**
+ * 获取内容块的渲染模式
+ * 参考 Claude Code：已完成的块使用 static 模式（不再重新渲染），
+ * 只有当前活跃的流式块使用 streaming 模式
+ * @param block 内容块
+ * @returns 渲染模式
+ */
+const getBlockRenderMode = (block: ContentBlock): 'streaming' | 'static' => {
+  if (!props.isStreaming) return 'static'
+  if (block.toolStatus === 'completed') return 'static'
+  if (block.type === 'text' || block.type === 'thinking') {
+    return block.toolStatus === 'streaming' ? 'streaming' : 'static'
+  }
+  return 'static'
+}
+
+/**
+ * 判断内容块是否正在流式输出
+ * 只有最后一个 streaming 状态的文本块才显示光标
+ * @param block 内容块
+ * @returns 是否正在流式输出
+ */
+const isBlockStreaming = (block: ContentBlock): boolean => {
+  if (!props.isStreaming) return false
+  if (block.toolStatus !== 'streaming') return false
+  if (block.type !== 'text' && block.type !== 'thinking') return false
+  const blocks = props.message.contentBlocks
+  if (!blocks) return false
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    if (blocks[i].type === 'text' || blocks[i].type === 'thinking') {
+      return blocks[i] === block && blocks[i].toolStatus === 'streaming'
+    }
+  }
+  return false
+}
+
+/**
+ * 是否存在活跃的流式输出块
+ * 用于控制全局 typing-cursor 的显示
+ */
+const hasActiveStreamingBlock = computed(() => {
+  const blocks = props.message.contentBlocks
+  if (!blocks) return false
+  return blocks.some(b => (b.type === 'text' || b.type === 'thinking') && b.toolStatus === 'streaming')
 })
 
 /** Markdown 控件配置 */
@@ -598,9 +670,25 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
 
 .content-block {
   margin-bottom: 12px;
+  animation: blockFadeIn 0.25s ease-out;
 
   &:last-child {
     margin-bottom: 0;
+  }
+}
+
+.content-block-completed {
+  opacity: 1;
+}
+
+@keyframes blockFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -683,6 +771,12 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
     align-items: center;
     gap: 8px;
     padding: 10px 14px 10px 17px;
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      background: var(--bg-tertiary);
+    }
 
     .tool-status-dot {
       width: 6px;
@@ -708,6 +802,13 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
       font-size: 13px;
       font-weight: 600;
       color: var(--text-color);
+    }
+
+    .tool-file-path {
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--text-secondary);
+      font-family: 'Consolas', 'Monaco', monospace;
       flex: 1;
       min-width: 0;
       overflow: hidden;
@@ -746,6 +847,12 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
       background: #faad14;
       animation: toolPulse 1.4s ease-in-out infinite;
       flex-shrink: 0;
+    }
+
+    .tool-toggle {
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+      transition: transform 0.2s;
     }
   }
 

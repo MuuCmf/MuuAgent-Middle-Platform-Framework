@@ -189,6 +189,8 @@ export interface ContentBlockStopPayload {
   blockType: ContentBlockType;
   /** 对应的块索引 */
   index: number;
+  /** 标记该块为最终回复（仅 thinking 块有效，前端收到后转为 text 块） */
+  isFinalAnswer?: boolean;
 }
 
 /**
@@ -250,8 +252,8 @@ export const StreamEvents = {
     payload: { blockType, index, toolName },
   }),
 
-  contentBlockStop: (blockType: ContentBlockType, index: number): StreamEvent => ({
+  contentBlockStop: (blockType: ContentBlockType, index: number, isFinalAnswer?: boolean): StreamEvent => ({
     type: StreamEventType.CONTENT_BLOCK_STOP,
-    payload: { blockType, index },
+    payload: { blockType, index, isFinalAnswer },
   }),
 };

@@ -240,6 +240,7 @@ export class RetrievalService {
                 onContentBlockStop({
                   blockType: parsed.blockType,
                   index: parsed.index ?? 0,
+                  isFinalAnswer: parsed.isFinalAnswer,
                 })
               }
             } else if (parsed.choices && parsed.choices[0]?.delta?.content) {

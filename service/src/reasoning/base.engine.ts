@@ -157,7 +157,7 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
 
         let stepText = '';
         let hasToolCall = false;
-        let thinkingOpened = false;
+        let textBlockOpened = false;
 
         await this.aiService.streamText({
           model: context.model,
@@ -170,9 +170,9 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
           uid: context.uid,
           appCode: context.appCode,
           onChunk: (chunk) => {
-            if (!thinkingOpened) {
-              thinkingOpened = true;
-              emitter.emitContentBlockStart('thinking', blockIndex);
+            if (!textBlockOpened) {
+              textBlockOpened = true;
+              emitter.emitContentBlockStart('text', blockIndex);
               blockIndex++;
             }
             stepText += chunk;
@@ -181,9 +181,9 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
           onToolCall: async (toolCall: { name: string; args: any }) => {
             hasToolCall = true;
             const resolvedName = nameMap[toolCall.name] || toolCall.name;
-            if (thinkingOpened) {
-              emitter.emitContentBlockStop('thinking', blockIndex - 1);
-              thinkingOpened = false;
+            if (textBlockOpened) {
+              emitter.emitContentBlockStop('text', blockIndex - 1);
+              textBlockOpened = false;
             }
             emitter.emitContentBlockStart('tool_call', blockIndex, resolvedName);
             blockIndex++;
@@ -197,15 +197,11 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
         });
 
         if (!hasToolCall) {
-          if (thinkingOpened) {
-            emitter.emitContentBlockStop('thinking', blockIndex - 1);
-            thinkingOpened = false;
+          if (textBlockOpened) {
+            emitter.emitContentBlockStop('text', blockIndex - 1);
+            textBlockOpened = false;
           }
-          emitter.emitContentBlockStart('text', blockIndex);
           finalResponse = stepText.trim();
-          emitter.emitTextDelta(finalResponse);
-          emitter.emitContentBlockStop('text', blockIndex);
-          blockIndex++;
           const finalStep = this.createStep(steps.length + 1, 'final_answer', finalResponse);
           steps.push(finalStep);
           this.emitReasoningStep(emitter, finalStep);

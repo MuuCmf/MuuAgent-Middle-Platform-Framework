@@ -107,11 +107,12 @@ export class StreamEmitter {
    * 发射内容块结束事件（便捷方法）
    * @param blockType 内容块类型
    * @param index 块索引
+   * @param isFinalAnswer 标记该 thinking 块为最终回复
    */
-  emitContentBlockStop(blockType: ContentBlockType, index: number): void {
+  emitContentBlockStop(blockType: ContentBlockType, index: number, isFinalAnswer?: boolean): void {
     this.emit({
       type: StreamEventType.CONTENT_BLOCK_STOP,
-      payload: { blockType, index },
+      payload: { blockType, index, isFinalAnswer },
     });
   }
 
@@ -200,11 +201,12 @@ export class StreamEmitter {
       }
 
       case StreamEventType.CONTENT_BLOCK_STOP: {
-        const payload = event.payload as { blockType: string; index: number };
+        const payload = event.payload as { blockType: string; index: number; isFinalAnswer?: boolean };
         return JSON.stringify({
           type: 'content_block_stop',
           blockType: payload.blockType,
           index: payload.index,
+          isFinalAnswer: payload.isFinalAnswer,
         });
       }
 

@@ -81,6 +81,23 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
   ): Promise<void> {
     try {
       let toolCallToExecute: ToolCallInfo | null = null;
+      let blockIndex = toolCallCount * 2;
+      let textBlockOpened = false;
+
+      const openTextBlock = () => {
+        if (!textBlockOpened) {
+          emitter.emitContentBlockStart('text', blockIndex);
+          textBlockOpened = true;
+        }
+      };
+
+      const closeTextBlock = () => {
+        if (textBlockOpened) {
+          emitter.emitContentBlockStop('text', blockIndex);
+          blockIndex++;
+          textBlockOpened = false;
+        }
+      };
 
       await this.aiService.streamText({
         model: context.model,
@@ -93,9 +110,11 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
         uid: context.uid,
         appCode: context.appCode,
         onChunk: (chunk) => {
+          openTextBlock();
           emitter.emitTextDelta(chunk);
         },
         onToolCall: (toolCall) => {
+          closeTextBlock();
           toolCallToExecute = toolCall;
         },
         onFinish: async (result) => {
@@ -107,16 +126,24 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
             const rawCall = toolCallToExecute || (parsedToolCall ? { name: parsedToolCall.toolName, args: parsedToolCall.args } : null);
 
             if (rawCall) {
+              closeTextBlock();
+              const resolvedName = nameMap[rawCall.name] || rawCall.name;
+              emitter.emitContentBlockStart('tool_call', blockIndex, resolvedName);
+              blockIndex++;
+
               await this.handleToolCallInStream(
                 context, currentMessages, emitter, tools, nameMap, toolCallCount, rawCall,
               );
+
               return;
             }
           }
 
+          closeTextBlock();
           await this.handleStreamFinish(context, emitter, result);
         },
         onError: (error) => {
+          closeTextBlock();
           this.emitStreamError(error, emitter);
         },
       });
@@ -136,13 +163,25 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
   ): Promise<void> {
     const resolvedName = nameMap[rawCall.name] || rawCall.name;
     const toolCall: ToolCallInfo = { ...rawCall, name: resolvedName };
+    const toolBlockIndex = toolCallCount * 2 + 1;
 
     try {
       const toolResult = await this.executeTool(toolCall, context, emitter);
 
       this.emitToolCall(emitter, toolCall.name, toolCall.args, toolResult.result);
+      emitter.emitContentBlockStop('tool_call', toolBlockIndex);
 
       const resultText = this.formatToolResult(toolResult.result);
+
+      const stepBase = toolCallCount * 3;
+      const thoughtStep = this.createStep(stepBase + 1, 'thought', `需要调用工具 ${resolvedName}`);
+      this.emitReasoningStep(emitter, thoughtStep);
+
+      const actionStep = this.createStep(stepBase + 2, 'action', `调用工具: ${resolvedName}`, { action: resolvedName, actionInput: toolCall.args });
+      this.emitReasoningStep(emitter, actionStep);
+
+      const observationStep = this.createStep(stepBase + 3, 'observation', resultText, { observation: resultText });
+      this.emitReasoningStep(emitter, observationStep);
 
       const newMessages: ModelMessage[] = [
         ...currentMessages,
@@ -162,6 +201,11 @@ export class NoneReasoningEngine extends BaseReasoningEngine {
       this.logger.error(`工具执行失败: ${errorMsg}`);
 
       this.emitToolCall(emitter, toolCall.name, toolCall.args, `工具执行失败: ${errorMsg}`);
+      emitter.emitContentBlockStop('tool_call', toolBlockIndex);
+
+      const errorStep = this.createStep(3, 'observation', `工具执行失败: ${errorMsg}`, { observation: errorMsg });
+      this.emitReasoningStep(emitter, errorStep);
+
       await this.saveLog(context, { response: `抱歉，工具执行失败: ${errorMsg}`, steps: [] });
       emitter.emitDone({
         conversationId: context.conversationId,

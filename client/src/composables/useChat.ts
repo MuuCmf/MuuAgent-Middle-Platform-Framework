@@ -17,38 +17,63 @@ import type { ClientToolCallPayload, ContentBlockStartPayload, ContentBlockStopP
 import type { ClientToolModulePolicy } from '../executor/types'
 
 /**
- * 创建 rAF 节流的消息写入器
- * 将高频 token 更新合并到每帧一次，避免渲染卡顿
+ * 创建分段流式写入器
+ * 参考 Claude Code 的分段流式输出模式：
+ * - 每个 content_block 独立管理自己的缓冲区
+ * - 已完成的块（status=completed）不再接收增量，切换为静态渲染
+ * - 只有当前活跃块（status=streaming/running）才接收增量更新
+ * - 使用 rAF 节流合并高频 token，每帧仅触发一次 Vue 响应式更新
  * @param getMessage 获取目标消息的 getter（始终返回最新引用）
- * @returns { flush: () => void } flush 方法供流结束时调用
+ * @returns 分段流式写入器实例
  */
-function createRafThrottledWriter(
+function createSegmentedStreamWriter(
   getMessage: () => Message,
-): { write: (chunk: string) => void; flush: () => void; setUpdateFn: (fn: (chunk: string) => void) => void } {
+) {
+  /** 待刷出的文本增量 */
   let pending = ''
+  /** rAF 节流 ID */
   let rafId: number | null = null
-  let updateFn: ((chunk: string) => void) | null = null
 
   /**
-   * 设置消息更新函数
-   * @param fn 更新函数
+   * 将增量刷出到当前活跃文本块
+   * 只更新最后一个 streaming 状态的 text/thinking 块
    */
-  const setUpdateFn = (fn: (chunk: string) => void) => {
-    updateFn = fn
+  const flushToBlock = () => {
+    if (!pending) return
+    const msg = getMessage()
+    if (!msg.contentBlocks) return
+
+    const activeBlock = findActiveTextBlock(msg.contentBlocks)
+    if (activeBlock) {
+      activeBlock.content += pending
+    }
+    pending = ''
   }
 
   /**
-   * 写入 chunk（节流到下一帧）
+   * 查找当前活跃的文本块（最后一个 streaming 状态的 text/thinking 块）
+   * @param blocks 内容块列表
+   * @returns 活跃文本块或 undefined
+   */
+  const findActiveTextBlock = (blocks: ContentBlock[]): ContentBlock | undefined => {
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const b = blocks[i]
+      if ((b.type === 'text' || b.type === 'thinking') && b.toolStatus === 'streaming') {
+        return b
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * 写入文本增量（rAF 节流）
    * @param chunk 文本增量
    */
   const write = (chunk: string) => {
     pending += chunk
     if (rafId === null) {
       rafId = requestAnimationFrame(() => {
-        if (updateFn && pending) {
-          updateFn(pending)
-        }
-        pending = ''
+        flushToBlock()
         rafId = null
       })
     }
@@ -62,25 +87,25 @@ function createRafThrottledWriter(
       cancelAnimationFrame(rafId)
       rafId = null
     }
-    if (updateFn && pending) {
-      updateFn(pending)
-    }
-    pending = ''
+    flushToBlock()
   }
 
-  return { write, flush, setUpdateFn }
+  return { write, flush, findActiveTextBlock }
 }
 
 /**
  * 创建内容块管理器
- * 处理 content_block_start / content_block_stop 事件，维护消息的内容块列表
+ * 参考 Claude Code 的分段流式输出模式：
+ * - content_block_start 时创建新块，状态为 streaming/running
+ * - content_block_stop 时将块状态切换为 completed，触发静态渲染
+ * - 已完成的块不再接收增量更新
  * @param getMessage 获取目标消息的 getter
  * @returns 内容块事件处理回调
  */
 function createContentBlockManager(getMessage: () => Message) {
   /**
    * 处理 content_block_start 事件
-   * 如果已存在同类型同索引的块则跳过（防止前端自动创建与后端事件的冲突）
+   * 创建新的内容块，状态设为 streaming/running
    * @param payload 内容块开始载荷
    */
   const onContentBlockStart = (payload: ContentBlockStartPayload) => {
@@ -88,7 +113,6 @@ function createContentBlockManager(getMessage: () => Message) {
     if (!msg.contentBlocks) {
       msg.contentBlocks = []
     }
-    // 防止重复创建（前端 appendToCurrentTextBlock 可能已自动创建）
     const existing = msg.contentBlocks.find(
       (b) => b.type === payload.blockType && b.index === payload.index,
     )
@@ -109,6 +133,7 @@ function createContentBlockManager(getMessage: () => Message) {
 
   /**
    * 处理 content_block_stop 事件
+   * 将块状态切换为 completed，后续增量不再写入此块
    * @param payload 内容块结束载荷
    */
   const onContentBlockStop = (payload: ContentBlockStopPayload) => {
@@ -118,36 +143,35 @@ function createContentBlockManager(getMessage: () => Message) {
       (b) => b.type === payload.blockType && b.index === payload.index,
     )
     if (block) {
-      if (block.toolStatus === 'running') {
-        block.toolStatus = 'completed'
-      } else if (block.toolStatus === 'streaming') {
-        block.toolStatus = 'completed'
+      block.toolStatus = 'completed'
+      if (payload.isFinalAnswer && block.type === 'thinking') {
+        block.type = 'text'
       }
     }
   }
 
   /**
-   * 将文本增量追加到当前最后一个内容块（text 或 thinking）
-   * 文本块和思考块都接收 text_delta，工具块不接收
-   * @param chunk 文本增量
+   * 确保当前有活跃的文本块可写入
+   * 当后端未发送 content_block_start 时，自动创建一个 text 块
+   * @returns 活跃文本块
    */
-  const appendToCurrentTextBlock = (chunk: string) => {
+  const ensureActiveTextBlock = (): ContentBlock => {
     const msg = getMessage()
     if (!msg.contentBlocks) {
       msg.contentBlocks = []
     }
     const lastBlock = msg.contentBlocks[msg.contentBlocks.length - 1]
-    if (lastBlock && (lastBlock.type === 'text' || lastBlock.type === 'thinking')) {
-      lastBlock.content += chunk
-    } else {
-      const block: ContentBlock = {
-        type: 'text',
-        index: msg.contentBlocks.length,
-        content: chunk,
-        toolStatus: 'streaming',
-      }
-      msg.contentBlocks.push(block)
+    if (lastBlock && (lastBlock.type === 'text' || lastBlock.type === 'thinking') && lastBlock.toolStatus === 'streaming') {
+      return lastBlock
     }
+    const block: ContentBlock = {
+      type: 'text',
+      index: msg.contentBlocks.length,
+      content: '',
+      toolStatus: 'streaming',
+    }
+    msg.contentBlocks.push(block)
+    return block
   }
 
   /**
@@ -156,12 +180,14 @@ function createContentBlockManager(getMessage: () => Message) {
    * @param status 新状态
    * @param result 执行结果
    * @param error 错误信息
+   * @param args 工具参数
    */
   const updateToolBlock = (
     toolName: string,
     status: ContentBlockStatus,
     result?: unknown,
     error?: string,
+    args?: Record<string, unknown>,
   ) => {
     const msg = getMessage()
     if (!msg.contentBlocks) return
@@ -172,10 +198,11 @@ function createContentBlockManager(getMessage: () => Message) {
       block.toolStatus = status
       if (result !== undefined) block.toolResult = result
       if (error) block.toolResult = error
+      if (args) block.toolArgs = args
     }
   }
 
-  return { onContentBlockStart, onContentBlockStop, appendToCurrentTextBlock, updateToolBlock }
+  return { onContentBlockStart, onContentBlockStop, ensureActiveTextBlock, updateToolBlock }
 }
 
 /**
@@ -568,7 +595,7 @@ export function useChat() {
     const messagesToSend: Message[] = [userMessage]
 
     await new Promise<void>((resolve, reject) => {
-      const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
+      const writer = createSegmentedStreamWriter(() => messages.value[assistantIndex])
       const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
 
       chatService.streamChat(
@@ -579,16 +606,17 @@ export function useChat() {
         },
         {
           onMessage: (chunk: string) => {
-            blockMgr.appendToCurrentTextBlock(chunk)
-            throttled.write(chunk)
+            blockMgr.ensureActiveTextBlock()
+            writer.write(chunk)
           },
           onError: (error: Error) => {
-            throttled.flush()
+            writer.flush()
             messages.value[assistantIndex].content = `错误: ${error.message}`
+            messages.value[assistantIndex].contentBlocks = []
             reject(error)
           },
           onComplete: () => {
-            throttled.flush()
+            writer.flush()
             isLoading.value = false
             abortController.value = null
             loadConversations()
@@ -601,6 +629,7 @@ export function useChat() {
             blockMgr.onContentBlockStart(payload)
           },
           onContentBlockStop: (payload) => {
+            writer.flush()
             blockMgr.onContentBlockStop(payload)
           },
         },
@@ -616,7 +645,7 @@ export function useChat() {
     signal: AbortSignal,
   ) => {
     await new Promise<void>((resolve, reject) => {
-      const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
+      const writer = createSegmentedStreamWriter(() => messages.value[assistantIndex])
       const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
 
       agentService.streamChat(
@@ -635,16 +664,17 @@ export function useChat() {
         },
         {
           onMessage: (chunk: string) => {
-            blockMgr.appendToCurrentTextBlock(chunk)
-            throttled.write(chunk)
+            blockMgr.ensureActiveTextBlock()
+            writer.write(chunk)
           },
           onError: (error: Error) => {
-            throttled.flush()
+            writer.flush()
             messages.value[assistantIndex].content = `错误: ${error.message}`
+            messages.value[assistantIndex].contentBlocks = []
             reject(error)
           },
           onComplete: () => {
-            throttled.flush()
+            writer.flush()
             isLoading.value = false
             abortController.value = null
             loadConversations()
@@ -657,15 +687,32 @@ export function useChat() {
             blockMgr.onContentBlockStart(payload)
           },
           onContentBlockStop: (payload) => {
+            writer.flush()
             blockMgr.onContentBlockStop(payload)
           },
           onReasoningStep: (step: ReasoningStep) => {
             if (messages.value[assistantIndex].reasoningSteps) {
               messages.value[assistantIndex].reasoningSteps!.push(step)
             }
+            const blocks = messages.value[assistantIndex].contentBlocks
+            if (blocks) {
+              for (let i = blocks.length - 1; i >= 0; i--) {
+                if (blocks[i].type === 'thinking' && blocks[i].toolStatus === 'streaming') {
+                  if (!blocks[i].reasoningSteps) {
+                    blocks[i].reasoningSteps = []
+                  }
+                  blocks[i].reasoningSteps!.push(step)
+                  break
+                }
+              }
+            }
+          },
+          onToolResult: (payload) => {
+            blockMgr.updateToolBlock(payload.name, 'completed', payload.result, undefined, payload.args)
           },
           onClientToolCall: (payload: ClientToolCallPayload) => {
-            blockMgr.updateToolBlock(payload.toolName, 'completed')
+            writer.flush()
+            blockMgr.updateToolBlock(payload.toolName, 'running', undefined, undefined, payload.args)
             clientToolRouter.handleCall(
               payload,
               (message) => {
@@ -716,7 +763,7 @@ export function useChat() {
     const assistantIndex = messages.value.length - 1
 
     try {
-      const throttled = createRafThrottledWriter(() => messages.value[assistantIndex])
+      const writer = createSegmentedStreamWriter(() => messages.value[assistantIndex])
       const blockMgr = createContentBlockManager(() => messages.value[assistantIndex])
 
       await retrievalService.ragChatStream(
@@ -730,17 +777,18 @@ export function useChat() {
         },
         {
           onMessage: (content: string) => {
-            blockMgr.appendToCurrentTextBlock(content)
-            throttled.write(content)
+            blockMgr.ensureActiveTextBlock()
+            writer.write(content)
           },
           onError: (error: Error) => {
-            throttled.flush()
+            writer.flush()
             messages.value[assistantIndex].content = '错误: ' + error.message
+            messages.value[assistantIndex].contentBlocks = []
             ElMessage.error('RAG问答失败: ' + error.message)
             isLoading.value = false
           },
           onComplete: (sources?: RetrievalItem[]) => {
-            throttled.flush()
+            writer.flush()
             if (sources && sources.length > 0) {
               messages.value[assistantIndex].sources = sources
             }
@@ -754,6 +802,7 @@ export function useChat() {
             blockMgr.onContentBlockStart(payload)
           },
           onContentBlockStop: (payload) => {
+            writer.flush()
             blockMgr.onContentBlockStop(payload)
           },
         },
