@@ -157,7 +157,6 @@ export class OAuthAdminController {
    */
   @Get('clients')
   @ApiOperation({ summary: '获取客户端列表' })
-  @RequireScope(AdminScope.OAUTH_READ)
   async getClients(
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
@@ -175,7 +174,6 @@ export class OAuthAdminController {
    */
   @Get('clients/:id')
   @ApiOperation({ summary: '获取客户端详情' })
-  @RequireScope(AdminScope.OAUTH_READ)
   async getClient(@Param('id') id: string) {
     const data = await this.oauthService.getClientById(id);
     return success(data);
@@ -188,7 +186,6 @@ export class OAuthAdminController {
    */
   @Post('clients')
   @ApiOperation({ summary: '创建客户端' })
-  @RequireScope(AdminScope.OAUTH_WRITE)
   async createClient(
     @Body()
     body: {
@@ -211,7 +208,6 @@ export class OAuthAdminController {
    */
   @Put('clients/:id')
   @ApiOperation({ summary: '更新客户端' })
-  @RequireScope(AdminScope.OAUTH_WRITE)
   async updateClient(
     @Param('id') id: string,
     @Body()
@@ -234,7 +230,6 @@ export class OAuthAdminController {
    */
   @Delete('clients/:id')
   @ApiOperation({ summary: '删除客户端' })
-  @RequireScope(AdminScope.OAUTH_WRITE)
   async deleteClient(@Param('id') id: string) {
     await this.oauthService.deleteClient(id);
     return success(null, '客户端已删除');
@@ -247,7 +242,6 @@ export class OAuthAdminController {
    */
   @Post('clients/:id/reset-secret')
   @ApiOperation({ summary: '重置客户端密钥' })
-  @RequireScope(AdminScope.OAUTH_WRITE)
   async resetSecret(@Param('id') id: string) {
     const data = await this.oauthService.resetClientSecret(id);
     return success(data, '密钥重置成功');
@@ -262,7 +256,6 @@ export class OAuthAdminController {
    */
   @Get('tokens')
   @ApiOperation({ summary: '获取令牌列表' })
-  @RequireScope(AdminScope.OAUTH_READ)
   async getTokens(
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
@@ -279,7 +272,6 @@ export class OAuthAdminController {
    */
   @Post('tokens/:id/revoke')
   @ApiOperation({ summary: '撤销令牌' })
-  @RequireScope(AdminScope.OAUTH_WRITE)
   async revokeToken(@Param('id') id: string) {
     await this.oauthService.revokeTokenById(id);
     return success(null, '令牌已撤销');

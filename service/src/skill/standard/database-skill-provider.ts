@@ -35,6 +35,7 @@ export class DatabaseSkillProvider implements ISkillProvider {
         source: true,
         type: true,
         appCode: true,
+        uid: true,
         isPublic: true,
         hasReferences: true,
         hasScripts: true,
@@ -47,6 +48,7 @@ export class DatabaseSkillProvider implements ISkillProvider {
       source: skill.source as 'database' | 'filesystem',
       type: skill.type || undefined,
       appCode: skill.appCode || null,
+      uid: skill.uid || undefined,
       isPublic: skill.isPublic,
       hasReferences: skill.hasReferences,
       hasScripts: skill.hasScripts,
@@ -75,6 +77,7 @@ export class DatabaseSkillProvider implements ISkillProvider {
         source: skill.source as 'database' | 'filesystem',
         type: skill.type || undefined,
         appCode: skill.appCode || null,
+        uid: skill.uid || undefined,
         isPublic: skill.isPublic,
         hasReferences: skill.hasReferences,
         hasScripts: skill.hasScripts,
@@ -160,6 +163,7 @@ export class DatabaseSkillProvider implements ISkillProvider {
     hasReferences: boolean;
     hasAssets: boolean;
     appCode: string | null;
+    uid: string | null;
     isPublic: boolean;
     instructions: string;
     allowedTools?: string[];
@@ -175,6 +179,7 @@ export class DatabaseSkillProvider implements ISkillProvider {
             description: entry.description,
             source: 'filesystem',
             appCode: entry.appCode,
+            uid: entry.uid,
             isPublic: entry.isPublic,
             hasReferences: entry.hasReferences,
             hasScripts: entry.hasScripts,
@@ -189,6 +194,7 @@ export class DatabaseSkillProvider implements ISkillProvider {
             description: entry.description,
             source: 'filesystem',
             appCode: entry.appCode,
+            uid: entry.uid,
             isPublic: entry.isPublic,
             hasReferences: entry.hasReferences,
             hasScripts: entry.hasScripts,
@@ -247,7 +253,7 @@ export class DatabaseSkillProvider implements ISkillProvider {
   }
 
   /**
-   * 构建查询条件
+   * 构建查询条件（支持用户级隔离）
    */
   private buildWhereClause(context?: IsolationContext) {
     if (!context || context.isSuperAdmin) {
@@ -258,6 +264,18 @@ export class DatabaseSkillProvider implements ISkillProvider {
       return { isPublic: true };
     }
 
+    // 用户级隔离：可见范围 = 自己的私有技能 + 应用级公共技能(uid为空) + 公开技能
+    if (context.uid) {
+      return {
+        OR: [
+          { isPublic: true },
+          { appCode: context.appCode, uid: context.uid },
+          { appCode: context.appCode, uid: null },
+        ],
+      };
+    }
+
+    // 应用级隔离：可见范围 = 应用技能 + 公开技能
     return {
       OR: [
         { isPublic: true },
@@ -267,16 +285,25 @@ export class DatabaseSkillProvider implements ISkillProvider {
   }
 
   /**
-   * 检查技能是否匹配应用上下文
+   * 检查技能是否匹配应用上下文（支持用户级隔离）
    */
   private matchesAppContext(
-    skill: { appCode: string | null; isPublic: boolean },
+    skill: { appCode: string | null; uid: string | null; isPublic: boolean },
     context?: IsolationContext,
   ): boolean {
     if (!context || context.isSuperAdmin) return true;
     if (skill.isPublic) return true;
+    
     if (!context.appCode) return skill.isPublic;
-    return skill.appCode === context.appCode;
+    if (skill.appCode !== context.appCode) return false;
+    
+    // 用户级隔离检查
+    if (context.uid) {
+      // 自己的私有技能或应用级公共技能
+      return skill.uid === context.uid || skill.uid === null;
+    }
+    
+    return true;
   }
 
   /**

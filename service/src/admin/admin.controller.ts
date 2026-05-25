@@ -81,7 +81,6 @@ export class AdminController {
   @ApiOperation({ summary: '创建管理员' })
   @SwaggerApiResponse({ status: 201, description: '创建成功' })
   @SwaggerApiResponse({ status: 409, description: '账号已存在' })
-  @RequireScope(AdminScope.ADMIN_WRITE)
   async create(@Body() createAdminDto: CreateAdminDto) {
     const result = await this.adminService.createAdmin(createAdminDto);
     return success(result, '创建成功');
@@ -130,7 +129,6 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取管理员列表' })
   @SwaggerApiResponse({ status: 200, description: '获取成功' })
-  @RequireScope(AdminScope.ADMIN_READ)
   async findAll() {
     const result = await this.adminService.findAll();
     return success(result, '获取成功');
@@ -147,7 +145,6 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新管理员状态' })
   @SwaggerApiResponse({ status: 200, description: '更新成功' })
-  @RequireScope(AdminScope.ADMIN_WRITE)
   async updateStatus(
     @Param('id') id: string,
     @Body('status') status: number,
@@ -166,7 +163,6 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除管理员' })
   @SwaggerApiResponse({ status: 200, description: '删除成功' })
-  @RequireScope(AdminScope.ADMIN_WRITE)
   async delete(@Param('id') id: string): Promise<ApiResponse<null>> {
     await this.adminService.delete(id);
     return success(null, '删除成功');

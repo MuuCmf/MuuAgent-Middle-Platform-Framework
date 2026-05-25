@@ -69,14 +69,18 @@ export class IsolationService {
     context: IsolationContext,
     options?: {
       appCodeField?: string;
+      uidField?: string;
       isPublicField?: string;
       includePublic?: boolean;
+      useUserIsolation?: boolean;
     },
   ): any {
-    const { appCode, isSuperAdmin } = context;
+    const { appCode, uid, isSuperAdmin } = context;
     const appCodeField = options?.appCodeField || this.appCodeField;
+    const uidField = options?.uidField || 'uid';
     const isPublicField = options?.isPublicField || this.isPublicField;
     const includePublic = options?.includePublic ?? true;
+    const useUserIsolation = options?.useUserIsolation ?? false;
 
     if (isSuperAdmin) {
       return {};
@@ -89,6 +93,23 @@ export class IsolationService {
       return { [appCodeField]: null };
     }
 
+    // 用户级隔离：可见范围 = 自己的私有技能 + 应用级公共技能(uid为空) + 公开技能
+    if (useUserIsolation && uid) {
+      const conditions: any[] = [
+        // 用户私有技能：appCode匹配 + uid匹配
+        { [appCodeField]: appCode, [uidField]: uid },
+        // 应用级公共技能：appCode匹配 + uid为空
+        { [appCodeField]: appCode, [uidField]: null },
+      ];
+
+      if (includePublic) {
+        conditions.push({ [isPublicField]: true });
+      }
+
+      return { OR: conditions };
+    }
+
+    // 应用级隔离：可见范围 = 应用技能 + 公开技能
     const conditions: any[] = [{ [appCodeField]: appCode }];
 
     if (includePublic) {
@@ -99,7 +120,7 @@ export class IsolationService {
   }
 
   /**
-   * 构建创建数据（自动注入appCode）
+   * 构建创建数据（自动注入appCode和uid）
    * @param data 原始数据
    * @param context 隔离上下文
    * @param options 配置选项
@@ -110,31 +131,35 @@ export class IsolationService {
     context: IsolationContext,
     options?: {
       appCodeField?: string;
+      uidField?: string;
+      useUserIsolation?: boolean;
     },
   ): T & { [key: string]: string | null } {
-    const { appCode, isSuperAdmin } = context;
+    const { appCode, uid, isSuperAdmin } = context;
     const appCodeField = options?.appCodeField || this.appCodeField;
+    const uidField = options?.uidField || 'uid';
+    const useUserIsolation = options?.useUserIsolation ?? false;
 
     if (isSuperAdmin) {
-      if (data[appCodeField] !== undefined) {
-        return data;
-      }
       return data;
     }
 
-    if (!appCode) {
-      return data;
+    let result: any = { ...data };
+
+    if (appCode) {
+      result = { ...result, [appCodeField]: appCode };
     }
 
-    const { [appCodeField]: _, ...rest } = data as any;
-    return {
-      ...rest,
-      [appCodeField]: appCode,
-    };
+    // 用户级隔离：自动注入uid（如果未指定uid则设为当前用户）
+    if (useUserIsolation && uid && result[uidField] === undefined) {
+      result = { ...result, [uidField]: uid };
+    }
+
+    return result;
   }
 
   /**
-   * 构建更新/删除条件（确保只能操作自己应用的数据）
+   * 构建更新/删除条件（确保只能操作自己应用或自己的数据）
    * @param id 资源ID
    * @param context 隔离上下文
    * @param options 配置选项
@@ -145,10 +170,14 @@ export class IsolationService {
     context: IsolationContext,
     options?: {
       appCodeField?: string;
+      uidField?: string;
+      useUserIsolation?: boolean;
     },
   ): any {
-    const { appCode, isSuperAdmin } = context;
+    const { appCode, uid, isSuperAdmin } = context;
     const appCodeField = options?.appCodeField || this.appCodeField;
+    const uidField = options?.uidField || 'uid';
+    const useUserIsolation = options?.useUserIsolation ?? false;
 
     const baseWhere: any = { id };
 
@@ -158,6 +187,18 @@ export class IsolationService {
 
     if (!appCode) {
       return { ...baseWhere, [appCodeField]: null };
+    }
+
+    // 用户级隔离：只能操作自己创建的技能或应用级公共技能(uid为空)
+    if (useUserIsolation && uid) {
+      return {
+        ...baseWhere,
+        [appCodeField]: appCode,
+        OR: [
+          { [uidField]: uid },      // 自己的私有技能
+          { [uidField]: null },     // 应用级公共技能
+        ],
+      };
     }
 
     return {
@@ -183,17 +224,21 @@ export class IsolationService {
    * 构建应用隔离查询条件（静态方法，向后兼容）
    * @param context 隔离上下文
    * @param appCodeField 应用标识字段名，默认 'appCode'
+   * @param uidField 用户标识字段名，默认 'uid'
    * @param isPublicField 公开标识字段名，默认 'isPublic'
    * @param includePublic 是否包含公开资源，默认 true
+   * @param useUserIsolation 是否启用用户级隔离，默认 false
    * @returns 查询条件
    */
   static buildIsolationWhere(
     context: IsolationContext,
     appCodeField: string = 'appCode',
+    uidField: string = 'uid',
     isPublicField: string = 'isPublic',
     includePublic: boolean = true,
+    useUserIsolation: boolean = false,
   ): any {
-    const { appCode, isSuperAdmin } = context;
+    const { appCode, uid, isSuperAdmin } = context;
 
     if (isSuperAdmin) {
       return {};
@@ -204,6 +249,20 @@ export class IsolationService {
         return { [isPublicField]: true };
       }
       return { [appCodeField]: null };
+    }
+
+    // 用户级隔离：可见范围 = 自己的私有技能 + 应用级公共技能(uid为空) + 公开技能
+    if (useUserIsolation && uid) {
+      const conditions: any[] = [
+        { [appCodeField]: appCode, [uidField]: uid },
+        { [appCodeField]: appCode, [uidField]: null },
+      ];
+
+      if (includePublic) {
+        conditions.push({ [isPublicField]: true });
+      }
+
+      return { OR: conditions };
     }
 
     const conditions: any[] = [{ [appCodeField]: appCode }];
@@ -220,31 +279,34 @@ export class IsolationService {
    * @param data 原始数据
    * @param context 隔离上下文
    * @param appCodeField 应用标识字段名，默认 'appCode'
+   * @param uidField 用户标识字段名，默认 'uid'
+   * @param useUserIsolation 是否启用用户级隔离，默认 false
    * @returns 处理后的数据
    */
   static buildCreateData<T extends Record<string, any>>(
     data: T,
     context: IsolationContext,
     appCodeField: string = 'appCode',
+    uidField: string = 'uid',
+    useUserIsolation: boolean = false,
   ): T & { [key: string]: string | null } {
-    const { appCode, isSuperAdmin } = context;
+    const { appCode, uid, isSuperAdmin } = context;
 
     if (isSuperAdmin) {
-      if (data[appCodeField] !== undefined) {
-        return data;
-      }
       return data;
     }
 
-    if (!appCode) {
-      return data;
+    let result: any = { ...data };
+
+    if (appCode) {
+      result = { ...result, [appCodeField]: appCode };
     }
 
-    const { [appCodeField]: _, ...rest } = data as any;
-    return {
-      ...rest,
-      [appCodeField]: appCode,
-    };
+    if (useUserIsolation && uid && result[uidField] === undefined) {
+      result = { ...result, [uidField]: uid };
+    }
+
+    return result;
   }
 
   /**
@@ -252,14 +314,18 @@ export class IsolationService {
    * @param id 资源ID
    * @param context 隔离上下文
    * @param appCodeField 应用标识字段名，默认 'appCode'
+   * @param uidField 用户标识字段名，默认 'uid'
+   * @param useUserIsolation 是否启用用户级隔离，默认 false
    * @returns 查询条件
    */
   static buildOwnerWhere(
     id: string,
     context: IsolationContext,
     appCodeField: string = 'appCode',
+    uidField: string = 'uid',
+    useUserIsolation: boolean = false,
   ): any {
-    const { appCode, isSuperAdmin } = context;
+    const { appCode, uid, isSuperAdmin } = context;
 
     const baseWhere: any = { id };
 
@@ -269,6 +335,18 @@ export class IsolationService {
 
     if (!appCode) {
       return { ...baseWhere, [appCodeField]: null };
+    }
+
+    // 用户级隔离：只能操作自己创建的技能或应用级公共技能(uid为空)
+    if (useUserIsolation && uid) {
+      return {
+        ...baseWhere,
+        [appCodeField]: appCode,
+        OR: [
+          { [uidField]: uid },
+          { [uidField]: null },
+        ],
+      };
     }
 
     return {
@@ -316,6 +394,7 @@ export abstract class BaseIsolatedService {
     return IsolationService.buildIsolationWhere(
       { appCode, isSuperAdmin },
       this.appCodeField,
+      'uid',
       this.isPublicField,
       includePublic,
     );
@@ -325,7 +404,7 @@ export abstract class BaseIsolatedService {
     data: T,
     appCode: string | null,
   ): T & { [key: string]: string | null } {
-    return IsolationService.buildCreateData(data, { appCode, isSuperAdmin: false }, this.appCodeField);
+    return IsolationService.buildCreateData(data, { appCode, isSuperAdmin: false }, this.appCodeField, 'uid', false);
   }
 
   protected buildUpdateWhere(
@@ -333,7 +412,7 @@ export abstract class BaseIsolatedService {
     appCode: string | null,
     isSuperAdmin: boolean,
   ): any {
-    return IsolationService.buildOwnerWhere(id, { appCode, isSuperAdmin }, this.appCodeField);
+    return IsolationService.buildOwnerWhere(id, { appCode, isSuperAdmin }, this.appCodeField, 'uid', false);
   }
 
   protected buildDeleteWhere(

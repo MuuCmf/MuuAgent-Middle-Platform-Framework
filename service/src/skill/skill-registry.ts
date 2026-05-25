@@ -16,6 +16,7 @@ export interface SkillMetadata {
   source: 'filesystem' | 'database';
   type?: string;
   appCode?: string | null;
+  uid?: string;
   isPublic: boolean;
   hasReferences: boolean;
   hasScripts: boolean;
