@@ -1,11 +1,32 @@
 version: '3.8'
 
+# ===========================================
+# MuuAgent AI 中台 Docker 编排
+# ===========================================
+#
+# 快速启动：
+#   docker-compose up -d
+#
+# 首次部署需初始化数据库：
+#   docker-compose exec app npx prisma migrate deploy
+#
+# 环境变量配置：
+#   创建 .env 文件（基于 service/.env.example）或使用下方默认值
+# ===========================================
+
+x-common: &common
+  networks:
+    - muu_ai_network
+  restart: unless-stopped
+
 services:
+  # ===========================================
   # MySQL 数据库
+  # ===========================================
   mysql:
     image: mysql:8.0
     container_name: muu_ai_mysql
-    restart: always
+    <<: *common
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Root_Pass_2026}
       MYSQL_DATABASE: muu_ai_platform
@@ -17,26 +38,27 @@ services:
       - mysql_data:/var/lib/mysql
       - ./deploy/mysql/init:/docker-entrypoint-initdb.d
       - ./deploy/mysql/conf.d:/etc/mysql/conf.d
-    command: 
-      --default-authentication-plugin=mysql_native_password 
-      --character-set-server=utf8mb4 
+    command:
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
-      --max_connections=1000
-      --innodb_buffer_pool_size=1G
-      --innodb_log_file_size=256M
+      --max-connections=1000
+      --innodb-buffer-pool-size=1G
+      --innodb-log-file-size=256M
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-Root_Pass_2026}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - muu_ai_network
+      start_period: 30s
 
-  # Redis 缓存
+  # ===========================================
+  # Redis 缓存（用于限流、缓存、任务队列）
+  # ===========================================
   redis:
     image: redis:7-alpine
     container_name: muu_ai_redis
-    restart: always
+    <<: *common
     ports:
       - "6379:6379"
     volumes:
@@ -47,60 +69,100 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-    networks:
-      - muu_ai_network
 
-  # AI 中台服务
+  # ===========================================
+  # Qdrant 向量数据库（用于知识库向量检索）
+  # ===========================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: muu_ai_qdrant
+    <<: *common
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ===========================================
+  # AI 中台服务（NestJS）
+  # ===========================================
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: muu_ai_service
-    restart: always
+    <<: *common
     ports:
-      - "3002:3002"
+      - "${APP_PORT:-3002}:3002"
+    env_file:
+      - ${ENV_FILE:-./service/.env}
     environment:
+      # Docker 环境覆盖：数据库和缓存使用容器内地址
       DATABASE_URL: mysql://muu_ai:${MYSQL_PASSWORD:-MuAI_2026_Prod_Pass}@mysql:3306/muu_ai_platform?connection_limit=10&pool_timeout=30
       REDIS_URL: redis://redis:6379
-      API_KEY: ${API_KEY:-MuAI-Prod-2026-Secret-Key-Change-Me}
-      JWT_SECRET: ${JWT_SECRET:-MuAI-JWT-Prod-Secret-Key-Please-Change-Me-64Chars}
+      VECTOR_DB_HOST: qdrant
+      VECTOR_DB_PORT: 6333
+      VECTOR_DB_URL: http://qdrant:6333
       NODE_ENV: production
-      LOG_LEVEL: warn
-      PORT: 3002
+    volumes:
+      - app_uploads:/app/uploads
     depends_on:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      qdrant:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-    networks:
-      - muu_ai_network
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: ${APP_MEMORY_LIMIT:-2G}
+        reservations:
+          memory: ${APP_MEMORY_RESERVATION:-512M}
 
-  # Nginx 反向代理（可选）
+  # ===========================================
+  # Nginx 反向代理（可选，用于 HTTPS 和域名访问）
+  # ===========================================
   nginx:
     image: nginx:alpine
     container_name: muu_ai_nginx
-    restart: always
+    <<: *common
     ports:
-      - "80:80"
-      - "443:443"
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
     volumes:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./deploy/nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
-      - app
-    networks:
-      - muu_ai_network
+      app:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
 volumes:
   mysql_data:
     driver: local
   redis_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  app_uploads:
     driver: local
 
 networks:

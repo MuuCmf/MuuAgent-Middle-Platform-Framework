@@ -1,45 +1,84 @@
 # ===========================================
 # AI 中台服务 Dockerfile
+# 多阶段构建：后端 + 管理后台 + 用户端
 # ===========================================
 
-# 构建阶段
-FROM node:18-alpine AS builder
+# ---- 构建阶段 1：后端服务 (NestJS) ----
+FROM node:18-alpine AS service-builder
 
 WORKDIR /app
 
-# 复制 package 文件
+# 单独安装依赖以利用 Docker 缓存
 COPY service/package*.json ./
+RUN npm ci
 
-# 安装依赖
-RUN npm ci --only=production
-
-# 复制源代码
+# 复制后端源代码
 COPY service/ ./
 
 # 生成 Prisma Client
 RUN npx prisma generate
 
-# 生产阶段
+# 构建 NestJS 项目
+RUN npm run build
+
+# ---- 构建阶段 2：管理后台 (Admin) ----
+FROM node:18-alpine AS admin-builder
+
+WORKDIR /app
+
+COPY admin/package*.json ./
+RUN npm ci
+
+COPY admin/ ./
+RUN npm run build
+
+# ---- 构建阶段 3：用户端 (Client) ----
+FROM node:18-alpine AS client-builder
+
+WORKDIR /app
+
+COPY client/package*.json ./
+RUN npm ci
+
+COPY client/ ./
+RUN npm run build
+
+# ---- 生产运行阶段 ----
 FROM node:18-alpine
 
 WORKDIR /app
 
-# 安装 dumb-init（用于正确处理信号）
-RUN apk add --no-cache dumb-init
+# 安装系统依赖
+RUN apk add --no-cache dumb-init wget ca-certificates tzdata
+
+# 设置时区（默认 Asia/Shanghai）
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # 创建非 root 用户
-RUN addgroup -g 1001 -S nodejs \
-    && adduser -S nodejs -u 1001
+RUN addgroup -g 1001 -S appgroup \
+    && adduser -S appuser -u 1001 -G appgroup
 
-# 从构建阶段复制文件
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nodejs:nodejs /app/dist/skills ./skills
-COPY --from=builder --chown=nodejs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
+# 从后端构建阶段复制产物
+COPY --from=service-builder --chown=appuser:appgroup /app/node_modules ./node_modules
+COPY --from=service-builder --chown=appuser:appgroup /app/dist ./dist
+COPY --from=service-builder --chown=appuser:appgroup /app/prisma ./prisma
+COPY --from=service-builder --chown=appuser:appgroup /app/package.json ./
+
+# 复制标准技能目录
+COPY --from=service-builder --chown=appuser:appgroup /app/skills ./skills
+
+# 复制管理后台静态文件
+COPY --from=admin-builder --chown=appuser:appgroup /app/dist /app/public/admin
+
+# 复制用户端静态文件
+COPY --from=client-builder --chown=appuser:appgroup /app/dist /app/public/client
+
+# 创建必要的数据目录
+RUN mkdir -p /app/uploads && chown -R appuser:appgroup /app/uploads
 
 # 切换到非 root 用户
-USER nodejs
+USER appuser
 
 # 暴露端口
 EXPOSE 3002

@@ -1,0 +1,17 @@
+node_modules
+.git
+.gitignore
+*.md
+.DS_Store
+dist
+dist-ssr
+.env
+.env.*
+*.local
+.gitkeep
+deploy/nginx/ssl
+desktop/release
+service/public/admin
+service/public/client
+service/uploads
+*.log

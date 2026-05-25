@@ -5,7 +5,7 @@
 ### 前置条件
 
 - 已安装 Docker 和 Docker Compose
-- 有 MySQL 数据库（或使用 Docker 自带）
+- 硬件：2 核 CPU、4GB 内存、20GB 磁盘
 
 ### 步骤 1: 下载项目
 
@@ -14,34 +14,65 @@ git clone <repository-url>
 cd MuuAgent
 ```
 
-### 步骤 2: 修改配置
+### 步骤 2: 配置环境变量
 
-编辑 `service/.env.production`：
+```bash
+# 复制环境变量模板
+cp service/.env.example service/.env
 
-```env
-# 必须修改的配置
-MYSQL_ROOT_PASSWORD=your-root-password
-MYSQL_PASSWORD=your-db-password
-API_KEY=your-api-key
-JWT_SECRET=your-jwt-secret
+# 修改以下关键配置（务必修改默认密码和密钥）
+vim service/.env
 ```
+
+**必须修改的配置**：
+
+| 变量             | 说明       | 生成命令                          |
+|-----------------|-----------|-----------------------------------|
+| API_KEY         | API 密钥   | `openssl rand -base64 32`         |
+| JWT_SECRET      | JWT 密钥   | `openssl rand -base64 64`         |
+| MYSQL_PASSWORD  | 数据库密码  | `openssl rand -base64 16`         |
 
 ### 步骤 3: 一键部署
 
 ```bash
-# Linux/Mac
-chmod +x deploy/scripts/deploy.sh
-./deploy/scripts/deploy.sh
-
-# Windows PowerShell
+# 构建并启动所有服务
 docker-compose up -d
+
+# 等待所有服务健康检查通过
+docker-compose ps
 ```
 
-### 步骤 4: 验证部署
+### 步骤 4: 初始化数据库
 
-访问: http://localhost:3002/health
+```bash
+# 执行数据库迁移
+docker-compose exec app npx prisma migrate deploy
 
-返回: `{"status":"ok"}` 表示部署成功
+# 初始化管理员账号
+docker-compose exec app npx ts-node prisma/init-admin.ts
+
+# 初始化提示词模板
+docker-compose exec app npx ts-node prisma/init-templates.ts
+```
+
+### 步骤 5: 验证部署
+
+```bash
+# 健康检查
+curl http://localhost:3002/health
+
+# 预期返回（示例）
+{"status":"ok","timestamp":"2026-05-25T12:00:00.000Z"}
+```
+
+### 步骤 6: 访问服务
+
+| 服务       | 地址                           |
+|-----------|-------------------------------|
+| API 服务   | http://localhost:3002          |
+| Swagger   | http://localhost:3002/api-docs |
+| 管理后台   | http://localhost:3002/admin/   |
+| 用户端     | http://localhost:3002/client/  |
 
 ## 常用命令
 
@@ -49,30 +80,40 @@ docker-compose up -d
 # 查看服务状态
 docker-compose ps
 
-# 查看日志
+# 查看所有日志
+docker-compose logs -f
+
+# 查看特定服务日志
 docker-compose logs -f app
 
 # 重启服务
-docker-compose restart
+docker-compose restart app
 
-# 停止服务
+# 停止服务（保留数据）
 docker-compose down
+
+# 停止服务并删除数据卷
+docker-compose down -v
+
+# 重新构建镜像
+docker-compose build
+
+# 更新版本
+git pull
+docker-compose build
+docker-compose up -d
+docker-compose exec app npx prisma migrate deploy
 ```
-
-## 下一步
-
-- 查看 [完整部署文档](./production-deployment.md)
-- 配置 [SSL 证书](./production-deployment.md#ssl-证书配置)
-- 设置 [自动备份](./production-deployment.md#备份与恢复)
 
 ## 问题排查
 
 ### 端口被占用
 
 ```bash
-# 修改 docker-compose.yml 中的端口映射
-ports:
-  - "3003:3002"  # 改为其他端口
+# 通过 .env 修改端口映射
+echo "APP_PORT=3003" >> .env
+echo "NGINX_HTTP_PORT=8080" >> .env
+docker-compose up -d
 ```
 
 ### 数据库连接失败
@@ -83,18 +124,22 @@ docker-compose ps mysql
 
 # 查看 MySQL 日志
 docker-compose logs mysql
+
+# 重置数据库
+docker-compose exec app npx prisma db push --accept-data-loss
 ```
 
-### 权限问题
+### 前端页面 404
 
 ```bash
-# 给脚本执行权限
-chmod +x deploy/scripts/*.sh
+# 确保 Dockerfile 正确构建了前端
+docker-compose build --no-cache app
+docker-compose up -d
 
-# Docker 权限
-sudo usermod -aG docker $USER
+# 检查静态文件是否已生成
+docker-compose exec app ls -la /app/public/
 ```
 
 ---
 
-需要帮助? 查看 [完整文档](./production-deployment.md)
+需要更多帮助？查看 [完整部署文档](./production-deployment.md)
