@@ -837,3 +837,135 @@ curl -H "x-api-key: tn_xxxxxxxx" \
      -H "x-uid: user_12345" \
      http://your-domain.com/api/ai/chat
 ```
+
+### 生产环境文件清单
+
+生产环境部署时，需要确保以下目录和文件完整。这些文件是应用正常运行所必需的。
+
+#### 1. 编译输出目录 `dist/`
+
+```
+dist/
+├── src/                    # 编译后的源代码（必需）
+│   ├── main.js             # 应用入口
+│   ├── app.module.js       # 主模块
+│   └── ...                 # 其他编译后的模块
+├── prisma/                 # 编译后的 Prisma 脚本（必需）
+│   ├── init-admin.js       # 初始化管理员脚本
+│   └── seeds/
+│       └── prompt-templates.js  # 种子数据脚本
+├── skills/                 # 技能文件（必需，通过 nest-cli.json 配置）
+│   └── standard/
+│       └── _public/
+│           └── ...         # 各种技能定义
+└── public/                 # 公共静态文件（如果存在）
+```
+
+**说明：**
+- `dist/src/` - TypeScript 源代码编译后的 JavaScript 文件
+- `dist/prisma/` - 包含编译后的初始化脚本，生产环境无需 TypeScript 依赖
+- `dist/skills/` - 通过 nest-cli.json 配置自动复制到 dist 目录的技能文件
+
+#### 2. Prisma 相关 `prisma/`
+
+```
+prisma/
+├── schema.prisma           # 数据库 schema 定义（必需）
+├── migrations/             # 数据库迁移文件（必需）
+│   ├── migration_lock.toml # 迁移锁文件
+│   └── 20260511213356_init/
+│       └── migration.sql   # 迁移 SQL
+│   └── ...                 # 其他迁移文件
+└── seeds/                  # 种子数据源文件（可选）
+    ├── prompt-templates.sql
+    └── prompt-templates.ts
+```
+
+**说明：**
+- `schema.prisma` - 用于生成 Prisma Client，数据库结构定义
+- `migrations/` - 生产环境数据库迁移必需，包含所有数据库变更历史
+- `seeds/` - 种子数据源文件，可选，用于初始化基础数据
+
+#### 3. 配置文件
+
+```
+service/
+├── package.json            # 依赖管理（必需）
+├── package-lock.json       # 依赖锁定文件（必需）
+├── .env.example            # 环境变量示例（推荐）
+└── .env                    # 环境变量（必需，需根据 .env.example 创建）
+```
+
+**说明：**
+- `package.json` 和 `package-lock.json` - 定义运行时依赖
+- `.env` - 生产环境配置，包含数据库连接、JWT 密钥等敏感信息
+
+#### 4. 运行时依赖
+
+```
+node_modules/               # 依赖包（必需，通过 npm ci 安装）
+```
+
+**说明：**
+- 生产环境通过 `npm ci --production` 安装依赖
+- 不包含开发依赖（如 TypeScript、测试工具等）
+
+#### 5. 部署流程
+
+```bash
+# 1. 安装依赖
+npm ci --production
+
+# 2. 生成 Prisma Client
+npx prisma generate
+
+# 3. 执行数据库迁移（生产环境）
+npx prisma migrate deploy
+
+# 4. （可选）执行初始化脚本
+node dist/prisma/init-admin.js
+
+# 5. 启动应用
+node dist/src/main
+```
+
+#### 6. 不需要的文件（开发环境专用）
+
+以下文件在生产环境中不需要，部署时可以排除：
+
+- `src/` - TypeScript 源代码
+- `prisma/init-admin.ts` - TypeScript 源码
+- `prisma/init-templates.js` - 开发环境脚本
+- `prisma/init-templates.sql` - 开发环境脚本
+- `tsconfig.json` - TypeScript 配置
+- `nest-cli.json` - NestJS CLI 配置
+- `jest.config.js` - 测试配置
+- `scripts/` - 开发脚本
+- `.gitignore` - Git 配置
+- `README.md` - 文档
+
+#### 7. 关键点说明
+
+1. **`dist/prisma/` 必需**：包含编译后的初始化脚本，生产环境无需 TypeScript 依赖即可执行
+2. **`prisma/schema.prisma` 必需**：用于生成 Prisma Client，数据库操作的基础
+3. **`prisma/migrations/` 必需**：生产环境数据库迁移必需，确保数据库结构同步
+4. **`dist/skills/` 必需**：通过 nest-cli.json 配置自动复制到 dist 目录，技能功能必需
+5. **环境变量**：需要根据 `.env.example` 创建生产环境的 `.env` 文件，包含正确的配置
+
+#### 8. Docker 部署说明
+
+使用 Docker 部署时，上述文件清单已包含在 Docker 镜像中。部署流程：
+
+```bash
+# 构建镜像
+docker-compose build
+
+# 启动服务
+docker-compose up -d
+
+# 初始化数据库
+docker-compose exec app npx prisma migrate deploy
+docker-compose exec app node dist/prisma/init-admin.js
+```
+
+Docker 镜像已包含所有必需文件，无需手动上传 `dist/` 目录。

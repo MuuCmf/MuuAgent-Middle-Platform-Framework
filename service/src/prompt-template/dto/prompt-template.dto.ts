@@ -69,7 +69,7 @@ export class CreatePromptTemplateDto {
   @IsOptional()
   tags?: string[];
 
-  @ApiPropertyOptional({ description: '元数据（JSON格式）', type: 'object' })
+  @ApiPropertyOptional({ description: '元数据（JSON格式）', type: 'object', additionalProperties: true })
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;
@@ -139,7 +139,7 @@ export class UpdatePromptTemplateDto {
   @IsOptional()
   tags?: string[];
 
-  @ApiPropertyOptional({ description: '元数据', type: 'object' })
+  @ApiPropertyOptional({ description: '元数据', type: 'object', additionalProperties: true })
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;
@@ -227,7 +227,7 @@ export class RenderPromptTemplateDto {
   @IsNotEmpty()
   code: string;
 
-  @ApiProperty({ description: '变量值', type: 'object', example: { context: '参考信息...', query: '用户问题' } })
+  @ApiProperty({ description: '变量值', type: 'object', additionalProperties: true, example: { context: '参考信息...', query: '用户问题' } })
   @IsObject()
   variables: Record<string, any>;
 }
