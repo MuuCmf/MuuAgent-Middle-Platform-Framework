@@ -28,6 +28,8 @@ export interface Agent {
   reasoningMode?: string
   /** 状态 */
   status: boolean
+  /** 是否支持工作目录 */
+  supportsWorkspace?: boolean
   /** 创建时间 */
   createdAt: string
   /** 更新时间 */

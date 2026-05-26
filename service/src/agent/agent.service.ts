@@ -4,6 +4,8 @@ import { IsolationService, IsolationContext } from '../common/services/base-isol
 import { ContextBuilder } from './execution/context-builder';
 import { ReasoningEngineFactory } from '../reasoning/reasoning.factory';
 import { ReasoningMode } from '../reasoning/types';
+import { AgentSkills } from './types/agent-skills';
+import { SkillResolutionBuilder } from './execution/skill-resolution.builder';
 import {
   CreateAgentDto,
   UpdateAgentDto,
@@ -23,6 +25,7 @@ export class AgentService {
     private contextBuilder: ContextBuilder,
     private reasoningEngineFactory: ReasoningEngineFactory,
     private clientToolPolicyService: ClientToolPolicyService,
+    private skillResolution: SkillResolutionBuilder,
   ) {}
 
   /**
@@ -97,7 +100,9 @@ export class AgentService {
     if (!agent) {
       throw new NotFoundException('智能体不存在');
     }
-    return agent;
+    const isoCtx: IsolationContext = context || { appCode: null, isSuperAdmin: false };
+    const supportsWorkspace = await this.checkWorkspaceSupport(agent, isoCtx);
+    return { ...agent, supportsWorkspace };
   }
 
   async findAll(query: QueryAgentDto, context?: IsolationContext) {
@@ -118,7 +123,15 @@ export class AgentService {
       this.prisma.agent.count({ where }),
     ]);
 
-    return { list, total, page, pageSize };
+    const isoCtx: IsolationContext = context || { appCode: null, isSuperAdmin: false };
+    const enrichedList = await Promise.all(
+      list.map(async (agent) => {
+        const supportsWorkspace = await this.checkWorkspaceSupport(agent, isoCtx);
+        return { ...agent, supportsWorkspace };
+      }),
+    );
+
+    return { list: enrichedList, total, page, pageSize };
   }
 
   async syncChat(dto: AgentChatDto, clientIp: string, uid?: string, appCode?: string): Promise<Record<string, unknown>> {
@@ -223,5 +236,23 @@ export class AgentService {
     }
 
     return agent;
+  }
+
+  /**
+   * 检查智能体是否支持工作目录能力
+   * @param agent 智能体数据
+   * @param context 隔离上下文
+   * @returns 是否支持工作目录
+   */
+  private async checkWorkspaceSupport(agent: any, context: IsolationContext): Promise<boolean> {
+    try {
+      const agentSkills = AgentSkills.fromJson(agent.skills);
+      const agentMcpServers = agent.mcpServers ? JSON.parse(agent.mcpServers) : [];
+      const resolution = await this.skillResolution.resolve(agentSkills, context, agentMcpServers);
+      return resolution.resolvedWorkspace;
+    } catch (err) {
+      this.logger.warn(`检查智能体 ${agent.id} 的 workspace 支持失败: ${err}`);
+      return false;
+    }
   }
 }

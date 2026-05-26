@@ -133,7 +133,7 @@
               <span class="model-trigger-text">{{ currentModelDisplayName }}</span>
               <el-icon :size="12" class="model-trigger-arrow"><ArrowUp /></el-icon>
             </div>
-            <div v-if="currentMode === 'chat' && selectedAgent" class="workspace-trigger" @click="handleWorkspaceTrigger">
+            <div v-if="currentMode === 'chat' && selectedAgent && selectedAgentSupportsWorkspace" class="workspace-trigger" @click="handleWorkspaceTrigger">
               <template v-if="workspaceIsActive">
                 <el-icon :size="14"><FolderOpened /></el-icon>
                 <span class="workspace-trigger-text">{{ workspaceDirName || '已选择' }}</span>
@@ -209,6 +209,8 @@ interface Agent {
   description?: string
   /** 状态 */
   status?: boolean
+  /** 是否支持工作目录 */
+  supportsWorkspace?: boolean
 }
 
 interface Props {
@@ -350,6 +352,15 @@ const currentModelDisplayName = computed(() => {
   }
   const model = props.models.find((m: ModelItem) => m.code === internalModelCode.value)
   return model?.name || internalModelCode.value
+})
+
+/**
+ * 当前选中智能体是否支持工作目录
+ */
+const selectedAgentSupportsWorkspace = computed(() => {
+  if (!selectedAgent.value) return false
+  const agent = props.agents.find((a: Agent) => a.id === selectedAgent.value)
+  return agent?.supportsWorkspace === true
 })
 
 /**
