@@ -15,6 +15,10 @@
   - [Nginx 反向代理配置](#1panel-nginx-反向代理配置)
   - [SSL 证书配置](#1panel-ssl-证书配置)
   - [管理维护](#1panel-管理维护)
+- [站点管理方式部署](#站点管理方式部署)
+  - [宝塔面板站点管理部署](#宝塔面板站点管理部署)
+  - [1Panel 站点管理部署](#1panel-站点管理部署)
+  - [站点管理方式优势](#站点管理方式优势)
 - [面板部署通用说明](#面板部署通用说明)
   - [配置对比](#配置对比)
   - [迁移指南](#迁移指南)
@@ -607,6 +611,151 @@ docker compose up -d
 # 执行数据库迁移
 docker compose exec app npx prisma migrate deploy
 ```
+
+---
+
+## 站点管理方式部署
+
+站点管理方式是通过面板的网站管理功能，直接将域名绑定到应用服务，无需手动配置复杂的 Nginx 反向代理。
+
+### 宝塔面板站点管理部署
+
+#### 1. 准备工作
+
+确保 MuuAgent 服务已正常运行：
+
+```bash
+cd /www/wwwroot/muuagent
+docker-compose up -d
+```
+
+#### 2. 创建站点
+
+宝塔面板 → 网站 → 添加站点：
+
+| 配置项     | 值                          |
+|-----------|----------------------------|
+| 域名       | `your-domain.com`          |
+| 解析       | 指向服务器 IP                |
+| PHP 版本   | 纯静态                      |
+
+#### 3. 设置反向代理（站点管理方式）
+
+点击站点名称 → **反向代理** → 添加反向代理：
+
+| 配置项       | 值                        |
+|-------------|---------------------------|
+| 代理名称     | `muuagent-api`            |
+| 目标 URL    | `http://127.0.0.1:3002`   |
+| 发送域名     | `$host`                   |
+| 开启 WebSocket | 是                       |
+
+#### 4. 配置路径转发
+
+宝塔面板 → 网站 → 点击站点 → **配置文件**，添加以下 location 规则：
+
+```nginx
+# 管理后台
+location /admin/ {
+    proxy_pass http://127.0.0.1:3002;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+# 用户端
+location /client/ {
+    proxy_pass http://127.0.0.1:3002;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+
+# SSE 流式接口
+location /api/ai/stream {
+    proxy_pass http://127.0.0.1:3002;
+    proxy_http_version 1.1;
+    proxy_set_header Connection '';
+    proxy_buffering off;
+    proxy_cache off;
+    chunked_transfer_encoding on;
+    proxy_read_timeout 300s;
+}
+```
+
+#### 5. 配置 SSL 证书
+
+宝塔面板 → 网站 → 点击站点 → **SSL** → 申请 Let's Encrypt 证书
+
+#### 6. 验证部署
+
+访问 `https://your-domain.com/admin/` 查看管理后台
+
+---
+
+### 1Panel 站点管理部署
+
+#### 1. 准备工作
+
+确保 MuuAgent 服务已正常运行：
+
+```bash
+cd /opt/muuagent
+docker compose up -d
+```
+
+#### 2. 创建站点
+
+1Panel 面板 → 网站 → 创建网站：
+
+| 配置项     | 值                          |
+|-----------|----------------------------|
+| 域名       | `your-domain.com`          |
+| 主目录     | 选择「反向代理」             |
+| 代理地址   | `http://127.0.0.1:3002`    |
+| 启用 HTTPS | 是                         |
+
+#### 3. 配置路径规则
+
+1Panel 面板 → 网站 → 点击域名 → **配置** → **反向代理规则**：
+
+添加以下规则：
+
+| 路径         | 目标地址                  | 备注           |
+|-------------|--------------------------|---------------|
+| `/admin/`   | `http://127.0.0.1:3002`  | 管理后台       |
+| `/client/`  | `http://127.0.0.1:3002`  | 用户端         |
+| `/api/`     | `http://127.0.0.1:3002`  | API 接口       |
+| `/api/ai/stream` | `http://127.0.0.1:3002` | SSE 流式接口   |
+
+#### 4. 配置高级选项
+
+1Panel 面板 → 网站 → 点击域名 → **配置** → **高级配置**：
+
+- **请求超时**：设置为 300 秒（针对 SSE 流式接口）
+- **WebSocket**：启用
+- **HTTP/2**：启用
+
+#### 5. 配置 SSL 证书
+
+1Panel 面板 → 网站 → **证书** → 申请 Let's Encrypt 证书
+
+#### 6. 验证部署
+
+访问 `https://your-domain.com/admin/` 查看管理后台
+
+---
+
+### 站点管理方式优势
+
+| 特性                | 传统配置方式               | 站点管理方式               |
+|--------------------|---------------------------|---------------------------|
+| 配置复杂度          | 需要手动编写 Nginx 配置      | 图形化界面配置，简单直观    |
+| SSL 证书管理        | 手动配置证书路径            | 面板自动管理证书           |
+| 路径规则管理        | 需要编辑配置文件            | 可视化添加路径规则          |
+| 配置备份与迁移      | 需要手动备份配置文件         | 面板自动备份配置           |
+| 多站点管理          | 需要管理多个配置文件         | 统一管理界面               |
 
 ---
 
