@@ -1,5 +1,5 @@
 <template>
-  <AppShell>
+  <AppShell :show-right-sidebar="workspaceIsActive" :right-sidebar-width="280">
     <template #sidebar>
       <ChatSidebar
         :chat-mode="chatMode"
@@ -49,6 +49,10 @@
                 >
                   <el-icon :size="14"><ChatLineRound /></el-icon>
                   {{ getKbName(selectedKb) }}
+                </span>
+                <span v-if="workspaceIsActive" class="workspace-tag">
+                  <el-icon :size="14"><FolderOpened /></el-icon>
+                  {{ workspaceDirName }}
                 </span>
               </div>
             </div>
@@ -100,18 +104,30 @@
         />
       </div>
     </template>
+
+    <template #right-sidebar>
+      <WorkspaceSidebar
+        :dir-name="workspaceDirName"
+        :file-tree="workspaceFileTree"
+        :is-loading="workspaceIsLoading"
+        @refresh="handleWorkspaceRefresh"
+        @close="handleWorkspaceClear"
+        @file-click="handleFileClick"
+      />
+    </template>
   </AppShell>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { Plus, ChatDotRound, Cpu, Star, User, ChatLineRound } from '@element-plus/icons-vue'
+import { Plus, ChatDotRound, Cpu, Star, User, ChatLineRound, FolderOpened } from '@element-plus/icons-vue'
 import AppShell from '../../components/layout/AppShell.vue'
 import AppHeader from '../../components/layout/AppHeader.vue'
 import ThemeToggle from '../../components/common/ThemeToggle.vue'
 import ChatSidebar from './components/ChatSidebar.vue'
 import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
+import WorkspaceSidebar from './components/WorkspaceSidebar.vue'
 import { useChat } from '../../composables/useChat'
 
 const {
@@ -128,6 +144,8 @@ const {
   toolPolicies,
   workspaceIsActive,
   workspaceDirName,
+  workspaceFileTree,
+  workspaceIsLoading,
   kbList,
   selectedKb,
   selectedKbInfo,
@@ -145,6 +163,8 @@ const {
   handleStopGeneration,
   handleWorkspaceSelect,
   handleWorkspaceClear,
+  handleWorkspaceRefresh,
+  handleFileClick,
   getModelName,
   getAgentName,
   getKbName,
@@ -188,7 +208,8 @@ onMounted(() => {
 
 .model-tag,
 .agent-tag,
-.kb-tag {
+.kb-tag,
+.workspace-tag {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -215,6 +236,11 @@ onMounted(() => {
 .kb-tag {
   background: #fdf6ec;
   color: #e6a23c;
+}
+
+.workspace-tag {
+  background: #e8f4fd;
+  color: #409eff;
 }
 
 .messages-container {

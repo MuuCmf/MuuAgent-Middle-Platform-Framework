@@ -57,6 +57,49 @@ export interface ElectronAPI {
    * @param channel 回传频道
    */
   respondAutomationConfirm(confirmed: boolean, channel: string): void
+
+  /**
+   * 打开本地文件或目录（使用系统默认应用）
+   * @param filePath 文件或目录的完整路径
+   * @returns {Promise<{success: boolean; error?: string}>} 打开结果
+   */
+  openLocalPath(filePath: string): Promise<{
+    /** 是否成功 */
+    success: boolean
+    /** 错误信息 */
+    error?: string
+  }>
+
+  /**
+   * 选择工作目录（使用 Electron dialog，返回完整路径）
+   * @returns {Promise<{path: string; name: string} | null>} 目录路径和名称，用户取消时返回 null
+   */
+  selectDirectory(): Promise<{
+    /** 目录完整路径 */
+    path: string
+    /** 目录名称 */
+    name: string
+  } | null>
+
+  /**
+   * 获取 File 对象的完整路径（Electron 28+ API）
+   * @param file File 对象
+   * @returns 文件完整路径
+   */
+  getPathForFile(file: File): string
+
+  /**
+   * 读取目录结构（返回文件树）
+   * @param dirPath 目录完整路径
+   * @returns 文件树节点数组
+   */
+  readDirTree(dirPath: string): Promise<{
+    name: string
+    kind: 'file' | 'directory'
+    children?: any[]
+    extension?: string
+    relativePath: string
+  }[]>
 }
 
 declare global {

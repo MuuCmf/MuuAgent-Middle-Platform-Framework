@@ -1,7 +1,7 @@
 <template>
-  <div class="app-shell" :class="{ 'sidebar-collapsed': isCollapsed }">
+  <div class="app-shell" :class="{ 'sidebar-collapsed': isCollapsed, 'right-sidebar-visible': showRightSidebar }">
     <aside
-      class="app-sidebar"
+      class="app-sidebar-left"
       :style="{ width: isCollapsed ? '0px' : `${sidebarWidth}px` }"
     >
       <div v-if="!isCollapsed" class="sidebar-content">
@@ -10,7 +10,7 @@
       <div
         v-if="!isCollapsed"
         class="sidebar-resize-handle"
-        @mousedown="startResize"
+        @mousedown="startResizeLeft"
       />
     </aside>
 
@@ -19,6 +19,20 @@
         <slot name="main" />
       </div>
     </main>
+
+    <aside
+      v-if="showRightSidebar"
+      class="app-sidebar-right"
+      :style="{ width: `${rightSidebarWidth}px` }"
+    >
+      <div class="sidebar-content">
+        <slot name="right-sidebar" />
+      </div>
+      <div
+        class="sidebar-resize-handle-right"
+        @mousedown="startResizeRight"
+      />
+    </aside>
 
     <button class="sidebar-toggle" @click="toggleCollapse" :title="isCollapsed ? '展开侧边栏' : '收起侧边栏'">
       <el-icon :size="16">
@@ -32,13 +46,30 @@
 import { onMounted, onBeforeUnmount } from 'vue'
 import { useSidebar } from '../../composables/useSidebar'
 
+interface Props {
+  /** 是否显示右侧边栏 */
+  showRightSidebar?: boolean
+  /** 右侧边栏宽度 */
+  rightSidebarWidth?: number
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  showRightSidebar: false,
+  rightSidebarWidth: 280,
+})
+
+const emit = defineEmits<{
+  /** 右侧边栏宽度变更 */
+  rightSidebarWidthChange: [width: number]
+}>()
+
 const { isCollapsed, sidebarWidth, toggleCollapse } = useSidebar()
 
 /**
- * 开始拖拽调整侧边栏宽度
+ * 开始拖拽调整左侧边栏宽度
  * @param event 鼠标事件
  */
-const startResize = (event: MouseEvent) => {
+const startResizeLeft = (event: MouseEvent) => {
   event.preventDefault()
   const startX = event.clientX
   const startWidth = sidebarWidth.value
@@ -46,6 +77,34 @@ const startResize = (event: MouseEvent) => {
   const onMouseMove = (e: MouseEvent) => {
     const delta = e.clientX - startX
     sidebarWidth.value = Math.max(200, Math.min(500, startWidth + delta))
+  }
+
+  const onMouseUp = () => {
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
+
+/**
+ * 开始拖拽调整右侧边栏宽度
+ * @param event 鼠标事件
+ */
+const startResizeRight = (event: MouseEvent) => {
+  event.preventDefault()
+  const startX = event.clientX
+  const startWidth = props.rightSidebarWidth
+
+  const onMouseMove = (e: MouseEvent) => {
+    const delta = startX - e.clientX
+    const newWidth = Math.max(200, Math.min(400, startWidth + delta))
+    emit('rightSidebarWidthChange', newWidth)
   }
 
   const onMouseUp = () => {
@@ -90,7 +149,7 @@ onBeforeUnmount(() => {
   background: var(--bg-color);
 
   &.sidebar-collapsed {
-    .app-sidebar {
+    .app-sidebar-left {
       width: 0 !important;
     }
   }
@@ -98,12 +157,25 @@ onBeforeUnmount(() => {
   &:not(.sidebar-collapsed) .sidebar-toggle {
     left: v-bind(sidebarWidth + 'px');
   }
+
+  &.right-sidebar-visible .sidebar-toggle {
+    left: calc(v-bind(sidebarWidth + 'px') + 4px);
+  }
 }
 
-.app-sidebar {
+.app-sidebar-left {
   position: relative;
   background: var(--white);
   border-right: 1px solid var(--border-color);
+  transition: width 0.3s ease;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.app-sidebar-right {
+  position: relative;
+  background: var(--white);
+  border-left: 1px solid var(--border-color);
   transition: width 0.3s ease;
   overflow: hidden;
   flex-shrink: 0;
@@ -120,6 +192,22 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 0;
   right: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.2s;
+  z-index: 10;
+
+  &:hover {
+    background: var(--primary-color);
+  }
+}
+
+.sidebar-resize-handle-right {
+  position: absolute;
+  top: 0;
+  left: 0;
   bottom: 0;
   width: 4px;
   cursor: col-resize;
@@ -175,10 +263,19 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
-  .app-sidebar {
+  .app-sidebar-left {
     position: absolute;
     top: 0;
     left: 0;
+    bottom: 0;
+    z-index: 30;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .app-sidebar-right {
+    position: absolute;
+    top: 0;
+    right: 0;
     bottom: 0;
     z-index: 30;
     box-shadow: var(--shadow-lg);

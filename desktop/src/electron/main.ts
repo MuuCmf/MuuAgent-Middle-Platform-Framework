@@ -1,7 +1,17 @@
-import { app, BrowserWindow, globalShortcut, ipcMain } from 'electron'
+import { app, BrowserWindow, globalShortcut, ipcMain, shell, session, dialog } from 'electron'
 import * as path from 'path'
+import * as fs from 'fs'
 import { getConfigValue } from './config/store'
 import { DesktopMcpModule } from './desktop-mcp'
+
+/** 文件树节点类型 */
+interface FileTreeNode {
+  name: string
+  kind: 'file' | 'directory'
+  children?: FileTreeNode[]
+  extension?: string
+  relativePath: string
+}
 
 /** 修复 Windows 下 GPU 缓存权限问题 */
 app.commandLine.appendSwitch('disk-cache-dir', path.join(app.getPath('userData'), 'cache'))
@@ -104,6 +114,81 @@ function registerIpcHandlers(): void {
       return { callId, success: false, error: message }
     }
   })
+
+  /** 打开本地文件或目录（使用系统默认应用） */
+  ipcMain.handle('shell:open-path', async (_event, filePath: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await shell.openPath(filePath)
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`[Main] 打开文件失败: ${filePath}, ${message}`)
+      return { success: false, error: message }
+    }
+  })
+
+  /** 选择工作目录（返回完整路径） */
+  ipcMain.handle('dialog:select-directory', async (): Promise<{ path: string; name: string } | null> => {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      properties: ['openDirectory', 'createDirectory'],
+      title: '选择工作目录',
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+
+    const dirPath = result.filePaths[0]
+    const dirName = path.basename(dirPath)
+
+    return { path: dirPath, name: dirName }
+  })
+
+  /** 读取目录结构（返回文件树） */
+  ipcMain.handle('fs:read-dir-tree', async (_event, dirPath: string): Promise<FileTreeNode[]> => {
+    async function buildTree(currentPath: string, prefix: string): Promise<FileTreeNode[]> {
+      const nodes: FileTreeNode[] = []
+      
+      try {
+        const entries = fs.readdirSync(currentPath, { withFileTypes: true })
+        
+        // 排序：目录优先，然后按名称排序
+        entries.sort((a: fs.Dirent, b: fs.Dirent) => {
+          if (a.isDirectory() !== b.isDirectory()) {
+            return a.isDirectory() ? -1 : 1
+          }
+          return a.name.localeCompare(b.name)
+        })
+        
+        for (const entry of entries) {
+          const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name
+          
+          const node: FileTreeNode = {
+            name: entry.name,
+            kind: entry.isDirectory() ? 'directory' : 'file',
+            relativePath,
+          }
+          
+          if (entry.isFile()) {
+            const ext = entry.name.split('.').pop()?.toLowerCase()
+            if (ext && ext !== entry.name.toLowerCase()) {
+              node.extension = ext
+            }
+          } else if (entry.isDirectory()) {
+            node.children = await buildTree(path.join(currentPath, entry.name), relativePath)
+          }
+          
+          nodes.push(node)
+        }
+      } catch (err) {
+        console.error(`[Main] 读取目录失败: ${currentPath}`, err)
+      }
+      
+      return nodes
+    }
+    
+    return buildTree(dirPath, '')
+  })
 }
 
 /**
@@ -123,6 +208,20 @@ function startDesktopAutomation(): void {
 }
 
 app.whenReady().then(() => {
+  /** 设置 Content Security Policy */
+  const csp = isDev
+    ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5174; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:5174 ws://localhost:5174 http://localhost:9898; img-src 'self' data: https:; font-src 'self' data:"
+    : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; font-src 'self' data:"
+  
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+      },
+    })
+  })
+
   const win = createMainWindow()
 
   registerGlobalShortcuts()

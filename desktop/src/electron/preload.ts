@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 /**
  * 通过 contextBridge 暴露给渲染进程的安全 API
@@ -62,5 +62,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   respondAutomationConfirm: (confirmed: boolean, channel: string): void => {
     ipcRenderer.send('automation:confirm:response', { channel, confirmed })
+  },
+
+  /**
+   * 打开本地文件或目录（使用系统默认应用）
+   * @param filePath 文件或目录的完整路径
+   * @returns {Promise<{success: boolean; error?: string}>} 打开结果
+   */
+  openLocalPath: (filePath: string): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke('shell:open-path', filePath)
+  },
+
+  /**
+   * 选择工作目录（使用 Electron dialog，返回完整路径）
+   * @returns {Promise<{path: string; name: string} | null>} 目录路径和名称，用户取消时返回 null
+   */
+  selectDirectory: (): Promise<{ path: string; name: string } | null> => {
+    return ipcRenderer.invoke('dialog:select-directory')
+  },
+
+  /**
+   * 获取 File 对象的完整路径（Electron 28+ API）
+   * @param file File 对象
+   * @returns 文件完整路径
+   */
+  getPathForFile: (file: File): string => {
+    return webUtils.getPathForFile(file)
+  },
+
+  /**
+   * 读取目录结构（返回文件树）
+   * @param dirPath 目录完整路径
+   * @returns 文件树节点数组
+   */
+  readDirTree: (dirPath: string): Promise<any[]> => {
+    return ipcRenderer.invoke('fs:read-dir-tree', dirPath)
   },
 })

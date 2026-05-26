@@ -1,19 +1,6 @@
 import type { ClientToolCallPayload } from '../api/stream'
 import type { IClientToolExecutor } from './types'
 
-declare global {
-  interface Window {
-    electronAPI?: {
-      executeDesktopTool(callId: string, toolName: string, args: Record<string, unknown>): Promise<{
-        callId: string
-        success: boolean
-        result?: unknown
-        error?: string
-      }>
-    }
-  }
-}
-
 /**
  * 桌面自动化执行器
  *
