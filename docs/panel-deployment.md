@@ -23,6 +23,14 @@
   - [配置对比](#配置对比)
   - [迁移指南](#迁移指南)
   - [注意事项](#注意事项)
+  - [生产环境文件清单](#生产环境文件清单)
+    - [数据库初始化](#5-数据库初始化)
+    - [方式一：迁移部署](#52-方式一迁移部署推荐适用于干净数据库)
+    - [方式二：直接同步](#53-方式二直接同步适用于迁移失败的场景)
+    - [方式三：导入 SQL](#54-方式三导入完整-sql-脚本)
+    - [初始化种子数据](#55-初始化种子数据可选)
+    - [启动应用](#56-启动应用)
+    - [验证部署](#57-验证部署)
 
 ## 概述
 
@@ -910,7 +918,24 @@ node_modules/               # 依赖包（必需，通过 npm ci 安装）
 - 生产环境通过 `npm ci --production` 安装依赖
 - 不包含开发依赖（如 TypeScript、测试工具等）
 
-#### 5. 部署流程
+#### 5. 数据库初始化
+
+##### 5.1 前置准备
+
+首次部署前，需要先创建数据库：
+
+```bash
+# 登录 MySQL
+mysql -u root -p
+
+# 创建数据库（数据库名需与 .env 中 DATABASE_URL 配置一致）
+CREATE DATABASE IF NOT EXISTS muuagent_middle_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+EXIT;
+```
+
+##### 5.2 方式一：迁移部署（推荐，适用于干净数据库）
+
+这是标准的生产部署方式，适用于全新的空数据库：
 
 ```bash
 # 1. 安装依赖
@@ -919,14 +944,92 @@ npm ci --production
 # 2. 生成 Prisma Client
 npx prisma generate
 
-# 3. 执行数据库迁移（生产环境）
+# 3. 执行数据库迁移
 npx prisma migrate deploy
 
-# 4. （可选）执行初始化脚本
-node dist/prisma/init-admin.js
+# 4. 生成 Prisma Client（迁移后更新）
+npx prisma generate
 
-# 5. 启动应用
+# 5. 执行初始化脚本
+node dist/prisma/init-admin.js
+```
+
+##### 5.3 方式二：直接同步（适用于迁移失败的场景）
+
+如果 `prisma migrate deploy` 因迁移文件问题失败，可使用 `prisma db push` 直接根据 schema 同步表结构：
+
+```bash
+# 1. 安装依赖
+npm ci --production
+
+# 2. 生成 Prisma Client
+npx prisma generate
+
+# 3. 直接同步表结构（跳过迁移历史，基于 schema.prisma 直接创建）
+npx prisma db push
+
+# 4. 将迁移标记为已应用（确保迁移记录与数据库状态一致）
+npx prisma migrate resolve --applied 20260511213356_init
+npx prisma migrate resolve --applied 20260512162842_remove_agent_invoke_log_token_fields
+npx prisma migrate resolve --applied 20260512172551_add_appcode_to_skill_kb_logs
+npx prisma migrate resolve --applied 20260516020604_add_workspace_config_to_agent
+npx prisma migrate resolve --applied 20260518_remove_skills_table
+npx prisma migrate resolve --applied 20260519_change_steps_to_longtext
+npx prisma migrate resolve --applied 20260522_remove_workspace_config_from_agent
+
+# 5. 执行初始化脚本
+node dist/prisma/init-admin.js
+```
+
+##### 5.4 方式三：导入完整 SQL 脚本
+
+如果有完整的数据库导出 SQL，可直接导入：
+
+```bash
+# 导入完整数据库（包含表结构和初始数据）
+mysql -u root -p muuagent_middle_platform < /path/to/backup.sql
+
+# 将迁移标记为已应用（使 _prisma_migrations 表与实际表结构一致）
+npx prisma migrate resolve --applied 20260511213356_init
+npx prisma migrate resolve --applied 20260512162842_remove_agent_invoke_log_token_fields
+npx prisma migrate resolve --applied 20260512172551_add_appcode_to_skill_kb_logs
+npx prisma migrate resolve --applied 20260516020604_add_workspace_config_to_agent
+npx prisma migrate resolve --applied 20260518_remove_skills_table
+npx prisma migrate resolve --applied 20260519_change_steps_to_longtext
+npx prisma migrate resolve --applied 20260522_remove_workspace_config_from_agent
+
+# 生成 Prisma Client
+npx prisma generate
+```
+
+##### 5.5 初始化种子数据（可选）
+
+初始化脚本完成后，可根据需要导入种子数据：
+
+```bash
+# 方式一：使用 Prisma 脚本（推荐）
+node dist/prisma/seeds/prompt-templates.js
+
+# 方式二：直接导入 SQL（需确认表结构已存在）
+mysql -u root -p muuagent_middle_platform < prisma/seeds/prompt-templates.sql
+mysql -u root -p muuagent_middle_platform < prisma/init-templates.sql
+```
+
+##### 5.6 启动应用
+
+```bash
+# 启动应用
 node dist/src/main
+```
+
+##### 5.7 验证部署
+
+```bash
+# 验证服务是否正常
+curl http://localhost:3002/health
+
+# 验证数据库已生成正确的表（应看到 agents、users 等核心表）
+mysql -u root -p -e "USE muuagent_middle_platform; SHOW TABLES;"
 ```
 
 #### 6. 不需要的文件（开发环境专用）
@@ -963,9 +1066,25 @@ docker-compose build
 # 启动服务
 docker-compose up -d
 
-# 初始化数据库
+# 初始化数据库 - 方式一：迁移部署（推荐）
 docker-compose exec app npx prisma migrate deploy
+docker-compose exec app npx prisma generate
+
+# 如果迁移执行失败（如 P3009、P3018 错误），改用直接同步：
+docker-compose exec app npx prisma db push
+docker-compose exec app npx prisma migrate resolve --applied 20260511213356_init
+docker-compose exec app npx prisma migrate resolve --applied 20260512162842_remove_agent_invoke_log_token_fields
+docker-compose exec app npx prisma migrate resolve --applied 20260512172551_add_appcode_to_skill_kb_logs
+docker-compose exec app npx prisma migrate resolve --applied 20260516020604_add_workspace_config_to_agent
+docker-compose exec app npx prisma migrate resolve --applied 20260518_remove_skills_table
+docker-compose exec app npx prisma migrate resolve --applied 20260519_change_steps_to_longtext
+docker-compose exec app npx prisma migrate resolve --applied 20260522_remove_workspace_config_from_agent
+
+# 初始化管理员账号
 docker-compose exec app node dist/prisma/init-admin.js
+
+# （可选）初始化种子数据
+docker-compose exec app node dist/prisma/seeds/prompt-templates.js
 ```
 
 Docker 镜像已包含所有必需文件，无需手动上传 `dist/` 目录。
