@@ -1,33 +1,99 @@
-# 1.0.0 (2026-05-12)
-
-
-### Bug Fixes
-
-* 修复隔离查询与关键词搜索逻辑并移除硬编码密钥 50fb750
+## 1.3.0 (2026-05-26)
 
 
 ### Features
 
-* **技能系统:** 新增函数技能支持与插件系统 b7348fe
-* **日志管理:** 新增知识库检索日志功能并重构技能编辑组件 ed71dbb
-* 实现 OAuth Scope 细粒度权限控制与 UI 优化 2f7bbad
-* 添加调试模式显示推理过程并优化ReAct提示词格式 7442df5
-* 添加知识库检索与RAG问答功能 c68b080
-* 新增调试模式显示推理过程并优化ReAct提示词格式 05478e8
-* 新增应用管理功能，重构权限与认证体系 971dc47
-* 新增Prompt模板管理功能及相关优化 a7dff0b
-* 优化聊天会话管理和推理流程显示 168fcdc
-* 重构多前端静态资源服务与项目构建配置 9897854
-* 重构智能体模块并集成AI SDK 4311eb0
-* **admin:** 添加多应用隔离与资源公开状态支持 18bd250
-* **admin:** 添加推理步骤显示功能并优化管理端路由配置 999063a
-* **agent:** 优化模型查找逻辑，增加备用模型选择 af2f513
-* **chat:** 添加markdown样式文件并导入到聊天组件 d9dd14b
-* **chat:** 添加RAG问答和向量检索功能并优化UI 2940dca
-* **chat:** 新增聊天界面组件及流式对话支持 1f5249f
-* **chat:** 增强 markdown 预处理和文本工具调用解析 368c3c4
-* **client:** 新增客户端基础功能与界面 b234abe
-* **conversation:** 新增会话管理功能 577e2c3
+* 多维度优化系统功能与用户体验 ([2dbada3](https://github.com/muucmf/muuagent/commit/2dbada36ddc984ccee1692828ba99628d9920712))
+* 更新操作按钮样式，使用链接样式并调整对齐方式 ([5bb3ef1](https://github.com/muucmf/muuagent/commit/5bb3ef172f5b03bb60d1c573803dffa548496040))
+* 更新智能体创建和更新DTO，增强字段验证与最大步数限制 ([3cee58b](https://github.com/muucmf/muuagent/commit/3cee58b23d88611fae732898149f694deaef5316))
+* 技能管理新增分页、搜索排序功能并优化文案 ([2b22284](https://github.com/muucmf/muuagent/commit/2b222840ac068371780f4a5bd2b51b301718dcb1))
+* **技能系统:** 新增函数技能支持与插件系统 ([b7348fe](https://github.com/muucmf/muuagent/commit/b7348fe676a3ef1a80dcf3e6573f78e0c941f409))
+* **日志管理:** 新增知识库检索日志功能并重构技能编辑组件 ([ed71dbb](https://github.com/muucmf/muuagent/commit/ed71dbb5f28411f3b0f02fd0c4e3f8676f0e466b))
+* 实现 OAuth Scope 细粒度权限控制与 UI 优化 ([2f7bbad](https://github.com/muucmf/muuagent/commit/2f7bbadcf7f662ef8034eedca3e18b8b2bec7d9f))
+* 实现动态工具基于appCode和uid的应用级隔离 ([c97608b](https://github.com/muucmf/muuagent/commit/c97608bfb4766a1297f043d6f647972f0bd5fb93))
+* 实现基于内容块的流式响应架构 ([604cc70](https://github.com/muucmf/muuagent/commit/604cc70b8ce12930db71691d0f2e8fb27bf52cbb))
+* 实现AI回答思考过程展示功能 ([9cd64d6](https://github.com/muucmf/muuagent/commit/9cd64d66b6771c82dc44bf60117eb94cb83af2c6))
+* 实现BigInt ID方案并修复类型错误 ([4bc4ad2](https://github.com/muucmf/muuagent/commit/4bc4ad2f0e528c3aaf26cff4ca04394a660475b9))
+* 添加调试模式显示推理过程并优化ReAct提示词格式 ([7442df5](https://github.com/muucmf/muuagent/commit/7442df518a2061c58f52ff2e255e5d56de20c0a1))
+* 添加工作目录指示器组件并调整布局适配智能体选择 ([06f23d8](https://github.com/muucmf/muuagent/commit/06f23d81212ed703d8f4cb3c5cd48a0324d77683))
+* 添加知识库检索与RAG问答功能 ([c68b080](https://github.com/muucmf/muuagent/commit/c68b08082971721e7db71aae5221ae08b0113add))
+* 添加Multer文件接口定义以支持文件上传 ([882aa91](https://github.com/muucmf/muuagent/commit/882aa9128d21e34058cb909804f4c753f343be14))
+* 完成多端交互优化与限流机制完善 ([41626e1](https://github.com/muucmf/muuagent/commit/41626e1c5320fbeb61a14ca5549944be9f1dff25))
+* 完成平台功能迭代，新增MCP Server管理、技能脚本优化等功能 ([ce72308](https://github.com/muucmf/muuagent/commit/ce72308e07bee4180813be2dab8f98fa1a480c74))
+* 新增标准技能系统与相关工具能力 ([f14e05b](https://github.com/muucmf/muuagent/commit/f14e05b4cb70f6f9c51ce15e495434078c382611))
+* 新增调试模式显示推理过程并优化ReAct提示词格式 ([05478e8](https://github.com/muucmf/muuagent/commit/05478e8aedbcc5ff07b199e308d7017001dcede0))
+* 新增动态客户端工具全链路支持 ([2483b9e](https://github.com/muucmf/muuagent/commit/2483b9eab2014fdc2958868dc8fe772c3cc83b53))
+* 新增工具缓存管理功能 ([91315f1](https://github.com/muucmf/muuagent/commit/91315f17b9ef5da29a7808818a36e6c7b32ac8f6))
+* 新增工作目录侧边栏与桌面端文件操作能力 ([fc2f891](https://github.com/muucmf/muuagent/commit/fc2f8918a1c91d88bfc91d7189f9e6fb2445cdc3))
+* 新增模型模板与自定义参数功能，优化智能体模型参数管理 ([f42e46b](https://github.com/muucmf/muuagent/commit/f42e46b2f75508710eb7d7f28fa932cda19a6cf9))
+* 新增模型CODE指定能力，支持MCP智能调度与自定义模型选择 ([fd09559](https://github.com/muucmf/muuagent/commit/fd09559725aa6f60c9a96cf100356f780543fe56))
+* 新增权限管理系统与意图缓存功能 ([b632c96](https://github.com/muucmf/muuagent/commit/b632c9663cfc8e1a7dbe803764740af7815f2d53))
+* 新增思考标签解析与流式展示能力 ([28415c1](https://github.com/muucmf/muuagent/commit/28415c1e052295b7e97ef0a7da58aba36fcd06f7))
+* 新增通用文件管理模块，优化文档上传流程 ([930e8b3](https://github.com/muucmf/muuagent/commit/930e8b35079f0f3f2535d3fe227c8dc6ac040f10))
+* 新增意图管理全链路功能模块 ([c5cb9dd](https://github.com/muucmf/muuagent/commit/c5cb9dd09cd96e0202d054a233abb78fb0eb1461))
+* 新增应用管理功能，重构权限与认证体系 ([971dc47](https://github.com/muucmf/muuagent/commit/971dc471162e71f954f238040dc9938c51cc40e8))
+* 新增用户级技能隔离能力，支持按应用和用户隔离技能资源 ([197af53](https://github.com/muucmf/muuagent/commit/197af53c383ed5615543c270d324803ea52e5343))
+* 新增智能体工作目录支持能力 ([8d2b8e1](https://github.com/muucmf/muuagent/commit/8d2b8e1a43ea2b8a3f68d868d53c2d06a6748d11))
+* 新增桌面自动化功能模块 ([2e936af](https://github.com/muucmf/muuagent/commit/2e936af21b42ab2734f20c6f59e859c852563692))
+* 新增Prompt模板管理功能及相关优化 ([a7dff0b](https://github.com/muucmf/muuagent/commit/a7dff0b4a0775d29de1b35627756a4fa53c89e89))
+* 修改智能体调用日志中的执行步骤字段类型为LONGTEXT ([b8bd0ed](https://github.com/muucmf/muuagent/commit/b8bd0ed251df63d3c195570ba1d686808cd5abab))
+* 引入vue-i18n实现项目国际化，添加分页功能 ([db79cf1](https://github.com/muucmf/muuagent/commit/db79cf1dca5ca8c9a1389287b58c0106f10b0e31))
+* 优化聊天会话管理和推理流程显示 ([168fcdc](https://github.com/muucmf/muuagent/commit/168fcdc6e16826eb44a5e3ea4fd25fba6cc92b21))
+* 优化流式输出体验，完善内容块管理与工具调用展示 ([ec5cf60](https://github.com/muucmf/muuagent/commit/ec5cf602ea3efe8aae46aaf498cc1f596341fc08))
+* 增强登录和登出流程，清除缓存的令牌并优化错误处理 ([7f7855b](https://github.com/muucmf/muuagent/commit/7f7855be01f713698bc4633df333a1ac4bedf2ce))
+* 增强聊天功能，优化思考内容处理与自动滚动逻辑 ([9119853](https://github.com/muucmf/muuagent/commit/91198536cad28e1a6fb33527a589876ea65b31a1))
+* 支持多传输协议MCP Server并添加导入功能 ([7aceb05](https://github.com/muucmf/muuagent/commit/7aceb05fa84c3c95c790c82007ff5028754178cb))
+* 重构多前端静态资源服务与项目构建配置 ([9897854](https://github.com/muucmf/muuagent/commit/9897854c1e59e42041b6f1ab6d78c4a4ccc2f37e))
+* 重构模块发现逻辑，移动相关文件至新目录并更新导入路径 ([1cefb87](https://github.com/muucmf/muuagent/commit/1cefb87612574d42fe7532036db1c4633d38c432))
+* 重构智能体模块并集成AI SDK ([4311eb0](https://github.com/muucmf/muuagent/commit/4311eb02fb15427de9c4a5d9c6c2d802afc7bbb4))
+* add builtin tool management and permission control ([bce411b](https://github.com/muucmf/muuagent/commit/bce411ba70e8f17b0b0fa8103d3dbd8215a72c3e))
+* add builtin tool support and optimize streaming response handling ([bb3b001](https://github.com/muucmf/muuagent/commit/bb3b001bee7e822a8439d2499cb2a9b9d8a0c40b))
+* add file operation skill type and related functions ([ce756c9](https://github.com/muucmf/muuagent/commit/ce756c931615c2c3fbd945ee3c903154425d6ad8))
+* add full knowledge base retrieval feature for agents ([ee1b8cc](https://github.com/muucmf/muuagent/commit/ee1b8cc5cfa5320986b69ab4bb8d365fcd34559b))
+* add reasoning engines and skill executors ([d9d0760](https://github.com/muucmf/muuagent/commit/d9d0760fd5ba0ee2409165f51ffa0696d52a8551))
+* add routing log and strategy configuration components ([57d54b5](https://github.com/muucmf/muuagent/commit/57d54b55e0cddd3af2e5d31b229cd0197098ba11))
+* add system control desktop capability and supporting infrastructure ([17324b8](https://github.com/muucmf/muuagent/commit/17324b89b22696b6a9f1195ddb00a3e14dafa699))
+* add workspace functionality for file operations ([1233f39](https://github.com/muucmf/muuagent/commit/1233f397cf536ab5540ab6bc55e4f284c7fde84f))
+* **admin:** 添加多应用隔离与资源公开状态支持 ([18bd250](https://github.com/muucmf/muuagent/commit/18bd25010272c64f4a6a67e17f0ebbb457cca15a))
+* **admin:** 添加推理步骤显示功能并优化管理端路由配置 ([999063a](https://github.com/muucmf/muuagent/commit/999063ad8fb7edb46053302145d321b3cf299b4a))
+* **admin:** 新增缓存监控国际化与多页面国际化改造 ([3843863](https://github.com/muucmf/muuagent/commit/3843863750fb343060d351c68a023d7e44f4a83c))
+* **admin:** 新增仪表盘页面并优化模型菜单文案 ([daf1b6e](https://github.com/muucmf/muuagent/commit/daf1b6ecd266fc4f78df6ee8cd81f7218c53f578))
+* **agent-tools:** implement plugin-style tool and dispatcher auto-discovery ([2b9225c](https://github.com/muucmf/muuagent/commit/2b9225ce5d63b0d3720154771b4e63a798c7481c))
+* **agent:** 优化模型查找逻辑，增加备用模型选择 ([af2f513](https://github.com/muucmf/muuagent/commit/af2f5132868575f9728dc7397dc7c85381f4019e))
+* **agent:** add mcp server binding support for agent ([31b408c](https://github.com/muucmf/muuagent/commit/31b408c20499a1eb18e82311e9a1b28e38dbe789))
+* **auth:** add refresh token mechanism and optimize auth flow ([710c579](https://github.com/muucmf/muuagent/commit/710c5793006731d33d5c744ac6e7655ad748ba13))
+* **chat:** 添加markdown样式文件并导入到聊天组件 ([d9dd14b](https://github.com/muucmf/muuagent/commit/d9dd14b3f96e529bfada720e1202245215e128e7))
+* **chat:** 添加RAG问答和向量检索功能并优化UI ([2940dca](https://github.com/muucmf/muuagent/commit/2940dcaa55707b929c2dca801344fefe171f7cfe))
+* **chat:** 新增聊天界面组件及流式对话支持 ([1f5249f](https://github.com/muucmf/muuagent/commit/1f5249f1e78614bfce0e06ae8ea268cff9ef2806))
+* **chat:** 增强 markdown 预处理和文本工具调用解析 ([368c3c4](https://github.com/muucmf/muuagent/commit/368c3c4120e41d7c71cf480007879e3b310aad20))
+* **chat:** add streaming markdown render and typing cursor for rag answer ([c272984](https://github.com/muucmf/muuagent/commit/c272984488d0cb4bace466cedf16b8e7a2b4eaf4))
+* **chat:** add thinking mode display and switch control ([59fedb4](https://github.com/muucmf/muuagent/commit/59fedb4f55ddd7d85f8c1ed9d07c49857f6bc425))
+* **cli:** 新增MuuAgent CLI工具及相关配置 ([53af7c9](https://github.com/muucmf/muuagent/commit/53af7c9e78e277d625a3b95f889b01cfb79ec545))
+* **client:** 新增客户端基础功能与界面 ([b234abe](https://github.com/muucmf/muuagent/commit/b234abe7f1a3ce729df0661b11b2f7a49ee4c39a))
+* **conversation:** 新增会话管理功能 ([577e2c3](https://github.com/muucmf/muuagent/commit/577e2c3ed5c3d5febc635fe12f10399c909465fd))
+* Enhance skill management and caching mechanisms ([f5fa5ed](https://github.com/muucmf/muuagent/commit/f5fa5ed1c44349d18c3acc5a4cfc878f0449750c))
+* Implement new tools for database queries, HTTP requests, code execution, and script running ([903f855](https://github.com/muucmf/muuagent/commit/903f8554e2d9c3c070931ea10bd908a2847c62d5))
+* **skill:** add app code filter for standard skill list ([59e35fa](https://github.com/muucmf/muuagent/commit/59e35fac825bb7565dd63e90aebd8d1b0fb491b7))
+* **skill:** add database and HTTP skill type support ([f43e6eb](https://github.com/muucmf/muuagent/commit/f43e6ebc926f649dc28331baee77ed8b81f1439b))
+* **skill:** implement multi-layer caching for skill management and enhance skill retrieval ([a5b91f0](https://github.com/muucmf/muuagent/commit/a5b91f04baf457fd1df355f0abce0857d56250b0))
 
 
+### Bug Fixes
+
+* 修复隔离查询与关键词搜索逻辑并移除硬编码密钥 ([50fb750](https://github.com/muucmf/muuagent/commit/50fb7501d404f4134c4df09d136e116e8c5074ad))
+* 修复流式传输中Unicode代理对截断和乱码问题 ([6465dd5](https://github.com/muucmf/muuagent/commit/6465dd5f4392310a0666f30bf247fc8f2f7a5ea0))
+* 修复路径配置，确保正确解析模块和文件 ([be81fb4](https://github.com/muucmf/muuagent/commit/be81fb4e067fd5e1cb7bc1a4a72e2d2741005e40))
+* 修改Token配额统计维度为每日维度 ([2525e94](https://github.com/muucmf/muuagent/commit/2525e94d97d1f23662fdf2f0a6b00c1836fee30c))
+* 移除多余的safeTextDecode函数并修复markdown水平线格式 ([8fe07d5](https://github.com/muucmf/muuagent/commit/8fe07d57630fb7613db73aea45701ad1a7f3bb8e))
+* 移除页面标题中的表情符号，优化页面标题显示 ([74880b6](https://github.com/muucmf/muuagent/commit/74880b6fe737cff61a6fc09d71ec222dda18267e))
+* 优化文件大小格式化函数，修正参数类型和逻辑 ([18cd680](https://github.com/muucmf/muuagent/commit/18cd680123650a9859a021591f38167e03340493))
+* **admin,ai:** 修复大模型选项排序和流式响应日志存储问题 ([4563a21](https://github.com/muucmf/muuagent/commit/4563a21b7f66a9bdfe247eb91827e7dfad16ccbc))
+* **admin:** 修复限流页面状态显示异常问题 ([f338320](https://github.com/muucmf/muuagent/commit/f338320c4eb270aa39ff4ea96796623fb3c586f8))
+* **ai-sdk-provider:** 统一格式化响应日志内容 ([ac9478b](https://github.com/muucmf/muuagent/commit/ac9478b6f789cfd66d8d085f471fae4b87ad4d00))
+* **chat:** 修复会话ID传递及智能体查询隔离条件 ([2b459c0](https://github.com/muucmf/muuagent/commit/2b459c043972d806bc06ccc1f07579554c079a8e))
+* **mcp:** 优化模型熔断兜底逻辑 ([8fac6e6](https://github.com/muucmf/muuagent/commit/8fac6e60f850c5364ab00427429c5fe55735f301))
+* **rate-limit:** 添加拦截器释放并发计数 ([7d31b4e](https://github.com/muucmf/muuagent/commit/7d31b4efdb50bf99683362caea1389187a5fbf45))
+* **script:** 规范化脚本路径，增强路径安全检查 ([ab073cb](https://github.com/muucmf/muuagent/commit/ab073cb463cd84318baf6501bc1f723c352c2c85))
+* **tool-assembly:** 修正内置工具权限校验逻辑和注释 ([c3b4f05](https://github.com/muucmf/muuagent/commit/c3b4f053dc7caf4fcab511411e2c583ab6f745a0))
+* **workspace:** 添加上报结果的错误处理并标准化返回格式 ([95823ae](https://github.com/muucmf/muuagent/commit/95823aefcb67fa06f82ba50ae8f4c2bf53a092cc))
 

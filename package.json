@@ -10,9 +10,11 @@
     "chat": "node cli/dist/index.js chat",
     "health": "node cli/dist/index.js health",
     "sync-version": "node scripts/sync-version.js",
-    "version:patch": "npm version patch && npm run sync-version",
-    "version:minor": "npm version minor && npm run sync-version",
-    "version:major": "npm version major && npm run sync-version"
+    "changelog": "node scripts/generate-changelog.js",
+    "changelog:all": "node scripts/generate-changelog.js --all",
+    "version:patch": "npm version patch && npm run changelog && npm run sync-version",
+    "version:minor": "npm version minor && npm run changelog && npm run sync-version",
+    "version:major": "npm version major && npm run changelog && npm run sync-version"
   },
   "keywords": [
     "ai",
@@ -27,5 +29,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/muucmf/muuagent"
+  },
+  "devDependencies": {
+    "conventional-changelog-cli": "^4.1.0"
   }
 }
