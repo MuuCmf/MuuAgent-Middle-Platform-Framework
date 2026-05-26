@@ -7,9 +7,9 @@
         
         <el-divider direction="vertical" />
         
-        <el-button @click="showHelp = true" class="help-btn" text>
-          <el-icon><QuestionFilled /></el-icon>
-          {{ $t('layout.help') }}
+        <el-button @click="openClientPage" class="client-btn" text>
+          <el-icon><Monitor /></el-icon>
+          {{ $t('layout.client') }}
         </el-button>
         
         <el-divider direction="vertical" />
@@ -84,38 +84,6 @@
       </el-main>
     </el-container>
 
-    <el-dialog v-model="showHelp" :title="$t('layout.help')" width="700px">
-      <el-alert type="info" :closable="false" class="help-section">
-        <template #title>
-          <strong>🚀 {{ $t('layout.quickStart') }}</strong>
-        </template>
-        <ol class="help-list">
-          <li>{{ $t('layout.quickStartDesc1') }}</li>
-          <li>{{ $t('layout.quickStartDesc2') }}</li>
-          <li>{{ $t('layout.quickStartDesc3') }}</li>
-        </ol>
-      </el-alert>
-
-      <el-alert type="warning" :closable="false" class="help-section">
-        <template #title>
-          <strong>🔧 {{ $t('layout.ollamaConfig') }}</strong>
-        </template>
-        <ul class="help-list">
-          <li>{{ $t('layout.ollamaApiAddress') }}：<code>http://localhost:11434/api/chat</code></li>
-          <li>{{ $t('layout.ollamaModelId') }}：<code>llama3</code>、<code>qwen2</code> 等</li>
-          <li>{{ $t('layout.ollamaApiKey') }}：{{ $t('layout.ollamaApiKeyNote') }}</li>
-        </ul>
-      </el-alert>
-
-      <el-alert type="success" :closable="false" class="help-section">
-        <template #title>
-          <strong>📡 {{ $t('layout.apiUsage') }}</strong>
-        </template>
-        <p>{{ $t('layout.apiUsageDesc') }}</p>
-        <pre class="code-block">x-api-key: AI-SVC-2026-MCP-KEY-666</pre>
-      </el-alert>
-    </el-dialog>
-
     <el-dialog v-model="showPasswordDialog" :title="$t('layout.changePassword')" width="500px">
       <el-form
         ref="passwordFormRef"
@@ -166,7 +134,7 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { QuestionFilled, ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
+import { Monitor, ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
 import Logo from './components/Logo.vue'
 import LocaleSwitch from '@/components/LocaleSwitch.vue'
 import { userApi, type AdminUser } from '@/api/user'
@@ -178,7 +146,6 @@ const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 
-const showHelp = ref(false)
 const showPasswordDialog = ref(false)
 const isCollapsed = ref(false)
 const userInfo = ref<AdminUser | null>(null)
@@ -298,6 +265,13 @@ const handleChangePassword = async () => {
   })
 }
 
+/**
+ * 打开客户端页面
+ */
+const openClientPage = () => {
+  window.open('/client', '_blank')
+}
+
 const handleLogout = async () => {
   try {
     await ElMessageBox.confirm(
@@ -369,7 +343,7 @@ onMounted(() => {
       align-items: center;
       padding: 0 20px;
 
-      .help-btn {
+      .client-btn {
         margin-right: 10px;
       }
 
@@ -462,24 +436,6 @@ onMounted(() => {
       }
     }
   }
-}
-
-.help-section {
-  margin-bottom: 16px;
-}
-
-.help-list {
-  margin: 8px 0 0 20px;
-  line-height: 1.8;
-}
-
-.code-block {
-  background: #f5f5f5;
-  padding: 12px;
-  border-radius: 4px;
-  margin-top: 8px;
-  font-family: 'Courier New', monospace;
-  overflow-x: auto;
 }
 
 .main-enter-active,

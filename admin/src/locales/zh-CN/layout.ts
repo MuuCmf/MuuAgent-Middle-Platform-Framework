@@ -35,7 +35,7 @@ export default {
     logs: '调用日志',
   },
   layout: {
-    help: '使用帮助',
+    client: '客户端',
     profile: '个人信息',
     changePassword: '修改密码',
     logout: '退出登录',

@@ -35,7 +35,7 @@ export default {
     logs: 'Call Logs',
   },
   layout: {
-    help: 'Help',
+    client: 'Client',
     profile: 'Profile',
     changePassword: 'Change Password',
     logout: 'Logout',
