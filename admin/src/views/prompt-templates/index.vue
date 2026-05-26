@@ -31,7 +31,6 @@
             <el-option :label="$t('prompt.categories.agent')" value="agent" />
             <el-option :label="$t('prompt.categories.rag')" value="rag" />
             <el-option :label="$t('prompt.categories.react')" value="react" />
-            <el-option :label="$t('prompt.categories.skill')" value="skill" />
             <el-option :label="$t('prompt.categories.custom')" value="custom" />
           </el-select>
 

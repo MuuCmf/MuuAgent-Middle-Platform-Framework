@@ -33,7 +33,6 @@ export default {
       agent: 'Agent - Agent Prompts',
       rag: 'RAG - Knowledge Base Q&A',
       react: 'ReAct - Reasoning Mode',
-      skill: 'Skill - Skill Invocation',
       custom: 'Custom - Custom',
     },
     list: {

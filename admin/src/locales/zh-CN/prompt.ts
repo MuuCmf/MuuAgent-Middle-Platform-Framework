@@ -33,7 +33,6 @@ export default {
       agent: 'Agent - 智能体提示词',
       rag: 'RAG - 知识库问答',
       react: 'ReAct - 推理模式',
-      skill: 'Skill - 技能调用',
       custom: 'Custom - 自定义',
     },
     list: {

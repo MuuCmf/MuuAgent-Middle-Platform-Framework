@@ -742,7 +742,7 @@ model PromptTemplate {
   id          BigInt  @id @default(0)
   code        String   /// 模板唯一标识
   name        String   /// 模板名称
-  category    String   /// 分类: agent/rag/react/skill/custom
+  category    String   /// 分类: agent/rag/react/custom
   content     String   @db.Text /// Prompt内容（支持变量占位符）
   variables   String?  @db.Text /// 变量定义（JSON格式）
   version     Int      @default(1) /// 当前版本号

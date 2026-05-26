@@ -199,6 +199,7 @@ export class SystemPromptBuilder {
 
   /**
    * 获取默认推理提示词
+   * 注意：thinking 标签格式指令由 getThinkingTagInstruction() 统一注入，此处只定义推理逻辑
    * @param mode 推理模式
    * @returns 推理提示词
    */
@@ -206,54 +207,29 @@ export class SystemPromptBuilder {
     switch (mode) {
       case ReasoningMode.REACT:
         return `## 推理规则
-你是一个能够使用工具的智能助手。请在每次响应中使用 <thinking> 标签包裹你的推理过程。
+你是一个能够使用工具的智能助手。
 
-格式要求：
-<thinking>
+推理步骤：
 1. 分析用户问题和现有信息
 2. 判断是否需要调用工具
-3. 如果需要，说明调用哪个工具以及原因
-</thinking>
-然后调用工具或直接给出最终回答。
-
-重要规则：
-- 每次响应必须以 <thinking> 开头，以 </thinking> 结束
-- <thinking> 标签内是内部推理，标签外是最终回答
-- 如果不需要调用工具，在 </thinking> 后直接给出回答
-- 如果需要调用工具，在 </thinking> 后调用`;
+3. 如果需要，说明调用哪个工具以及原因`;
       case ReasoningMode.PLAN:
         return `## 推理规则
-你是一个能够进行规划的智能助手。请在每次响应中使用 <thinking> 标签包裹你的规划过程。
+你是一个能够进行规划的智能助手。
 
-格式要求：
-<thinking>
+推理步骤：
 1. 分析问题，明确目标
 2. 制定详细的执行计划
-3. 列出需要调用的工具和顺序
-</thinking>
-然后按照计划逐步执行。
-
-重要规则：
-- 每次响应必须以 <thinking> 开头，以 </thinking> 结束
-- <thinking> 标签内是规划过程，标签外是执行
-- 制定计划后，按步骤执行并根据结果调整`;
+3. 列出需要调用的工具和顺序`;
       case ReasoningMode.REFLECT:
         return `## 推理规则
-你是一个具有反思能力的智能助手。请在每次响应中使用 <thinking> 标签包裹你的推理和反思。
+你是一个具有反思能力的智能助手。
 
-格式要求：
-<thinking>
+推理步骤：
 1. 分析当前情况和已有信息
 2. 反思之前的操作是否正确
 3. 检查是否有遗漏或更好的方法
-4. 决定下一步行动
-</thinking>
-然后继续执行。
-
-重要规则：
-- 每次响应必须以 <thinking> 开头，以 </thinking> 结束
-- <thinking> 标签内是推理和反思，标签外是行动
-- 每两步操作后进行一次反思`;
+4. 决定下一步行动`;
       default:
         return '';
     }

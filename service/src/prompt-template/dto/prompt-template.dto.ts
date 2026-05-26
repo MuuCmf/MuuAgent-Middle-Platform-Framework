@@ -34,7 +34,7 @@ export class CreatePromptTemplateDto {
   @IsNotEmpty()
   code: string;
 
-  @ApiProperty({ description: '分类', enum: ['agent', 'rag', 'react', 'skill', 'custom'], example: 'rag' })
+  @ApiProperty({ description: '分类', enum: ['agent', 'rag', 'react', 'custom'], example: 'rag' })
   @IsString()
   @IsNotEmpty()
   category: string;
@@ -179,7 +179,7 @@ export class QueryPromptTemplateDto {
   @IsOptional()
   name?: string;
 
-  @ApiPropertyOptional({ description: '分类', enum: ['agent', 'rag', 'react', 'skill', 'custom'] })
+  @ApiPropertyOptional({ description: '分类', enum: ['agent', 'rag', 'react', 'custom'] })
   @IsString()
   @IsOptional()
   category?: string;
