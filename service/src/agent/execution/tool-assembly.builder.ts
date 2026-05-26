@@ -92,7 +92,10 @@ export class ToolAssemblyBuilder {
           });
         }
       } else if (category === 'builtin') {
-        const isAllowed = allowedBuiltinTools.length === 0 || allowedBuiltinTools.includes(def.name);
+        // null 表示未配置，允许所有内置工具
+        // 空数组 [] 表示明确禁止所有内置工具
+        // 有值则只允许列表中的工具
+        const isAllowed = allowedBuiltinTools === null || allowedBuiltinTools.includes(def.name);
         if (isAllowed) {
           const existing = tools.find(t => t.name === def.name);
           if (!existing) {
@@ -176,20 +179,20 @@ export class ToolAssemblyBuilder {
 
   /**
    * 解析允许使用的内置工具列表
-   * @param config JSON字符串配置，为空时默认允许所有内置工具
-   * @returns {string[]} 工具名称列表，空数组表示允许所有
+   * @param config JSON字符串配置
+   * @returns {string[] | null} 工具名称列表，null表示未配置（允许所有），空数组表示禁止所有
    */
-  private parseAllowedBuiltinTools(config?: string): string[] {
+  private parseAllowedBuiltinTools(config?: string): string[] | null {
     if (!config) {
-      return [];
+      return null;
     }
 
     try {
       const tools = JSON.parse(config);
-      return Array.isArray(tools) ? tools : [];
+      return Array.isArray(tools) ? tools : null;
     } catch (e) {
       this.logger.warn(`解析allowedBuiltinTools失败: ${e}`);
-      return [];
+      return null;
     }
   }
 }
