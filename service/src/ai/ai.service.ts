@@ -5,6 +5,7 @@ import { ModelTemplateService } from '../model-template/model-template.service';
 import { IntentClassifierService } from '../intent/intent.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationType } from '../conversation/dto/create-conversation.dto';
+import { AppUsageService } from '../common/services/app-usage.service';
 import {
   AiInvokeDto,
   EmbeddingDto,
@@ -89,6 +90,7 @@ export class AiService {
    * @param modelService 模型服务
    * @param modelTemplateService 模型参数模板服务
    * @param conversationService 会话服务
+   * @param intentClassifier 意图分类器
    * @param strategyFactory 策略工厂
    * @param modelExecutor 模型执行器
    * @param contextManager 上下文管理器
@@ -96,6 +98,7 @@ export class AiService {
    * @param logService 日志服务
    * @param streamProcessor 流式处理器
    * @param toolCallParser 工具调用解析器
+   * @param appUsageService 应用使用量服务
    */
   constructor(
     private mcpService: ModelRoutingService,
@@ -110,6 +113,7 @@ export class AiService {
     private logService: LogService,
     private streamProcessor: StreamProcessor,
     private toolCallParser: ToolCallParser,
+    private appUsageService: AppUsageService,
   ) {}
 
   /**
@@ -239,6 +243,15 @@ export class AiService {
         uid,
         appCode,
       });
+
+      /** 同步 Token 使用量到 AppUsage（用于配额检查） */
+      if (appCode && result.usage?.promptTokens && result.usage?.completionTokens) {
+        await this.appUsageService.incrementTokenCount(
+          appCode,
+          result.usage.promptTokens,
+          result.usage.completionTokens,
+        );
+      }
 
       await this.mcpService.reportSuccess(model.id as any);
 
@@ -441,6 +454,15 @@ export class AiService {
         uid,
         appCode,
       });
+
+      /** 同步 Token 使用量到 AppUsage（用于配额检查） */
+      if (appCode && usage?.promptTokens && usage?.completionTokens) {
+        await this.appUsageService.incrementTokenCount(
+          appCode,
+          usage.promptTokens,
+          usage.completionTokens,
+        );
+      }
 
       emitter.emitDone();
     } catch (error) {

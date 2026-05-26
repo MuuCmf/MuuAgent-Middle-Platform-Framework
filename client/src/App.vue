@@ -4,9 +4,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import ApiKeyDialog from './components/ApiKeyDialog.vue'
 import { hasCredentials } from './utils/auth'
+import { apiKeyDialogState } from './utils/events'
 
 /**
  * API Key 配置弹窗引用
@@ -14,9 +15,16 @@ import { hasCredentials } from './utils/auth'
 const apiKeyDialogRef = ref<InstanceType<typeof ApiKeyDialog>>()
 
 onMounted(() => {
+  /** 设置弹窗引用到全局状态 */
+  apiKeyDialogState.setRef(apiKeyDialogRef.value!)
+
   if (!hasCredentials()) {
     apiKeyDialogRef.value?.open()
   }
+})
+
+onUnmounted(() => {
+  apiKeyDialogState.setRef(null)
 })
 </script>
 

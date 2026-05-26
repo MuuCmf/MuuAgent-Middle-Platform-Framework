@@ -862,19 +862,30 @@ dist/
 │   ├── init-admin.js       # 初始化管理员脚本
 │   └── seeds/
 │       └── prompt-templates.js  # 种子数据脚本
-├── skills/                 # 技能文件（必需，通过 nest-cli.json 配置）
-│   └── standard/
-│       └── _public/
-│           └── ...         # 各种技能定义
 └── public/                 # 公共静态文件（如果存在）
 ```
 
 **说明：**
 - `dist/src/` - TypeScript 源代码编译后的 JavaScript 文件
 - `dist/prisma/` - 包含编译后的初始化脚本，生产环境无需 TypeScript 依赖
-- `dist/skills/` - 通过 nest-cli.json 配置自动复制到 dist 目录的技能文件
 
-#### 2. Prisma 相关 `prisma/`
+#### 2. 技能目录 `skills/`（根目录）
+
+```
+skills/
+└── standard/               # 标准技能目录（必需）
+    ├── _public/            # 公开技能
+    │   └── ...             # 各种技能定义
+    └── app-{code}/         # 应用级技能（可选）
+        └── ...
+```
+
+**说明：**
+- 技能文件位于根目录 `skills/`，不在 `dist/` 内
+- `process.cwd()` = `service/`，扫描路径为 `service/skills/standard`
+- 生产环境启动命令 `node dist/src/main` 在 `service/` 目录执行
+
+#### 3. Prisma 相关 `prisma/`
 
 ```
 prisma/
@@ -894,7 +905,7 @@ prisma/
 - `migrations/` - 生产环境数据库迁移必需，包含所有数据库变更历史
 - `seeds/` - 种子数据源文件，可选，用于初始化基础数据
 
-#### 3. 配置文件
+#### 4. 配置文件
 
 ```
 service/
@@ -908,7 +919,7 @@ service/
 - `package.json` 和 `package-lock.json` - 定义运行时依赖
 - `.env` - 生产环境配置，包含数据库连接、JWT 密钥等敏感信息
 
-#### 4. 运行时依赖
+#### 5. 运行时依赖
 
 ```
 node_modules/               # 依赖包（必需，通过 npm ci 安装）
@@ -918,9 +929,9 @@ node_modules/               # 依赖包（必需，通过 npm ci 安装）
 - 生产环境通过 `npm ci --production` 安装依赖
 - 不包含开发依赖（如 TypeScript、测试工具等）
 
-#### 5. 数据库初始化
+#### 6. 数据库初始化
 
-##### 5.1 前置准备
+##### 6.1 前置准备
 
 首次部署前，需要先创建数据库：
 
@@ -933,7 +944,7 @@ CREATE DATABASE IF NOT EXISTS muuagent_middle_platform CHARACTER SET utf8mb4 COL
 EXIT;
 ```
 
-##### 5.2 方式一：迁移部署（推荐，适用于干净数据库）
+##### 6.2 方式一：迁移部署（推荐，适用于干净数据库）
 
 这是标准的生产部署方式，适用于全新的空数据库：
 
@@ -954,7 +965,7 @@ npx prisma generate
 node dist/prisma/init-admin.js
 ```
 
-##### 5.3 方式二：直接同步（适用于迁移失败的场景）
+##### 6.3 方式二：直接同步（适用于迁移失败的场景）
 
 如果 `prisma migrate deploy` 因迁移文件问题失败，可使用 `prisma db push` 直接根据 schema 同步表结构：
 
@@ -981,7 +992,7 @@ npx prisma migrate resolve --applied 20260522_remove_workspace_config_from_agent
 node dist/prisma/init-admin.js
 ```
 
-##### 5.4 方式三：导入完整 SQL 脚本
+##### 6.4 方式三：导入完整 SQL 脚本
 
 如果有完整的数据库导出 SQL，可直接导入：
 
@@ -1002,7 +1013,7 @@ npx prisma migrate resolve --applied 20260522_remove_workspace_config_from_agent
 npx prisma generate
 ```
 
-##### 5.5 初始化种子数据（可选）
+##### 6.5 初始化种子数据（可选）
 
 初始化脚本完成后，可根据需要导入种子数据：
 
@@ -1015,14 +1026,14 @@ mysql -u root -p muuagent_middle_platform < prisma/seeds/prompt-templates.sql
 mysql -u root -p muuagent_middle_platform < prisma/init-templates.sql
 ```
 
-##### 5.6 启动应用
+##### 6.6 启动应用
 
 ```bash
 # 启动应用
 node dist/src/main
 ```
 
-##### 5.7 验证部署
+##### 6.7 验证部署
 
 ```bash
 # 验证服务是否正常

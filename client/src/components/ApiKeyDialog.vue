@@ -39,9 +39,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getApiKey, getUid, setApiKey, setUid } from '../utils/auth'
+import { apiKeyDialogState } from '../utils/events'
 
 /**
  * 表单引用
@@ -120,6 +121,15 @@ async function handleSubmit(): Promise<void> {
     submitting.value = false
   }
 }
+
+/**
+ * 监听弹窗关闭，重置状态
+ */
+watch(dialogVisible, (value) => {
+  if (!value) {
+    apiKeyDialogState.close()
+  }
+})
 
 defineExpose({ open })
 
