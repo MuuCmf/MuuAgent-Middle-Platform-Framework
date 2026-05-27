@@ -5,6 +5,7 @@ import { ToolDefinition, ToolExecutionContext } from '../abstract/tool.interface
 import { AgentTool } from '../decorators';
 import { SkillKbService } from '../../../skill/skill-kb.service';
 import { IsolationContext } from '../../../common/services/base-isolated.service';
+import { buildSkillHint } from './tool-hint.constants';
 
 /**
  * 知识库检索工具配置
@@ -44,7 +45,7 @@ export class KbSearchTool extends BaseTool {
   readonly definition: ToolDefinition = {
     name: 'kb_search',
     description: `从知识库中检索相关信息。当需要查询产品信息、文档内容、FAQ等知识库内容时使用此工具。
-使用前请确保已通过 use_skill 加载相关技能指令，了解知识库的使用方式和内容范围。`,
+${buildSkillHint('了解知识库的使用方式和内容范围')}`,
     parameters: {
       type: 'object',
       properties: {

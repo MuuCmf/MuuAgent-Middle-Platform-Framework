@@ -3,6 +3,7 @@ import axios from 'axios';
 import { BaseTool } from '../abstract/base-tool';
 import { ToolDefinition, ToolExecutionContext } from '../abstract/tool.interface';
 import { AgentTool } from '../decorators';
+import { buildSkillHint } from './tool-hint.constants';
 
 export interface HttpRequestResult {
   status: number;
@@ -28,7 +29,7 @@ export class HttpRequestTool extends BaseTool {
   readonly definition: ToolDefinition = {
     name: 'http_request',
     description: `发起 HTTP 请求。用于调用外部 API、发送 webhook、获取远程数据等。
-使用前请确保已通过 use_skill 加载相关技能指令，了解正确的 URL、参数和认证方式。
+${buildSkillHint('了解正确的 URL、参数和认证方式')}
 注意：禁止访问内网地址，响应体有大小限制。`,
     parameters: {
       type: 'object',

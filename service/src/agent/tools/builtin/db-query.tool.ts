@@ -5,6 +5,7 @@ import { ToolDefinition, ToolExecutionContext } from '../abstract/tool.interface
 import { AgentTool } from '../decorators';
 import { ConnectionPoolManager } from '../../../skill/database/connection-pool.manager';
 import { SqlValidator } from '../../../skill/database/sql-validator';
+import { buildSkillHint } from './tool-hint.constants';
 
 export interface DbQueryResult {
   rows: unknown[];
@@ -28,8 +29,8 @@ export class DbQueryTool extends BaseTool {
   readonly definition: ToolDefinition = {
     name: 'db_query',
     description: `执行只读数据库查询（仅允许 SELECT/SHOW/DESCRIBE/EXPLAIN）。
-支持 MySQL 命名参数（:paramName 格式）。使用前请确保已通过 use_skill 加载相关技能指令，
-了解数据库连接信息和表结构。连接密码支持 {{ENV:VAR}} 环境变量引用。`,
+支持 MySQL 命名参数（:paramName 格式）。${buildSkillHint('了解数据库连接信息和表结构')}
+连接密码支持 {{ENV:VAR}} 环境变量引用。`,
     parameters: {
       type: 'object',
       properties: {

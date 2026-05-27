@@ -41,7 +41,7 @@ const samplePrompt = `react-reasoning-default
 - http_request: 发起 HTTP 请求。用于调用外部 API、发送 webhook、获取远程数据等。
 使用前请确保已通过 use_skill 加载相关技能指令，了解正确的 URL、参数和认证方式。
 注意：禁止访问内网地址，响应体有大小限制。
-参数: {"method":"string (GET|POST|PUT|PATCH|DELETE|HEAD)* - HTTP 方法","url":"string* - 完整的请求 URL（含协议）","headers":"object - 请求头，如 {\\"Authorization\\": \\"Bearer xxx\\", \\"Content-Type`;
+参数: {"method":"string (GET|POST|PUT|PATCH|DELETE|HEAD)* - HTTP 方法","url":"string* - 完整的请求 URL（含协议）","headers":"object - 请求头，如 {\"Authorization\": \"Bearer xxx\", \"Content-Type\": \"application/json\"}","body":"string - 请求体内容"}`;
 
 console.log('='.repeat(80));
 console.log('📏 提示词长度分析');

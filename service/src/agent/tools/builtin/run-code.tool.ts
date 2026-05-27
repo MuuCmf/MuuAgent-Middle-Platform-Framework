@@ -6,6 +6,7 @@ import { ToolDefinition, ToolExecutionContext } from '../abstract/tool.interface
 import { AgentTool } from '../decorators';
 import { SandboxExecutor } from '../../../skill/executors/sandbox.executor';
 import { ScriptRunner, ScriptResult } from '../../../skill/standard/script-runner';
+import { buildSkillHint } from './tool-hint.constants';
 
 export interface RunCodeResult {
   success: boolean;
@@ -30,7 +31,7 @@ export class RunCodeTool extends BaseTool {
   readonly definition: ToolDefinition = {
     name: 'run_code',
     description: `在安全沙箱中执行代码。支持 JavaScript（VM2 沙箱）、Python 和 Bash。
-使用前请确保已通过 use_skill 加载相关技能指令。
+${buildSkillHint()}
 JS 可直接使用 params 变量访问参数；Python/Bash 通过 stdin JSON 接收参数。
 代码执行有超时限制，禁止网络和文件系统访问。
 
