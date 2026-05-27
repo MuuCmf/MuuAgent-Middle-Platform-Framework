@@ -524,11 +524,14 @@ export class PromptTemplateService {
 {{query}}
 
 ## 回答格式
+
 请按照以下格式回答：
-[THINKING]
-你的思考过程和分析
-[ANSWER]
-正式回答内容
+
+<thinking>
+你的推理、分析、规划过程
+</thinking>
+
+然后给出最终回答。
 
 ## 回答要求
 1. 基于参考信息给出准确、详细的回答
@@ -545,30 +548,42 @@ export class PromptTemplateService {
 ## 工具使用规则
 
 当用户的问题需要使用工具来获取信息时，你必须调用相应的工具。
+**重要提示**：使用工具前请确保已通过 use_skill 加载相关技能指令，了解工具的正确使用方式、参数格式和注意事项。
 
 ## 回答格式（严格遵守）
 
-每个标记必须独占一行，格式如下：
+### 思考阶段
+使用 <thinking> 标签包裹你的推理、分析、规划过程：
 
-Thought: 思考当前需要做什么，分析用户问题和已有信息
+<thinking>
+分析用户问题和已有信息，规划下一步行动
+</thinking>
+
+### 工具调用阶段
+当需要调用工具时，使用以下格式：
+
 Action: 要执行的工具名称（必须是上述工具之一）
 Action Input: 工具参数，JSON格式，例如：{}
+
 Observation: 工具返回结果（由系统自动提供）
 
-... (这个 Thought/Action/Action Input/Observation 可以重复多次)
+### 结束阶段
+当你有足够信息回答用户问题时：
 
-Thought: 我现在知道最终答案了
+<thinking>
+我现在知道最终答案了
+</thinking>
+
 Final Answer: 对用户问题的最终回答
 
 ## 重要规则
 
 1. 每次只能调用一个工具
-2. **必须严格按照格式输出，每个标记独占一行**
-3. **标记后面必须有冒号和空格，例如："Thought: "而不是"Thought"**
-4. 收到 Observation 后，继续思考下一步行动
-5. 当你有足够信息回答用户问题时，输出 Final Answer
-6. Final Answer 必须用自然语言回答，不要提及工具调用细节
-7. **如果不需要调用工具，直接输出 Final Answer**`,
+2. **必须严格按照格式输出**
+3. 收到 Observation 后，继续用 <thinking> 分析下一步行动
+4. 当你有足够信息回答用户问题时，输出 Final Answer
+5. Final Answer 必须用自然语言回答，不要提及工具调用细节
+6. **如果不需要调用工具，直接输出 Final Answer**`,
 
       'intent-classify-default': `你是一个对话意图分类助手。请分析用户消息，判断其意图类别。
 
