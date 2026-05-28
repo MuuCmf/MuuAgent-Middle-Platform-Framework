@@ -11,6 +11,8 @@ import { KbModule } from '../../kb/kb.module';
 import { OAuthModule } from '../../oauth/oauth.module';
 import { McpServerModule } from '../../mcp-server/mcp-server.module';
 import { AdminModule } from '../../admin/admin.module';
+import { DesktopModule } from '../../desktop/desktop.module';
+import { BrowserModule } from '../../browser/browser.module';
 
 // Mid-level modules
 import { IntentModule } from '../../intent/intent.module';
@@ -38,6 +40,8 @@ export const KNOWN_BUSINESS_MODULES: Type[] = [
   OAuthModule,
   McpServerModule,
   AdminModule,
+  DesktopModule,
+  BrowserModule,
   IntentModule,
   ModelRoutingModule,
   DocumentModule,

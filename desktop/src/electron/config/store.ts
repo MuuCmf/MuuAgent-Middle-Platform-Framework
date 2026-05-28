@@ -46,6 +46,31 @@ interface DesktopConfig {
     /** 是否记录操作日志 */
     enableLog: boolean
   }
+  /** 浏览器自动化设置（完全独立） */
+  browserAutomation: {
+    /** 是否启用浏览器自动化（总开关） */
+    enabled: boolean
+    /** 需要用户确认的操作类型列表 */
+    requireConfirm: ('navigate' | 'evaluate' | 'fill')[]
+    /** 确认超时时间（秒），超时自动拒绝 */
+    confirmTimeout: number
+    /** 操作频率限制（次/分钟），0 表示不限制 */
+    rateLimit: number
+    /** 最大页面数量 */
+    maxPages: number
+    /** 页面超时时间（毫秒） */
+    pageTimeout: number
+    /** 域名黑名单 */
+    domainBlacklist: string[]
+    /** 域名白名单 */
+    domainWhitelist: string[]
+    /** 是否允许脚本执行 */
+    allowScriptExecution: boolean
+    /** 是否记录操作日志 */
+    enableLog: boolean
+    /** Chromium 启动参数 */
+    chromiumArgs: string[]
+  }
 }
 
 /** 默认配置 */
@@ -80,13 +105,46 @@ const defaults: DesktopConfig = {
     ],
     enableLog: true,
   },
+  browserAutomation: {
+    enabled: true,
+    requireConfirm: ['navigate', 'evaluate'],
+    confirmTimeout: 60,
+    rateLimit: 20,
+    maxPages: 5,
+    pageTimeout: 30000,
+    domainBlacklist: [],
+    domainWhitelist: [],
+    allowScriptExecution: false,
+    enableLog: true,
+    chromiumArgs: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+    ],
+  },
 }
 
 /** 配置存储实例 */
 export const configStore = new Store<DesktopConfig>({
   defaults,
   name: 'muu-agent-desktop',
+  watch: true,
 })
+
+/**
+ * 初始化配置迁移
+ * 确保浏览器自动化默认启用（修复旧配置）
+ */
+function initConfigMigration(): void {
+  const currentEnabled = configStore.get('browserAutomation.enabled')
+  if (currentEnabled === false) {
+    configStore.set('browserAutomation.enabled', true)
+    console.log('[ConfigStore] 已迁移配置：browserAutomation.enabled = true')
+  }
+}
+
+/** 执行配置迁移 */
+initConfigMigration()
 
 /**
  * 获取配置项值（类型安全访问）

@@ -3,6 +3,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { getConfigValue } from './config/store'
 import { DesktopMcpModule } from './desktop-mcp'
+import { BrowserMcpModule } from './browser-mcp'
 
 /** 文件树节点类型 */
 interface FileTreeNode {
@@ -24,6 +25,9 @@ const isDev = !app.isPackaged || !!process.defaultApp
 
 /** Desktop MCP 模块实例 */
 let desktopMcpModule: DesktopMcpModule | null = null
+
+/** Browser MCP 模块实例（浏览器自动化，完全独立） */
+let browserMcpModule: BrowserMcpModule | null = null
 
 /**
  * 创建主窗口
@@ -84,6 +88,11 @@ function registerIpcHandlers(): void {
     mainWindow?.webContents.send(data.channel, data.confirmed)
   })
 
+  /** 浏览器自动化确认弹窗回传（独立） */
+  ipcMain.on('browser:confirm:response', (_event, data: { channel: string; confirmed: boolean }) => {
+    mainWindow?.webContents.send(data.channel, data.confirmed)
+  })
+
   /** 桌面自动化工具执行（来自浏览器渲染进程的 IPC 调用） */
   ipcMain.handle('desktop:execute-tool', async (
     _event,
@@ -111,6 +120,37 @@ function registerIpcHandlers(): void {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       console.error(`[Main] 桌面工具执行异常: ${toolName}, ${message}`)
+      return { callId, success: false, error: message }
+    }
+  })
+
+  /** 浏览器自动化工具执行（来自浏览器渲染进程的 IPC 调用，独立） */
+  ipcMain.handle('browser:execute-tool', async (
+    _event,
+    payload: { callId: string; toolName: string; args: Record<string, unknown> },
+  ): Promise<{ callId: string; success: boolean; result?: unknown; error?: string }> => {
+    const { callId, toolName, args } = payload
+
+    try {
+      const server = browserMcpModule?.getBridge()?.getServer()
+      if (!server) {
+        return { callId, success: false, error: '浏览器自动化模块未初始化' }
+      }
+
+      console.log(`[Main] 收到浏览器工具调用: ${toolName}, callId: ${callId}`)
+
+      /** 浏览器端已通过 clientToolRouter 完成确认，此处跳过二次确认 */
+      const result = await server.callTool(toolName, args, { skipConfirm: true })
+
+      return {
+        callId,
+        success: !result.isError,
+        result: result.content,
+        error: result.isError ? (result.content[0]?.text || '执行失败') : undefined,
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`[Main] 浏览器工具执行异常: ${toolName}, ${message}`)
       return { callId, success: false, error: message }
     }
   })
@@ -207,6 +247,22 @@ function startDesktopAutomation(): void {
     })
 }
 
+/**
+ * 启动浏览器自动化模块（完全独立）
+ */
+function startBrowserAutomation(): void {
+  const browserAutomation = getConfigValue('browserAutomation') || {}
+
+  browserMcpModule = new BrowserMcpModule()
+  browserMcpModule.start(browserAutomation, mainWindow)
+    .then((bridge) => {
+      console.log('[Main] 浏览器自动化模块已启动，Bridge 就绪')
+    })
+    .catch((err) => {
+      console.error('[Main] 浏览器自动化模块启动失败:', err)
+    })
+}
+
 app.whenReady().then(() => {
   /** 设置 Content Security Policy */
   const csp = isDev
@@ -229,6 +285,9 @@ app.whenReady().then(() => {
 
   /** 启动桌面自动化 */
   startDesktopAutomation()
+
+  /** 启动浏览器自动化（完全独立） */
+  startBrowserAutomation()
 
   if (!isDev) {
     import('./updater').then(({ initAutoUpdater }) => {
@@ -255,6 +314,11 @@ app.on('will-quit', () => {
   /** 停止桌面自动化模块 */
   if (desktopMcpModule) {
     desktopMcpModule.stop()
+  }
+
+  /** 停止浏览器自动化模块（完全独立） */
+  if (browserMcpModule) {
+    browserMcpModule.stop()
   }
 })
 

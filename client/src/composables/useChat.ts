@@ -16,6 +16,7 @@ import { useWorkspace } from "./useWorkspace";
 import { WorkspaceExecutor } from "../executor/workspace.executor";
 import { dynamicClientToolExecutor } from "../executor/dynamic-client-tool.executor";
 import { DesktopExecutor } from "../executor/desktop.executor";
+import { BrowserExecutor } from "../executor/browser.executor";
 import { clientToolRouter } from "../executor/client-tool-router";
 import type { Message, ContentBlock, ContentBlockStatus } from "../api/types";
 import type { ReasoningStep } from "../api/reasoning";
@@ -639,6 +640,7 @@ export function useChat() {
     }
     clientToolRouter.registerExecutor(dynamicClientToolExecutor);
     clientToolRouter.registerExecutor(new DesktopExecutor());
+    clientToolRouter.registerExecutor(new BrowserExecutor());
 
     const userMessage: Message = {
       role: "user",

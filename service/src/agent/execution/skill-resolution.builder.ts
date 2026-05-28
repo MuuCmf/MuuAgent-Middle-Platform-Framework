@@ -17,6 +17,11 @@ export interface SkillResolutionResult {
    * 当任意绑定的技能声明 requires.desktopAutomation = true 时启用
    */
   resolvedDesktopAutomation: boolean;
+  /**
+   * 浏览器自动化能力是否已启用
+   * 当任意绑定的技能声明 requires.browser = true 时启用
+   */
+  resolvedBrowser: boolean;
 }
 
 @Injectable()
@@ -71,12 +76,29 @@ export class SkillResolutionBuilder {
       skill => skill.frontmatter?.requires?.desktopAutomation === true,
     );
 
+    const resolvedBrowser = boundSkills.some(
+      skill => skill.frontmatter?.requires?.browser === true,
+    );
+
+    this.logger.debug(
+      `技能依赖解析结果: workspace=${resolvedWorkspace}, desktop=${resolvedDesktopAutomation}, browser=${resolvedBrowser}`,
+    );
+    this.logger.debug(
+      `绑定技能列表: ${boundSkills.map(s => s.metadata.name).join(', ')}`,
+    );
+    boundSkills.forEach(skill => {
+      this.logger.debug(
+        `技能 ${skill.metadata.name} requires: ${JSON.stringify(skill.frontmatter?.requires)}`,
+      );
+    });
+
     return {
       boundSkills,
       availableSkillNames,
       resolvedMcpServers: Array.from(resolvedMcpServers),
       resolvedWorkspace,
       resolvedDesktopAutomation,
+      resolvedBrowser,
     };
   }
 

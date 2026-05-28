@@ -30,6 +30,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   /**
+   * 执行浏览器自动化工具
+   * 将工具调用转发到 Electron 主进程的 BrowserMcpServer 执行
+   * @param callId 调用ID
+   * @param toolName 工具名称
+   * @param args 工具参数
+   * @returns {Promise<{callId: string; success: boolean; result?: unknown; error?: string}>} 执行结果
+   */
+  executeBrowserTool: async (
+    callId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<{ callId: string; success: boolean; result?: unknown; error?: string }> => {
+    return ipcRenderer.invoke('browser:execute-tool', { callId, toolName, args })
+  },
+
+  /**
    * 监听主进程事件
    * @param channel 事件频道
    * @param callback 回调函数

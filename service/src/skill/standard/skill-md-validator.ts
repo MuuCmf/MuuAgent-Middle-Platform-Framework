@@ -13,6 +13,8 @@ export interface SkillRequires {
   workspace?: boolean;
   /** 是否需要桌面自动化操作能力（鼠标、键盘、截屏、命令执行等） */
   desktopAutomation?: boolean;
+  /** 是否需要浏览器自动化操作能力（页面导航、截图、点击、填充表单等） */
+  browser?: boolean;
 }
 
 /**
