@@ -4,6 +4,7 @@ import { OpenAIStrategy } from './openai.strategy';
 import { ZhipuStrategy } from './zhipu.strategy';
 import { DeepSeekStrategy } from './deepseek.strategy';
 import { OllamaStrategy } from './ollama.strategy';
+import { AliyunStrategy } from './aliyun.strategy';
 import { resolveProvider } from '../providers/provider-registry';
 
 /**
@@ -21,18 +22,21 @@ export class StrategyFactory {
    * @param zhipuStrategy 智谱策略
    * @param deepseekStrategy DeepSeek 策略
    * @param ollamaStrategy Ollama 策略
+   * @param aliyunStrategy 阿里云通义策略
    */
   constructor(
     private readonly openaiStrategy: OpenAIStrategy,
     private readonly zhipuStrategy: ZhipuStrategy,
     private readonly deepseekStrategy: DeepSeekStrategy,
     private readonly ollamaStrategy: OllamaStrategy,
+    private readonly aliyunStrategy: AliyunStrategy,
   ) {
     this.strategies = new Map<string, IProviderStrategy>([
       ['openai', this.openaiStrategy],
       ['zhipu', this.zhipuStrategy],
       ['deepseek', this.deepseekStrategy],
       ['ollama', this.ollamaStrategy],
+      ['aliyun', this.aliyunStrategy],
     ]);
   }
 

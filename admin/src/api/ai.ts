@@ -25,6 +25,6 @@ export const aiApi = {
    * @returns {Promise<AxiosResponse>} 调用结果
    */
   invoke(params: AiInvokeParams): Promise<AxiosResponse<{ data: AiInvokeResponse }>> {
-    return request.post('/ai/invoke', params)
+    return request.post('/api/ai/invoke', params)
   }
 }

@@ -141,6 +141,36 @@
             <div v-if="isStreaming && !hasActiveStreamingBlock" class="typing-cursor">
               <span class="cursor" />
             </div>
+
+            <!-- 语音播放按钮（仅assistant消息，contentBlocks路径） -->
+            <div v-if="message.role === 'assistant' && !isStreaming" class="voice-controls">
+              <el-button
+                v-if="!isPlaying"
+                type="primary"
+                size="small"
+                @click="handlePlayVoice"
+                :loading="isSynthesizing"
+              >
+                🔊 播放语音
+              </el-button>
+              <el-button
+                v-else
+                type="danger"
+                size="small"
+                @click="handleStopVoice"
+              >
+                🔇 停止播放
+              </el-button>
+
+              <el-slider
+                v-model="voiceSpeed"
+                :min="0.5"
+                :max="2"
+                :step="0.1"
+                :format-tooltip="(val: number) => `语速: ${val}`"
+                style="width: 150px; margin-left: 10px;"
+              />
+            </div>
           </template>
 
           <template v-else>
@@ -163,6 +193,36 @@
               :shikiOptions="shikiOptions"
               @copied="handleCopied"
             />
+
+            <!-- 语音播放按钮（仅assistant消息） -->
+            <div v-if="message.role === 'assistant' && !isStreaming" class="voice-controls">
+              <el-button
+                v-if="!isPlaying"
+                type="primary"
+                size="small"
+                @click="handlePlayVoice"
+                :loading="isSynthesizing"
+              >
+                🔊 播放语音
+              </el-button>
+              <el-button
+                v-else
+                type="danger"
+                size="small"
+                @click="handleStopVoice"
+              >
+                🔇 停止播放
+              </el-button>
+              
+              <el-slider
+                v-model="voiceSpeed"
+                :min="0.5"
+                :max="2"
+                :step="0.1"
+                :format-tooltip="(val: number) => `语速: ${val}`"
+                style="width: 150px; margin-left: 10px;"
+              />
+            </div>
 
             <div v-if="isStreaming" class="typing-cursor">
               <span class="cursor" />
@@ -188,6 +248,7 @@ import RagAnswer from './RagAnswer.vue'
 import { Markdown } from 'vue-stream-markdown'
 import type { ControlsConfig, CodeOptions, ShikiOptions } from 'vue-stream-markdown'
 import { preprocessMarkdown } from '../../../utils/markdown'
+import { voiceService } from '../../../services/VoiceService'
 import 'vue-stream-markdown/index.css'
 import '../../../styles/markdown.scss'
 
@@ -219,6 +280,65 @@ const thinkingBlockExpanded = ref<Record<number, boolean>>({})
 
 /** 工具块展开状态（按索引，默认展开） */
 const toolBlockExpanded = ref<Record<number, boolean>>({})
+
+/** 语音播放状态 */
+const isPlaying = ref(false)
+const isSynthesizing = ref(false)
+const voiceSpeed = ref(1.0)
+
+/**
+ * 获取消息的可合成文本（优先 content，兜底从 contentBlocks 拼接）
+ * @returns {string} 合成文本
+ */
+const getSynthesizeText = (): string => {
+  if (props.message.content) return props.message.content
+  const blocks = props.message.contentBlocks
+  if (!blocks) return ''
+  return blocks
+    .filter(b => b.type === 'text' || (b.type === 'thinking' && b.toolStatus === 'completed'))
+    .map(b => b.content)
+    .join('\n')
+}
+
+/**
+ * 播放语音
+ */
+async function handlePlayVoice() {
+  const text = getSynthesizeText()
+  if (!text) return
+
+  isSynthesizing.value = true
+
+  try {
+    const result = await voiceService.synthesize({
+      text,
+      speed: voiceSpeed.value,
+    })
+
+    isSynthesizing.value = false
+    isPlaying.value = true
+
+    if (result.audioUrl) {
+      await voiceService.playFromUrl(result.audioUrl)
+    } else if (result.audioData) {
+      await voiceService.playFromBase64(result.audioData, result.format)
+    }
+
+    isPlaying.value = false
+  } catch (error) {
+    isSynthesizing.value = false
+    ElMessage.error('语音合成失败')
+    console.error('语音合成失败:', error)
+  }
+}
+
+/**
+ * 停止播放
+ */
+function handleStopVoice() {
+  voiceService.stop()
+  isPlaying.value = false
+}
 
 /**
  * 切换思考块展开状态
@@ -544,6 +664,14 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
 @keyframes blink {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
+}
+
+.voice-controls {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
 }
 
 .retrieval-results {

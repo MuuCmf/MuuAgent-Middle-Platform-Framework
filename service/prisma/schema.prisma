@@ -728,13 +728,45 @@ model Message {
   tokenCount     Int?     @map("token_count") /// Token数量
   reasoningSteps String?  @map("reasoning_steps") @db.Text /// 推理步骤(JSON)
   metadata       String?  @db.Text /// 额外元数据(JSON)，如检索结果、模型参数等
+  
+  // ===== 语音合成相关字段 =====
+  audioUrl       String?  @map("audio_url") /// 音频文件URL
+  audioDuration  Float?   @map("audio_duration") /// 音频时长（秒）
+  audioFormat    String?  @map("audio_format") /// 音频格式：mp3/wav/ogg
+  voiceId        String?  @map("voice_id") /// 使用的语音ID
+  speechRate     Float?   @map("speech_rate") /// 语速（0.5-2.0）
+  
   createdAt      DateTime @default(now())
 
   /// 关联
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
+  @@index([audioUrl])
   @@map("messages")
+}
+
+/// 语音配置表 - 存储语音合成配置
+model VoiceProfile {
+  id          BigInt   @id @default(0)
+  name        String   /// 语音配置名称
+  code        String   @unique /// 配置唯一标识
+  voiceId     String   @map("voice_id") /// 语音ID（提供商特定）
+  provider    String   /// 提供商：openai/azure/aliyun/local
+  language    String   /// 语言：zh-CN/en-US/ja-JP等
+  gender      String?  /// 性别：male/female/neutral
+  style       String?  /// 风格：neutral/cheerful/sad等
+  sampleRate  Int      @default(24000) @map("sample_rate") /// 采样率
+  isDefault   Boolean  @default(false) @map("is_default") /// 是否默认
+  status      Boolean  @default(true) /// 是否启用
+  appCode     String?  @map("app_code") /// 应用隔离
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([provider, language])
+  @@index([isDefault])
+  @@map("voice_profiles")
 }
 
 /// Prompt模板表 - 存储提示词模板

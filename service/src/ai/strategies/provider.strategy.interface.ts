@@ -4,7 +4,48 @@ import {
   ExecutionResult,
   StreamChunk,
   ToolCall,
+  ExecutionContext,
 } from '../interfaces/executor.interface';
+
+/**
+ * TTS执行参数接口
+ */
+export interface TTSExecutionParams {
+  model: Model;
+  text: string;
+  voice?: string;
+  speed?: number;
+  context: ExecutionContext;
+}
+
+/**
+ * TTS执行结果接口
+ */
+export interface TTSExecutionResult {
+  audioUrl?: string;
+  audioData?: string;
+  format: string;
+  duration?: number;
+}
+
+/**
+ * ASR执行参数接口
+ */
+export interface ASRExecutionParams {
+  model: Model;
+  audio: string;
+  format?: string;
+  context: ExecutionContext;
+}
+
+/**
+ * ASR执行结果接口
+ */
+export interface ASRExecutionResult {
+  text: string;
+  confidence?: number;
+  language?: string;
+}
 
 /**
  * Provider 策略接口
@@ -57,4 +98,18 @@ export interface IProviderStrategy {
    * @returns 模型名称
    */
   getModelName?(model: Model): string;
+
+  /**
+   * TTS语音合成（可选）
+   * @param params TTS参数
+   * @returns TTS结果
+   */
+  executeTTS?(params: TTSExecutionParams): Promise<TTSExecutionResult>;
+
+  /**
+   * ASR语音识别（可选）
+   * @param params ASR参数
+   * @returns ASR结果
+   */
+  executeASR?(params: ASRExecutionParams): Promise<ASRExecutionResult>;
 }

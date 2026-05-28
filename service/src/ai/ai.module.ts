@@ -24,6 +24,7 @@ import { OpenAIStrategy } from './strategies/openai.strategy';
 import { ZhipuStrategy } from './strategies/zhipu.strategy';
 import { DeepSeekStrategy } from './strategies/deepseek.strategy';
 import { OllamaStrategy } from './strategies/ollama.strategy';
+import { AliyunStrategy } from './strategies/aliyun.strategy';
 import { StrategyFactory } from './strategies/strategy.factory';
 
 // 解析器层
@@ -52,6 +53,7 @@ import { ToolCallParser } from './parsers/tool-call.parser';
     ZhipuStrategy,
     DeepSeekStrategy,
     OllamaStrategy,
+    AliyunStrategy,
     StrategyFactory,
 
     // 解析器层

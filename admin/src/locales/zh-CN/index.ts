@@ -13,6 +13,7 @@ import mcp from './mcp'
 import rateLimit from './rateLimit'
 import dashboard from './dashboard'
 import cache from './cache'
+import voice from './voice'
 
 export default {
   ...common,
@@ -30,4 +31,5 @@ export default {
   ...rateLimit,
   ...dashboard,
   ...cache,
+  ...voice,
 }

@@ -24,6 +24,24 @@ interface ElectronAPI {
   }>
 
   /**
+   * 执行浏览器自动化工具
+   * @param callId 调用ID
+   * @param toolName 工具名称
+   * @param args 工具参数
+   * @returns 执行结果
+   */
+  executeBrowserTool(
+    callId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<{
+    callId: string
+    success: boolean
+    result?: unknown
+    error?: string
+  }>
+
+  /**
    * 打开本地文件或目录（使用系统默认应用）
    * @param filePath 文件或目录的完整路径
    * @returns 打开结果

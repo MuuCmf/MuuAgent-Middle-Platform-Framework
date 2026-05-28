@@ -692,6 +692,174 @@ export class AiService {
   }
 
   /**
+   * TTS语音合成
+   * @param dto 调用参数
+   * @param clientIp 客户端IP
+   * @param userAgent 用户代理
+   * @param uid 用户唯一标识(透传)
+   * @param appCode 应用编码
+   * @returns {Promise<Record<string, unknown>>} 音频结果
+   */
+  async tts(
+    dto: TtsDto,
+    clientIp: string,
+    userAgent: string,
+    uid?: string,
+    appCode?: string,
+  ): Promise<Record<string, unknown>> {
+    const context = this.contextManager.createFromParams(
+      clientIp,
+      userAgent,
+      uid,
+      appCode,
+    );
+
+    const modelType = dto.modelType || 'tts';
+
+    this.logger.debug(`TTS语音合成开始: requestId=${context.requestId}, modelCode=${dto.modelCode}`);
+
+    try {
+      const model = await this.selectModel(dto.modelCode, modelType);
+      
+      await this.mcpService.checkCircuit(model.id as any);
+
+      const strategy = this.strategyFactory.getStrategy(model.provider);
+      
+      if (!strategy.executeTTS) {
+        throw new HttpException(
+          `模型提供商 ${model.provider} 不支持TTS功能`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await strategy.executeTTS({
+        model,
+        text: dto.text,
+        voice: dto.voice,
+        speed: dto.speed,
+        context,
+      });
+
+      await this.mcpService.reportSuccess(model.id as any);
+
+      await this.logService.saveLog({
+        modelId: model.id as any,
+        modelCode: model.code,
+        modelType,
+        request: JSON.stringify(dto),
+        response: JSON.stringify({ audioUrl: result.audioUrl, format: result.format }),
+        costMs: this.contextManager.calculateDuration(context),
+        success: true,
+        clientIp,
+        userAgent,
+        uid,
+        appCode,
+      });
+
+      return {
+        audioUrl: result.audioUrl,
+        audioData: result.audioData,
+        format: result.format,
+        duration: result.duration,
+      };
+    } catch (error) {
+      const model = await this.selectModel(dto.modelCode, modelType).catch(() => null);
+      if (model) {
+        await this.mcpService.reportError(model.id as any);
+      }
+
+      const normalized = this.errorHandler.normalize(error);
+      throw new HttpException(
+        `语音合成失败: ${normalized.message}`,
+        normalized.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * ASR语音识别
+   * @param dto 调用参数
+   * @param clientIp 客户端IP
+   * @param userAgent 用户代理
+   * @param uid 用户唯一标识(透传)
+   * @param appCode 应用编码
+   * @returns {Promise<Record<string, unknown>>} 识别结果
+   */
+  async asr(
+    dto: AsrDto,
+    clientIp: string,
+    userAgent: string,
+    uid?: string,
+    appCode?: string,
+  ): Promise<Record<string, unknown>> {
+    const context = this.contextManager.createFromParams(
+      clientIp,
+      userAgent,
+      uid,
+      appCode,
+    );
+
+    const modelType = dto.modelType || 'asr';
+
+    this.logger.debug(`ASR语音识别开始: requestId=${context.requestId}, modelCode=${dto.modelCode}`);
+
+    try {
+      const model = await this.selectModel(dto.modelCode, modelType);
+      
+      await this.mcpService.checkCircuit(model.id as any);
+
+      const strategy = this.strategyFactory.getStrategy(model.provider);
+      
+      if (!strategy.executeASR) {
+        throw new HttpException(
+          `模型提供商 ${model.provider} 不支持ASR功能`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await strategy.executeASR({
+        model,
+        audio: dto.audio,
+        format: dto.format,
+        context,
+      });
+
+      await this.mcpService.reportSuccess(model.id as any);
+
+      await this.logService.saveLog({
+        modelId: model.id as any,
+        modelCode: model.code,
+        modelType,
+        request: JSON.stringify({ format: dto.format, audioLength: dto.audio.length }),
+        response: JSON.stringify({ text: result.text }),
+        costMs: this.contextManager.calculateDuration(context),
+        success: true,
+        clientIp,
+        userAgent,
+        uid,
+        appCode,
+      });
+
+      return {
+        text: result.text,
+        confidence: result.confidence,
+        language: result.language,
+      };
+    } catch (error) {
+      const model = await this.selectModel(dto.modelCode, modelType).catch(() => null);
+      if (model) {
+        await this.mcpService.reportError(model.id as any);
+      }
+
+      const normalized = this.errorHandler.normalize(error);
+      throw new HttpException(
+        `语音识别失败: ${normalized.message}`,
+        normalized.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
    * 构建包含历史的消息列表
    * @param conversation 会话信息
    * @param messages 当前消息

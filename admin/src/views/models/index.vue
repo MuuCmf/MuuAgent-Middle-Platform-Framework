@@ -37,6 +37,10 @@
       <el-tab-pane :label="$t('model.routingLog')" name="routing-log">
         <RoutingLog />
       </el-tab-pane>
+
+      <el-tab-pane :label="$t('model.voiceProfile')" name="voice">
+        <VoiceProfileList />
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -51,6 +55,7 @@ import IntentKeyword from './components/IntentKeyword.vue'
 import IntentDashboard from './components/IntentDashboard.vue'
 import IntentCache from './components/IntentCache.vue'
 import RoutingLog from './components/RoutingLog.vue'
+import VoiceProfileList from '@/views/voice/components/VoiceProfileList.vue'
 
 const activeTab = ref('models')
 </script>

@@ -57,6 +57,7 @@
     "iconv-lite": "^0.7.2",
     "js-yaml": "^4.1.1",
     "mysql2": "^3.22.3",
+    "openai": "^6.39.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.1",

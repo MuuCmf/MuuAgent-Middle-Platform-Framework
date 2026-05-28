@@ -26,7 +26,11 @@
       </el-table-column>
       <el-table-column prop="type" :label="$t('model.modelType')" width="120">
         <template #default="{ row }">
-          <el-tag>{{ row.type }}</el-tag>
+          <el-tag>
+            <template v-if="row.type === 'tts'">🔊 </template>
+            <template v-else-if="row.type === 'asr'">🎤 </template>
+            {{ row.type }}
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="category" :label="$t('model.category')" width="100">
@@ -60,9 +64,16 @@
           <el-tag v-else type="info">{{ $t('model.unused') }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('common.actions')" width="140" fixed="right" align="right">
+      <el-table-column :label="$t('common.actions')" width="200" fixed="right" align="right">
         <template #default="{ row }">
           <el-button link size="small" type="primary" @click="handleEditModel(row)">{{ $t('common.edit') }}</el-button>
+          <el-button
+            v-if="row.type === 'tts' || row.type === 'asr'"
+            link
+            size="small"
+            type="success"
+            @click="handleTestModel(row)"
+          >{{ $t('model.testModel') }}</el-button>
           <el-button link size="small" type="danger" @click="handleDeleteModel(row.id)">{{ $t('common.delete') }}</el-button>
         </template>
       </el-table-column>
@@ -167,6 +178,20 @@
       <el-form-item :label="$t('model.status')">
         <el-switch v-model="modelForm.status" />
       </el-form-item>
+
+      <div v-if="modelForm.type === 'tts' || modelForm.type === 'asr'" class="voice-tip">
+        <div class="voice-tip-icon">💡</div>
+        <div class="voice-tip-content">
+          <p v-if="modelForm.type === 'tts'">
+            <strong>{{ $t('model.ttsTip') }}</strong><br>
+            {{ $t('model.ttsTipDesc') }}
+          </p>
+          <p v-if="modelForm.type === 'asr'">
+            <strong>{{ $t('model.asrTip') }}</strong><br>
+            {{ $t('model.asrTipDesc') }}
+          </p>
+        </div>
+      </div>
     </el-form>
 
     <template #footer>
@@ -174,6 +199,12 @@
       <el-button type="primary" @click="handleSaveModel">{{ $t('common.save') }}</el-button>
     </template>
   </el-dialog>
+
+  <VoiceModelTestDrawer
+    v-model:visible="testDrawerVisible"
+    :test-type="testModelType"
+    :model-code="testModelCode"
+  />
 </template>
 
 <script setup lang="ts">
@@ -183,6 +214,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useModelStore } from '@/stores/model'
 import type { Model, ModelForm } from '@/api/model'
+import VoiceModelTestDrawer from './VoiceModelTestDrawer.vue'
 
 const { t } = useI18n()
 const modelStore = useModelStore()
@@ -206,6 +238,11 @@ const modelForm = ref<ModelForm>({
   tags: '',
   category: ''
 })
+
+/** 语音模型测试 */
+const testDrawerVisible = ref(false)
+const testModelType = ref<'tts' | 'asr'>('tts')
+const testModelCode = ref('')
 
 const hasExistingApiKey = computed(() => {
   return !!editingModel.value?.hasApiKey
@@ -360,6 +397,16 @@ const handleDeleteModel = async (id: number) => {
   }
 }
 
+/**
+ * 测试语音模型
+ * @param model 模型对象
+ */
+const handleTestModel = (model: Model) => {
+  testModelType.value = model.type as 'tts' | 'asr'
+  testModelCode.value = model.code
+  testDrawerVisible.value = true
+}
+
 onMounted(() => {
   loadModels()
 })
@@ -380,5 +427,34 @@ onMounted(() => {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   margin-top: 4px;
+}
+
+.voice-tip {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  background: #f0f9eb;
+  border-radius: 6px;
+  border: 1px solid #e1f3d8;
+  margin-top: 16px;
+}
+
+.voice-tip-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.voice-tip-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #5a8a3c;
+
+  p {
+    margin: 0;
+  }
+
+  strong {
+    color: #3d6b2a;
+  }
 }
 </style>

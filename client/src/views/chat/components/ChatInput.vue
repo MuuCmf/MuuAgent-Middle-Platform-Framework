@@ -145,6 +145,11 @@
               </template>
             </div>
           </div>
+          <div class="bottom-bar-right">
+            <div class="voice-trigger" @click="voiceSettingsRef?.open()" :title="'语音设置'">
+              <el-icon :size="16"><Headset /></el-icon>
+            </div>
+          </div>
         </div>
         <el-input
           ref="inputRef"
@@ -179,11 +184,13 @@
       </div>
     </div>
   </div>
+  <VoiceSettings ref="voiceSettingsRef" />
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
-import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check } from '@element-plus/icons-vue'
+import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check, Headset } from '@element-plus/icons-vue'
+import VoiceSettings from './VoiceSettings.vue'
 
 /**
  * 斜杠命令定义
@@ -282,6 +289,9 @@ const internalModelCode = ref<string>(props.selectedLlmModel)
 const showModelSheet = ref(false)
 /** 模式上拉面板是否显示 */
 const showModeSheet = ref(false)
+
+/** 语音设置对话框引用 */
+const voiceSettingsRef = ref<InstanceType<typeof VoiceSettings>>()
 
 /** 输入文本 */
 const inputText = ref('')
@@ -644,6 +654,32 @@ const getPlaceholder = (): string => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  flex: 1;
+}
+
+.bottom-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.voice-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-tertiary);
+
+  &:hover {
+    background: var(--bg-tertiary);
+    color: var(--primary-color);
+  }
 }
 
 .model-trigger,

@@ -13,6 +13,7 @@ import { McpServerModule } from '../../mcp-server/mcp-server.module';
 import { AdminModule } from '../../admin/admin.module';
 import { DesktopModule } from '../../desktop/desktop.module';
 import { BrowserModule } from '../../browser/browser.module';
+import { VoiceProfileModule } from '../../voice-profile/voice-profile.module';
 
 // Mid-level modules
 import { IntentModule } from '../../intent/intent.module';
@@ -42,6 +43,7 @@ export const KNOWN_BUSINESS_MODULES: Type[] = [
   AdminModule,
   DesktopModule,
   BrowserModule,
+  VoiceProfileModule,
   IntentModule,
   ModelRoutingModule,
   DocumentModule,
