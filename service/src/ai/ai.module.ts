@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { AiController } from './ai.controller';
+import { AdminAiController } from './ai.admin.controller';
 import { ModelRoutingModule } from "../model-routing/model-routing.module";
 import { ModelModule } from '../model/model.module';
 import { ModelTemplateModule } from '../model-template/model-template.module';
@@ -35,7 +36,7 @@ import { ToolCallParser } from './parsers/tool-call.parser';
  */
 @Module({
   imports: [ModelRoutingModule, ModelModule, ModelTemplateModule, ConversationModule, IntentModule, PrismaModule],
-  controllers: [AiController],
+  controllers: [AiController, AdminAiController],
   providers: [
     // 基础设施层
     LogService,

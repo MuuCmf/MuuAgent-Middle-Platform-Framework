@@ -129,7 +129,7 @@ import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { request } from '@/utils/request'
+import { adminRequest } from '@/utils/request'
 import { voiceProfileApi, type VoiceProfile } from '@/api/voice-profile'
 
 const { t } = useI18n()
@@ -221,7 +221,7 @@ async function handleTTS() {
   ttsAudioUrl.value = ''
 
   try {
-    const response = await request.post('/api/ai/tts', {
+    const response = await adminRequest.post('/api/admin/ai/tts', {
       text: ttsText.value,
       voice: ttsVoice.value,
       speed: ttsSpeed.value,
@@ -270,7 +270,7 @@ async function handleASR() {
       reader.readAsDataURL(asrAudioFile.value!)
     })
 
-    const response = await request.post('/api/ai/asr', {
+    const response = await adminRequest.post('/api/admin/ai/asr', {
       audio: base64,
       format: asrFormat.value,
       modelCode: props.modelCode || undefined,
