@@ -1,4 +1,4 @@
-﻿-- CreateTable
+-- CreateTable
 CREATE TABLE `models` (
     `id` BIGINT NOT NULL DEFAULT 0,
     `name` VARCHAR(191) NOT NULL,
@@ -583,9 +583,38 @@ CREATE TABLE `messages` (
     `token_count` INTEGER NULL,
     `reasoning_steps` TEXT NULL,
     `metadata` TEXT NULL,
+    `audio_url` VARCHAR(191) NULL,
+    `audio_duration` DOUBLE NULL,
+    `audio_format` VARCHAR(191) NULL,
+    `voice_id` VARCHAR(191) NULL,
+    `speech_rate` DOUBLE NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     INDEX `messages_conversation_id_createdAt_idx`(`conversation_id`, `createdAt`),
+    INDEX `messages_audio_url_idx`(`audio_url`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `voice_profiles` (
+    `id` BIGINT NOT NULL DEFAULT 0,
+    `name` VARCHAR(191) NOT NULL,
+    `code` VARCHAR(191) NOT NULL,
+    `voice_id` VARCHAR(191) NOT NULL,
+    `provider` VARCHAR(191) NOT NULL,
+    `language` VARCHAR(191) NOT NULL,
+    `gender` VARCHAR(191) NULL,
+    `style` VARCHAR(191) NULL,
+    `sample_rate` INTEGER NOT NULL DEFAULT 24000,
+    `is_default` BOOLEAN NOT NULL DEFAULT false,
+    `status` BOOLEAN NOT NULL DEFAULT true,
+    `app_code` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `voice_profiles_code_key`(`code`),
+    INDEX `voice_profiles_provider_language_idx`(`provider`, `language`),
+    INDEX `voice_profiles_is_default_idx`(`is_default`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
