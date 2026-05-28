@@ -199,9 +199,6 @@ apiService.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
-    if (appConfig.apiKey) {
-      config.headers['x-api-key'] = appConfig.apiKey
-    }
     return config
   },
   (error) => {
@@ -217,9 +214,6 @@ adminService.interceptors.request.use(
     const token = cachedToken || localStorage.getItem('admin_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
-    }
-    if (appConfig.apiKey) {
-      config.headers['x-api-key'] = appConfig.apiKey
     }
 
     const currentAppCode = localStorage.getItem('current_app_code')

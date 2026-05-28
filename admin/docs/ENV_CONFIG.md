@@ -20,9 +20,6 @@ cp .env.example .env.development
 # API基础路径
 VITE_API_BASE_URL=/api
 
-# API密钥（请修改为实际的API密钥）
-VITE_API_KEY=your-api-key-here
-
 # 应用标题
 VITE_APP_TITLE=MuuAgent管理系统
 
@@ -35,7 +32,6 @@ VITE_PORT=5173
 | 变量名 | 说明 | 默认值 | 是否必需 |
 |--------|------|--------|----------|
 | `VITE_API_BASE_URL` | API基础路径 | `/api` | 否 |
-| `VITE_API_KEY` | API密钥 | - | 是 |
 | `VITE_APP_TITLE` | 应用标题 | `MuuAgent管理系统` | 否 |
 | `VITE_PORT` | 应用端口 | `5173` | 否 |
 
@@ -69,9 +65,6 @@ import { appConfig } from '@/config'
 // 使用API基础路径
 const apiUrl = appConfig.apiBaseUrl
 
-// 使用API密钥
-const apiKey = appConfig.apiKey
-
 // 使用应用标题
 const title = appConfig.appTitle
 ```
@@ -91,8 +84,6 @@ console.log('应用标题:', appConfig.appTitle)
 
 1. **不要提交敏感信息**：`.env.development` 和 `.env.production` 文件已添加到 `.gitignore`，不会被提交到git
 2. **使用示例文件**：`.env.example` 文件可以提交，但不要包含真实的密钥
-3. **生产环境密钥**：生产环境的API密钥应该通过CI/CD流程或配置管理系统注入
-4. **定期更换密钥**：建议定期更换API密钥，提高安全性
 
 ## 开发环境配置
 
@@ -100,7 +91,6 @@ console.log('应用标题:', appConfig.appTitle)
 
 ```env
 VITE_API_BASE_URL=/api
-VITE_API_KEY=AI-SVC-2026-MCP-KEY-666
 VITE_APP_TITLE=MuuAgent管理系统（开发）
 VITE_PORT=5173
 ```
@@ -111,7 +101,6 @@ VITE_PORT=5173
 
 ```env
 VITE_API_BASE_URL=/api
-VITE_API_KEY=your-production-api-key
 VITE_APP_TITLE=MuuAgent管理系统
 VITE_PORT=5173
 ```

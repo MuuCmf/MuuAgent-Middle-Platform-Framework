@@ -10,11 +10,6 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string
   
   /**
-   * API密钥
-   */
-  readonly VITE_API_KEY: string
-  
-  /**
    * 应用标题
    */
   readonly VITE_APP_TITLE: string

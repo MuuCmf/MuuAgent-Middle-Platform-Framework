@@ -13,11 +13,6 @@ export interface AppConfig {
   apiBaseUrl: string
   
   /**
-   * API密钥
-   */
-  apiKey: string
-  
-  /**
    * 应用标题
    */
   appTitle: string
@@ -35,7 +30,6 @@ export interface AppConfig {
 export const getAppConfig = (): AppConfig => {
   return {
     apiBaseUrl: import.meta.env.VITE_API_BASE_URL || '' + '/',
-    apiKey: import.meta.env.VITE_API_KEY || '',
     appTitle: import.meta.env.VITE_APP_TITLE || 'MuuAgent',
     port: parseInt(import.meta.env.VITE_PORT || '5173', 10)
   }
