@@ -12,7 +12,7 @@
       </el-form-item>
       
       <el-form-item label="语音类型">
-        <el-select v-model="settings.voiceId" placeholder="选择语音类型" :loading="voicesLoading">
+        <el-select v-model="settings.voiceId" placeholder="选择语音类型" :loading="voicesLoading" @change="handleVoiceChange">
           <el-option
             v-for="voice in voiceOptions"
             :key="voice.voiceId"
@@ -102,6 +102,19 @@ function formatVolumeTooltip(val: number): string {
 }
 
 /**
+ * 语音类型变更处理
+ *
+ * 自动同步所选语音配置关联的 modelCode
+ * @param voiceId 选中的语音ID
+ */
+function handleVoiceChange(voiceId: string): void {
+  const selected = voiceOptions.value.find((v) => v.voiceId === voiceId)
+  if (selected?.modelCode) {
+    settings.modelCode = selected.modelCode
+  }
+}
+
+/**
  * 保存设置
  *
  * 同时同步到已连接的实时 TTS WebSocket 会话：
@@ -113,13 +126,16 @@ function handleSave() {
 
   voiceService.updateConfig(settings)
 
-  // 如果实时 TTS WebSocket 已连接，同步语音和语速变更
+  // 如果实时 TTS WebSocket 已连接，同步语音、语速和模型变更
   if (ttsStreamService.isConnected) {
     if (settings.voiceId !== oldConfig.voiceId) {
       ttsStreamService.changeVoice(settings.voiceId)
     }
     if (settings.speed !== oldConfig.speed) {
       ttsStreamService.changeSpeed(settings.speed)
+    }
+    if (settings.modelCode !== oldConfig.modelCode) {
+      ttsStreamService.changeModel(settings.modelCode)
     }
   }
 

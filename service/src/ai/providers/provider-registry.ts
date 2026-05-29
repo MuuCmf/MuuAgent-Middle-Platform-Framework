@@ -125,6 +125,18 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
     requireApiKey: true,
   },
 
+  volcengine: {
+    name: '火山引擎',
+    defaultBaseUrl: 'https://openspeech.bytedance.com',
+    paths: {
+      chat: '/api/v1/chat/completions',
+      embedding: '/api/v1/embeddings',
+      image: '/api/v1/images/generations',
+    },
+    codePrefixes: ['seed-tts', 'doubao-tts'],
+    requireApiKey: true,
+  },
+
   custom: {
     name: '自定义',
     defaultBaseUrl: '',

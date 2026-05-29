@@ -28,6 +28,7 @@ export interface VoiceConfig {
   voiceId: string;
   speed: number;
   volume: number;
+  modelCode?: string;
 }
 
 /**
@@ -71,6 +72,7 @@ class VoiceService {
       voiceId: 'alloy',
       speed: 1.0,
       volume: 1.0,
+      modelCode: '',
     };
     try {
       const saved = localStorage.getItem(STORAGE_KEY);

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { TtsGateway } from './tts.gateway';
+import { TtsSessionManager } from './tts-session.manager';
 import { StrategyFactory } from '../strategies/strategy.factory';
 import { ModelRoutingService } from '../../model-routing/model-routing.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -7,7 +8,11 @@ import { TTSExecutionParams } from '../strategies/provider.strategy.interface';
 
 /**
  * TTS 语音合成服务
- * 职责：选模型 → 调策略 → 推音频，仅此而已
+ *
+ * 职责：
+ * - 会话模式（commit）：一个对话复用一个WebSocket连接，逐句提交合成
+ * - 单次模式（server_commit）：每句创建新连接，用于非对话场景
+ * - 批量模式：整段文本一次性合成
  */
 @Injectable()
 export class TtsService {
@@ -15,13 +20,73 @@ export class TtsService {
 
   constructor(
     private readonly gateway: TtsGateway,
+    private readonly sessionManager: TtsSessionManager,
     private readonly strategyFactory: StrategyFactory,
     private readonly modelRouting: ModelRoutingService,
     private readonly prisma: PrismaService,
   ) {}
 
+  // ==================== 会话模式（commit）====================
+
   /**
-   * 流式合成（实时模式，AI对话流式输出用）
+   * 确保TTS会话已打开
+   *
+   * 如果会话已存在且活跃则直接返回true；
+   * 如果客户端未连接到Gateway则返回false；
+   * 否则尝试打开新会话。
+   *
+   * @param conversationId 会话ID
+   * @param modelCode 模型编码（可选）
+   * @returns 会话是否就绪
+   */
+  async ensureSession(conversationId: string, modelCode?: string): Promise<boolean> {
+    return this.sessionManager.ensureSession(conversationId, modelCode);
+  }
+
+  /**
+   * 发送文本并提交合成（会话模式）
+   *
+   * 在commit模式下，先追加文本到缓冲区，然后提交触发合成。
+   * 音频数据由后台消费者自动推送到客户端。
+   *
+   * @param conversationId 会话ID
+   * @param text 要合成的文本
+   */
+  sendText(conversationId: string, text: string): void {
+    const cleanText = this.cleanText(text);
+    if (!cleanText) return;
+    this.sessionManager.sendText(conversationId, cleanText);
+  }
+
+  /**
+   * 关闭TTS会话
+   *
+   * 发送session.finish通知服务端合成完成，
+   * 等待剩余音频推送完毕后关闭WebSocket连接。
+   *
+   * @param conversationId 会话ID
+   */
+  async closeSession(conversationId: string): Promise<void> {
+    await this.sessionManager.closeSession(conversationId);
+  }
+
+  /**
+   * 判断TTS会话是否活跃（会话模式）
+   * @param conversationId 会话ID
+   * @returns 是否活跃
+   */
+  isTtsSessionActive(conversationId: string): boolean {
+    return this.sessionManager.isSessionActive(conversationId);
+  }
+
+  // ==================== 单次模式（server_commit）====================
+
+  /**
+   * 流式合成（单次模式，每句创建新连接）
+   *
+   * 适用于非对话场景（如管理后台测试）。
+   * 对话场景请使用 ensureSession/sendText/closeSession 会话模式。
+   *
    * @param text 文本
    * @param conversationId 会话ID
    * @param voice 音色
@@ -69,6 +134,8 @@ export class TtsService {
     }
   }
 
+  // ==================== 通用工具方法 ====================
+
   /**
    * 判断文本是否为完整句子
    * @param text 文本
@@ -79,16 +146,18 @@ export class TtsService {
   }
 
   /**
-   * 判断会话是否活跃（客户端是否在线）
+   * 判断客户端是否在线（Socket.IO连接是否活跃）
    * @param conversationId 会话ID
-   * @returns 是否活跃
+   * @returns 是否在线
    */
   isSessionActive(conversationId: string): boolean {
     return this.gateway.isConnected(conversationId);
   }
 
+  // ==================== 内部方法 ====================
+
   /**
-   * 核心合成：选模型 → 调策略 → 推音频
+   * 核心合成：选模型 → 调策略 → 推音频（单次模式）
    * @param text 文本
    * @param conversationId 会话ID
    * @param voice 音色
@@ -103,7 +172,9 @@ export class TtsService {
     modelCode?: string,
   ): Promise<void> {
     try {
-      const model = await this.resolveModel(modelCode, voice);
+      const clientParams = this.gateway.getClientParams(conversationId);
+      const effectiveModelCode = modelCode || clientParams?.modelCode || undefined;
+      const model = await this.resolveModel(effectiveModelCode, voice);
       const strategy = this.strategyFactory.getStrategy(model.provider);
 
       if (!strategy.executeTTSStream) {
@@ -111,9 +182,8 @@ export class TtsService {
         return;
       }
 
-      const params = this.gateway.getClientParams(conversationId);
-      const voiceId = voice || params?.voiceId || 'Cherry';
-      const voiceSpeed = speed || params?.speed || 1.0;
+      const voiceId = voice || clientParams?.voiceId || 'Cherry';
+      const voiceSpeed = speed || clientParams?.speed || 1.0;
 
       const execParams: TTSExecutionParams = {
         model,
@@ -124,7 +194,10 @@ export class TtsService {
         context: { requestId: conversationId, startTime: Date.now(), clientIp: '', userAgent: '', uid: '', appCode: '' },
       };
 
-      this.logger.debug(`TTS 合成: "${text.slice(0, 30)}...", voice=${voiceId}`);
+      this.logger.debug(`TTS 合成: "${text.slice(0, 30)}...", voice=${voiceId}, modelCode=${effectiveModelCode || 'auto'}`);
+
+      // 通知合成开始
+      this.gateway.notifyStart(conversationId);
 
       let seq = 0;
       for await (const chunk of strategy.executeTTSStream(execParams)) {
@@ -134,6 +207,9 @@ export class TtsService {
           seq++, chunk.isLast, chunk.sampleRate,
         );
       }
+
+      // 通知合成结束
+      this.gateway.notifyEnd(conversationId);
     } catch (error) {
       this.logger.error(`TTS 合成失败: ${(error as Error).message}`);
       this.gateway.notifyError(conversationId, `语音合成失败: ${(error as Error).message}`);

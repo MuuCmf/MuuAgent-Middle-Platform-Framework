@@ -276,6 +276,7 @@ const wsStarting = ref(false)
 const wsChunkCount = ref(0)
 const wsPlaying = ref(false)
 const wsPcmChunks = ref<string[]>([])
+const wsMp3Chunks = ref<string[]>([])
 const wsResultAudioUrl = ref('')
 const wsAudioFormat = ref('wav')
 
@@ -473,16 +474,20 @@ async function handleStreamStart() {
     })
 
     socket.on('audio_chunk', (chunk: { data: string; format: string; sequence: number; isLast: boolean }) => {
+      console.log('[TTS-WS] 收到音频块:', chunk)
       wsChunkCount.value++
       if (chunk.format === 'pcm') {
         wsPcmChunks.value.push(chunk.data)
         playPCMChunk(chunk.data)
+      } else if (chunk.format === 'mp3') {
+        wsMp3Chunks.value.push(chunk.data)
       }
     })
 
     socket.on('tts_start', () => {
       stopAudioPlayback()
       wsPcmChunks.value = []
+      wsMp3Chunks.value = []
       wsChunkCount.value = 0
       wsPlaying.value = false
     })
@@ -606,21 +611,38 @@ function stopAudioPlayback() {
 }
 
 /**
- * 组装所有PCM块为WAV并播放
+ * 组装所有音频块并播放
  */
 function assembleAndPlayAudio() {
-  if (wsPcmChunks.value.length === 0) return
-
   if (wsResultAudioUrl.value) {
     URL.revokeObjectURL(wsResultAudioUrl.value)
     wsResultAudioUrl.value = ''
   }
 
-  const allPcm = wsPcmChunks.value.join('')
-  const audioBlob = pcmToWavBlob(allPcm, 24000)
-  wsAudioFormat.value = 'wav'
-  wsResultAudioUrl.value = URL.createObjectURL(audioBlob)
-  ElMessage.success(t('model.testSuccess'))
+  console.log('[TTS] 组装音频:', { mp3Count: wsMp3Chunks.value.length, pcmCount: wsPcmChunks.value.length })
+
+  try {
+    // 优先处理 MP3 格式（火山引擎返回的格式）
+    if (wsMp3Chunks.value.length > 0) {
+      const allMp3 = wsMp3Chunks.value.join('')
+      console.log('[TTS] MP3 总长度:', allMp3.length)
+      const audioBlob = base64ToBlob(allMp3, 'mp3')
+      wsAudioFormat.value = 'mp3'
+      wsResultAudioUrl.value = URL.createObjectURL(audioBlob)
+      ElMessage.success(t('model.testSuccess'))
+    } 
+    // 处理 PCM 格式
+    else if (wsPcmChunks.value.length > 0) {
+      const allPcm = wsPcmChunks.value.join('')
+      const audioBlob = pcmToWavBlob(allPcm, 24000)
+      wsAudioFormat.value = 'wav'
+      wsResultAudioUrl.value = URL.createObjectURL(audioBlob)
+      ElMessage.success(t('model.testSuccess'))
+    }
+  } catch (error) {
+    console.error('[TTS] 组装音频失败:', error)
+    ElMessage.error('音频播放失败，请尝试非实时合成模式')
+  }
 }
 
 /** ASR状态 */
@@ -737,7 +759,9 @@ function pcmToWavBlob(base64: string, sampleRate: number): Blob {
  * @returns {Blob} 音频Blob
  */
 function base64ToBlob(base64: string, format: string): Blob {
-  const binaryString = atob(base64)
+  // 清理 base64 字符串：移除换行、空格等
+  const cleanBase64 = base64.replace(/\s+/g, '')
+  const binaryString = atob(cleanBase64)
   const bytes = new Uint8Array(binaryString.length)
   for (let i = 0; i < binaryString.length; i++) {
     bytes[i] = binaryString.charCodeAt(i)
@@ -757,6 +781,7 @@ function handleClose() {
   }
   wsStatus.value = 'idle'
   wsPcmChunks.value = []
+  wsMp3Chunks.value = []
   if (nonRealtimeAudioUrl.value) {
     URL.revokeObjectURL(nonRealtimeAudioUrl.value)
     nonRealtimeAudioUrl.value = ''

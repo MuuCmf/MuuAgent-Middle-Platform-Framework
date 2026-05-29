@@ -47,6 +47,7 @@
               <el-option :label="$t('voice.providerOpenai')" value="openai" />
               <el-option :label="$t('voice.providerAzure')" value="azure" />
               <el-option :label="$t('voice.providerAliyun')" value="aliyun" />
+              <el-option :label="$t('voice.providerVolcengine')" value="volcengine" />
               <el-option :label="$t('voice.providerLocal')" value="local" />
             </el-select>
           </el-form-item>

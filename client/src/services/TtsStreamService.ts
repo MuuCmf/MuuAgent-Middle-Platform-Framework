@@ -57,6 +57,8 @@ class TtsStreamService {
   private retryCount = 0
   private readonly MAX_RETRY_COUNT = 3
   private readonly MAX_QUEUE_SIZE = 500
+  private ttsEndReceived = false
+  private ttsEndResolve: (() => void) | null = null
 
   /**
    * 获取当前播放状态
@@ -97,17 +99,19 @@ class TtsStreamService {
    * 连接到 TTS WebSocket 服务
    *
    * 根据文档，客户端连接 /tts 命名空间即表示启用了语音播报。
-   * 语音参数（voiceId/speed）在连接时通过 query 传递。
+   * 语音参数（voiceId/speed/modelCode）在连接时通过 query 传递。
    *
    * @param conversationId 会话ID（关联 SSE 文本流）
    * @param voiceId 语音标识（可选，默认使用 VoiceService 配置）
    * @param speed 语速（可选，默认使用 VoiceService 配置）
+   * @param modelCode TTS模型编码（可选，默认使用 VoiceService 配置）
    * @returns 是否成功连接
    */
   connect(
     conversationId: string,
     voiceId?: string,
     speed?: number,
+    modelCode?: string,
   ): boolean {
     if (this.socket?.connected) {
       if (this.conversationId === conversationId) {
@@ -117,10 +121,12 @@ class TtsStreamService {
     }
 
     this.conversationId = conversationId
+    this.ttsEndReceived = false
 
     const config = voiceService.getConfig()
     const queryVoiceId = voiceId || config.voiceId || 'alloy'
     const querySpeed = speed ?? config.speed ?? 1.0
+    const queryModelCode = modelCode || config.modelCode || ''
 
     // 使用同源连接，Vite开发服务器通过 /socket.io 代理转发到后端
     this.socket = io('/tts', {
@@ -128,6 +134,7 @@ class TtsStreamService {
         conversationId,
         voiceId: queryVoiceId,
         speed: String(querySpeed),
+        modelCode: queryModelCode,
       },
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -146,13 +153,19 @@ class TtsStreamService {
 
     this.socket.on('tts_start', (data: { totalSentences?: number }) => {
       console.log(`[TtsStream] TTS 开始: ${JSON.stringify(data)}`)
+      this.ttsEndReceived = false
       this.updateStatus('streaming')
       this.callbacks.onStart?.()
     })
 
     this.socket.on('tts_end', () => {
       console.log('[TtsStream] TTS 结束')
+      this.ttsEndReceived = true
       this.callbacks.onEnd?.()
+      if (this.ttsEndResolve) {
+        this.ttsEndResolve()
+        this.ttsEndResolve = null
+      }
     })
 
     this.socket.on('tts_error', (error: { message: string }) => {
@@ -215,6 +228,47 @@ class TtsStreamService {
   }
 
   /**
+   * 等待 TTS 流结束（tts_end 事件）并等待音频队列播放完毕
+   *
+   * 用于 SSE 流式对话结束时，确保所有音频块都已播放完毕后再断开连接。
+   * 如果 TTS 未连接或已收到 tts_end，立即检查队列是否为空。
+   *
+   * @param timeoutMs 超时毫秒，默认 30000
+   * @returns 是否正常完成（非超时）
+   */
+  async waitForTtsEnd(timeoutMs = 30000): Promise<boolean> {
+    if (!this.socket?.connected && !this.ttsEndReceived) return true
+
+    if (!this.ttsEndReceived) {
+      const received = await new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => {
+          this.ttsEndResolve = null
+          console.warn('[TtsStream] 等待 tts_end 超时')
+          resolve(false)
+        }, timeoutMs)
+
+        const originalResolve = this.ttsEndResolve
+        this.ttsEndResolve = () => {
+          clearTimeout(timeout)
+          originalResolve?.()
+          resolve(true)
+        }
+      })
+      if (!received) return false
+    }
+
+    const queueCheckInterval = 100
+    const maxWait = timeoutMs
+    let waited = 0
+    while ((this.audioQueue.length > 0 || this.isProcessing) && waited < maxWait) {
+      await new Promise((r) => setTimeout(r, queueCheckInterval))
+      waited += queueCheckInterval
+    }
+
+    return waited < maxWait
+  }
+
+  /**
    * 断开 TTS WebSocket 连接
    */
   disconnect(): void {
@@ -229,6 +283,8 @@ class TtsStreamService {
     this.isProcessing = false
     this.isPaused = false
     this.nextChunkTime = 0
+    this.ttsEndReceived = false
+    this.ttsEndResolve = null
     this.updateStatus('idle')
   }
 
@@ -309,6 +365,17 @@ class TtsStreamService {
     if (!this.socket?.connected) return
     this.socket.emit('change_speed', { speed })
     voiceService.updateConfig({ speed })
+  }
+
+  /**
+   * 切换TTS模型
+   *
+   * @param modelCode 模型编码
+   */
+  changeModel(modelCode: string): void {
+    if (!this.socket?.connected) return
+    this.socket.emit('change_model', { modelCode })
+    voiceService.updateConfig({ modelCode })
   }
 
   /**
@@ -667,6 +734,8 @@ class TtsStreamService {
     this.nextChunkTime = 0
     this.currentChunk = null
     this.retryCount = 0
+    this.ttsEndReceived = false
+    this.ttsEndResolve = null
     this.updateStatus('idle')
   }
 }

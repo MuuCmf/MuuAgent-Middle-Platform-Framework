@@ -303,6 +303,7 @@ export class AiService {
     // ========== TTS 实时合成状态 ==========
     let conversationIdStr = '';
     let ttsSentenceBuffer = '';
+    let ttsSessionOpened = false;
 
     try {
       const isolationContext: IsolationContext = {
@@ -412,11 +413,12 @@ export class AiService {
             const sentence = ttsSentenceBuffer;
             ttsSentenceBuffer = '';
 
-            this.ttsService.streamSynthesize(
-              sentence, conversationIdStr,
-            ).catch((e: Error) => {
-              this.logger.warn(`TTS 合成失败: ${e.message}`);
-            });
+            if (!ttsSessionOpened) {
+              ttsSessionOpened = await this.ttsService.ensureSession(conversationIdStr);
+            }
+            if (ttsSessionOpened) {
+              this.ttsService.sendText(conversationIdStr, sentence);
+            }
           }
         } else if (chunk.type === 'tool-call' && chunk.toolCall) {
           if (currentBlockType !== null) {
@@ -440,12 +442,18 @@ export class AiService {
         emitter.emitContentBlockStop(currentBlockType, blockIndex - 1);
       }
 
-      // ========== LLM 流结束 — flush 剩余文本作为末句 ==========
+      // ========== LLM 流结束 — flush 剩余文本并关闭TTS会话 ==========
       if (ttsSentenceBuffer.trim()) {
-        await this.ttsService.streamSynthesize(
-          ttsSentenceBuffer.trim(), conversationIdStr,
-        ).catch((e: Error) => {
-          this.logger.warn(`TTS 合成失败: ${e.message}`);
+        if (!ttsSessionOpened) {
+          ttsSessionOpened = await this.ttsService.ensureSession(conversationIdStr);
+        }
+        if (ttsSessionOpened) {
+          this.ttsService.sendText(conversationIdStr, ttsSentenceBuffer.trim());
+        }
+      }
+      if (ttsSessionOpened) {
+        await this.ttsService.closeSession(conversationIdStr).catch((e: Error) => {
+          this.logger.warn(`TTS 会话关闭失败: ${e.message}`);
         });
       }
 
@@ -497,11 +505,17 @@ export class AiService {
 
       emitter.emitDone();
     } catch (error) {
-      // TTS 清理：发生错误时刷新剩余 buffer
+      // TTS 清理：发生错误时刷新剩余 buffer 并关闭会话
       if (ttsSentenceBuffer.trim() && conversationIdStr) {
-        this.ttsService.streamSynthesize(
-          ttsSentenceBuffer.trim(), conversationIdStr,
-        ).catch(() => {});
+        if (!ttsSessionOpened) {
+          ttsSessionOpened = await this.ttsService.ensureSession(conversationIdStr).catch(() => false);
+        }
+        if (ttsSessionOpened) {
+          this.ttsService.sendText(conversationIdStr, ttsSentenceBuffer.trim());
+        }
+      }
+      if (ttsSessionOpened && conversationIdStr) {
+        await this.ttsService.closeSession(conversationIdStr).catch(() => {});
       }
 
       await this.handleStreamError(

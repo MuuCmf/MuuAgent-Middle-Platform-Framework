@@ -720,14 +720,14 @@ export function useChat() {
             writer.write(chunk);
           },
           onError: (error: Error) => {
-            disconnectTts();
+            gracefullyDisconnectTts();
             writer.flush();
             messages.value[assistantIndex].content = `错误: ${error.message}`;
             messages.value[assistantIndex].contentBlocks = [];
             reject(error);
           },
           onComplete: () => {
-            disconnectTts();
+            gracefullyDisconnectTts();
             writer.flush();
             isLoading.value = false;
             abortController.value = null;
@@ -736,7 +736,7 @@ export function useChat() {
           },
           onConversationId: (conversationId: string) => {
             currentConversationId.value = conversationId;
-            connectTtsIfEnabled(conversationId);
+            void connectTtsIfEnabled(conversationId);
           },
           onContentBlockStart: (payload) => {
             blockMgr.onContentBlockStart(payload);
@@ -785,14 +785,14 @@ export function useChat() {
             writer.write(chunk);
           },
           onError: (error: Error) => {
-            disconnectTts();
+            gracefullyDisconnectTts();
             writer.flush();
             messages.value[assistantIndex].content = `错误: ${error.message}`;
             messages.value[assistantIndex].contentBlocks = [];
             reject(error);
           },
           onComplete: () => {
-            disconnectTts();
+            gracefullyDisconnectTts();
             writer.flush();
             isLoading.value = false;
             abortController.value = null;
@@ -801,7 +801,7 @@ export function useChat() {
           },
           onConversationId: (conversationId: string) => {
             currentConversationId.value = conversationId;
-            connectTtsIfEnabled(conversationId);
+            void connectTtsIfEnabled(conversationId);
           },
           onContentBlockStart: (payload) => {
             blockMgr.onContentBlockStart(payload);
@@ -933,6 +933,7 @@ export function useChat() {
             writer.write(content);
           },
           onError: (error: Error) => {
+            gracefullyDisconnectTts();
             writer.flush();
             messages.value[assistantIndex].content = "错误: " + error.message;
             messages.value[assistantIndex].contentBlocks = [];
@@ -940,6 +941,7 @@ export function useChat() {
             isLoading.value = false;
           },
           onComplete: (sources?: RetrievalItem[]) => {
+            gracefullyDisconnectTts();
             writer.flush();
             if (sources && sources.length > 0) {
               messages.value[assistantIndex].sources = sources;
@@ -949,6 +951,7 @@ export function useChat() {
           },
           onConversationId: (conversationId: string) => {
             currentConversationId.value = conversationId;
+            void connectTtsIfEnabled(conversationId);
           },
           onContentBlockStart: (payload) => {
             blockMgr.onContentBlockStart(payload);
@@ -1113,10 +1116,13 @@ export function useChat() {
    *
    * 先建立 WebSocket 连接，再等待连接确认，
    * 确保服务端能从一开始就检测到 TTS 连接。
+   * 连接时传递当前语音配置（voiceId/speed/modelCode）。
    */
   const connectTtsIfEnabled = async (conversationId: string) => {
     if (!voiceEnabled.value) return
     if (ttsStreamService.currentConversationId === conversationId && ttsStreamService.isConnected) return
+
+    const config = voiceService.getConfig()
 
     ttsStreamService.setCallbacks({
       onStatusChange: (status) => {
@@ -1131,9 +1137,28 @@ export function useChat() {
       },
     })
 
-    ttsStreamService.connect(conversationId)
+    ttsStreamService.connect(conversationId, config.voiceId, config.speed, config.modelCode)
     await ttsStreamService.waitForConnected()
     syncTtsStatus()
+  }
+
+  /**
+   * 优雅断开 TTS 语音播报连接
+   *
+   * 等待 TTS 流结束和音频队列播放完毕后再断开，
+   * 避免截断正在播放的音频。
+   */
+  const gracefullyDisconnectTts = async () => {
+    if (!voiceEnabled.value || !ttsStreamService.isConnected) {
+      disconnectTts()
+      return
+    }
+    try {
+      await ttsStreamService.waitForTtsEnd(15000)
+    } catch {
+      // 超时也继续断开
+    }
+    disconnectTts()
   }
 
   /**

@@ -32,6 +32,7 @@ export default {
     providerOpenai: 'OpenAI',
     providerAzure: 'Azure',
     providerAliyun: '阿里云',
+    providerVolcengine: '火山引擎',
     providerLocal: '本地',
     languageZh: '中文',
     languageEn: '英文',

@@ -20,12 +20,14 @@ import { ZhipuStrategy } from './strategies/zhipu.strategy';
 import { DeepSeekStrategy } from './strategies/deepseek.strategy';
 import { OllamaStrategy } from './strategies/ollama.strategy';
 import { AliyunStrategy } from './strategies/aliyun.strategy';
+import { VolcengineStrategy } from './strategies/volcengine.strategy';
 import { StrategyFactory } from './strategies/strategy.factory';
 
 import { ToolCallParser } from './parsers/tool-call.parser';
 
 import { TtsGateway } from './tts/tts.gateway';
 import { TtsService } from './tts/tts.service';
+import { TtsSessionManager } from './tts/tts-session.manager';
 
 @Module({
   imports: [ModelRoutingModule, ModelModule, ModelTemplateModule, ConversationModule, IntentModule, PrismaModule],
@@ -41,10 +43,12 @@ import { TtsService } from './tts/tts.service';
     DeepSeekStrategy,
     OllamaStrategy,
     AliyunStrategy,
+    VolcengineStrategy,
     StrategyFactory,
     ToolCallParser,
     AiService,
     TtsGateway,
+    TtsSessionManager,
     TtsService,
   ],
   exports: [AiService, TtsService],

@@ -32,6 +32,7 @@ export default {
     providerOpenai: 'OpenAI',
     providerAzure: 'Azure',
     providerAliyun: 'Aliyun',
+    providerVolcengine: 'Volcengine',
     providerLocal: 'Local',
     languageZh: 'Chinese',
     languageEn: 'English',

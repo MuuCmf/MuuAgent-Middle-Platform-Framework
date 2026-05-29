@@ -5,6 +5,7 @@ import { ZhipuStrategy } from './zhipu.strategy';
 import { DeepSeekStrategy } from './deepseek.strategy';
 import { OllamaStrategy } from './ollama.strategy';
 import { AliyunStrategy } from './aliyun.strategy';
+import { VolcengineStrategy } from './volcengine.strategy';
 import { resolveProvider } from '../providers/provider-registry';
 
 /**
@@ -23,6 +24,7 @@ export class StrategyFactory {
    * @param deepseekStrategy DeepSeek 策略
    * @param ollamaStrategy Ollama 策略
    * @param aliyunStrategy 阿里云通义策略
+   * @param volcengineStrategy 火山引擎策略
    */
   constructor(
     private readonly openaiStrategy: OpenAIStrategy,
@@ -30,6 +32,7 @@ export class StrategyFactory {
     private readonly deepseekStrategy: DeepSeekStrategy,
     private readonly ollamaStrategy: OllamaStrategy,
     private readonly aliyunStrategy: AliyunStrategy,
+    private readonly volcengineStrategy: VolcengineStrategy,
   ) {
     this.strategies = new Map<string, IProviderStrategy>([
       ['openai', this.openaiStrategy],
@@ -37,6 +40,7 @@ export class StrategyFactory {
       ['deepseek', this.deepseekStrategy],
       ['ollama', this.ollamaStrategy],
       ['aliyun', this.aliyunStrategy],
+      ['volcengine', this.volcengineStrategy],
     ]);
   }
 
