@@ -252,11 +252,11 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
             stepText += chunk;
             applySegments(parser.process(chunk));
 
-            // 实时句子检测并触发 TTS
+            // 实时句子检测并触发 TTS（最少4字符触发，确保短句也能及时合成）
             if (isTtsActive()) {
               sentenceBuffer += chunk;
               if (
-                sentenceBuffer.length >= 10 &&
+                sentenceBuffer.length >= 4 &&
                 /[。！？.!?\n……]$/.test(sentenceBuffer)
               ) {
                 const sentence = sentenceBuffer;

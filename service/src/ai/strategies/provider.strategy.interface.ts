@@ -59,6 +59,8 @@ export interface TTSStreamChunk {
   sequence: number;
   /** 是否为最后一块 */
   isLast: boolean;
+  /** PCM 采样率（仅 format=pcm 时有效，默认 24000） */
+  sampleRate?: number;
 }
 
 /**

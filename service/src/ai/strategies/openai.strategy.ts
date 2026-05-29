@@ -95,6 +95,7 @@ export class OpenAIStrategy extends BaseStrategy {
             format: 'pcm',
             sequence,
             isLast: true,
+            sampleRate: 24000,
           };
           break;
         }
@@ -104,6 +105,7 @@ export class OpenAIStrategy extends BaseStrategy {
           format: 'pcm',
           sequence: sequence++,
           isLast: false,
+          sampleRate: 24000,
         };
       }
     } finally {

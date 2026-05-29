@@ -13,6 +13,8 @@ export interface AudioChunkData {
   sequence: number
   /** 是否为最后一块 */
   isLast: boolean
+  /** PCM 采样率（仅 format=pcm 时有效，默认 24000） */
+  sampleRate?: number
 }
 
 /**
@@ -442,6 +444,7 @@ class TtsStreamService {
    */
   private async playPcmChunk(chunk: AudioChunkData): Promise<void> {
     const ctx = this.getAudioContext()
+    const sampleRate = chunk.sampleRate || 24000
 
     // 异步解码，避免阻塞主线程
     const { floatData, sampleCount } = await this.decodePcmAsync(chunk.data)
@@ -451,8 +454,8 @@ class TtsStreamService {
       return
     }
 
-    // 手动构建 AudioBuffer（16位单声道 24000Hz）
-    const audioBuffer = ctx.createBuffer(1, sampleCount, 24000)
+    // 手动构建 AudioBuffer（16位单声道）
+    const audioBuffer = ctx.createBuffer(1, sampleCount, sampleRate)
     audioBuffer.getChannelData(0).set(floatData)
 
     const source = ctx.createBufferSource()
@@ -470,10 +473,27 @@ class TtsStreamService {
     source.start(startTime)
     this.nextChunkTime = startTime + audioBuffer.duration
 
-    console.log(`[TtsStream] 播放 PCM: samples=${sampleCount}, duration=${audioBuffer.duration.toFixed(2)}s, startTime=${startTime.toFixed(2)}`)
+    console.log(`[TtsStream] 播放 PCM: samples=${sampleCount}, sampleRate=${sampleRate}, duration=${audioBuffer.duration.toFixed(2)}s, startTime=${startTime.toFixed(2)}`)
+
+    // 超时兜底：如果 onended 不触发，超时后强制 resolve，防止队列卡死
+    const timeoutMs = Math.max(5000, audioBuffer.duration * 1000 + 3000)
+    let settled = false
 
     return new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        if (settled) return
+        settled = true
+        if (this.currentSource === source) {
+          this.currentSource = null
+        }
+        console.warn(`[TtsStream] PCM 块播放超时(${timeoutMs}ms): seq=${chunk.sequence}`)
+        resolve()
+      }, timeoutMs)
+
       source.onended = () => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
         if (this.currentSource === source) {
           this.currentSource = null
         }
@@ -494,18 +514,41 @@ class TtsStreamService {
     audio.volume = voiceService.getConfig().volume
     this.currentSourceHtml = audio
 
+    // 超时兜底：防止播放事件不触发导致队列卡死
+    const timeoutMs = 30000
+    let settled = false
+
     return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        if (settled) return
+        settled = true
+        if (this.currentSourceHtml === audio) {
+          this.currentSourceHtml = null
+        }
+        console.warn(`[TtsStream] MP3 块播放超时(${timeoutMs}ms): seq=${chunk.sequence}`)
+        resolve()
+      }, timeoutMs)
+
       audio.onended = () => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
         if (this.currentSourceHtml === audio) {
           this.currentSourceHtml = null
         }
         resolve()
       }
       audio.onerror = (e) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
         this.currentSourceHtml = null
         reject(new Error(`MP3播放失败: ${e}`))
       }
       audio.play().catch((e) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
         this.currentSourceHtml = null
         reject(e)
       })

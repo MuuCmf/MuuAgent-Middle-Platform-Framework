@@ -300,6 +300,13 @@ export class AiService {
 
     this.logger.debug(`[Stream] 开始处理流式请求: requestId=${context.requestId}`);
 
+    // ========== TTS 实时合成状态（try 外部声明，catch 中也需要访问） ==========
+    let conversationIdStr = '';
+    let ttsSentenceBuffer = '';
+    let ttsInitialized = false;
+    let ttsInitPromise: Promise<boolean> | null = null;
+    const ttsPendingSentences: string[] = [];
+
     try {
       const isolationContext: IsolationContext = {
         appCode: appCode || null,
@@ -381,12 +388,7 @@ export class AiService {
       let blockIndex = 0;
       let currentBlockType: 'text' | 'tool_call' | null = null;
 
-      // ========== TTS 实时合成状态 ==========
-      const conversationIdStr = String(conversation.id);
-      let ttsSentenceBuffer = '';
-      let ttsInitialized = false;
-      let ttsInitPromise: Promise<boolean> | null = null;
-      const ttsPendingSentences: string[] = [];
+      conversationIdStr = String(conversation.id);
 
       for await (const chunk of this.modelExecutor.stream(executionParams)) {
         if (emitter.completed) {
@@ -408,9 +410,9 @@ export class AiService {
           accumulatedContent += chunk.delta;
           emitter.emitTextDelta(chunk.delta);
 
-          // 实时句子检测并触发 TTS
+          // 实时句子检测并触发 TTS（最少4字符触发，确保短句也能及时合成）
           ttsSentenceBuffer += chunk.delta;
-          if (ttsSentenceBuffer.length >= 10 && /[。！？.!?\n……]$/.test(ttsSentenceBuffer)) {
+          if (ttsSentenceBuffer.length >= 4 && /[。！？.!?\n……]$/.test(ttsSentenceBuffer)) {
             const sentence = ttsSentenceBuffer;
             ttsSentenceBuffer = '';
 
@@ -532,6 +534,21 @@ export class AiService {
 
       emitter.emitDone();
     } catch (error) {
+      // TTS 清理：发生错误时刷新剩余 buffer 并关闭会话
+      if (ttsSentenceBuffer.trim()) {
+        if (!ttsInitialized && ttsInitPromise) {
+          await ttsInitPromise;
+        }
+        if (ttsInitialized) {
+          this.ttsStreamService.synthesizeSentence(
+            ttsSentenceBuffer.trim(), conversationIdStr, clientIp, userAgent, uid, appCode,
+          ).catch(() => {});
+        }
+      }
+      if (ttsInitialized) {
+        this.ttsStreamService.finalizeTtsSession(conversationIdStr);
+      }
+
       await this.handleStreamError(
         error,
         context,

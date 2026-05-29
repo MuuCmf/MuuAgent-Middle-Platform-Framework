@@ -386,6 +386,7 @@ export class AliyunStrategy extends BaseStrategy {
                 format: 'pcm',
                 sequence: sequence++,
                 isLast: false,
+                sampleRate: 24000,
               };
             }
           }
@@ -399,10 +400,10 @@ export class AliyunStrategy extends BaseStrategy {
               format: 'pcm',
               sequence: sequence++,
               isLast: true,
+              sampleRate: 24000,
             };
             audioBuffer = Buffer.alloc(0);
           }
-          this.logger.debug(`Qwen-TTS 收到完成信号 (${type}), bufferSize=${audioBuffer.length}`);
           
           // 如果没有收到任何音频数据，抛出错误
           if (!gotAudio) {
@@ -441,6 +442,7 @@ export class AliyunStrategy extends BaseStrategy {
           format: 'pcm',
           sequence: sequence++,
           isLast: true,
+          sampleRate: 24000,
         };
       }
 

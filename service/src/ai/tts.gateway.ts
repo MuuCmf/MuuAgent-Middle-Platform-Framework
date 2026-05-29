@@ -51,6 +51,7 @@ export class TtsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     format: string;
     sequence: number;
     isLast: boolean;
+    sampleRate?: number;
   }>>();
 
   /**
@@ -178,6 +179,7 @@ export class TtsGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @param format 音频格式（mp3/wav/pcm）
    * @param sequence 块序号
    * @param isLast 是否为最后一块
+   * @param sampleRate PCM 采样率（仅 format=pcm 时需要）
    * @returns 是否成功推送
    */
   pushAudioChunk(
@@ -186,6 +188,7 @@ export class TtsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     format: string,
     sequence: number,
     isLast: boolean,
+    sampleRate?: number,
   ): boolean {
     const client = this.sessionMap.get(conversationId);
     if (!client || !client.connected) {
@@ -203,7 +206,7 @@ export class TtsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         buffer = [];
         this.pausedBuffer.set(conversationId, buffer);
       }
-      buffer.push({ data, format, sequence, isLast });
+      buffer.push({ data, format, sequence, isLast, sampleRate });
       return true;
     }
 
@@ -212,6 +215,7 @@ export class TtsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       format,
       sequence,
       isLast,
+      sampleRate,
     });
 
     return true;

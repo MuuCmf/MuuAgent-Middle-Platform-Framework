@@ -299,6 +299,7 @@ export class TtsStreamService {
             chunk.format,
             chunk.sequence,
             chunk.isLast,
+            chunk.sampleRate,
           );
 
           if (!pushed) {
@@ -418,7 +419,7 @@ export class TtsStreamService {
           hasAudio = true;
           this.ttsGateway.pushAudioChunk(
             conversationId, chunk.audioData, chunk.format,
-            chunk.sequence, chunk.isLast,
+            chunk.sequence, chunk.isLast, chunk.sampleRate,
           );
         }
 
@@ -520,6 +521,8 @@ export class TtsStreamService {
     );
 
     // 9. 规范化空白：多个空格/换行合并为单个空格
+    // 注意：中文场景下换行不具有语义停顿含义，合并为空格保证 TTS 朗读流畅；
+    // 如需保留段落停顿，应在 TTS 模型服务端配置 SSML 标记。
     clean = clean.replace(/\s+/g, ' ');
 
     // 10. 移除开头和结尾的空白
@@ -654,13 +657,14 @@ export class TtsStreamService {
 
   /**
    * 检测是否为完整的句子末尾
+   * 与流式句子检测逻辑保持一致：最少4字符，以句末标点结尾
    *
    * @param text 待检测文本
    * @returns 是否以句末标点结尾
    */
   isSentenceComplete(text: string): boolean {
-    if (!text || text.length < 3) return false;
-    return /[。！？.!?\n……]$/.test(text.trim());
+    if (!text || text.length < 4) return false;
+    return /[。！？.!?\n……]$/.test(text);
   }
 
   /**
@@ -678,7 +682,7 @@ export class TtsStreamService {
       if (!trimmed) continue;
       buffer += trimmed;
 
-      if (buffer.length >= 10 || /[。！？.!?\n]$/.test(buffer)) {
+      if (buffer.length >= 4 || this.isSentenceComplete(buffer)) {
         sentences.push(buffer);
         buffer = '';
       }
