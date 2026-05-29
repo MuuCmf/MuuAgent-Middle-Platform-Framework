@@ -39,6 +39,7 @@ export class ModelService {
         config: dto.config,
         tags: dto.tags,
         category: dto.category,
+        capabilities: dto.capabilities,
       },
     });
   }

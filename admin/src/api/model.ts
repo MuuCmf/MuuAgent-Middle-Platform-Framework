@@ -15,6 +15,7 @@ export interface Model {
   config?: string
   tags?: string
   category?: string
+  capabilities?: string
   createdAt: string
   updatedAt: string
   kbUsageCount?: number
@@ -33,6 +34,7 @@ export interface ModelForm {
   config?: string
   tags?: string
   category?: string
+  capabilities?: string
 }
 
 export interface ModelListResponse {

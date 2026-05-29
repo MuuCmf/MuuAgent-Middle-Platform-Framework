@@ -47,6 +47,16 @@
           </el-space>
         </template>
       </el-table-column>
+      <el-table-column prop="capabilities" :label="$t('model.capabilities')" width="200">
+        <template #default="{ row }">
+          <el-space wrap>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('tts:realtime')" size="small" type="primary">{{ $t('model.capTtsRealtime') }}</el-tag>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('tts')" size="small" type="warning">{{ $t('model.capTts') }}</el-tag>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('asr')" size="small" type="success">{{ $t('model.capAsr') }}</el-tag>
+            <span v-if="!row.capabilities" class="no-cap">-</span>
+          </el-space>
+        </template>
+      </el-table-column>
       <el-table-column prop="provider" :label="$t('model.provider')" width="120" />
       <el-table-column prop="weight" :label="$t('model.weight')" width="80" />
       <el-table-column prop="status" :label="$t('model.status')" width="100">
@@ -175,6 +185,16 @@
         </el-col>
       </el-row>
 
+      <!-- TTS/ASR 能力声明 -->
+      <el-form-item v-if="modelForm.type === 'tts' || modelForm.type === 'asr'" :label="$t('model.capabilities')">
+        <el-checkbox-group v-model="selectedCapabilities" @change="handleCapabilitiesChange">
+          <el-checkbox v-if="modelForm.type === 'tts'" value="tts" :label="$t('model.capTts')" />
+          <el-checkbox v-if="modelForm.type === 'tts'" value="tts:realtime" :label="$t('model.capTtsRealtime')" />
+          <el-checkbox v-if="modelForm.type === 'asr'" value="asr" :label="$t('model.capAsr')" />
+        </el-checkbox-group>
+        <div class="form-tip">{{ $t('model.capabilitiesTip') }}</div>
+      </el-form-item>
+
       <el-form-item :label="$t('model.status')">
         <el-switch v-model="modelForm.status" />
       </el-form-item>
@@ -225,6 +245,7 @@ const { loadModels, createModel, updateModel, deleteModel } = modelStore
 const modelDialogVisible = ref(false)
 const editingModel = ref<Model | null>(null)
 const selectedTags = ref<string[]>([])
+const selectedCapabilities = ref<string[]>([])
 const clearApiKey = ref(false)
 const modelForm = ref<ModelForm>({
   name: '',
@@ -236,7 +257,8 @@ const modelForm = ref<ModelForm>({
   weight: 10,
   status: true,
   tags: '',
-  category: ''
+  category: '',
+  capabilities: ''
 })
 
 /** 语音模型测试 */
@@ -262,9 +284,11 @@ const resetModelForm = () => {
     weight: 10,
     status: true,
     tags: '',
-    category: ''
+    category: '',
+    capabilities: ''
   }
   selectedTags.value = []
+  selectedCapabilities.value = []
   clearApiKey.value = false
   editingModel.value = null
 }
@@ -316,6 +340,28 @@ const getCategoryLabel = (category: string): string => {
 }
 
 /**
+ * 解析能力JSON字符串
+ * @param capabilities 能力JSON字符串
+ * @returns 能力值数组
+ */
+const getCapabilities = (capabilities?: string): string[] => {
+  if (!capabilities) return []
+  try {
+    return JSON.parse(capabilities)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 能力变更处理
+ * @param caps 选中的能力值数组
+ */
+const handleCapabilitiesChange = (caps: string[]) => {
+  modelForm.value.capabilities = caps.length > 0 ? JSON.stringify(caps) : ''
+}
+
+/**
  * 标签变更处理
  * @param tags 选中的标签数组
  */
@@ -339,6 +385,7 @@ const handleEditModel = (model: Model) => {
   editingModel.value = model
   modelForm.value = { ...model, apiKey: '' }
   selectedTags.value = parseTags(model.tags)
+  selectedCapabilities.value = parseTags(model.capabilities)
   clearApiKey.value = false
   modelDialogVisible.value = true
 }
@@ -456,5 +503,9 @@ onMounted(() => {
   strong {
     color: #3d6b2a;
   }
+}
+
+.no-cap {
+  color: var(--el-text-color-placeholder);
 }
 </style>

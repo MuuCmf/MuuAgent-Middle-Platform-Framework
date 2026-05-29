@@ -22,6 +22,7 @@ model Model {
   config      String?  /// 额外配置(JSON格式)
   tags        String?  /// 模型标签(JSON数组): chat, reasoning, drawing, embedding, voice
   category    String?  /// 模型分类: general, code, math, creative, professional
+  capabilities String? /// 能力声明(JSON数组): ["tts"]非实时合成, ["tts:realtime"]实时流式合成, ["asr"]语音识别。空或不设置表示无特殊能力
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

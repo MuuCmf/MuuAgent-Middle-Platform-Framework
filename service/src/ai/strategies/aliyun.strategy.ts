@@ -18,7 +18,6 @@ import * as WebSocket from 'ws';
 export class AliyunStrategy extends BaseStrategy {
   readonly name = '阿里云通义';
   readonly providerId = 'aliyun';
-  readonly supportsRealtimeTTS = true;
 
   /**
    * PCM原始音频数据转WAV（16位单声道）
@@ -150,83 +149,6 @@ export class AliyunStrategy extends BaseStrategy {
   }
 
   /**
-   * 直接调用 DashScope REST API TTS
-   * 用于 executeTTSStream 降级时绕过 params.model 类型约束
-   *
-   * @param apiKey DashScope API Key
-   * @param text 合成文本
-   * @param voice 语音ID
-   * @param speed 语速
-   * @param modelName 模型名称（如 qwen3-tts-flash）
-   * @returns TTS执行结果
-   */
-  private async callDashscopeTTS(
-    apiKey: string,
-    text: string,
-    voice?: string,
-    speed?: number,
-    modelName?: string,
-  ): Promise<TTSExecutionResult> {
-    const actualModel = modelName || 'qwen3-tts-flash';
-    this.logger.debug(`DashScope TTS REST: model=${actualModel}, voice=${voice || 'longxiaoxia'}`);
-
-    const response = await fetch(
-      `${this.dashscopeBaseURL}/api/v1/services/aigc/multimodal-generation/generation`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: actualModel,
-          input: {
-            text,
-            voice: voice || 'longxiaoxia',
-          },
-          parameters: {
-            ...(speed ? { speed } : {}),
-          },
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new HttpException(
-        `DashScope API 错误: ${response.status} ${errorText}`,
-        response.status,
-      );
-    }
-
-    const result = await response.json() as any;
-    const audioUrl = result?.output?.audio?.url;
-    const duration = result?.output?.audio?.duration;
-
-    if (!audioUrl) {
-      throw new HttpException('DashScope TTS 未返回音频 URL', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    this.logger.debug(`DashScope TTS REST 成功: duration=${duration}s, downloading audio...`);
-
-    const audioResponse = await fetch(audioUrl);
-    if (!audioResponse.ok) {
-      throw new HttpException(
-        `下载音频文件失败: ${audioResponse.status}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-
-    const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-
-    return {
-      audioData: audioBuffer.toString('base64'),
-      format: 'mp3',
-      duration,
-    };
-  }
-
-  /**
    * 流式TTS合成（Qwen-TTS-Realtime WebSocket）
    *
    * 使用阿里云 Qwen-TTS-Realtime 系列模型的 WebSocket 接口
@@ -249,68 +171,16 @@ export class AliyunStrategy extends BaseStrategy {
       throw new HttpException('DashScope API Key 未配置', HttpStatus.BAD_REQUEST);
     }
 
-    const modelName = model.code || 'qwen3-tts-flash';
-    const realtimeModelName = modelName.includes('-realtime')
-      ? modelName
-      : `${modelName}-realtime`;
-
-    const wsUrl = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${realtimeModelName}`;
+    const modelName = model.code || 'qwen3-tts-flash-realtime';
+    const wsUrl = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${modelName}`;
 
     this.logger.debug(`Qwen-TTS 尝试 WebSocket 流式: url=${wsUrl}`);
 
-    try {
-      for await (const chunk of this.tryWebSocketStream(
-        wsUrl, realtimeModelName, apiKey, text, voice, speed,
-      )) {
-        yield chunk;
-      }
-      return;
-    } catch (error) {
-      this.logger.warn(`Qwen-TTS WebSocket 流式失败: ${(error as Error).message}，降级为 REST API`);
+    for await (const chunk of this.tryWebSocketStream(
+      wsUrl, modelName, apiKey, text, voice, speed,
+    )) {
+      yield chunk;
     }
-
-    this.logger.debug(`Qwen-TTS 降级为 REST API (模型: ${modelName})`);
-    try {
-      const result = await this.callDashscopeTTS(
-        apiKey, text, voice, speed, modelName,
-      );
-      if (result?.audioData) {
-        yield {
-          audioData: result.audioData,
-          format: result.format || 'mp3',
-          sequence: 0,
-          isLast: true,
-        };
-        return;
-      }
-    } catch (error) {
-      this.logger.warn(`Qwen-TTS REST API 降级失败: ${(error as Error).message}`);
-    }
-
-    this.logger.debug(`Qwen-TTS 使用默认模型 qwen3-tts-flash 重试 REST API`);
-    try {
-      const result = await this.callDashscopeTTS(
-        apiKey, text, voice, speed, 'qwen3-tts-flash',
-      );
-      if (result?.audioData) {
-        yield {
-          audioData: result.audioData,
-          format: result.format || 'mp3',
-          sequence: 0,
-          isLast: true,
-        };
-        return;
-      }
-    } catch (error) {
-      this.logger.warn(`Qwen-TTS 默认模型也失败: ${(error as Error).message}`);
-    }
-
-    yield {
-      audioData: '',
-      format: 'mp3',
-      sequence: 0,
-      isLast: true,
-    };
   }
 
   /**

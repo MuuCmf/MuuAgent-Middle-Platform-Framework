@@ -195,6 +195,11 @@ export default {
     setDefaultSuccess: '设置成功',
     setDefaultFailed: '设置失败',
     loadTemplateListFailed: '加载模板列表失败',
+    capabilities: '能力声明',
+    capTts: '非实时合成',
+    capTtsRealtime: '实时流式合成',
+    capAsr: '语音识别',
+    capabilitiesTip: '声明模型支持的能力，用于测试面板自动判断可用功能',
   },
   intentLabel: {
     general: '通用',

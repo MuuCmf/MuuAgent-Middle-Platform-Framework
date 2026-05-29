@@ -77,13 +77,6 @@ export interface IProviderStrategy {
   readonly providerId: string;
 
   /**
-   * 是否支持实时流式TTS合成
-   * 实时合成逐块返回音频数据（如PCM块），适合边生成边播放
-   * 非实时合成则等待完整音频生成后一次性返回
-   */
-  readonly supportsRealtimeTTS?: boolean;
-
-  /**
    * 创建 SDK provider 实例
    * @param model 模型配置
    * @returns SDK provider 实例

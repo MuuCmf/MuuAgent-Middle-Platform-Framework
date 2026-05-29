@@ -17,7 +17,6 @@ import OpenAI from 'openai';
 export class OpenAIStrategy extends BaseStrategy {
   readonly name = 'OpenAI';
   readonly providerId = 'openai';
-  readonly supportsRealtimeTTS = true;
 
   /**
    * TTS语音合成

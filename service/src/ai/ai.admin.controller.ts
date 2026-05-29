@@ -138,8 +138,20 @@ export class AdminAiController {
       }
 
       const strategy = this.strategyFactory.getStrategy(model.provider);
-      const supportsRealtime = !!strategy.supportsRealtimeTTS && !!strategy.executeTTSStream;
-      const supportsNonRealtime = !!strategy.executeTTS;
+      let supportsNonRealtime = !!strategy.executeTTS;
+      let supportsRealtime = !!strategy.executeTTSStream;
+
+      if (model.capabilities) {
+        try {
+          const caps: string[] = JSON.parse(model.capabilities as string);
+          if (caps.length > 0) {
+            supportsRealtime = caps.includes('tts:realtime');
+            supportsNonRealtime = caps.includes('tts');
+          }
+        } catch {
+          // 解析失败时使用默认推断
+        }
+      }
 
       return success({
         supportsRealtime,

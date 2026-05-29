@@ -139,6 +139,14 @@ export class CreateModelDto {
   @IsString()
   @IsOptional()
   category?: string;
+
+  @ApiPropertyOptional({ 
+    description: '能力声明(JSON数组)', 
+    example: '["tts:realtime"]',
+  })
+  @IsString()
+  @IsOptional()
+  capabilities?: string;
 }
 
 /**
@@ -205,6 +213,11 @@ export class UpdateModelDto {
   @IsString()
   @IsOptional()
   category?: string;
+
+  @ApiPropertyOptional({ description: '能力声明(JSON数组)' })
+  @IsString()
+  @IsOptional()
+  capabilities?: string;
 }
 
 /**
