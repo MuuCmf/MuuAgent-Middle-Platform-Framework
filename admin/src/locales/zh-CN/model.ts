@@ -200,6 +200,10 @@ export default {
     capTtsRealtime: '实时流式合成',
     capAsr: '语音识别',
     capabilitiesTip: '声明模型支持的能力，用于测试面板自动判断可用功能',
+    directSynthesis: '直接合成',
+    batchWebSocket: '批量流式',
+    testBatchStream: '开始批量流式合成',
+    connectingWebSocket: '正在连接 WebSocket...',
   },
   intentLabel: {
     general: '通用',

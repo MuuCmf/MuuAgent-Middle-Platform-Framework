@@ -200,6 +200,10 @@ export default {
     capTtsRealtime: 'Real-time',
     capAsr: 'Speech Recognition',
     capabilitiesTip: 'Declare model capabilities for the test panel to auto-detect available features',
+    directSynthesis: 'Direct Synthesis',
+    batchWebSocket: 'Batch Stream',
+    testBatchStream: 'Start Batch Streaming',
+    connectingWebSocket: 'Connecting to WebSocket...',
   },
   intentLabel: {
     general: 'General',

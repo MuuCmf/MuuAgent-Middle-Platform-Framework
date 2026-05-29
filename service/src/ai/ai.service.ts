@@ -24,7 +24,7 @@ import { ErrorHandler, NormalizedError } from './handlers/error.handler';
 import { LogService, LogData } from './infrastructure/log.service';
 import { StreamProcessor } from './core/stream.processor';
 import { ToolCallParser } from './parsers/tool-call.parser';
-import { TtsStreamService } from './tts-stream.service';
+import { TtsService } from './tts/tts.service';
 import {
   ExecutionContext,
   ExecutionResult,
@@ -117,7 +117,7 @@ export class AiService {
     private toolCallParser: ToolCallParser,
     private appUsageService: AppUsageService,
     private prisma: PrismaService,
-    private ttsStreamService: TtsStreamService,
+    private ttsService: TtsService,
   ) {}
 
   /**
@@ -300,12 +300,9 @@ export class AiService {
 
     this.logger.debug(`[Stream] 开始处理流式请求: requestId=${context.requestId}`);
 
-    // ========== TTS 实时合成状态（try 外部声明，catch 中也需要访问） ==========
+    // ========== TTS 实时合成状态 ==========
     let conversationIdStr = '';
     let ttsSentenceBuffer = '';
-    let ttsInitialized = false;
-    let ttsInitPromise: Promise<boolean> | null = null;
-    const ttsPendingSentences: string[] = [];
 
     try {
       const isolationContext: IsolationContext = {
@@ -410,40 +407,16 @@ export class AiService {
           accumulatedContent += chunk.delta;
           emitter.emitTextDelta(chunk.delta);
 
-          // 实时句子检测并触发 TTS（最少4字符触发，确保短句也能及时合成）
           ttsSentenceBuffer += chunk.delta;
-          if (ttsSentenceBuffer.length >= 4 && /[。！？.!?\n……]$/.test(ttsSentenceBuffer)) {
+          if (this.ttsService.isSentenceComplete(ttsSentenceBuffer)) {
             const sentence = ttsSentenceBuffer;
             ttsSentenceBuffer = '';
 
-            if (!ttsInitialized) {
-              if (!ttsInitPromise) {
-                ttsInitPromise = this.ttsStreamService
-                  .initTtsSession(conversationIdStr, appCode)
-                  .then((ok) => {
-                    ttsInitialized = ok;
-                    if (ok && ttsPendingSentences.length > 0) {
-                      for (const s of ttsPendingSentences) {
-                        this.ttsStreamService.synthesizeSentence(
-                          s, conversationIdStr, clientIp, userAgent, uid, appCode,
-                        ).catch(() => {});
-                      }
-                      ttsPendingSentences.length = 0;
-                    }
-                    return ok;
-                  })
-                  .catch((e: Error) => {
-                    this.logger.warn(`TTS init 失败: ${e.message}`);
-                    ttsInitialized = false;
-                    return false;
-                  });
-              }
-              ttsPendingSentences.push(sentence);
-            } else {
-              this.ttsStreamService.synthesizeSentence(
-                sentence, conversationIdStr, clientIp, userAgent, uid, appCode,
-              ).catch(() => {});
-            }
+            this.ttsService.streamSynthesize(
+              sentence, conversationIdStr,
+            ).catch((e: Error) => {
+              this.logger.warn(`TTS 合成失败: ${e.message}`);
+            });
           }
         } else if (chunk.type === 'tool-call' && chunk.toolCall) {
           if (currentBlockType !== null) {
@@ -469,21 +442,11 @@ export class AiService {
 
       // ========== LLM 流结束 — flush 剩余文本作为末句 ==========
       if (ttsSentenceBuffer.trim()) {
-        if (!ttsInitialized && ttsInitPromise) {
-          await ttsInitPromise;
-        } else if (!ttsInitialized) {
-          ttsInitialized = await this.ttsStreamService.initTtsSession(
-            conversationIdStr, appCode,
-          ) || false;
-        }
-        if (ttsInitialized) {
-          await this.ttsStreamService.synthesizeSentence(
-            ttsSentenceBuffer.trim(), conversationIdStr, clientIp, userAgent, uid, appCode,
-          ).catch(() => {});
-        }
-      }
-      if (ttsInitialized) {
-        this.ttsStreamService.finalizeTtsSession(conversationIdStr);
+        await this.ttsService.streamSynthesize(
+          ttsSentenceBuffer.trim(), conversationIdStr,
+        ).catch((e: Error) => {
+          this.logger.warn(`TTS 合成失败: ${e.message}`);
+        });
       }
 
       if (emitter.completed) {
@@ -534,19 +497,11 @@ export class AiService {
 
       emitter.emitDone();
     } catch (error) {
-      // TTS 清理：发生错误时刷新剩余 buffer 并关闭会话
-      if (ttsSentenceBuffer.trim()) {
-        if (!ttsInitialized && ttsInitPromise) {
-          await ttsInitPromise;
-        }
-        if (ttsInitialized) {
-          this.ttsStreamService.synthesizeSentence(
-            ttsSentenceBuffer.trim(), conversationIdStr, clientIp, userAgent, uid, appCode,
-          ).catch(() => {});
-        }
-      }
-      if (ttsInitialized) {
-        this.ttsStreamService.finalizeTtsSession(conversationIdStr);
+      // TTS 清理：发生错误时刷新剩余 buffer
+      if (ttsSentenceBuffer.trim() && conversationIdStr) {
+        this.ttsService.streamSynthesize(
+          ttsSentenceBuffer.trim(), conversationIdStr,
+        ).catch(() => {});
       }
 
       await this.handleStreamError(

@@ -16,6 +16,17 @@ export interface TTSExecutionParams {
   voice?: string;
   speed?: number;
   context: ExecutionContext;
+
+  /**
+   * Qwen-TTS Realtime 交互模式（仅阿里云 DashScope WebSocket 流式TTS有效）
+   *
+   * - 'server_commit': 服务端智能处理文本分段与合成时机，客户端只需持续追加文本
+   *                   适合大段文本连续合成、AI对话流式输出等场景
+   * - 'commit':       客户端主动提交文本缓冲区以触发合成，适合需要精确控制合成时机的场景
+   *
+   * 默认值: 'server_commit'
+   */
+  mode?: 'server_commit' | 'commit';
 }
 
 /**
@@ -126,7 +137,7 @@ export interface IProviderStrategy {
    * 流式TTS合成（可选）
    *
    * 支持流式 TTS 输出的提供商实现此方法。
-   * TtsStreamService 不关心底层协议细节，只消费 AsyncIterable。
+   * TtsService 不关心底层协议细节，只消费 AsyncIterable。
    *
    * @param params TTS执行参数（model / text / voice / speed / context）
    * @returns 音频块异步迭代器

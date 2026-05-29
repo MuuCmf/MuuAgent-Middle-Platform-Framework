@@ -195,15 +195,12 @@ export class AliyunStrategy extends BaseStrategy {
   async *executeTTSStream(
     params: TTSExecutionParams,
   ): AsyncIterable<TTSStreamChunk> {
-    const { model, text, voice, speed } = params;
-
-    // model.code 从数据库获取（如 qwen3-tts-flash-realtime），直接使用
+    const { model, text, voice, speed, mode } = params;
+    const ttsMode = mode || 'server_commit';
     const modelCode = model.code || 'qwen3-tts-flash-realtime';
     const resolvedVoice = this.resolveVoice(voice);
 
-    this.logger.debug(
-      `Qwen-TTS 流式: model=${modelCode}, voice=${resolvedVoice}`,
-    );
+    this.logger.debug(`Qwen-TTS: model=${modelCode}, voice=${resolvedVoice}, mode=${ttsMode}`);
 
     const apiKey = model.apiKey || process.env.DASHSCOPE_API_KEY;
     if (!apiKey) {
@@ -212,26 +209,6 @@ export class AliyunStrategy extends BaseStrategy {
 
     const wsUrl = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${modelCode}`;
 
-    this.logger.debug(`Qwen-TTS 尝试 WebSocket 流式: url=${wsUrl}`);
-
-    for await (const chunk of this.tryWebSocketStream(
-      wsUrl, apiKey, text, resolvedVoice, speed,
-    )) {
-      yield chunk;
-    }
-  }
-
-  /**
-   * 尝试 WebSocket 流式合成
-   * 如果模型不支持流式或超时，抛出异常回退到 REST API
-   */
-  private async *tryWebSocketStream(
-    wsUrl: string,
-    apiKey: string,
-    text: string,
-    voice?: string,
-    speed?: number,
-  ): AsyncIterable<TTSStreamChunk> {
     const ws = new WebSocket(wsUrl, {
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -239,259 +216,135 @@ export class AliyunStrategy extends BaseStrategy {
       },
     });
 
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error('WebSocket 连接超时(10s)')),
-        10000,
-      );
-      ws.onopen = () => { clearTimeout(timeout); resolve(); };
-      ws.onerror = () => { clearTimeout(timeout); reject(new Error('WebSocket 连接失败')); };
-    });
-
-    const sessionCreated = await this.waitForEventSafe(ws, 'session.created', 15000);
-    if (!sessionCreated) {
+    // 连接
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('WebSocket 连接超时(10s)')), 10000);
+        ws.onopen = () => { clearTimeout(timer); resolve(); };
+        ws.onerror = (e) => { clearTimeout(timer); reject(new Error('WebSocket 连接失败')); };
+      });
+    } catch (e) {
       ws.close();
-      throw new Error('未收到 session.created');
+      throw e;
     }
 
-    const sessionUpdateEventId = crypto.randomUUID();
-    ws.send(JSON.stringify({
-      event_id: sessionUpdateEventId,
-      type: 'session.update',
-      session: {
-        voice: voice,
-        mode: 'commit', // 对话式 AI 场景使用 commit 模式，需显式提交触发合成
-        response_format: 'pcm_24000hz_mono_16bit',
-      },
-    }));
+    // 统一消息队列
+    const msgQueue: string[] = [];
+    let msgResolve: ((m: string) => void) | null = null;
+    let closed = false;
 
-    // 等待 session.update 确认（使用 event_id 匹配）
-    await this.waitForEventSafe(ws, 'session.updated', 10000);
+    ws.on('message', (raw: WebSocket.Data) => {
+      if (closed) return;
+      const m = typeof raw === 'string' ? raw : raw.toString();
+      if (msgResolve) { const r = msgResolve; msgResolve = null; r(m); }
+      else msgQueue.push(m);
+    });
+    ws.on('close', () => { closed = true; });
 
-    let sequence = 0;
-
-    const messageQueue: string[] = [];
-    let messageResolve: ((msg: string) => void) | null = null;
-    let wsClosed = false;
-
-    const messageHandler = (raw: WebSocket.Data) => {
-      if (wsClosed) return;
-      const msg = typeof raw === 'string' ? raw : raw.toString();
-      if (messageResolve) {
-        const resolve = messageResolve;
-        messageResolve = null;
-        resolve(msg);
-      } else {
-        messageQueue.push(msg);
-      }
-    };
-
-    ws.on('message', messageHandler);
-    ws.on('close', () => { wsClosed = true; });
-
-    const nextMsg = (timeoutMs = 30000): Promise<string | 'TIMEOUT'> => {
-      if (messageQueue.length > 0) {
-        return Promise.resolve(messageQueue.shift()!);
-      }
+    const next = (ms = 30000): Promise<string | 'TIMEOUT'> => {
+      if (msgQueue.length > 0) return Promise.resolve(msgQueue.shift()!);
       return new Promise<string | 'TIMEOUT'>(resolve => {
-        messageResolve = resolve;
-        setTimeout(() => {
-          if (messageResolve) {
-            const r = messageResolve;
-            messageResolve = null;
-            r('TIMEOUT');
-          }
-        }, timeoutMs);
+        msgResolve = resolve;
+        setTimeout(() => { if (msgResolve) { const r = msgResolve; msgResolve = null; r('TIMEOUT'); } }, ms);
       });
     };
 
+    const send = (obj: object) => { ws.send(JSON.stringify(obj)); };
+
     try {
-      // 一次性发送全部文本
-      // commit 模式下需要先 append 再 commit 触发合成
-      this.logger.debug(`Qwen-TTS 发送文本：len=${text.length}, text="${text.slice(0, 60)}..."`);
+      // 1. 等待 session.created
+      const first = await next(15000);
+      if (first === 'TIMEOUT') throw new Error('未收到 session.created');
+      try {
+        const d = JSON.parse(first);
+        if (d.type !== 'session.created') this.logger.warn(`首个消息不是 session.created: ${d.type}`);
+      } catch { /* ignore */ }
 
-      // 1. 添加文本到缓冲区
-      const appendEventId = crypto.randomUUID();
-      ws.send(JSON.stringify({
-        event_id: appendEventId,
-        type: 'input_text_buffer.append',
-        text,
-      }));
+      // 2. 发送 session.update
+      send({
+        event_id: crypto.randomUUID(),
+        type: 'session.update',
+        session: { voice: resolvedVoice, mode: ttsMode, response_format: 'pcm' },
+      });
 
-      // 2. 提交缓冲区触发合成（commit 模式必须显式提交）
-      const commitEventId = crypto.randomUUID();
-      ws.send(JSON.stringify({
-        event_id: commitEventId,
-        type: 'input_text_buffer.commit',
-      }));
-      this.logger.debug(`Qwen-TTS 已提交缓冲区，等待音频响应...`);
-
-      let audioBuffer = Buffer.alloc(0);
-      const startTime = Date.now();
-      let gotAudio = false;
-      const YIELD_CHUNK_SIZE = 16384; // 增大音频块大小，减少网络传输频率
-      const OVERALL_TIMEOUT = 15000; // 缩短超时时间，快速失败
-      let lastAudioTime = Date.now();
-
-      // 持续接收事件，直到响应完成或超时
-      while (true) {
-        const elapsed = Date.now() - startTime;
-        const remaining = OVERALL_TIMEOUT - elapsed;
-        if (remaining <= 0) {
-          if (!gotAudio) {
-            this.logger.warn(`Qwen-TTS 流式合成总超时 (${OVERALL_TIMEOUT}ms)`);
-          } else {
-            this.logger.debug(`Qwen-TTS 合成完成，已接收音频`);
-          }
-          break;
-        }
-
-        // 使用较短超时，快速检测无响应
-        this.logger.debug(`Qwen-TTS 等待消息中... (已等待 ${elapsed}ms)`);
-        const message = await nextMsg(Math.min(remaining, 2000));
-
-        if (message === 'TIMEOUT') {
-          // 如果超过 2 秒没有收到任何消息，且已收到音频，则认为完成
-          if (gotAudio) {
-            this.logger.debug(`Qwen-TTS 接收完成 (已接收音频，2s 无新数据)`);
-            break;
-          }
-          this.logger.warn(`Qwen-TTS 接收超时 (2s 无响应)`);
-          break;
-        }
-
-        if (typeof message !== 'string') continue;
-
-        let data: Record<string, unknown>;
-        try { data = JSON.parse(message); } catch { continue; }
-
-        const type = data.type as string | undefined;
-        
-        // 调试：记录所有收到的消息类型
-        this.logger.debug(`Qwen-TTS 收到消息类型: ${type || 'undefined'}`);
-
-        if (type === 'response.audio.delta') {
-          const delta = data.delta as string;
-          if (delta) {
-            const deltaBuf = Buffer.from(delta, 'base64');
-            audioBuffer = Buffer.concat([audioBuffer, deltaBuf]);
-            gotAudio = true;
-            lastAudioTime = Date.now();
-
-            while (audioBuffer.length >= YIELD_CHUNK_SIZE) {
-              const chunk = audioBuffer.subarray(0, YIELD_CHUNK_SIZE);
-              audioBuffer = audioBuffer.subarray(YIELD_CHUNK_SIZE);
-              yield {
-                audioData: chunk.toString('base64'),
-                format: 'pcm',
-                sequence: sequence++,
-                isLast: false,
-                sampleRate: 24000,
-              };
-            }
-          }
-        } else if (type === 'response.done' || type === 'response.audio.done') {
-          // 调试：查看完整的 done 响应
-          this.logger.debug(`Qwen-TTS 完成响应 (${type}): ${JSON.stringify(data)}`);
-          // 服务端明确告知完成，yield 当前缓冲区后立即结束
-          if (audioBuffer.length > 0) {
-            yield {
-              audioData: audioBuffer.toString('base64'),
-              format: 'pcm',
-              sequence: sequence++,
-              isLast: true,
-              sampleRate: 24000,
-            };
-            audioBuffer = Buffer.alloc(0);
-          }
-          
-          // 如果没有收到任何音频数据，抛出错误
-          if (!gotAudio) {
-            this.logger.warn(`Qwen-TTS 未返回音频数据，可能是配额问题或配置错误`);
-            throw new Error('Qwen-TTS 服务未返回音频数据');
-          }
-          
-          break;
-        } else if (type === 'error' || type === 'response.error') {
-          const errMsg = (data.error as any)?.message || message.slice(0, 200);
-          this.logger.warn(`Qwen-TTS 错误: ${errMsg}`);
-          if (gotAudio) break;
-          throw new Error(`DashScope 合成错误: ${errMsg}`);
-        } else if (type === 'input_text_buffer.committed') {
-          this.logger.debug(`Qwen-TTS 缓冲区已提交，准备接收音频...`);
-        } else if (type !== 'session.created' &&
-                   type !== 'response.created' &&
-                   type !== 'session.updated' &&
-                   type !== 'response.output_item.added' &&
-                   type !== 'response.content_part.added' &&
-                   type !== 'response.content_part.done' &&
-                   type !== 'response.output_item.done' &&
-                   type !== 'input_text_buffer.committed' &&
-                   type !== undefined) {
-          // 记录所有未知事件类型
-          this.logger.debug(`Qwen-TTS 未处理事件(${type}): ${message.slice(0, 200)}`);
-        } else if (type !== undefined) {
-          // 记录已处理但不产生输出的事件
-          this.logger.debug(`Qwen-TTS 跳过事件(${type})`);
-        }
-      }
-
-      if (audioBuffer.length > 0) {
-        yield {
-          audioData: audioBuffer.toString('base64'),
-          format: 'pcm',
-          sequence: sequence++,
-          isLast: true,
-          sampleRate: 24000,
-        };
-      }
-
-      if (!gotAudio) {
-        this.logger.warn('Qwen-TTS WebSocket 未收到音频数据');
-      }
-    } finally {
-      ws.off('message', messageHandler);
-      const finishEventId = crypto.randomUUID();
-      try { ws.send(JSON.stringify({ event_id: finishEventId, type: 'session.finish' })); } catch {}
-      try { ws.close(); } catch {}
-    }
-  }
-
-  /**
-   * 等待指定类型的服务端事件（超时后自动清理监听器）
-   *
-   * @param ws WebSocket 实例
-   * @param targetType 目标事件类型
-   * @param timeoutMs 超时毫秒
-   * @returns 事件载荷，超时返回 null
-   */
-  private waitForEventSafe(
-    ws: WebSocket,
-    targetType: string,
-    timeoutMs = 15000,
-  ): Promise<Record<string, unknown> | null> {
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        ws.off('message', handler);
-        this.logger.warn(`等待事件 ${targetType} 超时，继续流程...`);
-        resolve(null);
-      }, timeoutMs);
-
-      const handler = (raw: WebSocket.Data) => {
+      // 3. 等待 session.updated（最多5秒）
+      let updated = false;
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        const m = await next(Math.min(deadline - Date.now(), 2000));
+        if (m === 'TIMEOUT') break;
         try {
-          const data = JSON.parse(raw.toString());
-          if (data.type === targetType) {
-            clearTimeout(timeout);
-            ws.off('message', handler);
-            resolve(data as Record<string, unknown>);
+          const d = JSON.parse(m);
+          if (d.type === 'session.updated') { updated = true; break; }
+          if (d.type === 'error' || d.type === 'response.error') {
+            throw new Error(`session.update 错误: ${(d.error as any)?.message || m.slice(0, 200)}`);
           }
-        } catch {
-          // ignore parse error
+        } catch (e) {
+          if ((e as Error).message?.startsWith('session.update')) throw e;
         }
-      };
+      }
+      if (!updated) this.logger.warn(`未收到 session.updated 确认，继续`);
 
-      ws.on('message', handler);
-    });
+      // 4. 发送文本
+      send({ event_id: crypto.randomUUID(), type: 'input_text_buffer.append', text });
+      if (ttsMode === 'commit') {
+        send({ event_id: crypto.randomUUID(), type: 'input_text_buffer.commit' });
+      }
+
+      // 5. 通知服务端文本输入完毕，服务端会处理剩余缓冲区并发送 session.finished
+      send({ event_id: crypto.randomUUID(), type: 'session.finish' });
+
+      // 6. 接收音频，直到 session.finished 或连接关闭
+      let seq = 0;
+      let audioBuf = Buffer.alloc(0);
+      let gotAudio = false;
+      const CHUNK = 16384;
+
+      while (!closed) {
+        const m = await next(10000);
+        if (m === 'TIMEOUT') {
+          this.logger.warn('等待音频超时，结束接收');
+          break;
+        }
+
+        let d: any;
+        try { d = JSON.parse(m); } catch { continue; }
+
+        if (d.type === 'response.audio.delta' && d.delta) {
+          audioBuf = Buffer.concat([audioBuf, Buffer.from(d.delta, 'base64')]);
+          gotAudio = true;
+          while (audioBuf.length >= CHUNK) {
+            yield { audioData: audioBuf.subarray(0, CHUNK).toString('base64'), format: 'pcm', sequence: seq++, isLast: false, sampleRate: 24000 };
+            audioBuf = audioBuf.subarray(CHUNK);
+          }
+        } else if (d.type === 'session.finished') {
+          // 服务端确认所有合成完成，flush 残余音频后退出
+          if (audioBuf.length > 0) {
+            yield { audioData: audioBuf.toString('base64'), format: 'pcm', sequence: seq++, isLast: true, sampleRate: 24000 };
+            audioBuf = Buffer.alloc(0);
+          }
+          break;
+        } else if (d.type === 'response.audio.done' || d.type === 'response.done') {
+          // 单段合成完成，flush 残余音频，但继续等待后续段或 session.finished
+          if (audioBuf.length > 0) {
+            yield { audioData: audioBuf.toString('base64'), format: 'pcm', sequence: seq++, isLast: false, sampleRate: 24000 };
+            audioBuf = Buffer.alloc(0);
+          }
+        } else if (d.type === 'error' || d.type === 'response.error') {
+          const msg = d.error?.message || m.slice(0, 200);
+          if (gotAudio) break;
+          throw new Error(`DashScope 错误: ${msg}`);
+        }
+      }
+
+      // flush 残余
+      if (audioBuf.length > 0) {
+        yield { audioData: audioBuf.toString('base64'), format: 'pcm', sequence: seq++, isLast: true, sampleRate: 24000 };
+      }
+      if (!gotAudio) this.logger.warn('Qwen-TTS 未收到音频数据');
+    } finally {
+      try { ws.close(); } catch { /* ignore */ }
+    }
   }
 
   /**

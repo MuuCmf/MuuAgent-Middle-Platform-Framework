@@ -159,6 +159,11 @@ export class TtsDto {
   @IsString()
   @IsOptional()
   uid?: string;
+
+  @ApiPropertyOptional({ description: '会话ID（用于批量流式合成）' })
+  @IsString()
+  @IsOptional()
+  conversationId?: string;
 }
 
 /**
@@ -207,22 +212,6 @@ export class TtsCapabilityDto {
   @IsString()
   @IsOptional()
   voice?: string;
-}
-
-/**
- * TTS追加文本合成DTO（管理端测试用）
- * 在已有实时会话中追加文本并触发合成
- */
-export class TtsAppendDto {
-  @ApiProperty({ description: '追加的文本' })
-  @IsString()
-  @IsNotEmpty()
-  text: string;
-
-  @ApiProperty({ description: '会话ID（与实时会话对应）' })
-  @IsString()
-  @IsNotEmpty()
-  conversationId: string;
 }
 
 /**

@@ -3,7 +3,7 @@ import { ReasoningMode, IReasoningEngine, ReasoningResult, ReasoningStep } from 
 import { ExecutionContext } from '../agent/execution/execution-context';
 import { StreamEmitter, StreamEvents } from '../stream';
 import { AiService } from '../ai/ai.service';
-import { TtsStreamService } from '../ai/tts-stream.service';
+import { TtsService } from '../ai/tts/tts.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ToolExecutor } from '../agent/tools/tool-executor';
 import { ToolNameSanitizer } from '../ai/providers/tool-name-sanitizer';
@@ -58,8 +58,8 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     protected readonly prisma: PrismaService,
     protected readonly clientToolRegistry: ClientToolRegistry,
     @Optional()
-    @Inject(forwardRef(() => TtsStreamService))
-    protected readonly ttsStreamService?: TtsStreamService,
+    @Inject(forwardRef(() => TtsService))
+    protected readonly ttsService?: TtsService,
   ) {
     this.logger = new Logger(this.constructor.name);
   }
@@ -152,42 +152,14 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
 
     await this.saveUserMessage(context);
 
-    // ========== TTS 实时合成状态 ==========
+    // ========== TTS 实时合成 ==========
     let sentenceBuffer = '';
-    let ttsInitialized = false;
-    let ttsInitPromise: Promise<boolean> | null = null;
-    const ttsPendingSentences: string[] = [];
     const conversationId = context.conversationId;
     const isTtsActive = (): boolean =>
-      this.ttsStreamService != null;
+      this.ttsService != null;
 
     try {
       await this.beforeStreamLoop(context, messages, steps, emitter);
-
-      // 预初始化 TTS 会话，提前开始轮询 WebSocket 连接
-      // 这样当第一个完整句子到达时，TTS 可能已经就绪
-      if (isTtsActive()) {
-        ttsInitPromise = this.ttsStreamService!.initTtsSession(
-          conversationId, context.appCode,
-        ).then((ok) => {
-          ttsInitialized = ok;
-          if (ok && ttsPendingSentences.length > 0) {
-            for (const s of ttsPendingSentences) {
-              this.ttsStreamService!.synthesizeSentence(
-                s, conversationId,
-                context.clientIp, context.userAgent,
-                context.uid, context.appCode,
-              ).catch(() => {});
-            }
-            ttsPendingSentences.length = 0;
-          }
-          return ok;
-        }).catch((e: Error) => {
-          this.logger.warn(`TTS 预初始化失败: ${e.message}`);
-          ttsInitialized = false;
-          return false;
-        });
-      }
 
       let blockIndex = 0;
 
@@ -255,52 +227,16 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
             // 实时句子检测并触发 TTS（最少4字符触发，确保短句也能及时合成）
             if (isTtsActive()) {
               sentenceBuffer += chunk;
-              if (
-                sentenceBuffer.length >= 4 &&
-                /[。！？.!?\n……]$/.test(sentenceBuffer)
-              ) {
+              if (this.ttsService!.isSentenceComplete(sentenceBuffer)) {
                 const sentence = sentenceBuffer;
                 sentenceBuffer = '';
 
-                if (!ttsInitialized) {
-                  if (!ttsInitPromise) {
-                    ttsInitPromise = this.ttsStreamService!
-                      .initTtsSession(conversationId, context.appCode)
-                      .then((ok) => {
-                        ttsInitialized = ok;
-                        if (ok && ttsPendingSentences.length > 0) {
-                          for (const s of ttsPendingSentences) {
-                            this.ttsStreamService!.synthesizeSentence(
-                              s, conversationId,
-                              context.clientIp, context.userAgent,
-                              context.uid, context.appCode,
-                            ).catch(() => {});
-                          }
-                          ttsPendingSentences.length = 0;
-                        }
-                        return ok;
-                      })
-                      .catch((e: Error) => {
-                        this.logger.warn(`TTS init 失败: ${e.message}`);
-                        ttsInitialized = false;
-                        return false;
-                      });
-                  }
-                  ttsPendingSentences.push(sentence);
-                } else {
-                  this.ttsStreamService!.synthesizeSentence(
-                    sentence,
-                    conversationId,
-                    context.clientIp,
-                    context.userAgent,
-                    context.uid,
-                    context.appCode,
-                  ).catch((err) =>
-                    this.logger.warn(
-                      `TTS 实时合成失败: ${(err as Error).message}`,
-                    ),
-                  );
-                }
+                this.ttsService!.streamSynthesize(
+                  sentence,
+                  conversationId,
+                ).catch((err: Error) =>
+                  this.logger.warn(`TTS 实时合成失败: ${err.message}`),
+                );
               }
             }
           },
@@ -352,44 +288,23 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
         }
       }
 
-      // ========== LLM 流结束 — flush 剩余文本作为末句 ==========
+      // ========== LLM 流结束 — flush 剩余文本 ==========
       if (sentenceBuffer.trim()) {
-        if (!ttsInitialized && ttsInitPromise) {
-          await ttsInitPromise;
-        } else if (!ttsInitialized) {
-          ttsInitialized = await this.ttsStreamService?.initTtsSession(
-            conversationId, context.appCode,
-          ) ?? false;
-        }
-        if (ttsInitialized) {
-          await this.ttsStreamService?.synthesizeSentence(
-            sentenceBuffer.trim(),
-            conversationId,
-            context.clientIp,
-            context.userAgent,
-            context.uid,
-            context.appCode,
-          );
-        }
-      }
-      if (ttsInitialized) {
-        this.ttsStreamService?.finalizeTtsSession(conversationId);
+        await this.ttsService?.streamSynthesize(
+          sentenceBuffer.trim(),
+          conversationId,
+        );
       }
 
       await this.finalizeStreamResponse(context, emitter, finalResponse, steps);
     } catch (error) {
       // TTS：发生错误时刷新剩余 buffer
-      if (sentenceBuffer.trim()) {
-        this.ttsStreamService!.synthesizeSentence(
+      if (sentenceBuffer.trim() && conversationId) {
+        this.ttsService!.streamSynthesize(
           sentenceBuffer.trim(),
           conversationId,
-          context.clientIp,
-          context.userAgent,
-          context.uid,
-          context.appCode,
         ).catch(() => {});
       }
-      this.ttsStreamService?.finalizeTtsSession(conversationId);
       this.emitStreamError(error, emitter);
     }
   }

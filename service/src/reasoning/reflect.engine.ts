@@ -3,7 +3,7 @@ import { ReasoningMode, ReasoningResult, ReasoningStep } from './types';
 import { ExecutionContext } from '../agent/execution/execution-context';
 import { StreamEmitter } from '../stream';
 import { AiService } from '../ai/ai.service';
-import { TtsStreamService } from '../ai/tts-stream.service';
+import { TtsService } from '../ai/tts/tts.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ToolExecutor } from '../agent/tools/tool-executor';
 import { PrismaService } from '../common/prisma/prisma.service';
@@ -25,10 +25,10 @@ export class ReflectReasoningEngine extends BaseReasoningEngine {
     prisma: PrismaService,
     clientToolRegistry: ClientToolRegistry,
     @Optional()
-    @Inject(forwardRef(() => TtsStreamService))
-    ttsStreamService?: TtsStreamService,
+    @Inject(forwardRef(() => TtsService))
+    ttsService?: TtsService,
   ) {
-    super(aiService, conversationService, toolExecutor, prisma, clientToolRegistry, ttsStreamService);
+    super(aiService, conversationService, toolExecutor, prisma, clientToolRegistry, ttsService);
   }
 
   async executeSync(context: ExecutionContext): Promise<ReasoningResult> {

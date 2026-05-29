@@ -14,7 +14,18 @@
         :closable="false"
         show-icon
         class="capability-tip"
-      />
+      >
+        <template #default>
+          <div style="display: flex; gap: 12px; margin-top: 8px;">
+            <el-tag v-if="capability.supportsRealtime" type="success" size="small" effect="plain">
+              <el-icon><Connection /></el-icon> {{ $t('model.realtimeTitle') }} ✓
+            </el-tag>
+            <el-tag v-if="capability.supportsNonRealtime" type="success" size="small" effect="plain">
+              <el-icon><Timer /></el-icon> {{ $t('model.nonRealtimeTitle') }} ✓
+            </el-tag>
+          </div>
+        </template>
+      </el-alert>
 
       <!-- 通用输入区域 -->
       <el-form label-width="80px" label-position="top">
@@ -33,8 +44,8 @@
               <el-select v-model="ttsVoice" style="width: 100%;" :loading="voicesLoading" @change="handleVoiceChange">
                 <el-option
                   v-if="voiceOptions.length === 0 && !voicesLoading"
-                  label="Alloy (中性)"
-                  value="alloy"
+                  label="Cherry (女声)"
+                  value="Cherry"
                 />
                 <el-option
                   v-for="voice in voiceOptions"
@@ -78,7 +89,7 @@
               type="primary"
               :loading="nonRealtimeLoading"
               :disabled="!ttsText.trim() || !capability.supportsNonRealtime"
-              @click="handleNonRealtimeTTS"
+              @click="handleDirectSynthesis"
             >
               {{ $t('model.testSynthesize') }}
             </el-button>
@@ -89,19 +100,14 @@
               <span class="result-label">{{ $t('model.testPlayback') }}</span>
               <el-tag size="small">{{ nonRealtimeResult.format }}</el-tag>
             </div>
-            <audio
-              v-if="nonRealtimeAudioUrl"
-              :src="nonRealtimeAudioUrl"
-              controls
-              class="audio-player"
-            />
+            <audio v-if="nonRealtimeAudioUrl" :src="nonRealtimeAudioUrl" controls class="audio-player" />
             <div v-if="nonRealtimeResult.duration" class="result-info">
               {{ $t('model.audioDuration') }}: {{ nonRealtimeResult.duration.toFixed(1) }}s
             </div>
           </div>
         </div>
 
-        <!-- 实时语音合成 -->
+        <!-- 实时语音合成（WebSocket 流式） -->
         <div class="mode-card" :class="{ 'mode-card--disabled': !capability.supportsRealtime }">
           <div class="mode-card__header">
             <div class="mode-card__title">
@@ -113,73 +119,44 @@
           </div>
           <div class="mode-card__desc">{{ $t('model.realtimeDesc') }}</div>
 
-          <!-- 实时合成状态 -->
+          <!-- 合成状态 -->
           <div class="streaming-status-bar">
             <span class="status-label">{{ $t('model.streamingStatus') }}:</span>
-            <el-tag :type="realtimeStatusTagType" size="small" class="status-tag">
-              {{ realtimeStatusText }}
+            <el-tag :type="wsStatusTagType" size="small" class="status-tag">
+              {{ wsStatusText }}
             </el-tag>
-            <span v-if="realtimeChunkCount > 0" class="chunk-count">
-              {{ $t('model.streamingChunks') }}: {{ realtimeChunkCount }}
-              <span v-if="realtimePlaying" class="playing-indicator">▶ {{ $t('model.streamingPlaying') }}</span>
+            <span v-if="wsChunkCount > 0" class="chunk-count">
+              {{ $t('model.streamingChunks') }}: {{ wsChunkCount }}
+              <span v-if="wsPlaying" class="playing-indicator">▶ {{ $t('model.streamingPlaying') }}</span>
             </span>
-          </div>
-
-          <!-- 追加文本（会话连接后显示） -->
-          <div v-if="realtimeStatus === 'connected'" class="append-section">
-            <div class="append-section__header">
-              <span class="append-section__title">{{ $t('model.appendText') }}</span>
-            </div>
-            <el-input
-              v-model="appendText"
-              type="textarea"
-              :rows="2"
-              :placeholder="$t('model.appendTextPlaceholder')"
-              class="append-section__input"
-            />
-            <div class="append-section__actions">
-              <el-button
-                type="primary"
-                size="small"
-                :loading="appendLoading"
-                :disabled="!appendText.trim()"
-                @click="handleAppendText"
-              >
-                {{ $t('model.appendSynthesize') }}
-              </el-button>
-            </div>
           </div>
 
           <div class="mode-card__actions streaming-actions">
             <el-button
               type="primary"
-              :loading="realtimeStarting"
-              :disabled="!ttsText.trim() || !capability.supportsRealtime || realtimeStatus === 'connected'"
-              @click="handleRealtimeStart"
+              :loading="wsStarting"
+              :disabled="!ttsText.trim() || !capability.supportsRealtime || wsStatus === 'connected'"
+              @click="handleStreamStart"
             >
               {{ $t('model.realtimeStart') }}
             </el-button>
             <el-button
               type="danger"
-              :disabled="realtimeStatus !== 'connected'"
-              @click="handleRealtimeStop"
+              :disabled="wsStatus !== 'connected'"
+              @click="handleStreamStop"
             >
               {{ $t('model.realtimeStop') }}
             </el-button>
           </div>
 
-          <div v-if="realtimeResultAudioUrl" class="test-result">
+          <div v-if="wsResultAudioUrl" class="test-result">
             <div class="result-header">
               <span class="result-label">{{ $t('model.testPlayback') }}</span>
-              <el-tag size="small">{{ realtimeAudioFormat }}</el-tag>
+              <el-tag size="small">{{ wsAudioFormat }}</el-tag>
             </div>
-            <audio
-              :src="realtimeResultAudioUrl"
-              controls
-              class="audio-player"
-            />
+            <audio :src="wsResultAudioUrl" controls class="audio-player" />
             <div class="result-info">
-              {{ $t('model.streamingChunks') }}: {{ realtimeChunkCount }}
+              {{ $t('model.streamingChunks') }}: {{ wsChunkCount }}
             </div>
           </div>
         </div>
@@ -267,7 +244,7 @@ const emit = defineEmits<{
 
 /** TTS通用输入 */
 const ttsText = ref('你好，欢迎使用语音合成测试。')
-const ttsVoice = ref('alloy')
+const ttsVoice = ref('Cherry')
 const ttsSpeed = ref(1.0)
 
 /** 语音配置选项 */
@@ -285,58 +262,44 @@ const capability = ref<{
 })
 const capabilityMessage = ref('')
 const capabilityAlertType = ref<'info' | 'warning' | 'success'>('info')
-const capabilityLoading = ref(false)
 
 /** 非实时语音合成状态 */
 const nonRealtimeLoading = ref(false)
 const nonRealtimeResult = ref<{ format: string; duration?: number } | null>(null)
 const nonRealtimeAudioUrl = ref<string>('')
 
-/** 实时语音合成状态 */
-const realtimeSocket = ref<Socket | null>(null)
-const realtimeConversationId = ref('')
-const realtimeStatus = ref<'idle' | 'connecting' | 'connected' | 'disconnected'>('idle')
-const realtimeStarting = ref(false)
-const realtimeChunkCount = ref(0)
-const realtimePlaying = ref(false)
-const realtimeAudioChunks = ref<{ data: string; format: string }[]>([])
-const realtimeResultAudioUrl = ref('')
-const realtimeAudioFormat = ref('wav')
-/** 记录所有 PCM 块的原始 base64 数据，用于最终组装成 WAV 回放 */
-const realtimePcmChunks = ref<string[]>([])
-
-/** 追加文本状态 */
-const appendText = ref('')
-const appendLoading = ref(false)
+/** WebSocket 流式合成状态（实时 + 批量统一） */
+const wsSocket = ref<Socket | null>(null)
+const wsConversationId = ref('')
+const wsStatus = ref<'idle' | 'connecting' | 'connected' | 'disconnected'>('idle')
+const wsStarting = ref(false)
+const wsChunkCount = ref(0)
+const wsPlaying = ref(false)
+const wsPcmChunks = ref<string[]>([])
+const wsResultAudioUrl = ref('')
+const wsAudioFormat = ref('wav')
 
 /** Web Audio API 实时播放 */
 let audioContext: AudioContext | null = null
 let nextChunkTime = 0
 
-/**
- * 实时状态对应的标签类型
- */
-const realtimeStatusTagType = computed(() => {
+/** WebSocket 状态标签类型 */
+const wsStatusTagType = computed(() => {
   const map: Record<string, 'info' | 'success' | 'danger' | 'warning'> = {
-    idle: 'info',
-    connecting: 'warning',
-    connected: 'success',
-    disconnected: 'danger',
+    idle: 'info', connecting: 'warning', connected: 'success', disconnected: 'danger',
   }
-  return map[realtimeStatus.value] || 'info'
+  return map[wsStatus.value] || 'info'
 })
 
-/**
- * 实时状态显示文本
- */
-const realtimeStatusText = computed(() => {
+/** WebSocket 状态显示文本 */
+const wsStatusText = computed(() => {
   const map: Record<string, string> = {
     idle: t('model.streamingDisconnected'),
     connecting: t('model.streamingConnecting'),
     connected: t('model.streamingConnected'),
     disconnected: t('model.streamingDisconnected'),
   }
-  return map[realtimeStatus.value] || ''
+  return map[wsStatus.value] || ''
 })
 
 /**
@@ -364,7 +327,6 @@ async function loadVoices() {
  * 查询当前模型/语音的TTS能力
  */
 async function queryCapability() {
-  capabilityLoading.value = true
   try {
     const response = await adminRequest.post('/api/admin/ai/tts/capability', {
       modelCode: props.modelCode || undefined,
@@ -394,8 +356,6 @@ async function queryCapability() {
   } catch {
     capability.value = { supportsRealtime: false, supportsNonRealtime: true }
     capabilityMessage.value = ''
-  } finally {
-    capabilityLoading.value = false
   }
 }
 
@@ -413,9 +373,7 @@ function handleVoiceChange() {
  */
 function voiceLabel(voice: VoiceProfile): string {
   const genderMap: Record<string, string> = {
-    male: t('voice.male'),
-    female: t('voice.female'),
-    neutral: t('voice.neutral'),
+    male: t('voice.male'), female: t('voice.female'), neutral: t('voice.neutral'),
   }
   const gender = voice.gender ? ` (${genderMap[voice.gender] || voice.gender})` : ''
   const model = voice.modelCode ? ` [${voice.modelCode}]` : ''
@@ -429,8 +387,11 @@ watch(() => props.visible, (val) => {
   }
 })
 
-/** 非实时语音合成测试 */
-async function handleNonRealtimeTTS() {
+/**
+ * 非实时直接合成
+ * 调用 /api/admin/ai/tts 接口，返回完整的 Base64 音频数据
+ */
+async function handleDirectSynthesis() {
   if (!ttsText.value.trim()) return
 
   nonRealtimeLoading.value = true
@@ -446,20 +407,14 @@ async function handleNonRealtimeTTS() {
     })
 
     const data = response.data?.data
-
     if (data?.audioData) {
       const audioBlob = base64ToBlob(data.audioData, data.format || 'mp3')
       nonRealtimeAudioUrl.value = URL.createObjectURL(audioBlob)
     }
 
-    nonRealtimeResult.value = {
-      format: data?.format || 'mp3',
-      duration: data?.duration,
-    }
-
+    nonRealtimeResult.value = { format: data?.format || 'mp3', duration: data?.duration }
     ElMessage.success(t('model.testSuccess'))
   } catch (error: any) {
-    console.error('非实时TTS合成失败:', error)
     ElMessage.error(error.response?.data?.message || '语音合成失败')
   } finally {
     nonRealtimeLoading.value = false
@@ -467,59 +422,69 @@ async function handleNonRealtimeTTS() {
 }
 
 /**
- * 连接WebSocket并开始实时流式TTS合成
+ * 连接 WebSocket 并触发流式合成
  */
-async function handleRealtimeStart() {
-  if (!ttsText.value.trim() || realtimeSocket.value) return
+async function handleStreamStart() {
+  if (!ttsText.value.trim() || wsSocket.value) return
 
-  realtimeStarting.value = true
-  realtimeChunkCount.value = 0
-  realtimeAudioChunks.value = []
-  realtimePcmChunks.value = []
-  realtimeResultAudioUrl.value = ''
-  realtimeAudioFormat.value = 'mp3'
-
-  realtimeConversationId.value = crypto.randomUUID()
-
-  realtimeStatus.value = 'connecting'
+  wsStarting.value = true
+  wsChunkCount.value = 0
+  wsPcmChunks.value = []
+  wsResultAudioUrl.value = ''
+  wsAudioFormat.value = 'wav'
+  wsConversationId.value = crypto.randomUUID()
+  wsStatus.value = 'connecting'
 
   try {
     const socket = io('/tts', {
       query: {
-        conversationId: realtimeConversationId.value,
+        conversationId: wsConversationId.value,
         voiceId: ttsVoice.value,
         speed: ttsSpeed.value.toString(),
       },
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 1000,
+      timeout: 10000,
     })
 
+    socket.on('connect_error', (error) => {
+      console.error('[TTS-WS] 连接错误:', error.message)
+      ElMessage.error(`WebSocket 连接失败: ${error.message}`)
+      wsStatus.value = 'idle'
+      wsStarting.value = false
+    })
+
+    setTimeout(() => {
+      if (wsStatus.value === 'connecting') {
+        ElMessage.warning('WebSocket 连接超时，请检查后端服务是否启动')
+        wsStatus.value = 'idle'
+        wsStarting.value = false
+        socket.disconnect()
+      }
+    }, 15000)
+
     socket.on('connect', () => {
-      realtimeStatus.value = 'connected'
+      console.log('[TTS-WS] 连接成功:', socket.id)
+      wsStatus.value = 'connected'
+      wsStarting.value = false
       triggerRealtimeSynthesis()
     })
 
     socket.on('audio_chunk', (chunk: { data: string; format: string; sequence: number; isLast: boolean }) => {
-      realtimeChunkCount.value++
-
+      wsChunkCount.value++
       if (chunk.format === 'pcm') {
-        realtimePcmChunks.value.push(chunk.data)
+        wsPcmChunks.value.push(chunk.data)
         playPCMChunk(chunk.data)
-      } else {
-        realtimeAudioChunks.value.push({ data: chunk.data, format: chunk.format })
-        realtimeAudioFormat.value = chunk.format || 'mp3'
-      }
-
-      if (chunk.isLast) {
-        assembleAndPlayAudio()
       }
     })
 
     socket.on('tts_start', () => {
       stopAudioPlayback()
-      realtimeAudioChunks.value = []
-      realtimePcmChunks.value = []
-      realtimeChunkCount.value = 0
-      realtimePlaying.value = false
+      wsPcmChunks.value = []
+      wsChunkCount.value = 0
+      wsPlaying.value = false
     })
 
     socket.on('tts_end', () => {
@@ -527,29 +492,32 @@ async function handleRealtimeStart() {
     })
 
     socket.on('tts_error', (err: { message: string }) => {
+      console.error('[TTS-WS] TTS 错误:', err.message)
       ElMessage.error(`TTS 错误: ${err.message}`)
       socket.disconnect()
-      realtimeStatus.value = 'idle'
+      wsStatus.value = 'idle'
     })
 
     socket.on('error', (err: { message: string }) => {
+      console.error('[TTS-WS] WebSocket 错误:', err.message)
       ElMessage.error(`WebSocket 错误: ${err.message}`)
       socket.disconnect()
-      realtimeStatus.value = 'idle'
+      wsStatus.value = 'idle'
     })
 
-    socket.on('disconnect', () => {
-      if (realtimeStatus.value === 'connected') {
-        realtimeStatus.value = 'disconnected'
+    socket.on('disconnect', (reason) => {
+      console.log('[TTS-WS] 断开连接:', reason)
+      if (wsStatus.value === 'connected') {
+        wsStatus.value = 'disconnected'
       }
     })
 
-    realtimeSocket.value = socket
+    wsSocket.value = socket
   } catch (error: any) {
     ElMessage.error(`连接失败: ${error.message}`)
-    realtimeStatus.value = 'idle'
+    wsStatus.value = 'idle'
   } finally {
-    realtimeStarting.value = false
+    wsStarting.value = false
   }
 }
 
@@ -560,37 +528,28 @@ async function triggerRealtimeSynthesis() {
   try {
     await adminRequest.post('/api/admin/ai/tts/realtime', {
       text: ttsText.value,
-      conversationId: realtimeConversationId.value,
+      conversationId: wsConversationId.value,
       voice: ttsVoice.value,
       speed: ttsSpeed.value,
       modelCode: props.modelCode || undefined,
     })
   } catch (error: any) {
     ElMessage.error(`触发实时合成失败: ${error.response?.data?.message || error.message}`)
-    realtimeSocket.value?.disconnect()
-    realtimeStatus.value = 'idle'
+    handleStreamStop()
   }
 }
 
 /**
- * 追加文本合成
+ * 停止流式合成
  */
-async function handleAppendText() {
-  const text = appendText.value.trim()
-  if (!text) return
-
-  appendLoading.value = true
-  try {
-    await adminRequest.post('/api/admin/ai/tts/append', {
-      text,
-      conversationId: realtimeConversationId.value,
-    })
-    appendText.value = ''
-  } catch (error: any) {
-    ElMessage.error(`追加合成失败: ${error.response?.data?.message || error.message}`)
-  } finally {
-    appendLoading.value = false
+function handleStreamStop() {
+  stopAudioPlayback()
+  if (wsSocket.value) {
+    wsSocket.value.disconnect()
+    wsSocket.value = null
   }
+  wsStatus.value = 'idle'
+  assembleAndPlayAudio()
 }
 
 /**
@@ -631,7 +590,7 @@ function playPCMChunk(base64Data: string) {
   source.start(startTime)
   nextChunkTime = startTime + buffer.duration
 
-  realtimePlaying.value = true
+  wsPlaying.value = true
 }
 
 /**
@@ -643,72 +602,25 @@ function stopAudioPlayback() {
     audioContext = null
   }
   nextChunkTime = 0
-  realtimePlaying.value = false
+  wsPlaying.value = false
 }
 
 /**
- * 组装所有音频块并播放（PCM + 非 PCM 统一处理）
+ * 组装所有PCM块为WAV并播放
  */
 function assembleAndPlayAudio() {
-  const hasPcm = realtimePcmChunks.value.length > 0
-  const hasNonPcm = realtimeAudioChunks.value.length > 0
+  if (wsPcmChunks.value.length === 0) return
 
-  if (!hasPcm && !hasNonPcm) return
-
-  if (realtimeResultAudioUrl.value) {
-    URL.revokeObjectURL(realtimeResultAudioUrl.value)
-    realtimeResultAudioUrl.value = ''
+  if (wsResultAudioUrl.value) {
+    URL.revokeObjectURL(wsResultAudioUrl.value)
+    wsResultAudioUrl.value = ''
   }
 
-  let audioBlob: Blob
-
-  if (hasPcm) {
-    const allPcm = realtimePcmChunks.value.join('')
-    audioBlob = pcmToWavBlob(allPcm, 24000)
-    realtimeAudioFormat.value = 'wav'
-  } else {
-    const allBase64 = realtimeAudioChunks.value.map(c => c.data).join('')
-    const format = realtimeAudioFormat.value
-    audioBlob = base64ToBlob(allBase64, format)
-  }
-
-  realtimeResultAudioUrl.value = URL.createObjectURL(audioBlob)
-
+  const allPcm = wsPcmChunks.value.join('')
+  const audioBlob = pcmToWavBlob(allPcm, 24000)
+  wsAudioFormat.value = 'wav'
+  wsResultAudioUrl.value = URL.createObjectURL(audioBlob)
   ElMessage.success(t('model.testSuccess'))
-}
-
-/**
- * 停止实时流式合成
- */
-function handleRealtimeStop() {
-  stopAudioPlayback()
-  if (realtimeSocket.value) {
-    realtimeSocket.value.emit('stop')
-    realtimeSocket.value.disconnect()
-    realtimeSocket.value = null
-  }
-  realtimeStatus.value = 'idle'
-  assembleAndPlayAudio()
-}
-
-/**
- * 断开WebSocket连接
- */
-function disconnectRealtime() {
-  stopAudioPlayback()
-  if (realtimeSocket.value) {
-    realtimeSocket.value.disconnect()
-    realtimeSocket.value = null
-  }
-  realtimeStatus.value = 'idle'
-  realtimeChunkCount.value = 0
-  realtimeAudioChunks.value = []
-  realtimePcmChunks.value = []
-  appendText.value = ''
-  if (realtimeResultAudioUrl.value) {
-    URL.revokeObjectURL(realtimeResultAudioUrl.value)
-    realtimeResultAudioUrl.value = ''
-  }
 }
 
 /** ASR状态 */
@@ -732,8 +644,7 @@ async function handleASR() {
     const base64 = await new Promise<string>((resolve, reject) => {
       reader.onload = () => {
         const result = reader.result as string
-        const base64Data = result.split(',')[1]
-        resolve(base64Data)
+        resolve(result.split(',')[1])
       }
       reader.onerror = reject
       reader.readAsDataURL(asrAudioFile.value!)
@@ -746,16 +657,13 @@ async function handleASR() {
     })
 
     const data = response.data?.data
-
     asrResult.value = {
       text: data?.text || '',
       confidence: data?.confidence,
       language: data?.language,
     }
-
     ElMessage.success(t('model.testSuccess'))
   } catch (error: any) {
-    console.error('ASR测试失败:', error)
     ElMessage.error(error.response?.data?.message || '语音识别失败')
   } finally {
     asrLoading.value = false
@@ -772,7 +680,7 @@ function handleAudioFileChange(file: any) {
 }
 
 /**
- * PCM转WAV Blob（添加WAV头使浏览器可播放）
+ * PCM转WAV Blob
  * @param base64 PCM数据(base64)
  * @param sampleRate 采样率
  * @returns {Blob} WAV音频Blob
@@ -842,28 +750,35 @@ function base64ToBlob(base64: string, format: string): Blob {
  * 关闭
  */
 function handleClose() {
-  disconnectRealtime()
+  stopAudioPlayback()
+  if (wsSocket.value) {
+    wsSocket.value.disconnect()
+    wsSocket.value = null
+  }
+  wsStatus.value = 'idle'
+  wsPcmChunks.value = []
   if (nonRealtimeAudioUrl.value) {
     URL.revokeObjectURL(nonRealtimeAudioUrl.value)
     nonRealtimeAudioUrl.value = ''
   }
-  if (realtimeResultAudioUrl.value) {
-    URL.revokeObjectURL(realtimeResultAudioUrl.value)
-    realtimeResultAudioUrl.value = ''
+  if (wsResultAudioUrl.value) {
+    URL.revokeObjectURL(wsResultAudioUrl.value)
+    wsResultAudioUrl.value = ''
   }
-  realtimeAudioChunks.value = []
-  realtimePcmChunks.value = []
   emit('update:visible', false)
 }
 
 /** 组件卸载时清理资源 */
 onUnmounted(() => {
-  disconnectRealtime()
+  stopAudioPlayback()
+  if (wsSocket.value) {
+    wsSocket.value.disconnect()
+  }
   if (nonRealtimeAudioUrl.value) {
     URL.revokeObjectURL(nonRealtimeAudioUrl.value)
   }
-  if (realtimeResultAudioUrl.value) {
-    URL.revokeObjectURL(realtimeResultAudioUrl.value)
+  if (wsResultAudioUrl.value) {
+    URL.revokeObjectURL(wsResultAudioUrl.value)
   }
 })
 </script>
@@ -971,33 +886,6 @@ onUnmounted(() => {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
-}
-
-.append-section {
-  margin-bottom: 12px;
-  padding: 12px;
-  background: var(--el-fill-color-lighter);
-  border-radius: 6px;
-  border: 1px dashed var(--el-border-color-light);
-}
-
-.append-section__header {
-  margin-bottom: 8px;
-}
-
-.append-section__title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.append-section__input {
-  margin-bottom: 8px;
-}
-
-.append-section__actions {
-  display: flex;
-  justify-content: flex-end;
 }
 
 .test-result {
