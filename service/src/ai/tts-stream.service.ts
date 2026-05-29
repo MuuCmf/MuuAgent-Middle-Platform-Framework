@@ -263,6 +263,14 @@ export class TtsStreamService {
         // 净化文本：去除 Markdown 标记、emoji 等 TTS 模型无法正确处理的内容
         const cleanText = this.sanitizeText(item.sentence);
 
+        // 跳过无效文本（空文本或只有空白字符）
+        if (!cleanText || cleanText.trim().length === 0) {
+          this.logger.debug(`TTS 跳过无效文本: sentence="${item.sentence.slice(0, 20)}..."`);
+          entry.queue.shift();
+          item.resolve();
+          continue;
+        }
+
         const execParams: TTSExecutionParams & { context: any } = {
           model: session.model,
           text: cleanText,

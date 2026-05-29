@@ -260,9 +260,8 @@ export class AliyunStrategy extends BaseStrategy {
       type: 'session.update',
       session: {
         voice: voice,
-        mode: 'server_commit',
-        response_format: 'pcm',
-        sample_rate: 24000,
+        mode: 'commit', // 对话式 AI 场景使用 commit 模式，需显式提交触发合成
+        response_format: 'pcm_24000hz_mono_16bit',
       },
     }));
 
@@ -308,16 +307,24 @@ export class AliyunStrategy extends BaseStrategy {
 
     try {
       // 一次性发送全部文本
-      // server_commit 模式下服务端自动提交第一段，剩余文本需要显式 commit 触发
+      // commit 模式下需要先 append 再 commit 触发合成
       this.logger.debug(`Qwen-TTS 发送文本：len=${text.length}, text="${text.slice(0, 60)}..."`);
 
-      // 一次性发送全部文本，server_commit 模式下服务端自动判断合成时机
+      // 1. 添加文本到缓冲区
       const appendEventId = crypto.randomUUID();
       ws.send(JSON.stringify({
         event_id: appendEventId,
         type: 'input_text_buffer.append',
         text,
       }));
+
+      // 2. 提交缓冲区触发合成（commit 模式必须显式提交）
+      const commitEventId = crypto.randomUUID();
+      ws.send(JSON.stringify({
+        event_id: commitEventId,
+        type: 'input_text_buffer.commit',
+      }));
+      this.logger.debug(`Qwen-TTS 已提交缓冲区，等待音频响应...`);
 
       let audioBuffer = Buffer.alloc(0);
       const startTime = Date.now();
@@ -340,6 +347,7 @@ export class AliyunStrategy extends BaseStrategy {
         }
 
         // 使用较短超时，快速检测无响应
+        this.logger.debug(`Qwen-TTS 等待消息中... (已等待 ${elapsed}ms)`);
         const message = await nextMsg(Math.min(remaining, 2000));
 
         if (message === 'TIMEOUT') {
@@ -358,6 +366,9 @@ export class AliyunStrategy extends BaseStrategy {
         try { data = JSON.parse(message); } catch { continue; }
 
         const type = data.type as string | undefined;
+        
+        // 调试：记录所有收到的消息类型
+        this.logger.debug(`Qwen-TTS 收到消息类型: ${type || 'undefined'}`);
 
         if (type === 'response.audio.delta') {
           const delta = data.delta as string;
@@ -379,6 +390,8 @@ export class AliyunStrategy extends BaseStrategy {
             }
           }
         } else if (type === 'response.done' || type === 'response.audio.done') {
+          // 调试：查看完整的 done 响应
+          this.logger.debug(`Qwen-TTS 完成响应 (${type}): ${JSON.stringify(data)}`);
           // 服务端明确告知完成，yield 当前缓冲区后立即结束
           if (audioBuffer.length > 0) {
             yield {
@@ -389,13 +402,22 @@ export class AliyunStrategy extends BaseStrategy {
             };
             audioBuffer = Buffer.alloc(0);
           }
-          this.logger.debug(`Qwen-TTS 收到完成信号 (${type})`);
+          this.logger.debug(`Qwen-TTS 收到完成信号 (${type}), bufferSize=${audioBuffer.length}`);
+          
+          // 如果没有收到任何音频数据，抛出错误
+          if (!gotAudio) {
+            this.logger.warn(`Qwen-TTS 未返回音频数据，可能是配额问题或配置错误`);
+            throw new Error('Qwen-TTS 服务未返回音频数据');
+          }
+          
           break;
         } else if (type === 'error' || type === 'response.error') {
           const errMsg = (data.error as any)?.message || message.slice(0, 200);
           this.logger.warn(`Qwen-TTS 错误: ${errMsg}`);
           if (gotAudio) break;
           throw new Error(`DashScope 合成错误: ${errMsg}`);
+        } else if (type === 'input_text_buffer.committed') {
+          this.logger.debug(`Qwen-TTS 缓冲区已提交，准备接收音频...`);
         } else if (type !== 'session.created' &&
                    type !== 'response.created' &&
                    type !== 'session.updated' &&
@@ -405,8 +427,11 @@ export class AliyunStrategy extends BaseStrategy {
                    type !== 'response.output_item.done' &&
                    type !== 'input_text_buffer.committed' &&
                    type !== undefined) {
-          // 未知事件类型，仅 trace 级别记录
-          this.logger.debug(`Qwen-TTS 未处理事件(${type}): ${message.slice(0, 150)}`);
+          // 记录所有未知事件类型
+          this.logger.debug(`Qwen-TTS 未处理事件(${type}): ${message.slice(0, 200)}`);
+        } else if (type !== undefined) {
+          // 记录已处理但不产生输出的事件
+          this.logger.debug(`Qwen-TTS 跳过事件(${type})`);
         }
       }
 
