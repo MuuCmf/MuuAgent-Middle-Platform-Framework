@@ -26,6 +26,8 @@ import type {
   ContentBlockStopPayload,
 } from "../api/stream";
 import type { ClientToolModulePolicy } from "../executor/types";
+import { ttsStreamService, type TtsPlaybackStatus } from "../services/TtsStreamService";
+import { voiceService } from "../services/VoiceService";
 
 /**
  * 创建分段流式写入器
@@ -282,6 +284,14 @@ export function useChat() {
 
   /** 当前流式请求的 AbortController */
   const abortController = ref<AbortController | null>(null);
+
+  // ========== TTS 状态 ==========
+
+  /** 语音播报是否启用 */
+  const voiceEnabled = ref(voiceService.getConfig().autoPlay);
+
+  /** TTS 播放状态 */
+  const ttsStatus = ref<TtsPlaybackStatus>('idle');
 
   /** 工作目录 */
   const workspace = useWorkspace();
@@ -705,12 +715,14 @@ export function useChat() {
             writer.write(chunk);
           },
           onError: (error: Error) => {
+            disconnectTts();
             writer.flush();
             messages.value[assistantIndex].content = `错误: ${error.message}`;
             messages.value[assistantIndex].contentBlocks = [];
             reject(error);
           },
           onComplete: () => {
+            disconnectTts();
             writer.flush();
             isLoading.value = false;
             abortController.value = null;
@@ -719,6 +731,7 @@ export function useChat() {
           },
           onConversationId: (conversationId: string) => {
             currentConversationId.value = conversationId;
+            connectTtsIfEnabled(conversationId);
           },
           onContentBlockStart: (payload) => {
             blockMgr.onContentBlockStart(payload);
@@ -767,12 +780,14 @@ export function useChat() {
             writer.write(chunk);
           },
           onError: (error: Error) => {
+            disconnectTts();
             writer.flush();
             messages.value[assistantIndex].content = `错误: ${error.message}`;
             messages.value[assistantIndex].contentBlocks = [];
             reject(error);
           },
           onComplete: () => {
+            disconnectTts();
             writer.flush();
             isLoading.value = false;
             abortController.value = null;
@@ -781,6 +796,7 @@ export function useChat() {
           },
           onConversationId: (conversationId: string) => {
             currentConversationId.value = conversationId;
+            connectTtsIfEnabled(conversationId);
           },
           onContentBlockStart: (payload) => {
             blockMgr.onContentBlockStart(payload);
@@ -1013,6 +1029,7 @@ export function useChat() {
       abortController.value = null;
       isLoading.value = false;
     }
+    disconnectTts();
   };
 
   /** 选择工作目录 */
@@ -1074,7 +1091,96 @@ export function useChat() {
   const clearMessages = () => {
     messages.value = [];
     currentConversationId.value = null;
+    ttsStreamService.disconnect();
   };
+
+  // ========== TTS 生命周期管理 ==========
+
+  /**
+   * 同步 TTS 状态到响应式 ref
+   */
+  const syncTtsStatus = () => {
+    ttsStatus.value = ttsStreamService.status;
+  };
+
+  /**
+   * 连接 TTS 语音播报
+   *
+   * 根据 voiceEnabled 状态决定是否连接。
+   * 在流式响应开始时调用。
+   */
+  const connectTtsIfEnabled = (conversationId: string) => {
+    if (!voiceEnabled.value) return
+    if (ttsStreamService.currentConversationId === conversationId && ttsStreamService.isConnected) return
+
+    ttsStreamService.setCallbacks({
+      onStatusChange: (status) => {
+        ttsStatus.value = status
+      },
+      onEnd: () => {
+        syncTtsStatus()
+      },
+      onError: (error) => {
+        console.warn('[TTS] 播报异常:', error.message)
+        syncTtsStatus()
+      },
+    })
+
+    ttsStreamService.connect(conversationId)
+    syncTtsStatus()
+  }
+
+  /**
+   * 断开 TTS 语音播报连接
+   */
+  const disconnectTts = () => {
+    ttsStreamService.disconnect()
+    syncTtsStatus()
+  }
+
+  /**
+   * 切换语音播报开关
+   */
+  const handleTtsToggle = () => {
+    voiceEnabled.value = !voiceEnabled.value
+    voiceService.updateConfig({ autoPlay: voiceEnabled.value })
+
+    if (!voiceEnabled.value) {
+      disconnectTts()
+    } else if (currentConversationId.value && isLoading.value) {
+      connectTtsIfEnabled(currentConversationId.value)
+    }
+  }
+
+  /**
+   * 暂停语音播报
+   */
+  const handleTtsPause = () => {
+    ttsStreamService.pause()
+    syncTtsStatus()
+  }
+
+  /**
+   * 恢复语音播报
+   */
+  const handleTtsResume = () => {
+    ttsStreamService.resume()
+    syncTtsStatus()
+  }
+
+  /**
+   * 切换语音
+   */
+  const handleTtsChangeVoice = (voiceId: string) => {
+    ttsStreamService.changeVoice(voiceId)
+  }
+
+  /**
+   * 调整语速
+   */
+  const handleTtsChangeSpeed = (speed: number) => {
+    ttsStreamService.changeSpeed(speed)
+  }
 
   // ========== 初始化 ==========
 
@@ -1131,6 +1237,8 @@ export function useChat() {
     topN,
     similarityThresh,
     isMessageStreaming,
+    voiceEnabled,
+    ttsStatus,
     handleModeChange,
     handleLlmModelChange,
     handleAgentChange,
@@ -1144,6 +1252,11 @@ export function useChat() {
     handleWorkspaceClear,
     handleWorkspaceRefresh,
     handleFileClick,
+    handleTtsToggle,
+    handleTtsPause,
+    handleTtsResume,
+    handleTtsChangeVoice,
+    handleTtsChangeSpeed,
     getModelName,
     getAgentName,
     getKbName,

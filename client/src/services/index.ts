@@ -4,3 +4,4 @@ export { conversationService, type Conversation, type ConversationListParams } f
 export { kbService, type KbInfo } from './KbService'
 export { retrievalService, type RetrievalItem, type RetrievalResponse, type RagChatResponse, type RagStreamCallbacks } from './RetrievalService'
 export { clientToolService, type ClientToolResultPayload, type DynamicClientToolDefinition } from './ClientToolService'
+export { ttsStreamService, type AudioChunkData, type TtsPlaybackStatus } from './TtsStreamService'

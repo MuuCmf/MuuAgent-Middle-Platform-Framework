@@ -77,6 +77,7 @@
               :key="index"
               :message="message"
               :is-streaming="isMessageStreaming(index)"
+              :tts-status="ttsStatus"
             />
             <div v-if="messages.length === 0" class="empty-state">
               <el-icon :size="80" color="#ddd"><ChatDotRound /></el-icon>
@@ -94,6 +95,7 @@
           :workspace-dir-name="workspaceDirName"
           :models="models"
           :selected-llm-model="selectedLlmModel"
+          :voice-enabled="voiceEnabled"
           @send="handleSendMessage"
           @stop="handleStopGeneration"
           @mode-change="handleModeChange"
@@ -101,6 +103,7 @@
           @workspace-select="handleWorkspaceSelect"
           @workspace-clear="handleWorkspaceClear"
           @llm-model-change="handleLlmModelChange"
+          @voice-toggle="handleTtsToggle"
         />
       </div>
     </template>
@@ -152,6 +155,8 @@ const {
   topN,
   similarityThresh,
   isMessageStreaming,
+  voiceEnabled,
+  ttsStatus,
   handleModeChange,
   handleLlmModelChange,
   handleAgentChange,
@@ -165,6 +170,7 @@ const {
   handleWorkspaceClear,
   handleWorkspaceRefresh,
   handleFileClick,
+  handleTtsToggle,
   getModelName,
   getAgentName,
   getKbName,

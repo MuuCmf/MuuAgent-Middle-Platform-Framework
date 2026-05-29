@@ -156,7 +156,8 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     let sentenceBuffer = '';
     let ttsInitialized = false;
     const conversationId = context.conversationId;
-    const ttsEnabled = this.ttsStreamService?.isSessionActive(conversationId) ?? false;
+    const isTtsActive = (): boolean =>
+      this.ttsStreamService?.isSessionActive(conversationId) ?? false;
 
     try {
       await this.beforeStreamLoop(context, messages, steps, emitter);

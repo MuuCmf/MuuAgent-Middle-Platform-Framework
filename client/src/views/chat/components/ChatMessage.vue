@@ -142,6 +142,14 @@
               <span class="cursor" />
             </div>
 
+            <!-- TTS 实时播报状态指示器 -->
+            <div v-if="isStreaming && ttsStatus && ttsStatus !== 'idle'" class="tts-streaming-indicator">
+              <span class="tts-indicator-dot" :class="ttsStatus" />
+              <span class="tts-indicator-text">
+                {{ ttsStatus === 'playing' ? '🔊 语音播报中' : ttsStatus === 'paused' ? '⏸ 语音已暂停' : '🎵 语音合成中' }}
+              </span>
+            </div>
+
             <!-- 语音播放按钮（仅assistant消息，contentBlocks路径） -->
             <div v-if="message.role === 'assistant' && !isStreaming" class="voice-controls">
               <el-button
@@ -224,6 +232,14 @@
               />
             </div>
 
+            <!-- TTS 实时播报状态指示器 -->
+            <div v-if="isStreaming && ttsStatus && ttsStatus !== 'idle'" class="tts-streaming-indicator">
+              <span class="tts-indicator-dot" :class="ttsStatus" />
+              <span class="tts-indicator-text">
+                {{ ttsStatus === 'playing' ? '🔊 语音播报中' : ttsStatus === 'paused' ? '⏸ 语音已暂停' : '🎵 语音合成中' }}
+              </span>
+            </div>
+
             <div v-if="isStreaming" class="typing-cursor">
               <span class="cursor" />
             </div>
@@ -249,6 +265,7 @@ import { Markdown } from 'vue-stream-markdown'
 import type { ControlsConfig, CodeOptions, ShikiOptions } from 'vue-stream-markdown'
 import { preprocessMarkdown } from '../../../utils/markdown'
 import { voiceService } from '../../../services/VoiceService'
+import type { TtsPlaybackStatus } from '../../../services/TtsStreamService'
 import 'vue-stream-markdown/index.css'
 import '../../../styles/markdown.scss'
 
@@ -263,6 +280,8 @@ interface Props {
   showSender?: boolean
   /** 是否显示时间戳 */
   showTimestamp?: boolean
+  /** TTS 实时播报状态 */
+  ttsStatus?: TtsPlaybackStatus
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -270,6 +289,7 @@ const props = withDefaults(defineProps<Props>(), {
   isGrouped: false,
   showSender: false,
   showTimestamp: false,
+  ttsStatus: 'idle',
 })
 
 /** 思考内容展开状态 */
@@ -672,6 +692,48 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border-color);
+}
+
+.tts-streaming-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-radius: 20px;
+  font-size: 12px;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.tts-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  animation: ttsPulse 1.5s ease-in-out infinite;
+
+  &.playing {
+    background: #67c23a;
+  }
+
+  &.paused {
+    background: #e6a23c;
+    animation: none;
+  }
+
+  &.streaming {
+    background: var(--primary-color);
+  }
+}
+
+@keyframes ttsPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.tts-indicator-text {
+  color: var(--text-tertiary);
 }
 
 .retrieval-results {

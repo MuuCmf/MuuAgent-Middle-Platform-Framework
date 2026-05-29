@@ -146,8 +146,9 @@
             </div>
           </div>
           <div class="bottom-bar-right">
-            <div class="voice-trigger" @click="voiceSettingsRef?.open()" :title="'语音设置'">
+            <div class="voice-trigger" :class="{ 'voice-active': voiceEnabled }" @click="handleVoiceClick" @contextmenu.prevent="handleVoiceSettings" :title="voiceEnabled ? '语音播报已开启（点击切换，右键设置）' : '语音播报已关闭（点击切换，右键设置）'">
               <el-icon :size="16"><Headset /></el-icon>
+              <span class="voice-trigger-badge" :class="{ active: voiceEnabled }" />
             </div>
           </div>
         </div>
@@ -235,6 +236,8 @@ interface Props {
   models?: any[]
   /** 当前选中的模型编码 */
   selectedLlmModel?: string
+  /** 语音播报是否启用 */
+  voiceEnabled?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -244,6 +247,7 @@ const props = withDefaults(defineProps<Props>(), {
   workspaceDirName: null,
   models: () => [],
   selectedLlmModel: 'mcp-llm',
+  voiceEnabled: false,
 })
 
 /**
@@ -274,13 +278,15 @@ const emit = defineEmits<{
   /** 模式变更 */
   'mode-change': [value: 'chat' | 'rag' | 'retrieval']
   /** 智能体变更 */
-  'agent-change': [agentId: string]
+  'agent-change': [value: string]
   /** 工作目录选择 */
   'workspace-select': []
   /** 工作目录清除 */
   'workspace-clear': []
-  /** LLM模型变更 */
-  'llm-model-change': [modelCode: string]
+  /** 模型变更 */
+  'llm-model-change': [value: string]
+  /** 语音播报开关切换 */
+  'voice-toggle': []
 }>()
 
 /** 内部模型编码（用于本地响应式） */
@@ -519,6 +525,18 @@ const handleWorkspaceClear = () => {
 }
 
 /**
+ * 处理语音按钮点击
+ * 左键点击切换开关，右键点击打开设置面板
+ */
+const handleVoiceClick = () => {
+  emit('voice-toggle')
+}
+
+const handleVoiceSettings = () => {
+  voiceSettingsRef.value?.open()
+}
+
+/**
  * 获取输入框占位文本
  * @returns 占位文本
  */
@@ -666,6 +684,7 @@ const getPlaceholder = (): string => {
 }
 
 .voice-trigger {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -679,6 +698,27 @@ const getPlaceholder = (): string => {
   &:hover {
     background: var(--bg-tertiary);
     color: var(--primary-color);
+  }
+
+  &.voice-active {
+    color: var(--primary-color);
+  }
+}
+
+.voice-trigger-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  border: 2px solid var(--white);
+  transition: all 0.2s ease;
+
+  &.active {
+    background: #67c23a;
+    box-shadow: 0 0 4px rgba(103, 194, 58, 0.5);
   }
 }
 
