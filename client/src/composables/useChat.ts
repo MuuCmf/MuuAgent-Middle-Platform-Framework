@@ -675,6 +675,11 @@ export function useChat() {
     userScrolledAway.value = false;
     scrollToBottom();
 
+    // 已有 conversationId 时提前连接 TTS，确保后端从一开始就检测到连接
+    if (currentConversationId.value) {
+      connectTtsIfEnabled(currentConversationId.value);
+    }
+
     try {
       if (selectedType.value === "model") {
         await streamModelChat(assistantIndex, userMessage, controller.signal);

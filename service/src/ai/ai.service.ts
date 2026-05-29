@@ -24,6 +24,7 @@ import { ErrorHandler, NormalizedError } from './handlers/error.handler';
 import { LogService, LogData } from './infrastructure/log.service';
 import { StreamProcessor } from './core/stream.processor';
 import { ToolCallParser } from './parsers/tool-call.parser';
+import { TtsStreamService } from './tts-stream.service';
 import {
   ExecutionContext,
   ExecutionResult,
@@ -116,6 +117,7 @@ export class AiService {
     private toolCallParser: ToolCallParser,
     private appUsageService: AppUsageService,
     private prisma: PrismaService,
+    private ttsStreamService: TtsStreamService,
   ) {}
 
   /**
@@ -379,6 +381,13 @@ export class AiService {
       let blockIndex = 0;
       let currentBlockType: 'text' | 'tool_call' | null = null;
 
+      // ========== TTS 实时合成状态 ==========
+      const conversationIdStr = String(conversation.id);
+      let ttsSentenceBuffer = '';
+      let ttsInitialized = false;
+      let ttsInitPromise: Promise<boolean> | null = null;
+      const ttsPendingSentences: string[] = [];
+
       for await (const chunk of this.modelExecutor.stream(executionParams)) {
         if (emitter.completed) {
           this.logger.debug(`[Stream] 流式传输被取消: requestId=${context.requestId}`);
@@ -398,6 +407,42 @@ export class AiService {
           }
           accumulatedContent += chunk.delta;
           emitter.emitTextDelta(chunk.delta);
+
+          // 实时句子检测并触发 TTS
+          ttsSentenceBuffer += chunk.delta;
+          if (ttsSentenceBuffer.length >= 10 && /[。！？.!?\n……]$/.test(ttsSentenceBuffer)) {
+            const sentence = ttsSentenceBuffer;
+            ttsSentenceBuffer = '';
+
+            if (!ttsInitialized) {
+              if (!ttsInitPromise) {
+                ttsInitPromise = this.ttsStreamService
+                  .initTtsSession(conversationIdStr, appCode)
+                  .then((ok) => {
+                    ttsInitialized = ok;
+                    if (ok && ttsPendingSentences.length > 0) {
+                      for (const s of ttsPendingSentences) {
+                        this.ttsStreamService.synthesizeSentence(
+                          s, conversationIdStr, clientIp, userAgent, uid, appCode,
+                        ).catch(() => {});
+                      }
+                      ttsPendingSentences.length = 0;
+                    }
+                    return ok;
+                  })
+                  .catch((e: Error) => {
+                    this.logger.warn(`TTS init 失败: ${e.message}`);
+                    ttsInitialized = false;
+                    return false;
+                  });
+              }
+              ttsPendingSentences.push(sentence);
+            } else {
+              this.ttsStreamService.synthesizeSentence(
+                sentence, conversationIdStr, clientIp, userAgent, uid, appCode,
+              ).catch(() => {});
+            }
+          }
         } else if (chunk.type === 'tool-call' && chunk.toolCall) {
           if (currentBlockType !== null) {
             emitter.emitContentBlockStop(currentBlockType, blockIndex - 1);
@@ -418,6 +463,25 @@ export class AiService {
 
       if (currentBlockType !== null) {
         emitter.emitContentBlockStop(currentBlockType, blockIndex - 1);
+      }
+
+      // ========== LLM 流结束 — flush 剩余文本作为末句 ==========
+      if (ttsSentenceBuffer.trim()) {
+        if (!ttsInitialized && ttsInitPromise) {
+          await ttsInitPromise;
+        } else if (!ttsInitialized) {
+          ttsInitialized = await this.ttsStreamService.initTtsSession(
+            conversationIdStr, appCode,
+          ) || false;
+        }
+        if (ttsInitialized) {
+          await this.ttsStreamService.synthesizeSentence(
+            ttsSentenceBuffer.trim(), conversationIdStr, clientIp, userAgent, uid, appCode,
+          ).catch(() => {});
+        }
+      }
+      if (ttsInitialized) {
+        this.ttsStreamService.finalizeTtsSession(conversationIdStr);
       }
 
       if (emitter.completed) {

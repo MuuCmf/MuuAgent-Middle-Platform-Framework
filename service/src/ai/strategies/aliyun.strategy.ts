@@ -162,8 +162,11 @@ export class AliyunStrategy extends BaseStrategy {
   ): AsyncIterable<TTSStreamChunk> {
     const { model, text, voice, speed } = params;
 
+    // model.code 从数据库获取（如 qwen3-tts-flash-realtime），直接使用
+    const modelCode = model.code || 'qwen3-tts-flash-realtime';
+
     this.logger.debug(
-      `Qwen-TTS 流式: model=${model.code}, voice=${voice || 'longxiaoxia'}`,
+      `Qwen-TTS 流式: model=${modelCode}, voice=${voice || 'longxiaoxia'}`,
     );
 
     const apiKey = model.apiKey || process.env.DASHSCOPE_API_KEY;
@@ -171,13 +174,12 @@ export class AliyunStrategy extends BaseStrategy {
       throw new HttpException('DashScope API Key 未配置', HttpStatus.BAD_REQUEST);
     }
 
-    const modelName = model.code || 'qwen3-tts-flash-realtime';
-    const wsUrl = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${modelName}`;
+    const wsUrl = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${modelCode}`;
 
     this.logger.debug(`Qwen-TTS 尝试 WebSocket 流式: url=${wsUrl}`);
 
     for await (const chunk of this.tryWebSocketStream(
-      wsUrl, modelName, apiKey, text, voice, speed,
+      wsUrl, apiKey, text, voice, speed,
     )) {
       yield chunk;
     }
@@ -189,7 +191,6 @@ export class AliyunStrategy extends BaseStrategy {
    */
   private async *tryWebSocketStream(
     wsUrl: string,
-    modelName: string,
     apiKey: string,
     text: string,
     voice?: string,
@@ -217,7 +218,9 @@ export class AliyunStrategy extends BaseStrategy {
       throw new Error('未收到 session.created');
     }
 
+    const sessionUpdateEventId = crypto.randomUUID();
     ws.send(JSON.stringify({
+      event_id: sessionUpdateEventId,
       type: 'session.update',
       session: {
         voice: voice || 'longxiaoxia',
@@ -227,7 +230,7 @@ export class AliyunStrategy extends BaseStrategy {
       },
     }));
 
-    // 等待 session.update 确认
+    // 等待 session.update 确认（使用 event_id 匹配）
     await this.waitForEventSafe(ws, 'session.updated', 10000);
 
     let sequence = 0;
@@ -272,28 +275,28 @@ export class AliyunStrategy extends BaseStrategy {
       // server_commit 模式下服务端自动提交第一段，剩余文本需要显式 commit 触发
       this.logger.debug(`Qwen-TTS 发送文本: "${text.slice(0, 60)}..."`);
 
+      // 一次性发送全部文本，server_commit 模式下服务端自动判断合成时机
+      const appendEventId = crypto.randomUUID();
       ws.send(JSON.stringify({
+        event_id: appendEventId,
         type: 'input_text_buffer.append',
         text,
-      }));
-
-      // 显式提交，触发服务端处理全部文本
-      ws.send(JSON.stringify({
-        type: 'input_text_buffer.commit',
       }));
 
       let audioBuffer = Buffer.alloc(0);
       const startTime = Date.now();
       let gotAudio = false;
       const YIELD_CHUNK_SIZE = 4096;
-      const OVERALL_TIMEOUT = 60000;
+      const OVERALL_TIMEOUT = 30000;
 
-      // 持续接收事件，直到 session.finished 或超时
+      // 持续接收事件，直到响应完成或超时
       while (true) {
         const elapsed = Date.now() - startTime;
         const remaining = OVERALL_TIMEOUT - elapsed;
         if (remaining <= 0) {
-          this.logger.warn(`Qwen-TTS 流式合成总超时(${OVERALL_TIMEOUT}ms)`);
+          if (!gotAudio) {
+            this.logger.warn(`Qwen-TTS 流式合成总超时(${OVERALL_TIMEOUT}ms)`);
+          }
           break;
         }
 
@@ -330,7 +333,7 @@ export class AliyunStrategy extends BaseStrategy {
             }
           }
         } else if (type === 'response.done' || type === 'response.audio.done') {
-          // 单个响应完成，yield 当前缓冲区
+          // 单个响应完成，yield 当前缓冲区后立即结束
           if (audioBuffer.length > 0) {
             yield {
               audioData: audioBuffer.toString('base64'),
@@ -340,13 +343,12 @@ export class AliyunStrategy extends BaseStrategy {
             };
             audioBuffer = Buffer.alloc(0);
           }
-        } else if (type === 'session.finished') {
-          this.logger.debug('Qwen-TTS 会话结束');
           break;
-        } else if (type === 'response.error') {
-          this.logger.warn(`Qwen-TTS 合成错误: ${message.slice(0, 200)}`);
+        } else if (type === 'error' || type === 'response.error') {
+          const errMsg = (data.error as any)?.message || message.slice(0, 200);
+          this.logger.warn(`Qwen-TTS 错误: ${errMsg}`);
           if (gotAudio) break;
-          throw new Error(`DashScope 合成错误`);
+          throw new Error(`DashScope 合成错误: ${errMsg}`);
         } else if (type !== 'session.created' &&
                    type !== 'response.created' &&
                    type !== 'session.updated' &&
@@ -354,8 +356,10 @@ export class AliyunStrategy extends BaseStrategy {
                    type !== 'response.content_part.added' &&
                    type !== 'response.content_part.done' &&
                    type !== 'response.output_item.done' &&
-                   type !== 'input_text_buffer.committed') {
-          this.logger.debug(`Qwen-TTS 未知事件(${type}): ${message.slice(0, 200)}`);
+                   type !== 'input_text_buffer.committed' &&
+                   type !== undefined) {
+          // 未知事件类型，仅 trace 级别记录
+          this.logger.debug(`Qwen-TTS 未处理事件(${type}): ${message.slice(0, 150)}`);
         }
       }
 
@@ -373,7 +377,8 @@ export class AliyunStrategy extends BaseStrategy {
       }
     } finally {
       ws.off('message', messageHandler);
-      try { ws.send(JSON.stringify({ type: 'session.finish' })); } catch {}
+      const finishEventId = crypto.randomUUID();
+      try { ws.send(JSON.stringify({ event_id: finishEventId, type: 'session.finish' })); } catch {}
       try { ws.close(); } catch {}
     }
   }

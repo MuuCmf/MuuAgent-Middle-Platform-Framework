@@ -114,9 +114,8 @@ class TtsStreamService {
     const queryVoiceId = voiceId || config.voiceId || 'alloy'
     const querySpeed = speed ?? config.speed ?? 1.0
 
-    const baseURL = window.location.origin || ''
-
-    this.socket = io(`${baseURL}/tts`, {
+    // 使用同源连接，Vite开发服务器通过 /socket.io 代理转发到后端
+    this.socket = io('/tts', {
       query: {
         conversationId,
         voiceId: queryVoiceId,
@@ -179,6 +178,7 @@ class TtsStreamService {
     this.audioQueue = []
     this.isProcessing = false
     this.isPaused = false
+    this.nextChunkTime = 0
     this.updateStatus('idle')
   }
 
@@ -213,6 +213,7 @@ class TtsStreamService {
     this.audioQueue = []
     this.isProcessing = false
     this.isPaused = false
+    this.nextChunkTime = 0
     this.updateStatus('stopped')
   }
 
@@ -305,21 +306,41 @@ class TtsStreamService {
     }
   }
 
+  /** 下一个音频块的调度时间（用于无间隙连续播放） */
+  private nextChunkTime = 0
+
   /**
    * 播放 PCM 音频块
+   *
+   * 参考管理端测试组件的实现方式：
+   * - 不通过 decodeAudioData 解码（无法解码裸 PCM）
+   * - 直接将 Int16 采样点转为 Float32，通过 createBuffer 构建 AudioBuffer
+   * - 使用 nextChunkTime 实现无间隙连续播放
    *
    * @param chunk 音频块数据
    */
   private async playPcmChunk(chunk: AudioChunkData): Promise<void> {
     const ctx = this.getAudioContext()
 
-    const binaryString = atob(chunk.data)
-    const bytes = new Uint8Array(binaryString.length)
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i)
+    // base64 → Int16 采样点数组
+    const binary = atob(chunk.data)
+    const sampleCount = Math.floor(binary.length / 2)
+    if (sampleCount === 0) return
+
+    const pcmData = new Int16Array(sampleCount)
+    for (let i = 0; i < sampleCount; i++) {
+      pcmData[i] = binary.charCodeAt(i * 2) | (binary.charCodeAt(i * 2 + 1) << 8)
     }
 
-    const audioBuffer = await ctx.decodeAudioData(bytes.buffer)
+    // Int16 → Float32
+    const floatData = new Float32Array(sampleCount)
+    for (let i = 0; i < sampleCount; i++) {
+      floatData[i] = pcmData[i] / 32768
+    }
+
+    // 手动构建 AudioBuffer（16位单声道 24000Hz）
+    const audioBuffer = ctx.createBuffer(1, sampleCount, 24000)
+    audioBuffer.getChannelData(0).set(floatData)
 
     const source = ctx.createBufferSource()
     source.buffer = audioBuffer
@@ -330,12 +351,17 @@ class TtsStreamService {
 
     this.currentSource = source
 
+    // 无间隙调度：在上一个块结束时紧接着播放
+    const now = ctx.currentTime
+    const startTime = Math.max(this.nextChunkTime, now)
+    source.start(startTime)
+    this.nextChunkTime = startTime + audioBuffer.duration
+
     return new Promise<void>((resolve) => {
       source.onended = () => {
         this.currentSource = null
         resolve()
       }
-      source.start(0)
     })
   }
 
@@ -422,6 +448,7 @@ class TtsStreamService {
     this.audioQueue = []
     this.isProcessing = false
     this.isPaused = false
+    this.nextChunkTime = 0
     this.currentSource = null
     this.updateStatus('idle')
   }

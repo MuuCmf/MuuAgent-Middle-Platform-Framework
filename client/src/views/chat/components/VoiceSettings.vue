@@ -8,7 +8,7 @@
     <el-form label-width="100px">
       <el-form-item label="自动朗读">
         <el-switch v-model="settings.autoPlay" />
-        <div class="form-item-tip">开启后，AI回复完成时自动朗读</div>
+        <div class="form-item-tip">开启后，AI回复时自动实时语音播报</div>
       </el-form-item>
       
       <el-form-item label="语音类型">
@@ -59,6 +59,7 @@
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { voiceService, type VoiceProfileItem } from '../../../services/VoiceService';
+import { ttsStreamService } from '../../../services/TtsStreamService';
 
 const visible = ref(false);
 const settings = reactive(voiceService.getConfig());
@@ -102,11 +103,28 @@ function formatVolumeTooltip(val: number): string {
 
 /**
  * 保存设置
+ *
+ * 同时同步到已连接的实时 TTS WebSocket 会话：
+ * - 切换语音 → change_voice
+ * - 调整语速 → change_speed
  */
 function handleSave() {
-  voiceService.updateConfig(settings);
-  ElMessage.success('语音设置已保存');
-  visible.value = false;
+  const oldConfig = voiceService.getConfig()
+
+  voiceService.updateConfig(settings)
+
+  // 如果实时 TTS WebSocket 已连接，同步语音和语速变更
+  if (ttsStreamService.isConnected) {
+    if (settings.voiceId !== oldConfig.voiceId) {
+      ttsStreamService.changeVoice(settings.voiceId)
+    }
+    if (settings.speed !== oldConfig.speed) {
+      ttsStreamService.changeSpeed(settings.speed)
+    }
+  }
+
+  ElMessage.success('语音设置已保存')
+  visible.value = false
 }
 
 /**

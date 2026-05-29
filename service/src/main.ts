@@ -117,10 +117,16 @@ async function bootstrap(): Promise<void> {
 
   // SPA 路由支持
   app.use((req: Request, res: Response, next: NextFunction) => {
-    // 如果是 API 路由或静态文件，继续正常处理
+    // WebSocket 升级请求跳过 SPA 路由
+    if (req.headers.upgrade?.toLowerCase() === "websocket") {
+      return next();
+    }
+
+    // 如果是 API 路由、Socket.io 或静态文件，继续正常处理
     if (
       req.path.startsWith("/api") ||
       req.path.startsWith("/api-docs") ||
+      req.path.startsWith("/socket.io") || // Socket.io 握手和长轮询
       req.path.match(/\.\w+$/) // 包含文件扩展名的请求
     ) {
       return next();

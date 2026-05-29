@@ -21,6 +21,9 @@ interface TtsSessionContext {
  * 支持两种工作模式：
  * 1. 实时模式（边生成边合成）: Engine 逐句调用 synthesizeSentence()
  * 2. 整段模式（文本完成后合成）: 外部调用 synthesizeAndPush()
+ *
+ * 句子队列保证：同一会话的句子按入队顺序串行合成，
+ * 避免多句并行导致客户端音频块交错混乱。
  */
 @Injectable()
 export class TtsStreamService {
@@ -28,6 +31,20 @@ export class TtsStreamService {
 
   /** conversationId → TTS 会话上下文 */
   private ttsSessions = new Map<string, TtsSessionContext>();
+
+  /** conversationId → 句子串行队列 */
+  private sentenceQueues = new Map<string, {
+    queue: Array<{
+      sentence: string;
+      clientIp: string;
+      userAgent: string;
+      uid?: string;
+      appCode?: string;
+      resolve: () => void;
+      reject: (err: Error) => void;
+    }>;
+    processing: boolean;
+  }>();
 
   constructor(
     private readonly strategyFactory: StrategyFactory,
@@ -48,6 +65,10 @@ export class TtsStreamService {
   /**
    * 初始化 TTS 会话
    *
+   * 首次调用时选择 TTS 模型并建立策略上下文。
+   * 如果 WebSocket 尚未连接，会在短时间内轮询等待（最多 5 秒），
+   * 以应对新会话时 client 端 WebSocket 连接晚于 LLM 流启动的情况。
+   *
    * @param conversationId 会话ID
    * @param appCode 可选应用编码
    * @param modelCode 可选指定模型标识（测试时绕过调度）
@@ -62,14 +83,19 @@ export class TtsStreamService {
       return true;
     }
 
-    const voice = this.ttsGateway.getSessionVoice(conversationId);
+    // 轮询等待 WebSocket 连接（最多 5 秒）
+    const voice = await this.pollSessionVoice(conversationId, 5000);
     if (!voice) {
       this.logger.warn(`TTS 会话未建立 WebSocket 连接: conversationId=${conversationId}`);
       return false;
     }
 
     try {
-      const model = await this.selectTtsModel(voice.voiceId, appCode, modelCode);
+      // 有显式 modelCode 时（管理端测试），使用 selectTtsModel 按指定模型调度
+      // 否则使用 selectStreamTtsModel，按 capabilities 筛选支持实时流式的模型
+      const model = modelCode
+        ? await this.selectTtsModel(voice.voiceId, appCode, modelCode)
+        : await this.selectStreamTtsModel(voice.voiceId, appCode);
       const strategy = this.strategyFactory.getStrategy(model.provider);
 
       if (!strategy.executeTTSStream) {
@@ -95,7 +121,33 @@ export class TtsStreamService {
   }
 
   /**
+   * 轮询等待 WebSocket 会话就绪
+   *
+   * 新会话时 client 端可能尚未完成 WebSocket 连接，
+   * 在此处短时轮询等待，避免 LLM 流结束时 TTS 错过末句。
+   *
+   * @param conversationId 会话ID
+   * @param timeoutMs 总超时毫秒
+   * @returns 会话语音配置，超时返回 null
+   */
+  private async pollSessionVoice(
+    conversationId: string,
+    timeoutMs: number,
+  ): Promise<{ voiceId: string; speed: number } | null> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const voice = this.ttsGateway.getSessionVoice(conversationId);
+      if (voice) return voice;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return this.ttsGateway.getSessionVoice(conversationId);
+  }
+
+  /**
    * 合成单个句子并推送
+   *
+   * 句子入队后串行执行，同一会话的句子按顺序逐一合成，
+   * 确保音频块按正确顺序到达客户端。
    *
    * @param sentence 单个句子
    * @param conversationId 会话ID
@@ -114,7 +166,6 @@ export class TtsStreamService {
   ): Promise<void> {
     const session = this.ttsSessions.get(conversationId);
     if (!session) {
-      this.logger.warn(`TTS 会话未初始化: conversationId=${conversationId}`);
       return;
     }
 
@@ -123,49 +174,99 @@ export class TtsStreamService {
 
     if (this.ttsGateway.isStopped(conversationId)) return;
 
-    try {
-      const voiceConfig = this.ttsGateway.getSessionVoice(conversationId);
-      const currentVoice = voiceConfig?.voiceId || session.voiceId;
-      const currentSpeed = voiceConfig?.speed || session.speed;
-
-      const execParams: TTSExecutionParams & { context: any } = {
-        model: session.model,
-        text: trimmed,
-        voice: currentVoice,
-        speed: currentSpeed,
-        context: { requestId: conversationId, startTime: Date.now(), clientIp, userAgent, uid, appCode },
-      };
-
-      for await (const chunk of session.strategy.executeTTSStream!(execParams)) {
-        if (this.ttsGateway.isStopped(conversationId)) return;
-
-        const pushed = this.ttsGateway.pushAudioChunk(
-          conversationId,
-          chunk.audioData,
-          chunk.format,
-          chunk.sequence,
-          chunk.isLast,
-        );
-
-        if (!pushed) {
-          this.logger.debug(`客户端已断开，停止TTS: conversationId=${conversationId}`);
-          return;
-        }
+    // 入队等待串行合成
+    return new Promise<void>((resolve, reject) => {
+      let entry = this.sentenceQueues.get(conversationId);
+      if (!entry) {
+        entry = { queue: [], processing: false };
+        this.sentenceQueues.set(conversationId, entry);
       }
-    } catch (error) {
-      this.logger.warn(
-        `句子 TTS 合成失败: ${(error as Error).message}, sentence="${trimmed.slice(0, 20)}..."`,
-      );
+      entry.queue.push({ sentence: trimmed, clientIp, userAgent, uid, appCode, resolve, reject });
+      this.processSentenceQueue(conversationId);
+    });
+  }
+
+  /**
+   * 串行处理句子队列
+   *
+   * 同一时间每个会话只有一个句子在合成，保证音频顺序。
+   */
+  private async processSentenceQueue(conversationId: string): Promise<void> {
+    const entry = this.sentenceQueues.get(conversationId);
+    if (!entry || entry.processing || entry.queue.length === 0) return;
+
+    entry.processing = true;
+
+    while (entry.queue.length > 0) {
+      const item = entry.queue[0];
+      const session = this.ttsSessions.get(conversationId);
+      if (!session) {
+        entry.queue.shift();
+        continue;
+      }
+
+      if (this.ttsGateway.isStopped(conversationId)) {
+        entry.queue.shift();
+        item.reject(new Error('会话已停止'));
+        continue;
+      }
+
+      try {
+        const voiceConfig = this.ttsGateway.getSessionVoice(conversationId);
+        const currentVoice = voiceConfig?.voiceId || session.voiceId;
+        const currentSpeed = voiceConfig?.speed || session.speed;
+
+        // 净化文本：去除 Markdown 标记、emoji 等 TTS 模型无法正确处理的内容
+        const cleanText = this.sanitizeText(item.sentence);
+
+        const execParams: TTSExecutionParams & { context: any } = {
+          model: session.model,
+          text: cleanText,
+          voice: currentVoice,
+          speed: currentSpeed,
+          context: { requestId: conversationId, startTime: Date.now(), clientIp: item.clientIp, userAgent: item.userAgent, uid: item.uid, appCode: item.appCode },
+        };
+
+        for await (const chunk of session.strategy.executeTTSStream!(execParams)) {
+          if (this.ttsGateway.isStopped(conversationId)) break;
+
+          const pushed = this.ttsGateway.pushAudioChunk(
+            conversationId,
+            chunk.audioData,
+            chunk.format,
+            chunk.sequence,
+            chunk.isLast,
+          );
+
+          if (!pushed) {
+            break;
+          }
+        }
+
+        entry.queue.shift();
+        item.resolve();
+      } catch (error) {
+        entry.queue.shift();
+        this.logger.warn(
+          `句子 TTS 合成失败(跳过): ${(error as Error).message}, sentence="${item.sentence.slice(0, 20)}..."`,
+        );
+        item.reject(error as Error);
+      }
     }
+
+    entry.processing = false;
   }
 
   /**
    * 结束 TTS 会话
    *
+   * 清理会话上下文和句子队列，通知客户端。
+   *
    * @param conversationId 会话ID
    */
   finalizeTtsSession(conversationId: string): void {
     this.ttsSessions.delete(conversationId);
+    this.sentenceQueues.delete(conversationId);
     this.ttsGateway.notifyEnd(conversationId);
   }
 
@@ -301,6 +402,61 @@ export class TtsStreamService {
   }
 
   /**
+   * 净化文本：去除 Markdown 标记和 emoji，保留纯文本内容
+   *
+   * LLM 回复中常包含 Markdown 格式（如 **小明**、`代码`、 [链接](url)）
+   * 和 emoji 字符，TTS 模型无法正确处理这些符号，可能导致合成提前中断、
+   * 产生杂音或静默失败。
+   *
+   * @param text 原始文本
+   * @returns 净化后的纯文本
+   */
+  private sanitizeText(text: string): string {
+    if (!text) return '';
+
+    let clean = text;
+
+    // 1. 移除 Markdown 链接 [text](url) → text
+    clean = clean.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+
+    // 2. 移除 Markdown 图片 ![alt](url)
+    clean = clean.replace(/!\[([^\]]*)\]\([^)]*\)/g, '');
+
+    // 3. 移除 Markdown 加粗/斜体 **text** → text, *text* → text
+    clean = clean.replace(/\*\*([^*]+)\*\*/g, '$1');
+    clean = clean.replace(/\*([^*]+)\*/g, '$1');
+    clean = clean.replace(/__([^_]+)__/g, '$1');
+    clean = clean.replace(/_([^_]+)_/g, '$1');
+
+    // 4. 移除 Markdown 行内代码 `code` → code
+    clean = clean.replace(/`([^`]+)`/g, '$1');
+
+    // 5. 移除 Markdown 代码块 ```...```
+    clean = clean.replace(/```[\s\S]*?```/g, '');
+    clean = clean.replace(/~~~[\s\S]*?~~~/g, '');
+
+    // 6. 移除 Markdown 标题标记 # 
+    clean = clean.replace(/^#{1,6}\s+/gm, '');
+
+    // 7. 移除 Markdown 水平线 ---, ***, ___
+    clean = clean.replace(/^[-*_]{3,}\s*$/gm, '');
+
+    // 8. 移除 emoji 和特殊符号（常见 emoji 范围）
+    clean = clean.replace(
+      /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{2934}\u{2935}\u{25AA}\u{25AB}\u{25FB}\u{25FC}\u{25FD}\u{25FE}\u{2B05}\u{2B06}\u{2B07}\u{2B1B}\u{2B1C}\u{2B50}\u{2B55}\u{3030}\u{303D}\u{3297}\u{3299}]/gu,
+      '',
+    );
+
+    // 9. 规范化空白：多个空格/换行合并为单个空格
+    clean = clean.replace(/\s+/g, ' ');
+
+    // 10. 移除开头和结尾的空白
+    clean = clean.trim();
+
+    return clean;
+  }
+
+  /**
    * 选择 TTS 模型
    *
    * 优先级: overrideModelCode > voiceId 关联的模型编码 > 调度默认选择
@@ -354,6 +510,74 @@ export class TtsStreamService {
 
     // 优先级3：调度默认选择
     return this.modelRoutingService.selectModel('tts');
+  }
+
+  /**
+   * 选择实时流式 TTS 模型
+   *
+   * 根据 capabilities 字段筛选支持实时合成的模型。
+   * capabilities 为 JSON 数组字符串：["tts:realtime"] 表示支持实时流式合成。
+   *
+   * 优先级: voiceId 关联的模型编码 > 调度默认选择（仅限支持实时合成的模型）
+   *
+   * @param voiceId 可选语音ID，用于从语音配置获取关联模型
+   * @param appCode 可选应用编码
+   * @returns 模型信息
+   */
+  private async selectStreamTtsModel(
+    voiceId?: string,
+    appCode?: string,
+  ): Promise<any> {
+    // 优先级1：从语音配置获取关联模型
+    let modelCode: string | undefined;
+    if (voiceId) {
+      try {
+        const voiceProfile = await this.prisma.voiceProfile.findFirst({
+          where: { voiceId, status: true },
+          orderBy: { isDefault: 'desc' },
+        });
+        if (voiceProfile?.modelCode) {
+          modelCode = voiceProfile.modelCode;
+        }
+      } catch {
+        // ignore query error
+      }
+    }
+
+    if (modelCode) {
+      try {
+        const model = await this.modelRoutingService.selectModelByIntent('tts', 'tts:realtime', modelCode);
+        if (model) {
+          this.logger.debug(`流式TTS 使用语音关联模型: ${model.code}`);
+          return model;
+        }
+      } catch {
+        this.logger.warn(`语音关联模型 ${modelCode} 不支持实时流式，降级为调度选择`);
+      }
+    }
+
+    // 优先级2：从数据库查询支持实时合成的 TTS 模型
+    try {
+      const models = await this.prisma.model.findMany({
+        where: {
+          type: 'tts',
+          status: true,
+          capabilities: { contains: 'tts:realtime' },
+        },
+        orderBy: { weight: 'desc' },
+      });
+
+      if (models.length > 0) {
+        this.logger.debug(`流式TTS 选择 capability 匹配模型: ${models[0].code}`);
+        return models[0];
+      }
+    } catch {
+      // fallback to default selection
+    }
+
+    // 优先级3：降级到普通 TTS 模型
+    this.logger.warn('未找到支持实时流式的 TTS 模型，降级使用普通 TTS 模型');
+    return this.selectTtsModel(voiceId, appCode);
   }
 
   /**
