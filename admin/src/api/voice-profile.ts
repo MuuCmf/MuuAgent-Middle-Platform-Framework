@@ -10,9 +10,9 @@ export interface VoiceProfile {
   code: string
   voiceId: string
   provider: string
+  modelCode?: string
   language: string
   gender?: string
-  style?: string
   sampleRate: number
   isDefault: boolean
   status: boolean
@@ -29,9 +29,9 @@ export interface VoiceProfileForm {
   code: string
   voiceId: string
   provider: string
+  modelCode?: string
   language: string
   gender?: string
-  style?: string
   sampleRate?: number
   isDefault?: boolean
   status?: boolean

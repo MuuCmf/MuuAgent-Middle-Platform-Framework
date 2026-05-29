@@ -11,9 +11,9 @@ export default {
     voiceCode: 'Code',
     voiceId: 'Voice ID',
     provider: 'Provider',
+    modelCode: 'Model Code',
     language: 'Language',
     gender: 'Gender',
-    style: 'Style',
     sampleRate: 'Sample Rate',
     isDefault: 'Default',
     status: 'Status',
@@ -51,5 +51,6 @@ export default {
     namePlaceholder: 'e.g. Chinese Female Voice',
     codePlaceholder: 'e.g. zh-female-v1',
     voiceIdPlaceholder: 'e.g. alloy',
+    modelCodePlaceholder: 'Select TTS model. Leave empty for default',
   },
 }

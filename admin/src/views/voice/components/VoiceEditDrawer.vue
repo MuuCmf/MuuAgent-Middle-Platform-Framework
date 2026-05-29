@@ -53,6 +53,17 @@
         </el-col>
       </el-row>
 
+      <el-form-item :label="$t('voice.modelCode')" prop="modelCode">
+        <el-select v-model="form.modelCode" style="width: 100%;" clearable :placeholder="$t('voice.modelCodePlaceholder')">
+          <el-option
+            v-for="model in ttsModels"
+            :key="model.code"
+            :label="model.name"
+            :value="model.code"
+          />
+        </el-select>
+      </el-form-item>
+
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item :label="$t('voice.language')" prop="language">
@@ -64,24 +75,12 @@
             </el-select>
           </el-form-item>
         </el-col>
-        <el-col :span="8">
+        <el-col :span="12">
           <el-form-item :label="$t('voice.gender')" prop="gender">
             <el-select v-model="form.gender" style="width: 100%;" clearable>
               <el-option :label="$t('voice.male')" value="male" />
               <el-option :label="$t('voice.female')" value="female" />
               <el-option :label="$t('voice.neutral')" value="neutral" />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="8">
-          <el-form-item :label="$t('voice.style')" prop="style">
-            <el-select v-model="form.style" style="width: 100%;" clearable>
-              <el-option label="Neutral" value="neutral" />
-              <el-option label="Cheerful" value="cheerful" />
-              <el-option label="Sad" value="sad" />
-              <el-option label="Excited" value="excited" />
-              <el-option label="Angry" value="angry" />
-              <el-option label="Whisper" value="whisper" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -126,6 +125,7 @@ import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { voiceProfileApi, type VoiceProfile, type VoiceProfileForm } from '@/api/voice-profile'
+import { modelApi, type Model } from '@/api/model'
 
 const { t } = useI18n()
 
@@ -142,6 +142,27 @@ const emit = defineEmits<{
   success: []
 }>()
 
+const ttsModels = ref<Model[]>([])
+
+/**
+ * 获取启用的TTS模型列表
+ */
+async function fetchTTSModels() {
+  try {
+    const res = await modelApi.getByType('tts')
+    ttsModels.value = res.data.data?.list || []
+  } catch (error) {
+    ttsModels.value = []
+  }
+}
+
+// 监听抽屉打开状态，打开时获取TTS模型列表
+watch(() => props.visible, (visible) => {
+  if (visible) {
+    fetchTTSModels()
+  }
+}, { immediate: true })
+
 const formRef = ref()
 const saving = ref(false)
 
@@ -150,9 +171,9 @@ const form = reactive<VoiceProfileForm>({
   code: '',
   voiceId: '',
   provider: 'openai',
+  modelCode: '',
   language: 'zh-CN',
   gender: '',
-  style: '',
   sampleRate: 24000,
   isDefault: false,
   status: true,
@@ -172,9 +193,9 @@ watch(() => props.voice, (voice) => {
     form.code = voice.code
     form.voiceId = voice.voiceId
     form.provider = voice.provider
+    form.modelCode = voice.modelCode || ''
     form.language = voice.language
     form.gender = voice.gender || ''
-    form.style = voice.style || ''
     form.sampleRate = voice.sampleRate
     form.isDefault = voice.isDefault
     form.status = voice.status
@@ -183,9 +204,9 @@ watch(() => props.voice, (voice) => {
     form.code = ''
     form.voiceId = ''
     form.provider = 'openai'
+    form.modelCode = ''
     form.language = 'zh-CN'
     form.gender = ''
-    form.style = ''
     form.sampleRate = 24000
     form.isDefault = false
     form.status = true

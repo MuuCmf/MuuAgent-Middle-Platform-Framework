@@ -9,7 +9,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 /**
  * 模型类型枚举
@@ -242,12 +242,14 @@ export class QueryModelDto {
   category?: string;
 
   @ApiPropertyOptional({ description: '页码', default: 1 })
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   @IsOptional()
   page?: number;
 
   @ApiPropertyOptional({ description: '每页数量', default: 10 })
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   @Max(100)

@@ -13,6 +13,7 @@ export interface VoiceProfileQuery {
   page?: number;
   pageSize?: number;
   provider?: string;
+  modelCode?: string;
   language?: string;
   status?: boolean;
   keyword?: string;
@@ -26,9 +27,9 @@ export interface VoiceProfileCreateInput {
   code: string;
   voiceId: string;
   provider: string;
+  modelCode?: string;
   language: string;
   gender?: string;
-  style?: string;
   sampleRate?: number;
   isDefault?: boolean;
   status?: boolean;
@@ -42,9 +43,9 @@ export interface VoiceProfileUpdateInput {
   name?: string;
   voiceId?: string;
   provider?: string;
+  modelCode?: string;
   language?: string;
   gender?: string;
-  style?: string;
   sampleRate?: number;
   isDefault?: boolean;
   status?: boolean;
@@ -68,12 +69,15 @@ export class VoiceProfileService {
    * @returns 分页结果
    */
   async findAll(query: VoiceProfileQuery) {
-    const { page = 1, pageSize = 20, provider, language, status, keyword } = query;
+    const { page = 1, pageSize = 20, provider, modelCode, language, status, keyword } = query;
 
     const where: Prisma.VoiceProfileWhereInput = {};
 
     if (provider) {
       where.provider = provider;
+    }
+    if (modelCode) {
+      where.modelCode = modelCode;
     }
     if (language) {
       where.language = language;
@@ -212,6 +216,7 @@ export class VoiceProfileService {
     const profile = await this.findById(id);
     return {
       provider: profile.provider,
+      modelCode: profile.modelCode,
       voiceId: profile.voiceId,
       text,
       message: '语音配置可用',

@@ -39,9 +39,9 @@ export interface VoiceProfileItem {
   code: string;
   voiceId: string;
   provider: string;
+  modelCode?: string;
   language: string;
   gender?: string;
-  style?: string;
   isDefault: boolean;
 }
 
@@ -218,9 +218,9 @@ class VoiceService {
           code: item.code,
           voiceId: item.voiceId,
           provider: item.provider,
+          modelCode: item.modelCode,
           language: item.language,
           gender: item.gender,
-          style: item.style,
           isDefault: item.isDefault,
         }));
 

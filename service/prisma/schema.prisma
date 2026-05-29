@@ -753,9 +753,9 @@ model VoiceProfile {
   code        String   @unique /// 配置唯一标识
   voiceId     String   @map("voice_id") /// 语音ID（提供商特定）
   provider    String   /// 提供商：openai/azure/aliyun/local
+  modelCode   String?  @map("model_code") /// 关联的TTS模型标识（如 tts-1 / tts-1-hd），为空则由系统默认选择
   language    String   /// 语言：zh-CN/en-US/ja-JP等
   gender      String?  /// 性别：male/female/neutral
-  style       String?  /// 风格：neutral/cheerful/sad等
   sampleRate  Int      @default(24000) @map("sample_rate") /// 采样率
   isDefault   Boolean  @default(false) @map("is_default") /// 是否默认
   status      Boolean  @default(true) /// 是否启用
@@ -764,7 +764,7 @@ model VoiceProfile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  @@index([provider, language])
+  @@index([provider, language, modelCode])
   @@index([isDefault])
   @@map("voice_profiles")
 }

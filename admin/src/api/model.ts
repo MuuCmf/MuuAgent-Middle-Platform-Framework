@@ -45,6 +45,12 @@ export const modelApi = {
     return adminRequest.get('api/admin/model')
   },
   
+  getByType(type: string): Promise<AxiosResponse<ApiResponse<ModelListResponse>>> {
+    return adminRequest.get('api/admin/model', {
+      params: { type, status: true, pageSize: 100 }
+    })
+  },
+  
   create(data: ModelForm): Promise<AxiosResponse<ApiResponse<Model>>> {
     return adminRequest.post('api/admin/model', data)
   },

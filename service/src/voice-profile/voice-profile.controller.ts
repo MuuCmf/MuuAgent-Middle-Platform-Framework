@@ -94,7 +94,7 @@ export class VoiceProfileController {
       provider: string;
       language: string;
       gender?: string;
-      style?: string;
+      modelCode?: string;
       sampleRate?: number;
       isDefault?: boolean;
       status?: boolean;
@@ -121,7 +121,7 @@ export class VoiceProfileController {
       provider?: string;
       language?: string;
       gender?: string;
-      style?: string;
+      modelCode?: string;
       sampleRate?: number;
       isDefault?: boolean;
       status?: boolean;

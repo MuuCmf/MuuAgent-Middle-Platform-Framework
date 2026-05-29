@@ -14,6 +14,7 @@ import {
   AsrDto,
 } from './dto/ai.dto';
 import { Model } from '@prisma/client';
+import { PrismaService } from '../common/prisma/prisma.service';
 import { IsolationContext } from '../common/services/base-isolated.service';
 import { mergeModelParams, ModelParams } from '../common/utils/model-params.util';
 import { StrategyFactory } from './strategies/strategy.factory';
@@ -114,6 +115,7 @@ export class AiService {
     private streamProcessor: StreamProcessor,
     private toolCallParser: ToolCallParser,
     private appUsageService: AppUsageService,
+    private prisma: PrismaService,
   ) {}
 
   /**
@@ -716,10 +718,27 @@ export class AiService {
 
     const modelType = dto.modelType || 'tts';
 
-    this.logger.debug(`TTS语音合成开始: requestId=${context.requestId}, modelCode=${dto.modelCode}`);
+    // 若未指定模型标识，尝试从语音配置中获取
+    let modelCode = dto.modelCode;
+    if (!modelCode && dto.voice) {
+      try {
+        const voiceProfile = await this.prisma.voiceProfile.findFirst({
+          where: { voiceId: dto.voice, status: true },
+          orderBy: { isDefault: 'desc' },
+        });
+        if (voiceProfile?.modelCode) {
+          modelCode = voiceProfile.modelCode;
+          this.logger.debug(`TTS从语音配置获取模型标识: voice=${dto.voice}, modelCode=${modelCode}`);
+        }
+      } catch {
+        // 查询失败不影响主流程
+      }
+    }
+
+    this.logger.debug(`TTS语音合成开始: requestId=${context.requestId}, modelCode=${modelCode}`);
 
     try {
-      const model = await this.selectModel(dto.modelCode, modelType);
+      const model = await this.selectModel(modelCode, modelType);
       
       await this.mcpService.checkCircuit(model.id as any);
 
@@ -763,7 +782,7 @@ export class AiService {
         duration: result.duration,
       };
     } catch (error) {
-      const model = await this.selectModel(dto.modelCode, modelType).catch(() => null);
+      const model = await this.selectModel(modelCode, modelType).catch(() => null);
       if (model) {
         await this.mcpService.reportError(model.id as any);
       }

@@ -193,7 +193,8 @@ function voiceLabel(voice: VoiceProfile): string {
     neutral: t('voice.neutral'),
   }
   const gender = voice.gender ? ` (${genderMap[voice.gender] || voice.gender})` : ''
-  return `${voice.name}${gender} - ${voice.provider}`
+  const model = voice.modelCode ? ` [${voice.modelCode}]` : ''
+  return `${voice.name}${gender}${model} - ${voice.provider}`
 }
 
 /** 监听抽屉打开时加载语音配置 */

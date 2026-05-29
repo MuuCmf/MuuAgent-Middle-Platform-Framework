@@ -11,9 +11,9 @@ export default {
     voiceCode: '标识',
     voiceId: '语音ID',
     provider: '提供商',
+    modelCode: '模型标识',
     language: '语言',
     gender: '性别',
-    style: '风格',
     sampleRate: '采样率',
     isDefault: '默认',
     status: '状态',
@@ -51,5 +51,6 @@ export default {
     namePlaceholder: '语音配置名称，如：中文女声',
     codePlaceholder: '唯一标识，如：zh-female-v1',
     voiceIdPlaceholder: '提供商特定的语音ID，如：alloy',
+    modelCodePlaceholder: '请选择TTS模型，留空则由系统默认',
   },
 }

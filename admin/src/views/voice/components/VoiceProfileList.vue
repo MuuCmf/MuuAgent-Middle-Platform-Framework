@@ -37,6 +37,12 @@
           <el-tag>{{ getProviderLabel(row.provider) }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column prop="modelCode" :label="$t('voice.modelCode')" width="120">
+        <template #default="{ row }">
+          <el-tag v-if="row.modelCode" type="info" size="small">{{ row.modelCode }}</el-tag>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="language" :label="$t('voice.language')" width="80">
         <template #default="{ row }">
           <el-tag type="success" size="small">{{ getLanguageLabel(row.language) }}</el-tag>
