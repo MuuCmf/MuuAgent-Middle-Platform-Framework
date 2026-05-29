@@ -675,9 +675,9 @@ export function useChat() {
     userScrolledAway.value = false;
     scrollToBottom();
 
-    // 已有 conversationId 时提前连接 TTS，确保后端从一开始就检测到连接
-    if (currentConversationId.value) {
-      connectTtsIfEnabled(currentConversationId.value);
+    // 等待 TTS WebSocket 连接就绪后再发起流式请求
+    if (currentConversationId.value && voiceEnabled.value) {
+      await connectTtsIfEnabled(currentConversationId.value);
     }
 
     try {
@@ -1109,12 +1109,12 @@ export function useChat() {
   };
 
   /**
-   * 连接 TTS 语音播报
+   * 连接 TTS 语音播报并等待就绪
    *
-   * 根据 voiceEnabled 状态决定是否连接。
-   * 在流式响应开始时调用。
+   * 先建立 WebSocket 连接，再等待连接确认，
+   * 确保服务端能从一开始就检测到 TTS 连接。
    */
-  const connectTtsIfEnabled = (conversationId: string) => {
+  const connectTtsIfEnabled = async (conversationId: string) => {
     if (!voiceEnabled.value) return
     if (ttsStreamService.currentConversationId === conversationId && ttsStreamService.isConnected) return
 
@@ -1132,6 +1132,7 @@ export function useChat() {
     })
 
     ttsStreamService.connect(conversationId)
+    await ttsStreamService.waitForConnected()
     syncTtsStatus()
   }
 

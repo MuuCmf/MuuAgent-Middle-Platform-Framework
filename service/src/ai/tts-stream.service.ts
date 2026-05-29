@@ -63,6 +63,11 @@ export class TtsStreamService {
   }
 
   /**
+   * 记录每个会话最后一次使用的 voiceId，用于检测语音切换
+   */
+  private lastVoiceMap = new Map<string, string>();
+
+  /**
    * 初始化 TTS 会话
    *
    * 首次调用时选择 TTS 模型并建立策略上下文。
@@ -80,6 +85,7 @@ export class TtsStreamService {
     modelCode?: string,
   ): Promise<boolean> {
     if (this.ttsSessions.has(conversationId)) {
+      this.logger.debug(`initTtsSession 会话已存在: conversationId=${conversationId}`);
       return true;
     }
 
@@ -87,8 +93,11 @@ export class TtsStreamService {
     const voice = await this.pollSessionVoice(conversationId, 5000);
     if (!voice) {
       this.logger.warn(`TTS 会话未建立 WebSocket 连接: conversationId=${conversationId}`);
+      this.ttsGateway.notifyError(conversationId, '语音合成初始化超时：WebSocket 连接未就绪，请检查网络后重试');
       return false;
     }
+
+    this.logger.debug(`pollSessionVoice 成功: voiceId=${voice.voiceId}, speed=${voice.speed}`);
 
     try {
       // 有显式 modelCode 时（管理端测试），使用 selectTtsModel 按指定模型调度
@@ -96,12 +105,16 @@ export class TtsStreamService {
       const model = modelCode
         ? await this.selectTtsModel(voice.voiceId, appCode, modelCode)
         : await this.selectStreamTtsModel(voice.voiceId, appCode);
+
+      this.logger.debug(`TTS 模型选择: code=${model.code}, provider=${model.provider}`);
+
       const strategy = this.strategyFactory.getStrategy(model.provider);
 
       if (!strategy.executeTTSStream) {
         this.logger.warn(
           `Provider ${model.provider} 不支持流式TTS，将使用整段合成降级`,
         );
+        this.ttsGateway.notifyError(conversationId, '当前模型不支持实时流式语音合成');
         return false;
       }
 
@@ -112,10 +125,14 @@ export class TtsStreamService {
         speed: voice.speed,
       });
 
+      this.lastVoiceMap.set(conversationId, voice.voiceId);
+
       this.ttsGateway.notifyStart(conversationId, 0);
+      this.logger.debug(`TTS 会话初始化成功: conversationId=${conversationId}, model=${model.code}`);
       return true;
     } catch (error) {
       this.logger.error(`TTS 会话初始化失败: ${(error as Error).message}`);
+      this.ttsGateway.notifyError(conversationId, `语音合成初始化失败: ${(error as Error).message}`);
       return false;
     }
   }
@@ -166,6 +183,7 @@ export class TtsStreamService {
   ): Promise<void> {
     const session = this.ttsSessions.get(conversationId);
     if (!session) {
+      this.logger.debug(`synthesizeSentence 跳过: 会话未找到 conversationId=${conversationId}`);
       return;
     }
 
@@ -216,6 +234,32 @@ export class TtsStreamService {
         const currentVoice = voiceConfig?.voiceId || session.voiceId;
         const currentSpeed = voiceConfig?.speed || session.speed;
 
+        // 每个句子开始前检查 WebSocket 连接
+        if (!this.ttsGateway.isConnected(conversationId)) {
+          this.logger.warn(`TTS 句子跳过: WebSocket 未连接, sentence="${item.sentence.slice(0, 20)}..."`);
+          entry.queue.shift();
+          item.reject(new Error('WebSocket 未连接'));
+          continue;
+        }
+
+        // Issue 15: 检测语音切换，若 voiceId 变化则重新选择模型
+        const lastVoice = this.lastVoiceMap.get(conversationId);
+        if (lastVoice && currentVoice !== lastVoice) {
+          this.lastVoiceMap.set(conversationId, currentVoice);
+          try {
+            const newModel = await this.selectStreamTtsModel(currentVoice, item.appCode);
+            const newStrategy = this.strategyFactory.getStrategy(newModel.provider);
+            if (newStrategy.executeTTSStream) {
+              session.model = newModel;
+              session.strategy = newStrategy;
+              session.voiceId = currentVoice;
+              this.logger.debug(`语音切换触发模型重选: voice=${currentVoice}, model=${newModel.code}`);
+            }
+          } catch (e) {
+            this.logger.warn(`语音切换后模型重选失败，继续使用当前模型: ${(e as Error).message}`);
+          }
+        }
+
         // 净化文本：去除 Markdown 标记、emoji 等 TTS 模型无法正确处理的内容
         const cleanText = this.sanitizeText(item.sentence);
 
@@ -227,8 +271,19 @@ export class TtsStreamService {
           context: { requestId: conversationId, startTime: Date.now(), clientIp: item.clientIp, userAgent: item.userAgent, uid: item.uid, appCode: item.appCode },
         };
 
+        this.logger.debug(`TTS 开始合成句子: len=${cleanText.length}, voice=${currentVoice}`);
+
+        let hasAudio = false;
+
         for await (const chunk of session.strategy.executeTTSStream!(execParams)) {
           if (this.ttsGateway.isStopped(conversationId)) break;
+
+          if (!chunk.audioData) {
+            if (chunk.isLast) break;
+            continue;
+          }
+
+          hasAudio = true;
 
           const pushed = this.ttsGateway.pushAudioChunk(
             conversationId,
@@ -239,8 +294,12 @@ export class TtsStreamService {
           );
 
           if (!pushed) {
-            break;
+            this.logger.warn(`TTS 音频块推送失败(socket可能断开)，继续处理剩余块`);
           }
+        }
+
+        if (!hasAudio) {
+          this.logger.warn(`TTS 句子合成未产出音频: sentence="${item.sentence.slice(0, 20)}..."`);
         }
 
         entry.queue.shift();
@@ -267,6 +326,7 @@ export class TtsStreamService {
   finalizeTtsSession(conversationId: string): void {
     this.ttsSessions.delete(conversationId);
     this.sentenceQueues.delete(conversationId);
+    this.lastVoiceMap.delete(conversationId);
     this.ttsGateway.notifyEnd(conversationId);
   }
 
@@ -294,7 +354,12 @@ export class TtsStreamService {
     initialSpeed?: number,
     modelCode?: string,
   ): Promise<void> {
-    if (!this.ttsGateway.notifyStart(conversationId, 0)) {
+    if (!this.ttsGateway.isConnected(conversationId)) {
+      return;
+    }
+
+    const sentences = this.splitSentences(fullText);
+    if (!this.ttsGateway.notifyStart(conversationId, sentences.length)) {
       return;
     }
 
@@ -318,7 +383,6 @@ export class TtsStreamService {
         return;
       }
 
-      const sentences = this.splitSentences(fullText);
       for (let i = 0; i < sentences.length; i++) {
         const sentence = sentences[i].trim();
         if (!sentence) continue;

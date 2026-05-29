@@ -49,6 +49,12 @@ class TtsStreamService {
   private conversationId: string | null = null
   private gainNode: GainNode | null = null
   private currentSource: AudioBufferSourceNode | null = null
+  private currentSourceHtml: HTMLAudioElement | null = null
+
+  private currentChunk: AudioChunkData | null = null
+  private retryCount = 0
+  private readonly MAX_RETRY_COUNT = 3
+  private readonly MAX_QUEUE_SIZE = 500
 
   /**
    * 获取当前播放状态
@@ -129,6 +135,7 @@ class TtsStreamService {
 
     this.socket.on('connect', () => {
       console.log(`[TtsStream] 已连接: conversationId=${conversationId}`)
+      this.updateStatus('streaming')
     })
 
     this.socket.on('audio_chunk', (chunk: AudioChunkData) => {
@@ -144,6 +151,11 @@ class TtsStreamService {
     this.socket.on('tts_end', () => {
       console.log('[TtsStream] TTS 结束')
       this.callbacks.onEnd?.()
+    })
+
+    this.socket.on('tts_error', (error: { message: string }) => {
+      console.error('[TtsStream] TTS 服务端错误:', error.message)
+      this.callbacks.onError?.(new Error(error.message))
     })
 
     this.socket.on('error', (error: { message: string }) => {
@@ -162,6 +174,42 @@ class TtsStreamService {
     })
 
     return true
+  }
+
+  /**
+   * 等待 WebSocket 连接就绪
+   *
+   * connect() 是异步的（socket.io 握手需要时间），
+   * 此方法返回一个 Promise，在 socket 连接成功或超时时 resolve。
+   * 用于确保 TTS 连接在发起流式请求前已就绪。
+   *
+   * @param timeoutMs 超时毫秒，默认 5000
+   * @returns 是否成功连接
+   */
+  async waitForConnected(timeoutMs = 5000): Promise<boolean> {
+    if (this.socket?.connected) return true
+    if (!this.socket) return false
+
+    return new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => {
+        this.socket?.off('connect', onConnected)
+        this.socket?.off('connect_error', onError)
+        resolve(this.socket?.connected ?? false)
+      }, timeoutMs)
+
+      const onConnected = () => {
+        clearTimeout(timeout)
+        resolve(true)
+      }
+
+      const onError = () => {
+        clearTimeout(timeout)
+        resolve(false)
+      }
+
+      this.socket!.once('connect', onConnected)
+      this.socket!.once('connect_error', onError)
+    })
   }
 
   /**
@@ -188,6 +236,24 @@ class TtsStreamService {
   pause(): void {
     if (!this.socket?.connected) return
     this.isPaused = true
+
+    if (this.currentSource) {
+      try {
+        this.currentSource.stop()
+      } catch {
+      }
+      this.currentSource = null
+    }
+    if (this.currentSourceHtml) {
+      try {
+        this.currentSourceHtml.pause()
+      } catch {
+      }
+      this.currentSourceHtml = null
+    }
+
+    this.currentChunk = null
+    // 保留 nextChunkTime，用于恢复时保持时间轴连续性
     this.socket.emit('pause')
     this.updateStatus('paused')
   }
@@ -198,6 +264,8 @@ class TtsStreamService {
   resume(): void {
     if (!this.socket?.connected) return
     this.isPaused = false
+    this.nextChunkTime = 0
+    this.retryCount = 0
     this.socket.emit('resume')
     this.updateStatus('playing')
     this.processQueue()
@@ -214,6 +282,8 @@ class TtsStreamService {
     this.isProcessing = false
     this.isPaused = false
     this.nextChunkTime = 0
+    this.currentChunk = null
+    this.retryCount = 0
     this.updateStatus('stopped')
   }
 
@@ -249,6 +319,13 @@ class TtsStreamService {
 
     if (!chunk.data) return
 
+    console.log(`[TtsStream] 收到音频块: seq=${chunk.sequence}, format=${chunk.format}, size=${chunk.data.length}, isLast=${chunk.isLast}`)
+
+    if (this.audioQueue.length >= this.MAX_QUEUE_SIZE) {
+      console.warn(`[TtsStream] 音频队列已满(${this.MAX_QUEUE_SIZE})，丢弃旧块`)
+      this.audioQueue.shift()
+    }
+
     this.audioQueue.push(chunk)
 
     if (!this.isProcessing && !this.isPaused) {
@@ -260,23 +337,38 @@ class TtsStreamService {
    * 处理音频队列
    *
    * 按顺序逐个播放音频块，确保播放顺序正确。
+   * 使用 peek 而非 shift 模式：暂停时当前块仍留在队列中，恢复后可重新播放。
    */
   private async processQueue(): Promise<void> {
     if (this.isProcessing || this.isPaused || this.audioQueue.length === 0) {
       return
     }
 
+    console.log(`[TtsStream] 开始处理队列: 队列长度=${this.audioQueue.length}`)
     this.isProcessing = true
 
     try {
       while (this.audioQueue.length > 0 && !this.isPaused) {
-        const chunk = this.audioQueue.shift()!
+        this.currentChunk = this.audioQueue[0]
         this.updateStatus('playing')
-        await this.playAudioChunk(chunk)
+
+        try {
+          await this.playAudioChunk(this.currentChunk)
+        } catch (error) {
+          this.retryCount++
+          if (this.retryCount <= this.MAX_RETRY_COUNT) {
+            console.warn(`[TtsStream] 音频块播放失败，重试(${this.retryCount}/${this.MAX_RETRY_COUNT})`)
+            continue
+          }
+          console.error(`[TtsStream] 音频块播放失败(${this.MAX_RETRY_COUNT}次)，跳过:`, error)
+          this.callbacks.onError?.(new Error(`音频播放异常: ${error}`))
+          this.retryCount = 0
+        }
+
+        this.audioQueue.shift()
+        this.currentChunk = null
+        this.retryCount = 0
       }
-    } catch (error) {
-      console.error('[TtsStream] 音频播放异常:', error)
-      this.callbacks.onError?.(new Error(`音频播放异常: ${error}`))
     } finally {
       this.isProcessing = false
 
@@ -310,32 +402,53 @@ class TtsStreamService {
   private nextChunkTime = 0
 
   /**
+   * 异步解码 PCM 数据（使用 Promise 包装，避免阻塞主线程）
+   *
+   * @param base64Data Base64 编码的 PCM 数据
+   * @returns Float32Array 音频数据和采样数
+   */
+  private async decodePcmAsync(base64Data: string): Promise<{ floatData: Float32Array; sampleCount: number }> {
+    return new Promise((resolve) => {
+      // 使用 setTimeout 让浏览器有机会处理其他任务
+      setTimeout(() => {
+        const binary = atob(base64Data)
+        const sampleCount = Math.floor(binary.length / 2)
+        if (sampleCount === 0) {
+          resolve({ floatData: new Float32Array(0), sampleCount: 0 })
+          return
+        }
+
+        const pcmData = new Int16Array(sampleCount)
+        for (let i = 0; i < sampleCount; i++) {
+          pcmData[i] = binary.charCodeAt(i * 2) | (binary.charCodeAt(i * 2 + 1) << 8)
+        }
+
+        const floatData = new Float32Array(sampleCount)
+        for (let i = 0; i < sampleCount; i++) {
+          floatData[i] = pcmData[i] / 32768
+        }
+
+        resolve({ floatData, sampleCount })
+      }, 0)
+    })
+  }
+
+  /**
    * 播放 PCM 音频块
    *
-   * 参考管理端测试组件的实现方式：
-   * - 不通过 decodeAudioData 解码（无法解码裸 PCM）
-   * - 直接将 Int16 采样点转为 Float32，通过 createBuffer 构建 AudioBuffer
-   * - 使用 nextChunkTime 实现无间隙连续播放
+   * 使用异步解码避免阻塞主线程，使用 nextChunkTime 实现无间隙连续播放
    *
    * @param chunk 音频块数据
    */
   private async playPcmChunk(chunk: AudioChunkData): Promise<void> {
     const ctx = this.getAudioContext()
 
-    // base64 → Int16 采样点数组
-    const binary = atob(chunk.data)
-    const sampleCount = Math.floor(binary.length / 2)
-    if (sampleCount === 0) return
+    // 异步解码，避免阻塞主线程
+    const { floatData, sampleCount } = await this.decodePcmAsync(chunk.data)
 
-    const pcmData = new Int16Array(sampleCount)
-    for (let i = 0; i < sampleCount; i++) {
-      pcmData[i] = binary.charCodeAt(i * 2) | (binary.charCodeAt(i * 2 + 1) << 8)
-    }
-
-    // Int16 → Float32
-    const floatData = new Float32Array(sampleCount)
-    for (let i = 0; i < sampleCount; i++) {
-      floatData[i] = pcmData[i] / 32768
+    if (sampleCount === 0) {
+      console.warn('[TtsStream] PCM 块数据为空')
+      return
     }
 
     // 手动构建 AudioBuffer（16位单声道 24000Hz）
@@ -357,9 +470,14 @@ class TtsStreamService {
     source.start(startTime)
     this.nextChunkTime = startTime + audioBuffer.duration
 
+    console.log(`[TtsStream] 播放 PCM: samples=${sampleCount}, duration=${audioBuffer.duration.toFixed(2)}s, startTime=${startTime.toFixed(2)}`)
+
     return new Promise<void>((resolve) => {
       source.onended = () => {
-        this.currentSource = null
+        if (this.currentSource === source) {
+          this.currentSource = null
+        }
+        console.log(`[TtsStream] PCM 块播放完成: seq=${chunk.sequence}`)
         resolve()
       }
     })
@@ -374,11 +492,23 @@ class TtsStreamService {
     const audioUrl = `data:audio/mp3;base64,${chunk.data}`
     const audio = new Audio(audioUrl)
     audio.volume = voiceService.getConfig().volume
+    this.currentSourceHtml = audio
 
     return new Promise<void>((resolve, reject) => {
-      audio.onended = () => resolve()
-      audio.onerror = (e) => reject(new Error(`MP3播放失败: ${e}`))
-      audio.play().catch(reject)
+      audio.onended = () => {
+        if (this.currentSourceHtml === audio) {
+          this.currentSourceHtml = null
+        }
+        resolve()
+      }
+      audio.onerror = (e) => {
+        this.currentSourceHtml = null
+        reject(new Error(`MP3播放失败: ${e}`))
+      }
+      audio.play().catch((e) => {
+        this.currentSourceHtml = null
+        reject(e)
+      })
     })
   }
 
@@ -390,9 +520,17 @@ class TtsStreamService {
       try {
         this.currentSource.stop()
       } catch {
-        // 忽略已停止的异常
       }
       this.currentSource = null
+    }
+
+    if (this.currentSourceHtml) {
+      try {
+        this.currentSourceHtml.pause()
+        this.currentSourceHtml.src = ''
+      } catch {
+      }
+      this.currentSourceHtml = null
     }
 
     if (this.audioContext) {
@@ -400,6 +538,8 @@ class TtsStreamService {
       this.audioContext = null
       this.gainNode = null
     }
+
+    this.currentChunk = null
   }
 
   /**
@@ -409,10 +549,20 @@ class TtsStreamService {
    */
   private getAudioContext(): AudioContext {
     if (!this.audioContext || this.audioContext.state === 'closed') {
-      this.audioContext = new AudioContext()
+      try {
+        this.audioContext = new AudioContext()
+        console.log(`[TtsStream] 创建 AudioContext, state=${this.audioContext.state}`)
+      } catch (e) {
+        console.error('[TtsStream] 创建 AudioContext 失败:', e)
+        throw new Error(`浏览器不支持 AudioContext 或音频被安全策略阻止: ${e}`)
+      }
     }
     if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume().catch(() => {})
+      this.audioContext.resume().then(() => {
+        console.log('[TtsStream] AudioContext resume 成功')
+      }).catch((e) => {
+        console.warn('[TtsStream] AudioContext resume 失败:', e)
+      })
     }
     return this.audioContext
   }
@@ -445,11 +595,35 @@ class TtsStreamService {
    * 清理资源
    */
   private cleanup(): void {
+    if (this.currentSource) {
+      try {
+        this.currentSource.stop()
+      } catch {
+      }
+      this.currentSource = null
+    }
+
+    if (this.currentSourceHtml) {
+      try {
+        this.currentSourceHtml.pause()
+        this.currentSourceHtml.src = ''
+      } catch {
+      }
+      this.currentSourceHtml = null
+    }
+
+    if (this.audioContext) {
+      this.audioContext.close().catch(() => {})
+      this.audioContext = null
+      this.gainNode = null
+    }
+
     this.audioQueue = []
     this.isProcessing = false
     this.isPaused = false
     this.nextChunkTime = 0
-    this.currentSource = null
+    this.currentChunk = null
+    this.retryCount = 0
     this.updateStatus('idle')
   }
 }

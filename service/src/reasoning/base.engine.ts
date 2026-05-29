@@ -159,10 +159,35 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     const ttsPendingSentences: string[] = [];
     const conversationId = context.conversationId;
     const isTtsActive = (): boolean =>
-      this.ttsStreamService?.isSessionActive(conversationId) ?? false;
+      this.ttsStreamService != null;
 
     try {
       await this.beforeStreamLoop(context, messages, steps, emitter);
+
+      // 预初始化 TTS 会话，提前开始轮询 WebSocket 连接
+      // 这样当第一个完整句子到达时，TTS 可能已经就绪
+      if (isTtsActive()) {
+        ttsInitPromise = this.ttsStreamService!.initTtsSession(
+          conversationId, context.appCode,
+        ).then((ok) => {
+          ttsInitialized = ok;
+          if (ok && ttsPendingSentences.length > 0) {
+            for (const s of ttsPendingSentences) {
+              this.ttsStreamService!.synthesizeSentence(
+                s, conversationId,
+                context.clientIp, context.userAgent,
+                context.uid, context.appCode,
+              ).catch(() => {});
+            }
+            ttsPendingSentences.length = 0;
+          }
+          return ok;
+        }).catch((e: Error) => {
+          this.logger.warn(`TTS 预初始化失败: ${e.message}`);
+          ttsInitialized = false;
+          return false;
+        });
+      }
 
       let blockIndex = 0;
 

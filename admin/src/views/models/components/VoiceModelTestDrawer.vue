@@ -302,6 +302,8 @@ const realtimePlaying = ref(false)
 const realtimeAudioChunks = ref<{ data: string; format: string }[]>([])
 const realtimeResultAudioUrl = ref('')
 const realtimeAudioFormat = ref('wav')
+/** 记录所有 PCM 块的原始 base64 数据，用于最终组装成 WAV 回放 */
+const realtimePcmChunks = ref<string[]>([])
 
 /** 追加文本状态 */
 const appendText = ref('')
@@ -468,11 +470,12 @@ async function handleNonRealtimeTTS() {
  * 连接WebSocket并开始实时流式TTS合成
  */
 async function handleRealtimeStart() {
-  if (!ttsText.value.trim()) return
+  if (!ttsText.value.trim() || realtimeSocket.value) return
 
   realtimeStarting.value = true
   realtimeChunkCount.value = 0
   realtimeAudioChunks.value = []
+  realtimePcmChunks.value = []
   realtimeResultAudioUrl.value = ''
   realtimeAudioFormat.value = 'mp3'
 
@@ -499,6 +502,7 @@ async function handleRealtimeStart() {
       realtimeChunkCount.value++
 
       if (chunk.format === 'pcm') {
+        realtimePcmChunks.value.push(chunk.data)
         playPCMChunk(chunk.data)
       } else {
         realtimeAudioChunks.value.push({ data: chunk.data, format: chunk.format })
@@ -506,23 +510,20 @@ async function handleRealtimeStart() {
       }
 
       if (chunk.isLast) {
-        if (realtimeAudioChunks.value.length > 0) {
-          assembleAndPlayAudio()
-        }
+        assembleAndPlayAudio()
       }
     })
 
     socket.on('tts_start', () => {
       stopAudioPlayback()
       realtimeAudioChunks.value = []
+      realtimePcmChunks.value = []
       realtimeChunkCount.value = 0
       realtimePlaying.value = false
     })
 
     socket.on('tts_end', () => {
-      if (realtimeAudioChunks.value.length > 0) {
-        assembleAndPlayAudio()
-      }
+      assembleAndPlayAudio()
     })
 
     socket.on('tts_error', (err: { message: string }) => {
@@ -646,24 +647,31 @@ function stopAudioPlayback() {
 }
 
 /**
- * 组装所有音频块并播放（用于非PCM格式兜底）
+ * 组装所有音频块并播放（PCM + 非 PCM 统一处理）
  */
 function assembleAndPlayAudio() {
-  if (realtimeAudioChunks.value.length === 0) return
+  const hasPcm = realtimePcmChunks.value.length > 0
+  const hasNonPcm = realtimeAudioChunks.value.length > 0
 
-  const allBase64 = realtimeAudioChunks.value.map(c => c.data).join('')
-  const format = realtimeAudioFormat.value
-
-  let audioBlob: Blob
-  if (format === 'pcm') {
-    audioBlob = pcmToWavBlob(allBase64, 24000)
-  } else {
-    audioBlob = base64ToBlob(allBase64, format)
-  }
+  if (!hasPcm && !hasNonPcm) return
 
   if (realtimeResultAudioUrl.value) {
     URL.revokeObjectURL(realtimeResultAudioUrl.value)
+    realtimeResultAudioUrl.value = ''
   }
+
+  let audioBlob: Blob
+
+  if (hasPcm) {
+    const allPcm = realtimePcmChunks.value.join('')
+    audioBlob = pcmToWavBlob(allPcm, 24000)
+    realtimeAudioFormat.value = 'wav'
+  } else {
+    const allBase64 = realtimeAudioChunks.value.map(c => c.data).join('')
+    const format = realtimeAudioFormat.value
+    audioBlob = base64ToBlob(allBase64, format)
+  }
+
   realtimeResultAudioUrl.value = URL.createObjectURL(audioBlob)
 
   ElMessage.success(t('model.testSuccess'))
@@ -677,11 +685,10 @@ function handleRealtimeStop() {
   if (realtimeSocket.value) {
     realtimeSocket.value.emit('stop')
     realtimeSocket.value.disconnect()
+    realtimeSocket.value = null
   }
   realtimeStatus.value = 'idle'
-  if (realtimeAudioChunks.value.length > 0) {
-    assembleAndPlayAudio()
-  }
+  assembleAndPlayAudio()
 }
 
 /**
@@ -695,6 +702,8 @@ function disconnectRealtime() {
   }
   realtimeStatus.value = 'idle'
   realtimeChunkCount.value = 0
+  realtimeAudioChunks.value = []
+  realtimePcmChunks.value = []
   appendText.value = ''
   if (realtimeResultAudioUrl.value) {
     URL.revokeObjectURL(realtimeResultAudioUrl.value)
@@ -842,6 +851,8 @@ function handleClose() {
     URL.revokeObjectURL(realtimeResultAudioUrl.value)
     realtimeResultAudioUrl.value = ''
   }
+  realtimeAudioChunks.value = []
+  realtimePcmChunks.value = []
   emit('update:visible', false)
 }
 

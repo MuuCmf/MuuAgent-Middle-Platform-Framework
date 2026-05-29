@@ -10,14 +10,47 @@ import {
 import * as WebSocket from 'ws';
 
 /**
- * 阿里云通义策略
+ * 阿里云策略
  * 使用阿里云 DashScope API 进行语音合成与识别
  * 注意：DashScope TTS/ASR 使用固定 API 路径，不兼容 OpenAI 格式
  */
 @Injectable()
 export class AliyunStrategy extends BaseStrategy {
-  readonly name = '阿里云通义';
+  readonly name = '阿里云';
   readonly providerId = 'aliyun';
+
+  /**
+   * 阿里云 Qwen-TTS-Realtime 系列模型支持的系统音色列表
+   *
+   * Qwen3-TTS-Flash-Realtime / Qwen-TTS-Realtime 使用英文风格音色名，
+   * 与 CosyVoice 系列（longxiaoxia 等）完全不同。
+   * 当语音配置中的 voiceId 不在该列表中时，说明语音为其他 Provider 的标识
+   * （如 OpenAI 的 alloy/nova），此时 fallback 到默认语音 Cherry。
+   *
+   * 参考: https://help.aliyun.com/zh/model-studio/multimodal-timbre-list
+   */
+  private static readonly ALIYUN_QWEN_VOICES = new Set([
+    'Cherry', 'Serena', 'Ethan', 'Chelsie', 'Momo', 'Vivian',
+    'Moon', 'Maia', 'Kai', 'Nofish', 'Bella', 'Jennifer',
+    'Dylan', 'Sunny', 'Aiden', 'Ryan', 'Soji',
+  ]);
+
+  /**
+   * 解析并校验语音标识
+   *
+   * 确保传入 DashScope 的 voice 是阿里云 Qwen-TTS 支持的音色名。
+   * 如果不支持，使用默认语音 Cherry 并记录警告。
+   *
+   * @param voice 语音标识（可能来自其他 Provider 的语音配置）
+   * @returns 阿里云兼容的语音标识
+   */
+  private resolveVoice(voice?: string): string {
+    const defaultVoice = 'Cherry';
+    if (!voice) return defaultVoice;
+    if (AliyunStrategy.ALIYUN_QWEN_VOICES.has(voice)) return voice;
+    this.logger.warn(`阿里云 Qwen-TTS 不支持语音 "${voice}"，自动切换为默认语音 "${defaultVoice}"`);
+    return defaultVoice;
+  }
 
   /**
    * PCM原始音频数据转WAV（16位单声道）
@@ -75,6 +108,8 @@ export class AliyunStrategy extends BaseStrategy {
 
     this.logger.debug(`DashScope TTS: model=${model.code}, voice=${voice || 'longanyang'}, speed=${speed || 1.0}`);
 
+    const resolvedVoice = this.resolveVoice(voice);
+
     const apiKey = model.apiKey || process.env.DASHSCOPE_API_KEY;
 
     if (!apiKey) {
@@ -94,7 +129,7 @@ export class AliyunStrategy extends BaseStrategy {
             model: model.code || 'qwen3-tts-flash',
             input: {
               text,
-              voice: voice || 'longanyang',
+              voice: resolvedVoice,
             },
             parameters: {
               ...(speed ? { speed } : {}),
@@ -164,9 +199,10 @@ export class AliyunStrategy extends BaseStrategy {
 
     // model.code 从数据库获取（如 qwen3-tts-flash-realtime），直接使用
     const modelCode = model.code || 'qwen3-tts-flash-realtime';
+    const resolvedVoice = this.resolveVoice(voice);
 
     this.logger.debug(
-      `Qwen-TTS 流式: model=${modelCode}, voice=${voice || 'longxiaoxia'}`,
+      `Qwen-TTS 流式: model=${modelCode}, voice=${resolvedVoice}`,
     );
 
     const apiKey = model.apiKey || process.env.DASHSCOPE_API_KEY;
@@ -179,7 +215,7 @@ export class AliyunStrategy extends BaseStrategy {
     this.logger.debug(`Qwen-TTS 尝试 WebSocket 流式: url=${wsUrl}`);
 
     for await (const chunk of this.tryWebSocketStream(
-      wsUrl, apiKey, text, voice, speed,
+      wsUrl, apiKey, text, resolvedVoice, speed,
     )) {
       yield chunk;
     }
@@ -223,7 +259,7 @@ export class AliyunStrategy extends BaseStrategy {
       event_id: sessionUpdateEventId,
       type: 'session.update',
       session: {
-        voice: voice || 'longxiaoxia',
+        voice: voice,
         mode: 'server_commit',
         response_format: 'pcm',
         sample_rate: 24000,
@@ -273,7 +309,7 @@ export class AliyunStrategy extends BaseStrategy {
     try {
       // 一次性发送全部文本
       // server_commit 模式下服务端自动提交第一段，剩余文本需要显式 commit 触发
-      this.logger.debug(`Qwen-TTS 发送文本: "${text.slice(0, 60)}..."`);
+      this.logger.debug(`Qwen-TTS 发送文本：len=${text.length}, text="${text.slice(0, 60)}..."`);
 
       // 一次性发送全部文本，server_commit 模式下服务端自动判断合成时机
       const appendEventId = crypto.randomUUID();
@@ -286,8 +322,9 @@ export class AliyunStrategy extends BaseStrategy {
       let audioBuffer = Buffer.alloc(0);
       const startTime = Date.now();
       let gotAudio = false;
-      const YIELD_CHUNK_SIZE = 4096;
-      const OVERALL_TIMEOUT = 30000;
+      const YIELD_CHUNK_SIZE = 16384; // 增大音频块大小，减少网络传输频率
+      const OVERALL_TIMEOUT = 15000; // 缩短超时时间，快速失败
+      let lastAudioTime = Date.now();
 
       // 持续接收事件，直到响应完成或超时
       while (true) {
@@ -295,15 +332,23 @@ export class AliyunStrategy extends BaseStrategy {
         const remaining = OVERALL_TIMEOUT - elapsed;
         if (remaining <= 0) {
           if (!gotAudio) {
-            this.logger.warn(`Qwen-TTS 流式合成总超时(${OVERALL_TIMEOUT}ms)`);
+            this.logger.warn(`Qwen-TTS 流式合成总超时 (${OVERALL_TIMEOUT}ms)`);
+          } else {
+            this.logger.debug(`Qwen-TTS 合成完成，已接收音频`);
           }
           break;
         }
 
-        const message = await nextMsg(Math.min(remaining, 30000));
+        // 使用较短超时，快速检测无响应
+        const message = await nextMsg(Math.min(remaining, 2000));
 
         if (message === 'TIMEOUT') {
-          this.logger.debug(`Qwen-TTS 接收超时(已接收${gotAudio ? '音频' : '无音频'})，结束`);
+          // 如果超过 2 秒没有收到任何消息，且已收到音频，则认为完成
+          if (gotAudio) {
+            this.logger.debug(`Qwen-TTS 接收完成 (已接收音频，2s 无新数据)`);
+            break;
+          }
+          this.logger.warn(`Qwen-TTS 接收超时 (2s 无响应)`);
           break;
         }
 
@@ -320,6 +365,7 @@ export class AliyunStrategy extends BaseStrategy {
             const deltaBuf = Buffer.from(delta, 'base64');
             audioBuffer = Buffer.concat([audioBuffer, deltaBuf]);
             gotAudio = true;
+            lastAudioTime = Date.now();
 
             while (audioBuffer.length >= YIELD_CHUNK_SIZE) {
               const chunk = audioBuffer.subarray(0, YIELD_CHUNK_SIZE);
@@ -333,16 +379,17 @@ export class AliyunStrategy extends BaseStrategy {
             }
           }
         } else if (type === 'response.done' || type === 'response.audio.done') {
-          // 单个响应完成，yield 当前缓冲区后立即结束
+          // 服务端明确告知完成，yield 当前缓冲区后立即结束
           if (audioBuffer.length > 0) {
             yield {
               audioData: audioBuffer.toString('base64'),
               format: 'pcm',
               sequence: sequence++,
-              isLast: false,
+              isLast: true,
             };
             audioBuffer = Buffer.alloc(0);
           }
+          this.logger.debug(`Qwen-TTS 收到完成信号 (${type})`);
           break;
         } else if (type === 'error' || type === 'response.error') {
           const errMsg = (data.error as any)?.message || message.slice(0, 200);
@@ -368,7 +415,7 @@ export class AliyunStrategy extends BaseStrategy {
           audioData: audioBuffer.toString('base64'),
           format: 'pcm',
           sequence: sequence++,
-          isLast: false,
+          isLast: true,
         };
       }
 

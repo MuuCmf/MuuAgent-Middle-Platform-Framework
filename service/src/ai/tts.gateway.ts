@@ -45,9 +45,20 @@ export class TtsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /** socket.id → 会话状态 */
   private sessionState = new Map<string, TtsSessionState>();
 
+  /** conversationId → 暂停时的音频缓冲队列 */
+  private pausedBuffer = new Map<string, Array<{
+    data: string;
+    format: string;
+    sequence: number;
+    isLast: boolean;
+  }>>();
+
   /**
    * 客户端连接处理
    * 从 query 中获取 conversationId 建立关联
+   *
+   * 如果同一 conversationId 已有旧连接（如 socket.io 自动重连场景），
+   * 优先清理旧映射，避免音频块推送到无效 socket。
    */
   async handleConnection(client: Socket): Promise<void> {
     const conversationId = client.handshake.query.conversationId as string;
@@ -58,6 +69,12 @@ export class TtsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('error', { message: '缺少 conversationId' });
       client.disconnect();
       return;
+    }
+
+    const oldClient = this.sessionMap.get(conversationId);
+    if (oldClient && oldClient.id !== client.id) {
+      this.sessionState.delete(oldClient.id);
+      this.sessionMap.delete(conversationId);
     }
 
     this.sessionMap.set(conversationId, client);
@@ -101,6 +118,16 @@ export class TtsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const state = this.sessionState.get(client.id);
     if (state) {
       state.status = 'streaming';
+
+      // 推送暂停期间缓存的音频块
+      const buffer = this.pausedBuffer.get(state.conversationId);
+      if (buffer && buffer.length > 0) {
+        for (const chunk of buffer) {
+          client.emit('audio_chunk', chunk);
+        }
+        this.pausedBuffer.delete(state.conversationId);
+        this.logger.debug(`TTS 恢复播放，推送缓存的 ${buffer.length} 个音频块`);
+      }
     }
   }
 
@@ -170,6 +197,13 @@ export class TtsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return false;
     }
     if (state?.status === 'paused') {
+      // 暂停状态下缓存音频块，恢复时推送
+      let buffer = this.pausedBuffer.get(conversationId);
+      if (!buffer) {
+        buffer = [];
+        this.pausedBuffer.set(conversationId, buffer);
+      }
+      buffer.push({ data, format, sequence, isLast });
       return true;
     }
 
