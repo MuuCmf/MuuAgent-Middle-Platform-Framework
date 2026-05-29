@@ -23,6 +23,7 @@ export class ExecutionContext {
   conversationId: string;
   isolationContext: IsolationContext;
   clientIp: string;
+  userAgent: string;
   uid?: string;
   appCode?: string;
 

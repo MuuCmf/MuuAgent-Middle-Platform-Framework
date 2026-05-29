@@ -1,8 +1,9 @@
-import { Logger } from '@nestjs/common';
+import { Logger, Inject, Optional, forwardRef } from '@nestjs/common';
 import { ReasoningMode, IReasoningEngine, ReasoningResult, ReasoningStep } from './types';
 import { ExecutionContext } from '../agent/execution/execution-context';
 import { StreamEmitter, StreamEvents } from '../stream';
 import { AiService } from '../ai/ai.service';
+import { TtsStreamService } from '../ai/tts-stream.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ToolExecutor } from '../agent/tools/tool-executor';
 import { ToolNameSanitizer } from '../ai/providers/tool-name-sanitizer';
@@ -56,6 +57,9 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     protected readonly toolExecutor: ToolExecutor,
     protected readonly prisma: PrismaService,
     protected readonly clientToolRegistry: ClientToolRegistry,
+    @Optional()
+    @Inject(forwardRef(() => TtsStreamService))
+    protected readonly ttsStreamService?: TtsStreamService,
   ) {
     this.logger = new Logger(this.constructor.name);
   }
@@ -148,6 +152,12 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
 
     await this.saveUserMessage(context);
 
+    // ========== TTS 实时合成状态 ==========
+    let sentenceBuffer = '';
+    let ttsInitialized = false;
+    const conversationId = context.conversationId;
+    const ttsEnabled = this.ttsStreamService?.isSessionActive(conversationId) ?? false;
+
     try {
       await this.beforeStreamLoop(context, messages, steps, emitter);
 
@@ -213,6 +223,36 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
           onChunk: (chunk) => {
             stepText += chunk;
             applySegments(parser.process(chunk));
+
+            // 实时句子检测并触发 TTS
+            if (ttsEnabled) {
+              sentenceBuffer += chunk;
+              if (
+                sentenceBuffer.length >= 10 &&
+                /[。！？.!?\n……]$/.test(sentenceBuffer)
+              ) {
+                if (!ttsInitialized) {
+                  this.ttsStreamService!.initTtsSession(
+                    conversationId,
+                    context.appCode,
+                  ).then((ok) => { ttsInitialized = ok; });
+                }
+                const sentence = sentenceBuffer;
+                sentenceBuffer = '';
+                this.ttsStreamService!.synthesizeSentence(
+                  sentence,
+                  conversationId,
+                  context.clientIp,
+                  context.userAgent,
+                  context.uid,
+                  context.appCode,
+                ).catch((err) =>
+                  this.logger.warn(
+                    `TTS 实时合成失败: ${(err as Error).message}`,
+                  ),
+                );
+              }
+            }
           },
           onToolCall: async (toolCall: { name: string; args: any }) => {
             applySegments(parser.flush());
@@ -262,8 +302,20 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
         }
       }
 
-      await this.finalizeStreamResponse(context, emitter, finalResponse, steps);
+      await this.finalizeStreamResponse(context, emitter, finalResponse, steps, ttsEnabled);
     } catch (error) {
+      // TTS：发生错误时刷新剩余 buffer
+      if (ttsEnabled && sentenceBuffer.trim()) {
+        this.ttsStreamService!.synthesizeSentence(
+          sentenceBuffer.trim(),
+          conversationId,
+          context.clientIp,
+          context.userAgent,
+          context.uid,
+          context.appCode,
+        ).catch(() => {});
+      }
+      this.ttsStreamService?.finalizeTtsSession(conversationId);
       this.emitStreamError(error, emitter);
     }
   }
@@ -558,7 +610,27 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     emitter: StreamEmitter,
     finalResponse: string,
     steps: ReasoningStep[],
+    flushTts?: boolean,
   ): Promise<void> {
+    // 刷新 TTS 剩余 buffer
+    if (flushTts && steps.length > 0) {
+      const lastStep = steps[steps.length - 1];
+      if (lastStep?.content && this.ttsStreamService) {
+        const conversationId = context.conversationId;
+        if (this.ttsStreamService.isSessionActive(conversationId)) {
+          this.ttsStreamService.synthesizeSentence(
+            lastStep.content,
+            conversationId,
+            context.clientIp,
+            context.userAgent,
+            context.uid,
+            context.appCode,
+          ).catch(() => {});
+          this.ttsStreamService.finalizeTtsSession(conversationId);
+        }
+      }
+    }
+
     await this.saveAssistantMessage(context, finalResponse);
     await this.generateTitleIfNeeded(context);
     await this.saveLog(context, { response: finalResponse, steps });

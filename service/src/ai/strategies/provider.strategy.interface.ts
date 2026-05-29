@@ -48,6 +48,20 @@ export interface ASRExecutionResult {
 }
 
 /**
+ * 流式TTS合成音频块
+ */
+export interface TTSStreamChunk {
+  /** 音频数据（Base64 编码） */
+  audioData: string;
+  /** 音频格式：pcm / mp3 / wav / opus */
+  format: string;
+  /** 当前块序号（从0开始） */
+  sequence: number;
+  /** 是否为最后一块 */
+  isLast: boolean;
+}
+
+/**
  * Provider 策略接口
  * 每个提供商实现自己的策略
  */
@@ -61,6 +75,13 @@ export interface IProviderStrategy {
    * 支持的 Provider 标识
    */
   readonly providerId: string;
+
+  /**
+   * 是否支持实时流式TTS合成
+   * 实时合成逐块返回音频数据（如PCM块），适合边生成边播放
+   * 非实时合成则等待完整音频生成后一次性返回
+   */
+  readonly supportsRealtimeTTS?: boolean;
 
   /**
    * 创建 SDK provider 实例
@@ -105,6 +126,17 @@ export interface IProviderStrategy {
    * @returns TTS结果
    */
   executeTTS?(params: TTSExecutionParams): Promise<TTSExecutionResult>;
+
+  /**
+   * 流式TTS合成（可选）
+   *
+   * 支持流式 TTS 输出的提供商实现此方法。
+   * TtsStreamService 不关心底层协议细节，只消费 AsyncIterable。
+   *
+   * @param params TTS执行参数（model / text / voice / speed / context）
+   * @returns 音频块异步迭代器
+   */
+  executeTTSStream?(params: TTSExecutionParams): AsyncIterable<TTSStreamChunk>;
 
   /**
    * ASR语音识别（可选）

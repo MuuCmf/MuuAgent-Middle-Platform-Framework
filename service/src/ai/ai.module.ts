@@ -31,6 +31,10 @@ import { StrategyFactory } from './strategies/strategy.factory';
 // 解析器层
 import { ToolCallParser } from './parsers/tool-call.parser';
 
+// TTS 流式语音
+import { TtsGateway } from './tts.gateway';
+import { TtsStreamService } from './tts-stream.service';
+
 /**
  * AI调用模块
  */
@@ -62,7 +66,11 @@ import { ToolCallParser } from './parsers/tool-call.parser';
 
     // 服务
     AiService,
+
+    // TTS 流式语音
+    TtsGateway,
+    TtsStreamService,
   ],
-  exports: [AiService],
+  exports: [AiService, TtsStreamService],
 })
 export class AiModule {}

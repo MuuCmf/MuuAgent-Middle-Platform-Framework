@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, Optional, forwardRef } from '@nestjs/common';
 import { ReasoningMode, ReasoningResult, ReasoningStep } from './types';
 import { ExecutionContext } from '../agent/execution/execution-context';
 import { StreamEmitter } from '../stream';
 import { AiService } from '../ai/ai.service';
+import { TtsStreamService } from '../ai/tts-stream.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { ToolExecutor } from '../agent/tools/tool-executor';
 import { PrismaService } from '../common/prisma/prisma.service';
@@ -23,8 +24,11 @@ export class ReflectReasoningEngine extends BaseReasoningEngine {
     toolExecutor: ToolExecutor,
     prisma: PrismaService,
     clientToolRegistry: ClientToolRegistry,
+    @Optional()
+    @Inject(forwardRef(() => TtsStreamService))
+    ttsStreamService?: TtsStreamService,
   ) {
-    super(aiService, conversationService, toolExecutor, prisma, clientToolRegistry);
+    super(aiService, conversationService, toolExecutor, prisma, clientToolRegistry, ttsStreamService);
   }
 
   async executeSync(context: ExecutionContext): Promise<ReasoningResult> {

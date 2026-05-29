@@ -2,6 +2,7 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, ConsoleLogger } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { NestExpressApplication } from "@nestjs/platform-express";
+import { IoAdapter } from "@nestjs/platform-socket.io";
 import { json } from "express";
 import { join } from "path";
 import { AppModule } from "./app.module";
@@ -80,6 +81,9 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: new CustomLogger(),
   });
+
+  // 配置 WebSocket 适配器（支持 socket.io）
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   const version = getVersion();
 

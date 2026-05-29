@@ -152,6 +152,7 @@ export class ContextBuilder {
     context.conversationId = String(conversation.id);
     context.isolationContext = isoCtx;
     context.uid = uid;
+    context.userAgent = 'agent-service';
     context.kbRetrievalConfig = kbRetrievalConfig;
     context.autoRetrievalResult = autoRetrievalResult;
     context.resolvedKbCodes = resolvedKbCodes;

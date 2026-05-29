@@ -3,6 +3,7 @@ import { BaseStrategy } from './base.strategy';
 import {
   TTSExecutionParams,
   TTSExecutionResult,
+  TTSStreamChunk,
   ASRExecutionParams,
   ASRExecutionResult,
 } from './provider.strategy.interface';
@@ -16,6 +17,7 @@ import OpenAI from 'openai';
 export class OpenAIStrategy extends BaseStrategy {
   readonly name = 'OpenAI';
   readonly providerId = 'openai';
+  readonly supportsRealtimeTTS = true;
 
   /**
    * TTS语音合成
@@ -47,6 +49,67 @@ export class OpenAIStrategy extends BaseStrategy {
       audioData,
       format: 'mp3',
     };
+  }
+
+  /**
+   * 流式TTS合成
+   *
+   * 使用 OpenAI TTS-1 模型的 PCM 格式流式输出。
+   * 通过读取 HTTP response body 逐块 yield 音频数据。
+   *
+   * @param params TTS执行参数
+   * @returns 音频块异步迭代器
+   */
+  async *executeTTSStream(
+    params: TTSExecutionParams,
+  ): AsyncIterable<TTSStreamChunk> {
+    const { model, text, voice, speed } = params;
+
+    this.logger.debug(
+      `OpenAI流式TTS: model=${model.code}, voice=${voice || 'alloy'}`,
+    );
+
+    const openai = new OpenAI({
+      apiKey: model.apiKey || process.env.OPENAI_API_KEY,
+      baseURL: model.endpoint || 'https://api.openai.com/v1',
+    });
+
+    const response = await openai.audio.speech.create({
+      model: model.code || 'tts-1',
+      input: text,
+      voice: (voice as any) || 'alloy',
+      speed: speed || 1.0,
+      response_format: 'pcm',
+    });
+
+    const stream = response.body as ReadableStream<Uint8Array>;
+    const reader = stream.getReader();
+    let sequence = 0;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          yield {
+            audioData: '',
+            format: 'pcm',
+            sequence,
+            isLast: true,
+          };
+          break;
+        }
+
+        yield {
+          audioData: Buffer.from(value).toString('base64'),
+          format: 'pcm',
+          sequence: sequence++,
+          isLast: false,
+        };
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   /**

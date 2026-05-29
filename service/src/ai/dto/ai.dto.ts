@@ -162,6 +162,70 @@ export class TtsDto {
 }
 
 /**
+ * 实时TTS语音合成请求DTO（管理端测试用）
+ * 用于触发WebSocket实时流式语音合成
+ */
+export class TtsRealtimeDto {
+  @ApiProperty({ description: '输入文本' })
+  @IsString()
+  @IsNotEmpty()
+  text: string;
+
+  @ApiProperty({ description: '会话ID（与WebSocket连接对应）' })
+  @IsString()
+  @IsNotEmpty()
+  conversationId: string;
+
+  @ApiPropertyOptional({ description: '语音ID' })
+  @IsString()
+  @IsOptional()
+  voice?: string;
+
+  @ApiPropertyOptional({ description: '语速' })
+  @IsNumber()
+  @Min(0.5)
+  @Max(2)
+  @IsOptional()
+  speed?: number;
+
+  @ApiPropertyOptional({ description: '指定模型标识' })
+  @IsString()
+  @IsOptional()
+  modelCode?: string;
+}
+
+/**
+ * TTS模型能力查询DTO（管理端测试用）
+ */
+export class TtsCapabilityDto {
+  @ApiPropertyOptional({ description: '指定模型标识' })
+  @IsString()
+  @IsOptional()
+  modelCode?: string;
+
+  @ApiPropertyOptional({ description: '语音ID' })
+  @IsString()
+  @IsOptional()
+  voice?: string;
+}
+
+/**
+ * TTS追加文本合成DTO（管理端测试用）
+ * 在已有实时会话中追加文本并触发合成
+ */
+export class TtsAppendDto {
+  @ApiProperty({ description: '追加的文本' })
+  @IsString()
+  @IsNotEmpty()
+  text: string;
+
+  @ApiProperty({ description: '会话ID（与实时会话对应）' })
+  @IsString()
+  @IsNotEmpty()
+  conversationId: string;
+}
+
+/**
  * ASR语音识别请求DTO
  */
 export class AsrDto {
