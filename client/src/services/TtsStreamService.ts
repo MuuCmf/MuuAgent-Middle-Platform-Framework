@@ -60,6 +60,13 @@ class TtsStreamService {
   private ttsEndReceived = false
   private ttsEndResolve: (() => void) | null = null
 
+  /** MP3 分片缓冲区：累积所有分片，在 tts_end 时合并为一个完整 MP3 播放 */
+  private mp3Chunks: string[] = []
+  /** 正在播放的 MP3 Blob URL，用于释放资源 */
+  private mp3BlobUrl: string | null = null
+  /** 是否正在播放合并后的 MP3 */
+  private isPlayingMp3 = false
+
   /** 是否已开始播放（用于预缓冲控制） */
   private hasStartedPlayback = false
   /** 预缓冲最小块数：累积足够音频再开始播放，避免边播边等导致卡顿 */
@@ -171,6 +178,9 @@ class TtsStreamService {
         this.ttsEndResolve()
         this.ttsEndResolve = null
       }
+      if (this.mp3Chunks.length > 0) {
+        this.playMp3Blob()
+      }
     })
 
     this.socket.on('tts_error', (error: { message: string }) => {
@@ -265,7 +275,7 @@ class TtsStreamService {
     const queueCheckInterval = 100
     const maxWait = timeoutMs
     let waited = 0
-    while ((this.audioQueue.length > 0 || this.isProcessing) && waited < maxWait) {
+    while ((this.audioQueue.length > 0 || this.isProcessing || this.isPlayingMp3) && waited < maxWait) {
       await new Promise((r) => setTimeout(r, queueCheckInterval))
       waited += queueCheckInterval
     }
@@ -291,6 +301,9 @@ class TtsStreamService {
     this.nextChunkTime = 0
     this.ttsEndReceived = false
     this.ttsEndResolve = null
+    this.mp3Chunks = []
+    this.isPlayingMp3 = false
+    this.revokeMp3BlobUrl()
     this.updateStatus('idle')
   }
 
@@ -349,6 +362,7 @@ class TtsStreamService {
     this.nextChunkTime = 0
     this.currentChunk = null
     this.retryCount = 0
+    this.isPlayingMp3 = false
     this.updateStatus('stopped')
   }
 
@@ -400,6 +414,17 @@ class TtsStreamService {
 
     console.log(`[TtsStream] 收到音频块: seq=${chunk.sequence}, format=${chunk.format}, size=${chunk.data.length}, isLast=${chunk.isLast}`)
 
+    // MP3 格式：累积到缓冲区，isLast 到来时合并为完整 MP3 播放
+    // 会话模式下，每句话会收到若干块后以 isLast=true 结束，需逐句播放
+    // 当前句播放中时，后续句子的块会继续累积，播放结束后自动触发下一句
+    if (chunk.format === 'mp3') {
+      this.mp3Chunks.push(chunk.data)
+      if (chunk.isLast) {
+        this.playMp3Blob()
+      }
+      return
+    }
+
     if (this.audioQueue.length >= this.MAX_QUEUE_SIZE) {
       console.warn(`[TtsStream] 音频队列已满(${this.MAX_QUEUE_SIZE})，丢弃旧块`)
       this.audioQueue.shift()
@@ -408,8 +433,6 @@ class TtsStreamService {
     this.audioQueue.push(chunk)
 
     if (!this.isProcessing && !this.isPaused) {
-      // 预缓冲：首次播放或队列排空后重新累积足够块数再开始
-      // 如果已收到 tts_end 说明后续无更多块，立即开始无需等待
       if (!this.hasStartedPlayback && this.audioQueue.length < this.MIN_BUFFER_COUNT && !this.ttsEndReceived) {
         console.log(`[TtsStream] 预缓冲中: ${this.audioQueue.length}/${this.MIN_BUFFER_COUNT}`)
         return
@@ -582,6 +605,86 @@ class TtsStreamService {
   }
 
   /**
+   * 播放合并后的完整 MP3 Blob
+   *
+   * 将所有 MP3 分片（mp3Chunks）按顺序合并为一个完整的 MP3 文件，
+   * 创建 Blob URL 并使用 Audio 元素播放。
+   * 播放完毕后自动释放 Blob URL。
+   */
+  private playMp3Blob(): void {
+    if (this.mp3Chunks.length === 0 || this.isPlayingMp3) return
+
+    this.isPlayingMp3 = true
+    this.updateStatus('playing')
+
+    const binaryStrings = this.mp3Chunks.map(data => atob(data))
+    const totalLength = binaryStrings.reduce((sum, s) => sum + s.length, 0)
+    const bytes = new Uint8Array(totalLength)
+    let offset = 0
+    for (const str of binaryStrings) {
+      for (let i = 0; i < str.length; i++) {
+        bytes[offset++] = str.charCodeAt(i)
+      }
+    }
+
+    const blob = new Blob([bytes], { type: 'audio/mp3' })
+    this.revokeMp3BlobUrl()
+    this.mp3BlobUrl = URL.createObjectURL(blob)
+    this.mp3Chunks = []
+
+    const audio = new Audio(this.mp3BlobUrl)
+    audio.volume = voiceService.getConfig().volume
+    this.currentSourceHtml = audio
+
+    const timeoutMs = 30000
+    let settled = false
+
+    const finish = () => {
+      if (settled) return
+      settled = true
+      this.isPlayingMp3 = false
+      this.currentSourceHtml = null
+      this.updateStatus('streaming')
+      this.revokeMp3BlobUrl()
+      if (this.mp3Chunks.length > 0) {
+        this.playMp3Blob()
+      }
+    }
+
+    const timeout = setTimeout(() => {
+      console.warn(`[TtsStream] MP3 Blob 播放超时(${timeoutMs}ms)`)
+      finish()
+    }, timeoutMs)
+
+    audio.onended = () => {
+      clearTimeout(timeout)
+      finish()
+    }
+    audio.onerror = (e) => {
+      clearTimeout(timeout)
+      console.error('[TtsStream] MP3 Blob 播放失败:', e)
+      this.callbacks.onError?.(new Error(`MP3 Blob 播放失败: ${e}`))
+      finish()
+    }
+    audio.play().catch((e) => {
+      clearTimeout(timeout)
+      console.error('[TtsStream] MP3 Blob play() 失败:', e)
+      this.callbacks.onError?.(new Error(`MP3 Blob play() 失败: ${e}`))
+      finish()
+    })
+  }
+
+  /**
+   * 释放 MP3 Blob URL
+   */
+  private revokeMp3BlobUrl(): void {
+    if (this.mp3BlobUrl) {
+      URL.revokeObjectURL(this.mp3BlobUrl)
+      this.mp3BlobUrl = null
+    }
+  }
+
+  /**
    * 播放 MP3 音频块
    *
    * @param chunk 音频块数据
@@ -661,6 +764,9 @@ class TtsStreamService {
     }
 
     this.currentChunk = null
+    this.mp3Chunks = []
+    this.isPlayingMp3 = false
+    this.revokeMp3BlobUrl()
   }
 
   /**
@@ -763,6 +869,9 @@ class TtsStreamService {
     this.retryCount = 0
     this.ttsEndReceived = false
     this.ttsEndResolve = null
+    this.mp3Chunks = []
+    this.isPlayingMp3 = false
+    this.revokeMp3BlobUrl()
     this.updateStatus('idle')
   }
 }

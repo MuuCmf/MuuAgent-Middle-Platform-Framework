@@ -10,8 +10,8 @@ import { TTSExecutionParams } from '../strategies/provider.strategy.interface';
  * TTS 语音合成服务
  *
  * 职责：
- * - 会话模式（commit）：一个对话复用一个WebSocket连接，逐句提交合成
- * - 单次模式（server_commit）：每句创建新连接，用于非对话场景
+ * - 会话模式：一个对话复用一个火山引擎 V3 双向 WebSocket 连接，逐句提交合成
+ * - 单次模式：每句使用策略模式 HTTP 流式合成（策略取决于当前选中的模型）
  * - 批量模式：整段文本一次性合成
  */
 @Injectable()
@@ -49,7 +49,7 @@ export class TtsService {
   /**
    * 发送文本并提交合成（会话模式）
    *
-   * 在commit模式下，先追加文本到缓冲区，然后提交触发合成。
+   * 在会话模式下，发送文本通过火山引擎 V3 双向 WebSocket。
    * 音频数据由后台消费者自动推送到客户端。
    *
    * @param conversationId 会话ID
@@ -64,8 +64,7 @@ export class TtsService {
   /**
    * 关闭TTS会话
    *
-   * 发送session.finish通知服务端合成完成，
-   * 等待剩余音频推送完毕后关闭WebSocket连接。
+   * 关闭火山引擎 V3 双向 WebSocket 连接。
    *
    * @param conversationId 会话ID
    */
@@ -88,7 +87,7 @@ export class TtsService {
    * 流式合成（单次模式，每句创建新连接）
    *
    * 同 conversationId 的多个句子自动排队串行处理，
-   * 避免并发 HTTP 请求导致音频块在客户端交错到达。
+   * 避免并发合成导致音频块在客户端交错到达。
    *
    * 适用于非对话场景（如管理后台测试）。
    * 对话场景请使用 ensureSession/sendText/closeSession 会话模式。
@@ -169,7 +168,7 @@ export class TtsService {
    */
   isSentenceComplete(text: string, maxLength: number = 200): boolean {
     if (!text || text.length === 0) return false;
-    if (text.length >= 4 && /[。！？.!?\n……]$/.test(text)) return true;
+    if (text.length >= 2 && /[。！？.!?\n……]$/.test(text)) return true;
     if (text.length >= maxLength) return true;
     return false;
   }
@@ -211,7 +210,7 @@ export class TtsService {
         return;
       }
 
-      const voiceId = voice || clientParams?.voiceId || 'Cherry';
+      const voiceId = voice || clientParams?.voiceId || 'zh_female_vv_uranus_bigtts';
       const voiceSpeed = speed || clientParams?.speed || 1.0;
 
       const execParams: TTSExecutionParams = {
@@ -242,6 +241,7 @@ export class TtsService {
     } catch (error) {
       this.logger.error(`TTS 合成失败: ${(error as Error).message}`);
       this.gateway.notifyError(conversationId, `语音合成失败: ${(error as Error).message}`);
+      this.gateway.notifyEnd(conversationId);
     }
   }
 
@@ -253,13 +253,28 @@ export class TtsService {
    */
   private async resolveModel(modelCode?: string, voice?: string): Promise<any> {
     if (modelCode) {
-      try { return await this.modelRouting.selectModelByIntent('tts', 'tts:realtime', modelCode); } catch { /* fallthrough */ }
+      try { return await this.modelRouting.selectModelByIntent('tts', 'tts:realtime', modelCode); } catch {
+        // selectModelByIntent 失败时，直接从 DB 查找，避免 fallthrough 到其他供应商
+        try {
+          const model = await this.prisma.model.findFirst({
+            where: { code: modelCode, type: 'tts', status: true },
+          });
+          if (model) return model;
+        } catch { /* fallthrough */ }
+      }
     }
 
     if (voice) {
       const code = await this.getVoiceModelCode(voice);
       if (code) {
-        try { return await this.modelRouting.selectModelByIntent('tts', 'tts:realtime', code); } catch { /* fallthrough */ }
+        try { return await this.modelRouting.selectModelByIntent('tts', 'tts:realtime', code); } catch {
+          try {
+            const model = await this.prisma.model.findFirst({
+              where: { code, type: 'tts', status: true },
+            });
+            if (model) return model;
+          } catch { /* fallthrough */ }
+        }
       }
     }
 
@@ -317,7 +332,7 @@ export class TtsService {
       .replace(/`([^`]+)`/g, '$1')
       .replace(/```[\s\S]*?```/g, '')
       .replace(/^#{1,6}\s+/gm, '')
-      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/gu, '')
       .replace(/\s+/g, ' ')
       .trim();
   }

@@ -128,7 +128,7 @@ export class ModelService {
   async findByCode(code: string) {
     console.log('查找模型，code:', code);
     const model = await this.prisma.model.findUnique({ where: { code } });
-    console.log('查询结果:', model);
+    //console.log('查询结果:', model);
     if (!model) {
       throw new NotFoundException(`模型不存在，请检查模型代码: ${code}`);
     }

@@ -4,84 +4,209 @@ import { ModelRoutingService } from '../../model-routing/model-routing.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import * as WebSocket from 'ws';
 
+// ──────────────────────────────────────────────────
+// 火山引擎 V3 双向 WS 二进制协议常量
+// ──────────────────────────────────────────────────
+
+/** 消息类型（Byte 1 高4位） */
+const MT_FULL_CLIENT_REQ = 0x01;
+const MT_FULL_SERVER_RES = 0x09;
+const MT_AUDIO_ONLY_RES = 0x0B;
+const MT_ERROR_INFO = 0x0F;
+
+/** 特定标志（Byte 1 低4位）：包含事件号 */
+const FLAG_HAS_EVENT = 0x04;
+const FLAG_HAS_CONNECT_ID = 0x01;
+
+/** 序列化方式（Byte 2 高4位） */
+const SER_JSON = 0x10;
+const SER_RAW = 0x00;
+
+/** 压缩方式（Byte 2 低4位） */
+const COMP_NONE = 0x00;
+
+/** 事件号 */
+const EV_START_SESSION = 100;
+const EV_SESSION_STARTED = 101;
+const EV_TASK_REQUEST = 102;
+const EV_AUDIO_DATA = 103;
+const EV_FINISH_SESSION = 104;
+const EV_SESSION_FINISHED = 152;
+
+// ──────────────────────────────────────────────────
+// 二进制帧构建器
+// ──────────────────────────────────────────────────
+
 /**
- * 活跃的TTS会话
+ * 构建火山引擎 V3 二进制帧
  *
- * 管理一个对话与阿里云DashScope TTS服务之间的WebSocket连接。
- * 使用Commit模式，客户端显式控制文本提交与合成时机。
+ * 帧结构：
+ *   Byte 0: [ProtocolVersion(4bit) | HeaderSize(4bit)] = 0x11
+ *   Byte 1: [MessageType(4bit) | SpecificFlags(4bit)]
+ *   Byte 2: [Serialization(4bit) | Compression(4bit)]
+ *   Byte 3: Reserved = 0x00
+ *   Byte 4~7: EventNumber (32-bit big-endian)   ← 当 flags 包含 FLAG_HAS_EVENT
+ *   Byte 8+: Payload
+ *
+ * @param messageType 消息类型（MT_FULL_CLIENT_REQ 等）
+ * @param event 事件号
+ * @param serialization 序列化方式（SER_JSON / SER_RAW）
+ * @param payload 载荷（Buffer）
+ * @returns 完整二进制帧
  */
-interface ActiveTtsSession {
-  /** 会话ID（即conversationId） */
-  conversationId: string;
-  /** WebSocket连接 */
-  ws: WebSocket;
-  /** 语音标识 */
-  voice: string;
-  /** 语速 */
-  speed: number;
-  /** 音频块序号 */
-  seq: number;
-  /** 是否已关闭 */
-  closed: boolean;
-  /** 消息队列 */
-  msgQueue: string[];
-  /** 消息等待回调 */
-  msgResolve: ((m: string) => void) | null;
-  /** 音频消费者完成的Promise resolve */
-  consumerDone: (() => void) | null;
-  /** 音频消费者Promise */
-  consumerPromise: Promise<void> | null;
-  /** 是否已进入关闭流程 */
-  finishing: boolean;
-  /** 活跃response数量（收到response.created但尚未response.done） */
-  activeResponses: number;
-  /** 本地暂存的待合成文本（活跃response期间不直接append到DashScope） */
-  pendingTexts: string[];
-  /** 是否已发送commit但尚未收到response.created（时序竞争防护） */
-  commitInFlight: boolean;
-  /** 是否已调度延迟flush（防重复调度） */
-  flushScheduled: boolean;
-  /** response完成等待回调列表 */
-  responseWaiters: (() => void)[];
+function buildFrame(
+  messageType: number,
+  event: number,
+  serialization: number,
+  payload?: Buffer,
+): Buffer {
+  const flags = FLAG_HAS_EVENT;
+  const headerSizeMultiplier = 1; // 1 × 4 = 4 字节头部
+  const payloadBuf = payload || Buffer.alloc(0);
+
+  const frame = Buffer.alloc(8 + payloadBuf.length);
+
+  frame[0] = (0x01 << 4) | headerSizeMultiplier; // 0x11
+  frame[1] = (messageType << 4) | flags;
+
+  if (serialization === SER_JSON) {
+    frame[2] = SER_JSON | COMP_NONE; // 0x10
+  } else {
+    frame[2] = SER_RAW | COMP_NONE; // 0x00
+  }
+
+  frame[3] = 0x00;
+
+  // Event number (32-bit big-endian)
+  frame.writeUInt32BE(event, 4);
+
+  // Payload
+  if (payloadBuf.length > 0) {
+    payloadBuf.copy(frame, 8);
+  }
+
+  return frame;
 }
 
 /**
- * TTS会话管理器
+ * 构建一个 JSON 请求帧
  *
- * 管理每个对话的TTS WebSocket会话生命周期。
- * 使用Commit模式：客户端显式控制文本提交时机，
- * 确保所有文本合成完毕后再关闭会话。
- *
- * 为什么不用ServerCommit模式：
- * ServerCommit模式下DashScope不主动发response.done，
- * session.finish也不会触发排空剩余文本，导致未合成文本被丢弃。
- *
- * Commit模式的关键优势：
- * - 客户端显式commit，DashScope知道文本何时完整
- * - DashScope会正确发送response.done，可追踪合成完成
- * - 关闭时等所有response完成，确保文本全部合成
- *
- * Commit调度规则：
- * - 无活跃response时，append后立即commit到DashScope
- * - 有活跃response时，文本暂存本地pendingTexts，等response.done后再flush
- * - 这样避免DashScope忽略活跃response期间的commit
+ * @param event 事件号
+ * @param payloadObj JSON 对象
+ * @returns 完整二进制帧
  */
+function buildJsonFrame(event: number, payloadObj: object): Buffer {
+  const jsonStr = JSON.stringify(payloadObj);
+  const payloadBuf = Buffer.from(jsonStr, 'utf-8');
+  return buildFrame(MT_FULL_CLIENT_REQ, event, SER_JSON, payloadBuf);
+}
+
+// ──────────────────────────────────────────────────
+// 二进制帧解析器
+// ──────────────────────────────────────────────────
+
+interface ParsedFrame {
+  /** 事件号 */
+  event: number;
+  /** 载荷（原始 Buffer） */
+  payload: Buffer;
+  /** 是否为 JSON 序列化 */
+  isJson: boolean;
+  /** 是否为音频纯数据帧 */
+  isAudio: boolean;
+  /** 是否为错误帧 */
+  isError: boolean;
+  /** 若非 JSON 可解析，payload 文本（用于日志） */
+  payloadText?: string;
+  /** JSON 解析后的对象 */
+  payloadObj?: any;
+}
+
+/**
+ * 尝试在缓冲区中解析一个完整的帧
+ *
+ * @param buf 包含二进制数据的 Buffer
+ * @returns 解析结果或 null（帧不完整）
+ */
+function parseFrame(buf: Buffer): ParsedFrame | null {
+  if (buf.length < 8) return null;
+
+  const headerSizeMultiplier = buf[0] & 0x0F;
+  const headerBytes = headerSizeMultiplier * 4;
+  if (headerBytes < 8) return null;
+  if (buf.length < headerBytes) return null;
+
+  const protocolVersion = buf[0] >> 4;
+  if (protocolVersion !== 1) return null;
+
+  const msgType = buf[1] >> 4;
+  const flags = buf[1] & 0x0F;
+  const serialization = buf[2] >> 4;
+  const hasEvent = (flags & FLAG_HAS_EVENT) !== 0;
+
+  let offset = headerBytes;
+
+  let event = 0;
+  if (hasEvent) {
+    if (buf.length < offset + 4) return null;
+    event = buf.readUInt32BE(offset);
+    offset += 4;
+  }
+
+  const payload = buf.subarray(offset);
+
+  const isError = msgType === MT_ERROR_INFO;
+  const isAudio = msgType === MT_AUDIO_ONLY_RES;
+  const isJson = serialization === 0x01;
+
+  let payloadObj: any = undefined;
+  let payloadText: string | undefined = undefined;
+
+  if (isJson && payload.length > 0) {
+    payloadText = payload.toString('utf-8');
+    try {
+      payloadObj = JSON.parse(payloadText);
+    } catch { /* ignore */ }
+  }
+
+  return { event, payload, isJson, isAudio, isError, payloadText, payloadObj };
+}
+
+// ──────────────────────────────────────────────────
+// 会话状态
+// ──────────────────────────────────────────────────
+
+interface VolcTtsSession {
+  conversationId: string;
+  ws: WebSocket;
+  voice: string;
+  speed: number;
+  seq: number;
+  closed: boolean;
+  activeRequest: boolean;
+  pendingTexts: string[];
+  receivedAudio: boolean;
+  serverClosed: boolean;
+  sessionEstablished: boolean;
+  /** 接收缓冲区（黏包处理） */
+  recvBuf: Buffer;
+  /** 等待 SessionStarted 的 resolve/reject */
+  sessionReadyResolve: (() => void) | null;
+  sessionReadyReject: ((err: Error) => void) | null;
+}
+
+// ──────────────────────────────────────────────────
+// TTS 会话管理器
+// ──────────────────────────────────────────────────
+
 @Injectable()
 export class TtsSessionManager {
   private readonly logger = new Logger(TtsSessionManager.name);
 
-  /** conversationId → ActiveTtsSession */
-  private sessions = new Map<string, ActiveTtsSession>();
-
-  /** 正在打开会话中的 conversationId（防止并发重复创建） */
+  private sessions = new Map<string, VolcTtsSession>();
   private sessionOpening = new Set<string>();
 
-  /** 阿里云 Qwen-TTS 支持的音色列表 */
-  private static readonly ALIYUN_QWEN_VOICES = new Set([
-    'Cherry', 'Serena', 'Ethan', 'Chelsie', 'Momo', 'Vivian',
-    'Moon', 'Maia', 'Kai', 'Nofish', 'Bella', 'Jennifer',
-    'Dylan', 'Sunny', 'Aiden', 'Ryan', 'Soji',
-  ]);
+  private readonly MIN_AUDIO_BYTES = 200;
 
   constructor(
     @Inject(forwardRef(() => TtsGateway))
@@ -90,24 +215,11 @@ export class TtsSessionManager {
     private readonly prisma: PrismaService,
   ) {}
 
-  /**
-   * 确保TTS会话已打开
-   *
-   * 使用 sessionOpening 集合防止并发重复创建：
-   * 当第一个 ensureSession() 正在建立 WebSocket 连接时，
-   * 第二个并发调用会等待第一个完成，避免创建重复会话。
-   *
-   * @param conversationId 会话ID
-   * @param modelCode 模型编码（可选）
-   * @returns 会话是否就绪
-   */
   async ensureSession(conversationId: string, modelCode?: string): Promise<boolean> {
     if (this.isSessionActive(conversationId)) return true;
     if (!this.gateway.isConnected(conversationId)) return false;
 
-    // 防止并发重复创建
     if (this.sessionOpening.has(conversationId)) {
-      this.logger.debug(`等待其他 ensureSession 完成: ${conversationId}`);
       while (this.sessionOpening.has(conversationId)) {
         if (this.isSessionActive(conversationId)) return true;
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -121,56 +233,55 @@ export class TtsSessionManager {
       return true;
     } catch (error) {
       this.logger.error(`打开TTS会话失败: ${(error as Error).message}`);
+      const partialSession = this.sessions.get(conversationId);
+      if (partialSession && !partialSession.closed) {
+        partialSession.closed = true;
+        try { partialSession.ws.close(1000, 'session_failed'); } catch { /* ignore */ }
+      }
+      this.sessions.delete(conversationId);
       return false;
     } finally {
       this.sessionOpening.delete(conversationId);
     }
   }
 
-  /**
-   * 打开TTS会话
-   *
-   * @param conversationId 会话ID
-   * @param modelCode 模型编码（可选）
-   */
   async openSession(conversationId: string, modelCode?: string): Promise<void> {
     if (this.sessions.has(conversationId)) {
       await this.closeSession(conversationId);
     }
 
     if (!this.gateway.isConnected(conversationId)) {
-      this.logger.warn(`客户端未连接，跳过TTS会话打开: ${conversationId}`);
-      return;
+      throw new Error('客户端未连接');
     }
 
     const clientParams = this.gateway.getClientParams(conversationId);
-    const voiceId = clientParams?.voiceId || 'Cherry';
+    const voiceId = clientParams?.voiceId || 'zh_female_vv_uranus_bigtts';
+    const voiceSpeed = clientParams?.speed || 1.0;
 
     const model = await this.resolveModel(modelCode, voiceId);
-    const provider = model.provider || '';
+    const apiKey = this.resolveApiKey(model.apiKey);
+    const modelCodeResolved = model.code || 'seed-tts-2.0';
+    const wsEndpoint = model.endpoint || 'wss://openspeech.bytedance.com/api/v3/tts/bidirection';
 
-    if (provider === 'volcengine') {
-      throw new Error('火山引擎 seed-tts 模型不支持会话模式，请使用非会话合成');
+    // 从 model.config 解析 APP ID（双向 WS 需要 X-Api-App-Key）
+    const appId = this.resolveAppId(model.config);
+
+    this.logger.debug(`打开TTS会话: ${conversationId}, model=${modelCodeResolved}, voice=${voiceId}, hasAppId=${!!appId}`);
+
+    const wsHeaders: Record<string, string> = {
+      'X-Api-Resource-Id': modelCodeResolved,
+      'X-Api-Connect-Id': crypto.randomUUID(),
+      'User-Agent': 'muu-agent-service/1.0',
+    };
+
+    if (appId) {
+      wsHeaders['X-Api-App-Key'] = appId;
+      wsHeaders['X-Api-Access-Key'] = apiKey;
+    } else {
+      wsHeaders['X-Api-Key'] = apiKey;
     }
 
-    const apiKey = model.apiKey || process.env.DASHSCOPE_API_KEY;
-    if (!apiKey) {
-      throw new Error('DashScope API Key 未配置');
-    }
-
-    const resolvedVoice = this.resolveVoice(voiceId);
-    const voiceSpeed = clientParams?.speed || 1.0;
-    const modelCodeResolved = model.code || 'qwen3-tts-flash-realtime';
-
-    this.logger.debug(`打开TTS会话: ${conversationId}, model=${modelCodeResolved}, voice=${resolvedVoice}, speed=${voiceSpeed}`);
-
-    const wsUrl = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${modelCodeResolved}`;
-    const ws = new WebSocket(wsUrl, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'User-Agent': 'muu-agent-service/1.0',
-      },
-    });
+    const ws = new WebSocket(wsEndpoint, { headers: wsHeaders });
 
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('WebSocket 连接超时(10s)')), 10000);
@@ -178,120 +289,247 @@ export class TtsSessionManager {
       ws.onerror = () => { clearTimeout(timer); reject(new Error('WebSocket 连接失败')); };
     });
 
-    const session: ActiveTtsSession = {
+    const session: VolcTtsSession = {
       conversationId,
       ws,
-      voice: resolvedVoice,
+      voice: voiceId,
       speed: voiceSpeed,
       seq: 0,
       closed: false,
-      msgQueue: [],
-      msgResolve: null,
-      consumerDone: null,
-      consumerPromise: null,
-      finishing: false,
-      activeResponses: 0,
+      activeRequest: false,
       pendingTexts: [],
-      commitInFlight: false,
-      flushScheduled: false,
-      responseWaiters: [],
+      receivedAudio: false,
+      serverClosed: false,
+      sessionEstablished: false,
+      recvBuf: Buffer.alloc(0),
+      sessionReadyResolve: null,
+      sessionReadyReject: null,
     };
+
+    this.sessions.set(conversationId, session);
+    this.setupWsHandlers(session);
+
+    // 发送 StartSession（event=100）
+    this.logger.debug(`发送 StartSession`);
+    const startSessionPayload = {
+      event: EV_START_SESSION,
+      user: { uid: conversationId },
+      namespace: 'BidirectionalTTS',
+      req_params: this.buildSessionConfig(voiceId, voiceSpeed),
+    };
+    ws.send(buildJsonFrame(EV_START_SESSION, startSessionPayload));
+
+    // 等待 SessionStarted（event=101），最多 10s
+    await new Promise<void>((resolve, reject) => {
+      session.sessionReadyResolve = resolve;
+      session.sessionReadyReject = reject;
+      const timer = setTimeout(() => {
+        session.sessionReadyResolve = null;
+        session.sessionReadyReject = null;
+        reject(new Error('等待 SessionStarted 超时(10s)'));
+      }, 10000);
+      // 包装 resolve 以清除计时器
+      const origResolve = resolve;
+      session.sessionReadyResolve = () => {
+        clearTimeout(timer);
+        session.sessionReadyResolve = null;
+        session.sessionReadyReject = null;
+        origResolve();
+      };
+    });
+
+    session.sessionEstablished = true;
+    this.gateway.notifyStart(conversationId);
+
+    this.logger.debug(`TTS 会话已打开: ${conversationId}`);
+  }
+
+  private setupWsHandlers(session: VolcTtsSession): void {
+    const { ws } = session;
 
     ws.on('message', (raw: WebSocket.Data) => {
       if (session.closed) return;
-      const m = typeof raw === 'string' ? raw : raw.toString();
-      if (session.msgResolve) {
-        const r = session.msgResolve;
-        session.msgResolve = null;
-        r(m);
+
+      // WS 库可能返回 Buffer 或 ArrayBuffer
+      let buf: Buffer;
+      if (raw instanceof Buffer) {
+        buf = raw;
+      } else if (raw instanceof ArrayBuffer) {
+        buf = Buffer.from(raw);
+      } else if (Array.isArray(raw)) {
+        // 分片帧：拼接所有 Buffer
+        const chunks = raw.filter((c): c is Buffer => c instanceof Buffer || c instanceof Uint8Array);
+        buf = Buffer.concat(chunks.map(c => Buffer.from(c)));
+      } else if (typeof raw === 'string') {
+        buf = Buffer.from(raw, 'utf-8');
       } else {
-        session.msgQueue.push(m);
+        buf = Buffer.from(raw as any);
+      }
+
+      this.handleBinaryData(session, buf);
+    });
+
+    ws.on('close', (code: number, reason: Buffer) => {
+      const reasonStr = reason ? reason.toString('utf-8') : '';
+      this.logger.debug(`火山引擎 WS 关闭: code=${code}, reason="${reasonStr}"`);
+      if (!session.closed) {
+        session.serverClosed = true;
+      }
+      session.closed = true;
+      session.activeRequest = false;
+      if (session.sessionReadyReject) {
+        const reject = session.sessionReadyReject;
+        session.sessionReadyResolve = null;
+        session.sessionReadyReject = null;
+        reject(new Error(`火山引擎 WS 异常关闭: code=${code}, reason="${reasonStr}"`));
       }
     });
 
-    ws.on('close', () => {
+    ws.on('error', (err: Error) => {
+      this.logger.error(`火山引擎 WS 错误: ${err.message}`);
+      if (!session.closed) {
+        session.serverClosed = true;
+      }
       session.closed = true;
-      session.commitInFlight = false;
-      this.notifyResponseWaiters(session);
-      if (session.msgResolve) {
-        const r = session.msgResolve;
-        session.msgResolve = null;
-        r('');
+      session.activeRequest = false;
+      if (session.sessionReadyReject) {
+        const reject = session.sessionReadyReject;
+        session.sessionReadyResolve = null;
+        session.sessionReadyReject = null;
+        reject(new Error(`火山引擎 WS 错误: ${err.message}`));
       }
     });
+  }
 
-    ws.on('error', () => {
-      session.closed = true;
-      session.commitInFlight = false;
-      this.notifyResponseWaiters(session);
-      if (session.msgResolve) {
-        const r = session.msgResolve;
-        session.msgResolve = null;
-        r('');
-      }
-    });
+  private handleBinaryData(session: VolcTtsSession, data: Buffer): void {
+    // 黏包处理：追加到接收缓冲区
+    session.recvBuf = Buffer.concat([session.recvBuf, data]);
 
-    this.sessions.set(conversationId, session);
+    while (session.recvBuf.length >= 8) {
+      const frame = parseFrame(session.recvBuf);
+      if (!frame) break;
 
-    try {
-      const first = await this.nextMessage(session, 15000);
-      if (first === 'TIMEOUT' || !first) throw new Error('未收到 session.created');
+      // 移除已解析的帧
+      const headerSize = (session.recvBuf[0] & 0x0F) * 4;
+      let frameSize = headerSize;
+      if (frame.event !== undefined) frameSize += 4;
+      frameSize += frame.payload.length;
+      const remaining = session.recvBuf.subarray(frameSize);
+      session.recvBuf = Buffer.from(remaining);
 
-      this.send(session, {
-        event_id: crypto.randomUUID(),
-        type: 'session.update',
-        session: {
-          voice: resolvedVoice,
-          mode: 'commit',
-          response_format: 'pcm',
-          sample_rate: 24000,
-          language_type: 'Chinese',
-        },
-      });
-
-      let updated = false;
-      const deadline = Date.now() + 5000;
-      while (Date.now() < deadline) {
-        const m = await this.nextMessage(session, Math.min(deadline - Date.now(), 2000));
-        if (m === 'TIMEOUT' || !m) break;
-        try {
-          const d = JSON.parse(m);
-          if (d.type === 'session.updated') { updated = true; break; }
-          if (d.type === 'error' || d.type === 'response.error') {
-            throw new Error(`session.update 错误: ${d.error?.message || m.slice(0, 200)}`);
-          }
-        } catch (e) {
-          if ((e as Error).message?.startsWith('session.update')) throw e;
-        }
-      }
-      if (!updated) this.logger.warn('未收到 session.updated 确认，继续');
-
-      this.gateway.notifyStart(conversationId);
-
-      this.startAudioConsumer(session);
-
-      this.logger.debug(`TTS 会话已打开: ${conversationId}`);
-    } catch (error) {
-      session.closed = true;
-      try { ws.close(); } catch { /* ignore */ }
-      this.sessions.delete(conversationId);
-      throw error;
+      this.handleFrame(session, frame);
     }
   }
 
-  /**
-   * 追加文本到合成缓冲区并调度commit
-   *
-   * Commit模式下，append后需要显式commit触发合成。
-   * 调度规则：
-   * - 无活跃response且无飞行中commit时，立即append+commit到DashScope
-   * - 有活跃response或飞行中commit时，将文本暂存到本地pendingTexts队列，
-   *   等response完成后再一次性flush到DashScope。
-   *   这是因为DashScope在活跃response期间会忽略input_text_buffer.append。
-   *
-   * @param conversationId 会话ID
-   * @param text 要合成的文本
-   */
+  private handleFrame(session: VolcTtsSession, frame: ParsedFrame): void {
+    const { event, payload, isJson, isAudio, isError, payloadObj, payloadText } = frame;
+
+    this.logger.debug(
+      `收到帧: event=${event}, isJson=${isJson}, isAudio=${isAudio}, isError=${isError}, payloadLen=${payload.length}`,
+    );
+
+    if (isError) {
+      this.logger.warn(`火山引擎 WS 错误帧: payload=${payloadText || payload.toString('hex').slice(0, 100)}`);
+      if (session.sessionReadyResolve) {
+        session.sessionReadyResolve();
+        session.sessionReadyResolve = null;
+      }
+      this.handleRequestEnd(session);
+      return;
+    }
+
+    // 错误码检测（JSON 中的 code 字段）
+    if (payloadObj && payloadObj.code !== undefined && payloadObj.code !== 0 && payloadObj.code !== 20000000) {
+      this.logger.warn(`火山引擎错误: code=${payloadObj.code}, message=${payloadObj.message || ''}`);
+      this.gateway.notifyError(session.conversationId, `火山引擎错误: ${payloadObj.message || payloadObj.code}`);
+      if (session.sessionReadyResolve) {
+        session.sessionReadyResolve();
+        session.sessionReadyResolve = null;
+      }
+      this.handleRequestEnd(session);
+      return;
+    }
+
+    switch (event) {
+      case EV_SESSION_STARTED:
+        this.logger.debug(`SessionStarted 确认`);
+        if (session.sessionReadyResolve) {
+          const resolve = session.sessionReadyResolve;
+          session.sessionReadyResolve = null;
+          session.sessionReadyReject = null;
+          resolve();
+        }
+        break;
+
+      case EV_AUDIO_DATA:
+        if (isAudio && payload.length > 0) {
+          this.handleAudioPayload(session, payload);
+        } else if (isJson && payloadObj && payloadObj.data) {
+          this.handleAudioData(session, payloadObj.data, payloadObj.is_last === true);
+        }
+        break;
+
+      case EV_SESSION_FINISHED:
+        this.logger.debug(`SessionFinished`);
+        session.activeRequest = false;
+        break;
+
+      default:
+        if (isJson && payloadObj) {
+          this.logger.debug(`未处理事件 ${event}: ${JSON.stringify(payloadObj).slice(0, 200)}`);
+        }
+        break;
+    }
+  }
+
+  private handleAudioPayload(session: VolcTtsSession, payload: Buffer): void {
+    if (payload.length < this.MIN_AUDIO_BYTES) {
+      this.logger.debug(`跳过小尺寸音频帧: ${payload.length} bytes`);
+      return;
+    }
+
+    session.receivedAudio = true;
+
+    this.gateway.pushAudioChunk(
+      session.conversationId,
+      payload.toString('base64'),
+      'mp3',
+      session.seq++,
+      false,
+      24000,
+    );
+  }
+
+  private handleAudioData(session: VolcTtsSession, base64Data: string, isLast: boolean): void {
+    if (!base64Data) return;
+
+    const bytes = Buffer.from(base64Data, 'base64').length;
+    if (bytes < this.MIN_AUDIO_BYTES) {
+      this.logger.debug(`跳过小尺寸 JSON 音频数据: ${bytes} bytes`);
+      if (isLast) {
+        session.activeRequest = false;
+        this.dispatchNext(session);
+      }
+      return;
+    }
+
+    session.receivedAudio = true;
+
+    this.gateway.pushAudioChunk(
+      session.conversationId,
+      base64Data,
+      'mp3',
+      session.seq++,
+      isLast,
+      24000,
+    );
+
+    if (isLast) {
+      session.activeRequest = false;
+      this.dispatchNext(session);
+    }
+  }
+
   sendText(conversationId: string, text: string): void {
     const session = this.sessions.get(conversationId);
     if (!session || session.closed) {
@@ -299,452 +537,152 @@ export class TtsSessionManager {
       return;
     }
 
-    this.logger.debug(`TTS append文本: "${text.slice(0, 30)}..."`);
-
-    if (session.activeResponses > 0 || session.commitInFlight || session.flushScheduled) {
+    if (session.activeRequest) {
       session.pendingTexts.push(text);
-      this.logger.debug(
-        `文本暂存本地: activeResponses=${session.activeResponses}, commitInFlight=${session.commitInFlight}, pendingCount=${session.pendingTexts.length}`,
-      );
       return;
     }
 
-    this.send(session, {
-      event_id: crypto.randomUUID(),
-      type: 'input_text_buffer.append',
-      text,
-    });
-
-    session.commitInFlight = true;
-    this.logger.debug(`发送 input_text_buffer.commit`);
-    this.send(session, {
-      event_id: crypto.randomUUID(),
-      type: 'input_text_buffer.commit',
-    });
+    this.sendTaskRequest(session, text);
   }
 
-  /**
-   * flush本地暂存的待合成文本到DashScope
-   *
-   * 当response完成（activeResponses降为0）时调用，
-   * 将pendingTexts中的文本合并为单次append+commit发送。
-   *
-   * 关键：使用setTimeout(100ms)延迟实际WebSocket发送。
-   * 这是因为DashScope在发送response.done后需要短暂内部清理，
-   * 若立即收到新的input_text_buffer.append，会被当作上一response
-   * 的残留输入而忽略——导致commit时缓冲区为空、response无音频。
-   * 宏任务延迟确保DashScope完全退出前一个response状态。
-   *
-   * @param session TTS会话
-   */
-  private flushPendingTexts(session: ActiveTtsSession): void {
-    if (session.pendingTexts.length === 0) return;
-    if (session.flushScheduled) return;
+  private sendTaskRequest(session: VolcTtsSession, text: string): void {
+    if (session.closed) return;
 
-    session.flushScheduled = true;
+    session.activeRequest = true;
 
-    setTimeout(() => {
-      session.flushScheduled = false;
-      if (session.closed) return;
-      if (session.pendingTexts.length === 0) return;
-      if (session.activeResponses > 0 || session.commitInFlight) return;
+    this.logger.debug(`发送 TaskRequest: "${text.slice(0, 30)}..."`);
 
-      const text = session.pendingTexts.join('');
-      session.pendingTexts = [];
+    const payload = {
+      event: EV_TASK_REQUEST,
+      namespace: 'BidirectionalTTS',
+      req_params: { text },
+    };
 
-      this.logger.debug(`flushPendingTexts: "${text.slice(0, 30)}..." (${text.length}字符)`);
-
-      this.send(session, {
-        event_id: crypto.randomUUID(),
-        type: 'input_text_buffer.append',
-        text,
-      });
-
-      session.commitInFlight = true;
-      this.logger.debug(`发送 input_text_buffer.commit`);
-      this.send(session, {
-        event_id: crypto.randomUUID(),
-        type: 'input_text_buffer.commit',
-      });
-    }, 20);
+    session.ws.send(buildJsonFrame(EV_TASK_REQUEST, payload));
   }
 
-  /**
-   * 关闭TTS会话
-   *
-   * Commit模式下的关闭流程：
-   * 1. 循环：如果有待提交文本或飞行中的commit，等待其完成
-   * 2. 等待所有活跃response完成（activeResponses === 0）
-   * 3. 发送session.finish通知DashScope结束
-   * 4. 等待消费者处理完剩余音频（session.finished）
-   * 5. 关闭WebSocket连接
-   *
-   * @param conversationId 会话ID
-   */
   async closeSession(conversationId: string): Promise<void> {
     const session = this.sessions.get(conversationId);
     if (!session) return;
 
-    this.logger.debug(`关闭TTS会话: ${conversationId}, activeResponses=${session.activeResponses}, pendingTexts=${session.pendingTexts.length}, commitInFlight=${session.commitInFlight}`);
+    this.logger.debug(`关闭TTS会话: ${conversationId}, activeRequest=${session.activeRequest}`);
 
     if (!session.closed) {
-      session.finishing = true;
-
-      const drainStart = Date.now();
-      const drainDeadline = drainStart + 30000;
-
-      while (Date.now() < drainDeadline) {
-        if (session.pendingTexts.length > 0 && session.activeResponses <= 0 && !session.commitInFlight) {
-          this.flushPendingTexts(session);
-          await new Promise(resolve => setTimeout(resolve, 150));
-        }
-
-        if (session.commitInFlight) {
-          await this.waitForCommitInFlight(session);
-        }
-
-        if (session.activeResponses > 0) {
-          await this.waitForResponses(session);
-        }
-
-        if (session.pendingTexts.length === 0 && !session.commitInFlight && session.activeResponses <= 0) {
-          break;
-        }
-      }
-
-      const elapsed = Date.now() - drainStart;
-      if (elapsed >= 30000) {
-        this.logger.warn(
-          `关闭TTS会话排空超时(30s): pendingTexts=${session.pendingTexts.length}, commitInFlight=${session.commitInFlight}, activeResponses=${session.activeResponses}`,
-        );
-      }
-
-      if (session.pendingTexts.length > 0) {
-        this.logger.warn(`pendingTexts仍有${session.pendingTexts.length}条，强制commit剩余文本`);
-        session.commitInFlight = true;
-        this.send(session, {
-          event_id: crypto.randomUUID(),
-          type: 'input_text_buffer.commit',
-        });
-        await this.waitForCommitInFlight(session);
-      }
-
-      this.send(session, {
-        event_id: crypto.randomUUID(),
-        type: 'session.finish',
-      });
+      this.logger.debug(`发送 FinishSession`);
+      const payload = { event: EV_FINISH_SESSION, namespace: 'BidirectionalTTS' };
+      session.ws.send(buildJsonFrame(EV_FINISH_SESSION, payload));
     }
 
-    if (session.consumerPromise) {
-      const timeout = new Promise<void>(resolve => setTimeout(resolve, 15000));
-      await Promise.race([session.consumerPromise, timeout]);
+    if (!session.closed && session.activeRequest) {
+      const deadline = Date.now() + 10000;
+      while (session.activeRequest && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
 
     if (!session.closed) {
       session.closed = true;
-      try { session.ws.close(); } catch { /* ignore */ }
+      try { session.ws.close(1000, 'session_end'); } catch { /* ignore */ }
     }
 
     this.sessions.delete(conversationId);
 
-    this.gateway.notifyEnd(conversationId);
+    if (session.serverClosed && !session.receivedAudio) {
+      this.gateway.notifyError(conversationId, '火山引擎语音合成失败：连接已断开，未收到音频数据');
+    } else if (!session.receivedAudio && session.seq === 0) {
+      this.gateway.notifyError(conversationId, '语音合成失败：未收到有效音频数据');
+    }
 
+    this.gateway.notifyEnd(conversationId);
     this.logger.debug(`TTS 会话已关闭: ${conversationId}`);
   }
 
-  /**
-   * 判断会话是否活跃
-   * @param conversationId 会话ID
-   * @returns 是否活跃
-   */
   isSessionActive(conversationId: string): boolean {
     const session = this.sessions.get(conversationId);
-    return !!session && !session.closed;
+    return !!session && !session.closed && session.sessionEstablished;
   }
 
-  /**
-   * 等待commitInFlight变为false
-   *
-   * 当commit已发送但response.created尚未到达时，需要等待。
-   * 这防止了closeSession在response.created到达之前就认为没有活跃response
-   * 而直接发送session.finish的时序竞争问题。
-   *
-   * @param session TTS会话
-   */
-  private waitForCommitInFlight(session: ActiveTtsSession): Promise<void> {
-    if (!session.commitInFlight) return Promise.resolve();
-
-    this.logger.debug(`等待commitInFlight（等待response.created到达）...`);
-
-    return new Promise<void>(resolve => {
-      const timer = setTimeout(() => {
-        this.logger.warn(`等待commitInFlight超时(10s)`);
-        session.responseWaiters = session.responseWaiters.filter(w => w !== onCreated);
-        resolve();
-      }, 10000);
-
-      const onCreated = () => {
-        if (!session.commitInFlight) {
-          clearTimeout(timer);
-          session.responseWaiters = session.responseWaiters.filter(w => w !== onCreated);
-          resolve();
-        }
-      };
-
-      session.responseWaiters.push(onCreated);
-    });
+  private handleRequestEnd(session: VolcTtsSession): void {
+    session.activeRequest = false;
+    this.dispatchNext(session);
   }
 
-  /**
-   * 等待所有活跃response完成
-   *
-   * @param session TTS会话
-   */
-  private waitForResponses(session: ActiveTtsSession): Promise<void> {
-    if (session.activeResponses <= 0) return Promise.resolve();
-
-    this.logger.debug(`等待 ${session.activeResponses} 个活跃response完成...`);
-
-    return new Promise<void>(resolve => {
-      const timer = setTimeout(() => {
-        this.logger.warn(`等待response完成超时(15s)，剩余activeResponses=${session.activeResponses}`);
-        session.responseWaiters = session.responseWaiters.filter(w => w !== onDone);
-        resolve();
-      }, 15000);
-
-      const onDone = () => {
-        if (session.activeResponses <= 0) {
-          clearTimeout(timer);
-          session.responseWaiters = session.responseWaiters.filter(w => w !== onDone);
-          resolve();
-        }
-      };
-
-      session.responseWaiters.push(onDone);
-    });
-  }
-
-  /**
-   * 通知response等待回调
-   *
-   * @param session TTS会话
-   */
-  private notifyResponseWaiters(session: ActiveTtsSession): void {
-    if (session.activeResponses <= 0 || session.closed || !session.commitInFlight) {
-      const waiters = session.responseWaiters;
-      session.responseWaiters = [];
-      waiters.forEach(w => w());
+  private dispatchNext(session: VolcTtsSession): void {
+    if (session.pendingTexts.length > 0 && !session.closed) {
+      const nextText = session.pendingTexts.shift()!;
+      this.sendTaskRequest(session, nextText);
     }
   }
 
-  /**
-   * 启动音频消费者
-   *
-   * 持续从WebSocket读取消息并处理音频数据，推送到TtsGateway。
-   * 追踪response.created/response.done以管理commit调度。
-   * 收到session.finished后处理完剩余音频并退出。
-   *
-   * @param session TTS会话
-   */
-  private startAudioConsumer(session: ActiveTtsSession): void {
-    let consumerResolve: (() => void) | null = null;
-    session.consumerPromise = new Promise<void>(resolve => { consumerResolve = resolve; });
-    session.consumerDone = consumerResolve;
-
-    const consume = async () => {
-      let audioBuf = Buffer.alloc(0);
-      const CHUNK = 16384;
-      /** 当前response已收到的音频delta计数 */
-      let audioDeltaCount = 0;
-
-      /**
-       * 刷新音频缓冲区中残留的PCM数据
-       * @param isLast 是否为最后一块
-       */
-      const flushAudio = (isLast: boolean) => {
-        if (audioBuf.length > 0) {
-          this.gateway.pushAudioChunk(
-            session.conversationId,
-            audioBuf.toString('base64'),
-            'pcm',
-            session.seq++,
-            isLast,
-            24000,
-          );
-          audioBuf = Buffer.alloc(0);
-        }
-      };
-
-      /**
-       * response完成后的公共处理
-       * 递减活跃response计数，延迟flush本地暂存文本
-       *
-       * 延迟由flushPendingTexts内部setTimeout实现，
-       * 避免在response.done处理期间同步发送下一个commit。
-       *
-       * @param session TTS会话
-       */
-      const onResponseComplete = () => {
-        session.activeResponses = Math.max(0, session.activeResponses - 1);
-        this.logger.debug(`response完成, activeResponses=${session.activeResponses}`);
-
-        if (session.activeResponses === 0 && session.pendingTexts.length > 0) {
-          this.flushPendingTexts(session);
-        }
-
-        this.notifyResponseWaiters(session);
-      };
-
-      /**
-       * 处理单条消息
-       * @param m 消息字符串
-       * @returns 是否应退出消费循环
-       */
-      const handleMessage = (m: string): boolean => {
-        let d: any;
-        try { d = JSON.parse(m); } catch { return false; }
-
-        if (d.type === 'response.created') {
-          session.activeResponses++;
-          session.commitInFlight = false;
-          audioDeltaCount = 0;
-          this.notifyResponseWaiters(session);
-          this.logger.debug(`response.created, activeResponses=${session.activeResponses}`);
-        } else if (d.type === 'response.audio.delta' && d.delta) {
-          audioDeltaCount++;
-          audioBuf = Buffer.concat([audioBuf, Buffer.from(d.delta, 'base64')]);
-          while (audioBuf.length >= CHUNK) {
-            this.gateway.pushAudioChunk(
-              session.conversationId,
-              audioBuf.subarray(0, CHUNK).toString('base64'),
-              'pcm',
-              session.seq++,
-              false,
-              24000,
-            );
-            audioBuf = audioBuf.subarray(CHUNK);
-          }
-          if (audioDeltaCount % 20 === 0) {
-            this.logger.debug(`audio.delta #${audioDeltaCount}, buf=${audioBuf.length}B`);
-          }
-        } else if (d.type === 'response.audio.done') {
-          this.logger.debug(`audio.done, totalDeltas=${audioDeltaCount}, residual=${audioBuf.length}B`);
-          flushAudio(false);
-        } else if (d.type === 'response.done') {
-          this.logger.debug(`response.done, totalDeltas=${audioDeltaCount}`);
-          flushAudio(false);
-          onResponseComplete();
-        } else if (d.type === 'response.output_item.done') {
-          flushAudio(false);
-        } else if (d.type === 'input_text_buffer.committed') {
-          this.logger.debug(`input_text_buffer.committed`);
-        } else if (d.type === 'session.finished') {
-          flushAudio(true);
-          this.logger.debug(`收到 session.finished，消费者准备退出`);
-          return true;
-        } else if (d.type === 'error' || d.type === 'response.error') {
-          const msg = d.error?.message || m.slice(0, 200);
-          this.logger.warn(`TTS 错误: ${msg}`);
-          session.commitInFlight = false;
-          session.activeResponses = Math.max(0, session.activeResponses - 1);
-          if (session.activeResponses === 0 && session.pendingTexts.length > 0) {
-            this.flushPendingTexts(session);
-          }
-          this.notifyResponseWaiters(session);
-        } else if (d.type) {
-          this.logger.debug(`DashScope 未处理消息类型: ${d.type}`);
-        }
-
-        return false;
-      };
-
-      while (!session.closed) {
-        const m = await this.nextMessage(session, 15000);
-        if (m === 'TIMEOUT') {
-          if (session.closed) break;
-          continue;
-        }
-        if (!m) break;
-        if (handleMessage(m)) break;
-      }
-
-      for (const m of session.msgQueue) {
-        if (handleMessage(m)) break;
-      }
-      session.msgQueue = [];
-
-      flushAudio(true);
-
-      session.consumerDone?.();
+  private buildSessionConfig(voice: string, speed: number): any {
+    const speechRate = this.convertSpeed(speed);
+    return {
+      speaker: voice,
+      audio_params: {
+        format: 'mp3',
+        sample_rate: 24000,
+        speech_rate: speechRate,
+        loudness_rate: 0,
+      },
     };
+  }
 
-    consume().catch(err => {
-      this.logger.error(`音频消费者异常: ${(err as Error).message}`);
-      session.consumerDone?.();
-    });
+  private resolveApiKey(modelApiKey?: string | null): string {
+    if (modelApiKey) return modelApiKey.trim();
+    return process.env.VOLCENGINE_API_KEY || '';
   }
 
   /**
-   * 等待下一条WebSocket消息
+   * 从 model.config JSON 中解析 APP ID
    *
-   * @param session TTS会话
-   * @param ms 超时毫秒数
-   * @returns 消息内容或'TIMEOUT'
+   * 双向 WS 鉴权需要 X-Api-App-Key（APP ID）+ X-Api-Access-Key（Access Token），
+   * 不同于单向 HTTP 的 X-Api-Key 鉴权。
+   * APP ID 存储在 model.config 的 appId 字段中。
+   *
+   * @param modelConfig 模型 config JSON 字符串
+   * @returns APP ID，若无则返回空
    */
-  private nextMessage(session: ActiveTtsSession, ms: number): Promise<string | 'TIMEOUT'> {
-    if (session.msgQueue.length > 0) return Promise.resolve(session.msgQueue.shift()!);
-    return new Promise<string | 'TIMEOUT'>(resolve => {
-      session.msgResolve = resolve;
-      setTimeout(() => {
-        if (session.msgResolve) {
-          session.msgResolve = null;
-          resolve('TIMEOUT');
-        }
-      }, ms);
-    });
+  private resolveAppId(modelConfig?: string | null): string {
+    if (!modelConfig) return '';
+    try {
+      const config = JSON.parse(modelConfig);
+      return config.appId || '';
+    } catch {
+      return '';
+    }
   }
 
-  /**
-   * 发送JSON消息到WebSocket
-   *
-   * @param session TTS会话
-   * @param obj 消息对象
-   */
-  private send(session: ActiveTtsSession, obj: object): void {
-    if (session.closed) return;
-    session.ws.send(JSON.stringify(obj));
+  private convertSpeed(speed?: number): number {
+    if (speed === undefined || speed === null) return 0;
+    const rate = Math.round((speed - 1) * 100);
+    if (rate < -50) return -50;
+    if (rate > 100) return 100;
+    return rate;
   }
 
-  /**
-   * 解析语音标识
-   *
-   * @param voice 语音标识
-   * @returns 阿里云兼容的语音标识
-   */
-  private resolveVoice(voice?: string): string {
-    const defaultVoice = 'Cherry';
-    if (!voice) return defaultVoice;
-    if (TtsSessionManager.ALIYUN_QWEN_VOICES.has(voice)) return voice;
-    this.logger.warn(`阿里云 Qwen-TTS 不支持语音 "${voice}"，自动切换为默认语音 "${defaultVoice}"`);
-    return defaultVoice;
-  }
-
-  /**
-   * 解析模型：指定编码 > 音色关联模型 > 默认实时TTS模型 > 通用TTS模型
-   *
-   * @param modelCode 模型编码
-   * @param voice 音色标识（可选，用于从 voiceProfile 查询关联模型）
-   * @returns 模型信息
-   */
   private async resolveModel(modelCode?: string, voice?: string): Promise<any> {
     if (modelCode) {
-      try { return await this.modelRouting.selectModelByIntent('tts', 'tts:realtime', modelCode); } catch { /* fallthrough */ }
+      try { return await this.modelRouting.selectModelByIntent('tts', 'tts:realtime', modelCode); } catch {
+        try {
+          const model = await this.prisma.model.findFirst({
+            where: { code: modelCode, type: 'tts', status: true },
+          });
+          if (model) return model;
+        } catch { /* fallthrough */ }
+      }
     }
 
     if (voice) {
       const code = await this.getVoiceModelCode(voice);
       if (code) {
-        try { return await this.modelRouting.selectModelByIntent('tts', 'tts:realtime', code); } catch { /* fallthrough */ }
+        try { return await this.modelRouting.selectModelByIntent('tts', 'tts:realtime', code); } catch {
+          try {
+            const model = await this.prisma.model.findFirst({
+              where: { code, type: 'tts', status: true },
+            });
+            if (model) return model;
+          } catch { /* fallthrough */ }
+        }
       }
     }
 
@@ -754,12 +692,6 @@ export class TtsSessionManager {
     return this.modelRouting.selectModel('tts');
   }
 
-  /**
-   * 从音色配置获取模型编码
-   *
-   * @param voiceId 音色ID
-   * @returns 模型编码或 undefined
-   */
   private async getVoiceModelCode(voiceId: string): Promise<string | undefined> {
     try {
       const profile = await this.prisma.voiceProfile.findFirst({
@@ -772,10 +704,6 @@ export class TtsSessionManager {
     }
   }
 
-  /**
-   * 查找默认实时TTS模型（排除非DashScope协议的模型）
-   * @returns 模型信息或null
-   */
   private async findRealtimeModel(): Promise<any | null> {
     try {
       const models = await this.prisma.model.findMany({
@@ -783,11 +711,17 @@ export class TtsSessionManager {
           type: 'tts',
           status: true,
           capabilities: { contains: 'tts:realtime' },
-          provider: { not: 'volcengine' },
+          provider: 'volcengine',
         },
         orderBy: { weight: 'desc' },
       });
-      return models[0] || null;
+      if (models.length > 0) return models[0];
+
+      const fallback = await this.prisma.model.findMany({
+        where: { type: 'tts', status: true, capabilities: { contains: 'tts:realtime' } },
+        orderBy: { weight: 'desc' },
+      });
+      return fallback[0] || null;
     } catch {
       return null;
     }
