@@ -1,4 +1,4 @@
-import { Injectable, Inject, Optional, forwardRef } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ReasoningMode, ReasoningResult } from './types';
 import { ExecutionContext } from '../agent/execution/execution-context';
 import { StreamEmitter } from '../stream';
@@ -22,7 +22,6 @@ export class ReactReasoningEngine extends BaseReasoningEngine {
     prisma: PrismaService,
     clientToolRegistry: ClientToolRegistry,
     @Optional()
-    @Inject(forwardRef(() => TtsService))
     ttsService?: TtsService,
   ) {
     super(aiService, conversationService, toolExecutor, prisma, clientToolRegistry, ttsService);

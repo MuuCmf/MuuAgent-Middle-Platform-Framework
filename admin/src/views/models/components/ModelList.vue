@@ -18,7 +18,7 @@
     </el-button>
 
     <el-table :data="models" stripe v-loading="modelsLoading">
-      <el-table-column prop="name" :label="$t('model.modelName')" />
+      <el-table-column prop="name" :label="$t('model.modelName')" width="200" />
       <el-table-column prop="code" :label="$t('model.modelId')" width="180">
         <template #default="{ row }">
           <el-tag type="info">{{ row.code }}</el-tag>

@@ -1,4 +1,4 @@
-import { Logger, Inject, Optional, forwardRef } from '@nestjs/common';
+import { Logger, Optional } from '@nestjs/common';
 import { ReasoningMode, IReasoningEngine, ReasoningResult, ReasoningStep } from './types';
 import { ExecutionContext } from '../agent/execution/execution-context';
 import { StreamEmitter, StreamEvents } from '../stream';
@@ -58,7 +58,6 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     protected readonly prisma: PrismaService,
     protected readonly clientToolRegistry: ClientToolRegistry,
     @Optional()
-    @Inject(forwardRef(() => TtsService))
     protected readonly ttsService?: TtsService,
   ) {
     this.logger = new Logger(this.constructor.name);
@@ -155,6 +154,8 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     // ========== TTS 实时合成 ==========
     let sentenceBuffer = '';
     let ttsSessionOpened = false;
+    let ttsUseSingleMode = false;
+    let pendingTtsSession: Promise<boolean> | null = null;
     const conversationId = context.conversationId;
     const isTtsActive = (): boolean =>
       this.ttsService != null;
@@ -232,12 +233,43 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
                 const sentence = sentenceBuffer;
                 sentenceBuffer = '';
 
-                if (!ttsSessionOpened) {
-                  this.ttsService!.ensureSession(conversationId)
-                    .then(ok => { ttsSessionOpened = ok; if (ok) this.ttsService!.sendText(conversationId, sentence); })
-                    .catch(() => {});
-                } else {
+                if (ttsSessionOpened) {
                   this.ttsService!.sendText(conversationId, sentence);
+                } else if (ttsUseSingleMode) {
+                  this.ttsService!.streamSynthesize(sentence, conversationId).catch((e: Error) => {
+                    this.logger.warn(`Agent TTS 单次合成失败: ${e.message}`);
+                  });
+                } else {
+                  // 首次触发：记录待发送句子并启动 session
+                  const sendOrQueue = (ok: boolean) => {
+                    if (ok) {
+                      this.ttsService!.sendText(conversationId, sentence);
+                    } else {
+                      ttsUseSingleMode = true;
+                      this.logger.debug(`Agent TTS 会话模式不可用，降级为单次合成: conversationId=${conversationId}`);
+                      this.ttsService!.streamSynthesize(sentence, conversationId).catch((e: Error) => {
+                        this.logger.warn(`Agent TTS 单次合成失败: ${e.message}`);
+                      });
+                    }
+                  };
+
+                  if (!pendingTtsSession) {
+                    pendingTtsSession = this.ttsService!.ensureSession(conversationId)
+                      .then(ok => {
+                        ttsSessionOpened = ok;
+                        pendingTtsSession = null;
+                        return ok;
+                      })
+                      .catch(() => {
+                        ttsUseSingleMode = true;
+                        pendingTtsSession = null;
+                        return false;
+                      });
+                  }
+
+                  pendingTtsSession.then(sendOrQueue).catch(() => {
+                    ttsUseSingleMode = true;
+                  });
                 }
               }
             }
@@ -291,14 +323,29 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
       }
 
       // ========== LLM 流结束 — flush 剩余文本并关闭TTS会话 ==========
+      // 等待 pending session 就绪（.then() 回调可能还没执行）
+      if (pendingTtsSession) {
+        ttsSessionOpened = await pendingTtsSession;
+      }
+
       if (sentenceBuffer.trim()) {
-        if (!ttsSessionOpened) {
+        if (!ttsSessionOpened && !ttsUseSingleMode) {
           ttsSessionOpened = await this.ttsService!.ensureSession(conversationId).catch(() => false);
+          if (!ttsSessionOpened) {
+            ttsUseSingleMode = true;
+          }
         }
         if (ttsSessionOpened) {
           this.ttsService!.sendText(conversationId, sentenceBuffer.trim());
+        } else if (ttsUseSingleMode) {
+          this.ttsService!.streamSynthesize(sentenceBuffer.trim(), conversationId).catch((e: Error) => {
+            this.logger.warn(`Agent TTS 单次合成失败: ${e.message}`);
+          });
         }
       }
+
+      // 总是尝试关闭会话（closeSession 在无会话时是空操作）
+      // 即使 ttsSessionOpened 为 false，.then() 回调可能已经创建了会话
       if (ttsSessionOpened) {
         await this.ttsService!.closeSession(conversationId).catch((e: Error) => {
           this.logger.warn(`TTS 会话关闭失败: ${e.message}`);
@@ -308,15 +355,24 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
       await this.finalizeStreamResponse(context, emitter, finalResponse, steps);
     } catch (error) {
       // TTS：发生错误时刷新剩余 buffer 并关闭会话
+      if (pendingTtsSession) {
+        ttsSessionOpened = await pendingTtsSession;
+      }
+
       if (sentenceBuffer.trim() && conversationId) {
-        if (!ttsSessionOpened) {
+        if (!ttsSessionOpened && !ttsUseSingleMode) {
           ttsSessionOpened = await this.ttsService!.ensureSession(conversationId).catch(() => false);
+          if (!ttsSessionOpened) {
+            ttsUseSingleMode = true;
+          }
         }
         if (ttsSessionOpened) {
           this.ttsService!.sendText(conversationId, sentenceBuffer.trim());
+        } else if (ttsUseSingleMode) {
+          this.ttsService!.streamSynthesize(sentenceBuffer.trim(), conversationId).catch(() => {});
         }
       }
-      if (ttsSessionOpened && conversationId) {
+      if (conversationId) {
         await this.ttsService!.closeSession(conversationId).catch(() => {});
       }
       this.emitStreamError(error, emitter);

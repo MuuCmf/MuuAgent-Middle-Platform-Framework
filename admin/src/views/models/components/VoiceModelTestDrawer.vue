@@ -304,16 +304,28 @@ const wsStatusText = computed(() => {
 })
 
 /**
- * 加载语音配置列表
+ * 加载与当前模型匹配的语音配置列表
  */
 async function loadVoices() {
   voicesLoading.value = true
   try {
-    const response = await voiceProfileApi.getList({ pageSize: 100, status: 'true' })
+    const params: Record<string, string | number> = { pageSize: 100, status: 'true' }
+    const response = await voiceProfileApi.getList(params)
     const data = response.data?.data
     if (data?.list && data.list.length > 0) {
-      voiceOptions.value = data.list
-      ttsVoice.value = data.list[0].voiceId
+      // 过滤：仅显示与当前模型关联的语音（modelCode 匹配或无 modelCode 的通用语音）
+      const filtered = props.modelCode
+        ? data.list.filter((v) => !v.modelCode || v.modelCode === props.modelCode)
+        : data.list
+      if (filtered.length > 0) {
+        voiceOptions.value = filtered
+        const exists = filtered.some((v) => v.voiceId === ttsVoice.value)
+        if (!exists) {
+          ttsVoice.value = filtered[0].voiceId
+        }
+      } else {
+        voiceOptions.value = []
+      }
     } else {
       voiceOptions.value = []
     }

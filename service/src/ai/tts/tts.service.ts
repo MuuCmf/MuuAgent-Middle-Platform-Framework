@@ -18,6 +18,9 @@ import { TTSExecutionParams } from '../strategies/provider.strategy.interface';
 export class TtsService {
   private readonly logger = new Logger(TtsService.name);
 
+  /** 单次模式串行队列：conversationId → 上一个合成的 Promise，确保同会话的多个句子排队合成 */
+  private streamQueue = new Map<string, Promise<void>>();
+
   constructor(
     private readonly gateway: TtsGateway,
     private readonly sessionManager: TtsSessionManager,
@@ -84,6 +87,9 @@ export class TtsService {
   /**
    * 流式合成（单次模式，每句创建新连接）
    *
+   * 同 conversationId 的多个句子自动排队串行处理，
+   * 避免并发 HTTP 请求导致音频块在客户端交错到达。
+   *
    * 适用于非对话场景（如管理后台测试）。
    * 对话场景请使用 ensureSession/sendText/closeSession 会话模式。
    *
@@ -104,7 +110,21 @@ export class TtsService {
     if (!cleanText) return;
     if (!this.gateway.isConnected(conversationId)) return;
 
-    await this.doSynthesize(cleanText, conversationId, voice, speed, modelCode);
+    // 串行队列：同 conversationId 的多个句子排队执行，避免并发
+    const prev = this.streamQueue.get(conversationId) || Promise.resolve();
+    const current = prev.then(() =>
+      this.doSynthesize(cleanText, conversationId, voice, speed, modelCode),
+    );
+    this.streamQueue.set(conversationId, current);
+
+    // 清理已完成的队列条目
+    current.finally(() => {
+      if (this.streamQueue.get(conversationId) === current) {
+        this.streamQueue.delete(conversationId);
+      }
+    });
+
+    await current;
   }
 
   /**
@@ -138,11 +158,20 @@ export class TtsService {
 
   /**
    * 判断文本是否为完整句子
+   *
+   * 规则：
+   * - 至少4个字符且以句末标点结尾（。！？.!?\n……）
+   * - 或文本超过 maxLength 字符（防止无标点长文本一直不触发）
+   *
    * @param text 文本
+   * @param maxLength 无标点时强制触发的最长字符数（默认50）
    * @returns 是否完整
    */
-  isSentenceComplete(text: string): boolean {
-    return !!text && text.length >= 4 && /[。！？.!?\n……]$/.test(text);
+  isSentenceComplete(text: string, maxLength: number = 200): boolean {
+    if (!text || text.length === 0) return false;
+    if (text.length >= 4 && /[。！？.!?\n……]$/.test(text)) return true;
+    if (text.length >= maxLength) return true;
+    return false;
   }
 
   /**

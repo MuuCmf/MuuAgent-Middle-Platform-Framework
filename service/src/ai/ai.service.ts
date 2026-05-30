@@ -144,7 +144,6 @@ export class AiService {
     );
 
     const modelType = dto.modelType || 'llm';
-    const targetId = dto.modelCode || `mcp-${modelType}`;
 
     this.logger.debug(`AI调用开始: requestId=${context.requestId}, modelType=${modelType}, modelCode=${dto.modelCode}`);
 
@@ -154,9 +153,23 @@ export class AiService {
         isSuperAdmin: false,
       };
 
+      const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();
+      const userContent = lastUserMessage?.content || '';
+
+      // 意图识别：根据用户消息分类意图
+      const intentResult = await this.intentClassifier.classify(userContent);
+      const intent = intentResult.intent;
+      const intentModelType = this.intentClassifier.getModelTypeForIntent(intent);
+      const effectiveModelType = intentModelType !== modelType ? intentModelType : modelType;
+      this.logger.debug(`意图分类: intent=${intent}, modelType=${effectiveModelType}`);
+
+      // 先选择模型，再确定会话目标ID，确保会话绑定到实际使用的模型而非虚拟 mcp 标识
+      const model = await this.selectModel(dto.modelCode, effectiveModelType, intent);
+      const resolvedTargetId = dto.modelCode || model.code;
+
       const conversation = await this.conversationService.getOrCreate(
         ConversationType.MODEL,
-        targetId,
+        resolvedTargetId,
         dto.conversationId,
         uid,
         isolationContext,
@@ -167,7 +180,6 @@ export class AiService {
         dto.messages,
       );
 
-      const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();
       if (lastUserMessage) {
         await this.conversationService.addMessage(
           conversation.id as any,
@@ -175,17 +187,6 @@ export class AiService {
           lastUserMessage.content,
         );
       }
-
-      // 意图识别：根据用户消息分类意图
-      const userContent = lastUserMessage?.content || '';
-      const intentResult = await this.intentClassifier.classify(userContent);
-      const intent = intentResult.intent;
-      const intentModelType = this.intentClassifier.getModelTypeForIntent(intent);
-      const effectiveModelType = intentModelType !== modelType ? intentModelType : modelType;
-      this.logger.debug(`意图分类: intent=${intent}, modelType=${effectiveModelType}`);
-
-      const model = await this.selectModel(dto.modelCode, effectiveModelType, intent);
-      const provider = model.provider?.toLowerCase() || 'openai';
 
       await this.mcpService.checkCircuit(model.id as any);
       await this.mcpService.checkConcurrency(model.id as any);
@@ -296,7 +297,6 @@ export class AiService {
     );
 
     const modelType = dto.modelType || 'llm';
-    const targetId = dto.modelCode || `mcp-${modelType}`;
 
     this.logger.debug(`[Stream] 开始处理流式请求: requestId=${context.requestId}`);
 
@@ -304,6 +304,7 @@ export class AiService {
     let conversationIdStr = '';
     let ttsSentenceBuffer = '';
     let ttsSessionOpened = false;
+    let ttsUseSingleMode = false;
 
     try {
       const isolationContext: IsolationContext = {
@@ -311,20 +312,36 @@ export class AiService {
         isSuperAdmin: false,
       };
 
+      const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();
+      const userContent = lastUserMessage?.content || '';
+
+      // 意图识别：根据用户消息分类意图
+      const intentResult = await this.intentClassifier.classify(userContent);
+      const intent = intentResult.intent;
+      const intentModelType = this.intentClassifier.getModelTypeForIntent(intent);
+      const effectiveModelType = intentModelType !== modelType ? intentModelType : modelType;
+      this.logger.debug(`[Stream] 意图分类: intent=${intent}, modelType=${effectiveModelType}`);
+
+      // 先选择模型，再确定会话目标ID，确保会话绑定到实际使用的模型而非虚拟 mcp 标识
+      const model = await this.selectModel(dto.modelCode, effectiveModelType, intent);
+      modelId = model.id as any;
+      const resolvedTargetId = dto.modelCode || model.code;
+
       const conversation = await this.conversationService.getOrCreate(
         ConversationType.MODEL,
-        targetId,
+        resolvedTargetId,
         dto.conversationId,
         uid,
         isolationContext,
       );
+
+      conversationIdStr = String(conversation.id);
 
       const messagesWithHistory = await this.buildMessagesWithHistory(
         conversation,
         dto.messages,
       );
 
-      const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();
       if (lastUserMessage) {
         await this.conversationService.addMessage(
           conversation.id as any,
@@ -339,17 +356,6 @@ export class AiService {
       }
 
       emitter.emit(StreamEvents.conversationId(conversation.id as any));
-
-      // 意图识别：根据用户消息分类意图
-      const userContent = lastUserMessage?.content || '';
-      const intentResult = await this.intentClassifier.classify(userContent);
-      const intent = intentResult.intent;
-      const intentModelType = this.intentClassifier.getModelTypeForIntent(intent);
-      const effectiveModelType = intentModelType !== modelType ? intentModelType : modelType;
-      this.logger.debug(`[Stream] 意图分类: intent=${intent}, modelType=${effectiveModelType}`);
-
-      const model = await this.selectModel(dto.modelCode, effectiveModelType, intent);
-      modelId = model.id as any;
 
       await this.mcpService.checkCircuit(model.id as any);
       await this.mcpService.checkConcurrency(model.id as any);
@@ -386,8 +392,6 @@ export class AiService {
       let blockIndex = 0;
       let currentBlockType: 'text' | 'tool_call' | null = null;
 
-      conversationIdStr = String(conversation.id);
-
       for await (const chunk of this.modelExecutor.stream(executionParams)) {
         if (emitter.completed) {
           this.logger.debug(`[Stream] 流式传输被取消: requestId=${context.requestId}`);
@@ -413,11 +417,19 @@ export class AiService {
             const sentence = ttsSentenceBuffer;
             ttsSentenceBuffer = '';
 
-            if (!ttsSessionOpened) {
+            if (!ttsSessionOpened && !ttsUseSingleMode) {
               ttsSessionOpened = await this.ttsService.ensureSession(conversationIdStr);
+              if (!ttsSessionOpened) {
+                ttsUseSingleMode = true;
+                this.logger.debug(`TTS 会话模式不可用，降级为单次合成模式: conversationId=${conversationIdStr}`);
+              }
             }
             if (ttsSessionOpened) {
               this.ttsService.sendText(conversationIdStr, sentence);
+            } else if (ttsUseSingleMode) {
+              this.ttsService.streamSynthesize(sentence, conversationIdStr).catch((e: Error) => {
+                this.logger.warn(`TTS 单次合成失败: ${e.message}`);
+              });
             }
           }
         } else if (chunk.type === 'tool-call' && chunk.toolCall) {
@@ -444,18 +456,22 @@ export class AiService {
 
       // ========== LLM 流结束 — flush 剩余文本并关闭TTS会话 ==========
       if (ttsSentenceBuffer.trim()) {
-        if (!ttsSessionOpened) {
+        if (!ttsSessionOpened && !ttsUseSingleMode) {
           ttsSessionOpened = await this.ttsService.ensureSession(conversationIdStr);
+          if (!ttsSessionOpened) {
+            ttsUseSingleMode = true;
+          }
         }
         if (ttsSessionOpened) {
           this.ttsService.sendText(conversationIdStr, ttsSentenceBuffer.trim());
+        } else if (ttsUseSingleMode) {
+          this.ttsService.streamSynthesize(ttsSentenceBuffer.trim(), conversationIdStr).catch((e: Error) => {
+            this.logger.warn(`TTS 单次合成失败: ${e.message}`);
+          });
         }
       }
-      if (ttsSessionOpened) {
-        await this.ttsService.closeSession(conversationIdStr).catch((e: Error) => {
-          this.logger.warn(`TTS 会话关闭失败: ${e.message}`);
-        });
-      }
+      // 总是尝试关闭会话（closeSession 在无会话时是空操作）
+      await this.ttsService.closeSession(conversationIdStr).catch(() => {});
 
       if (emitter.completed) {
         return;
@@ -507,14 +523,19 @@ export class AiService {
     } catch (error) {
       // TTS 清理：发生错误时刷新剩余 buffer 并关闭会话
       if (ttsSentenceBuffer.trim() && conversationIdStr) {
-        if (!ttsSessionOpened) {
+        if (!ttsSessionOpened && !ttsUseSingleMode) {
           ttsSessionOpened = await this.ttsService.ensureSession(conversationIdStr).catch(() => false);
+          if (!ttsSessionOpened) {
+            ttsUseSingleMode = true;
+          }
         }
         if (ttsSessionOpened) {
           this.ttsService.sendText(conversationIdStr, ttsSentenceBuffer.trim());
+        } else if (ttsUseSingleMode) {
+          this.ttsService.streamSynthesize(ttsSentenceBuffer.trim(), conversationIdStr).catch(() => {});
         }
       }
-      if (ttsSessionOpened && conversationIdStr) {
+      if (conversationIdStr) {
         await this.ttsService.closeSession(conversationIdStr).catch(() => {});
       }
 
@@ -564,7 +585,7 @@ export class AiService {
     }
 
     await this.logService.saveLog({
-      modelId: modelId || 'unknown',
+      modelId: modelId,
       modelCode: 'unknown',
       modelType,
       request: JSON.stringify(dto),

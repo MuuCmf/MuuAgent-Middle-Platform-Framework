@@ -166,7 +166,7 @@ export class VolcengineStrategy extends BaseStrategy {
       .map((line) => {
         try {
           const parsed = JSON.parse(line);
-          this.logger.debug(`解析响应行: ${JSON.stringify(parsed)}`);
+          //this.logger.debug(`解析响应行: ${JSON.stringify(parsed)}`);
           return parsed;
         } catch {
           this.logger.debug(`无法解析行: ${line.substring(0, 100)}...`);
@@ -323,7 +323,7 @@ export class VolcengineStrategy extends BaseStrategy {
           let parsed: any;
           try {
             parsed = JSON.parse(trimmed);
-            this.logger.debug(`收到响应: ${JSON.stringify(parsed)}`);
+            //this.logger.debug(`收到响应: ${JSON.stringify(parsed)}`);
           } catch {
             this.logger.debug(`无法解析的行: ${trimmed}`);
             continue;

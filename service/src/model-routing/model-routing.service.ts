@@ -410,11 +410,13 @@ export class ModelRoutingService {
     let isDegraded = false;
     let degradeReason: string | undefined;
 
-    // 1. 指定模型能力校验
+    // 1. 指定模型能力校验（仅类型兼容性检查，不做标签级意图过滤）
     if (specifiedModelCode) {
       try {
         const model = await this.modelService.findByCode(specifiedModelCode);
-        if (this.modelSupportsIntent(model, intent, modelType)) {
+        // 用户指定模型时只检查类型是否匹配（如图片/语音模型不能用于文字对话）
+        // 不做标签过滤：用户主动选择的模型应被尊重，即使标签不匹配也能处理通用任务
+        if (this.isIntentTypeCompatible(model, intent)) {
           // 记录路由日志
           this.routingLogService
             .log({
@@ -433,7 +435,7 @@ export class ModelRoutingService {
           return model;
         }
         isDegraded = true;
-        degradeReason = `指定模型 ${specifiedModelCode} 不支持意图 ${intent}`;
+        degradeReason = `指定模型 ${specifiedModelCode} 类型不匹配，不支持意图 ${intent}`;
         this.logger.warn(degradeReason);
       } catch {
         isDegraded = true;
@@ -593,7 +595,24 @@ export class ModelRoutingService {
   }
 
   /**
-   * 检查模型是否支持指定意图
+   * 检查模型类型是否与意图兼容（仅做类型级校验，不做标签级意图过滤）
+   * 用于用户指定模型时的轻量检查，尊重用户的选择
+   * @param model 模型信息
+   * @param intent 对话意图
+   * @returns {boolean} 类型是否兼容
+   */
+  private isIntentTypeCompatible(model: Model, intent: string): boolean {
+    // image/tts/asr/embedding 类型：意图必须与模型类型匹配
+    if (["image", "tts", "asr", "embedding"].includes(intent)) {
+      return model.type === intent;
+    }
+    // 文字类意图：所有模型都兼容（用户指定模型应被尊重）
+    return true;
+  }
+
+  /**
+   * 检查模型是否支持指定意图（含标签级意图过滤）
+   * 用于自动调度时的严格校验
    * @param model 模型信息
    * @param intent 对话意图
    * @param modelType 模型技术类型
@@ -604,6 +623,9 @@ export class ModelRoutingService {
     intent: string,
     modelType: string,
   ): boolean {
+    // general 是默认意图，所有模型都应该支持
+    if (intent === "general") return true;
+
     // image/tts/asr/embedding 类型：意图必须与模型类型匹配
     if (["image", "tts", "asr", "embedding"].includes(intent)) {
       return model.type === intent;
@@ -628,6 +650,9 @@ export class ModelRoutingService {
    * @returns {Model[]} 筛选后的模型列表
    */
   filterByIntent(models: Model[], intent: string, modelType: string): Model[] {
+    // general 是默认意图，所有模型都可处理，无需筛选
+    if (intent === "general") return models;
+
     // image/tts/asr 等特殊类型不需要按 tags 筛选，直接返回
     if (["image", "tts", "asr", "embedding"].includes(modelType)) {
       return models;

@@ -60,6 +60,7 @@ export const voiceProfileApi = {
     page?: number
     pageSize?: number
     provider?: string
+    modelCode?: string
     language?: string
     status?: string
     keyword?: string

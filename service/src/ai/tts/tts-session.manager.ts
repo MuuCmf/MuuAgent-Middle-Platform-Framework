@@ -73,6 +73,9 @@ export class TtsSessionManager {
   /** conversationId → ActiveTtsSession */
   private sessions = new Map<string, ActiveTtsSession>();
 
+  /** 正在打开会话中的 conversationId（防止并发重复创建） */
+  private sessionOpening = new Set<string>();
+
   /** 阿里云 Qwen-TTS 支持的音色列表 */
   private static readonly ALIYUN_QWEN_VOICES = new Set([
     'Cherry', 'Serena', 'Ethan', 'Chelsie', 'Momo', 'Vivian',
@@ -90,6 +93,10 @@ export class TtsSessionManager {
   /**
    * 确保TTS会话已打开
    *
+   * 使用 sessionOpening 集合防止并发重复创建：
+   * 当第一个 ensureSession() 正在建立 WebSocket 连接时，
+   * 第二个并发调用会等待第一个完成，避免创建重复会话。
+   *
    * @param conversationId 会话ID
    * @param modelCode 模型编码（可选）
    * @returns 会话是否就绪
@@ -98,12 +105,25 @@ export class TtsSessionManager {
     if (this.isSessionActive(conversationId)) return true;
     if (!this.gateway.isConnected(conversationId)) return false;
 
+    // 防止并发重复创建
+    if (this.sessionOpening.has(conversationId)) {
+      this.logger.debug(`等待其他 ensureSession 完成: ${conversationId}`);
+      while (this.sessionOpening.has(conversationId)) {
+        if (this.isSessionActive(conversationId)) return true;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      return this.isSessionActive(conversationId);
+    }
+
+    this.sessionOpening.add(conversationId);
     try {
       await this.openSession(conversationId, modelCode);
       return true;
     } catch (error) {
       this.logger.error(`打开TTS会话失败: ${(error as Error).message}`);
       return false;
+    } finally {
+      this.sessionOpening.delete(conversationId);
     }
   }
 
@@ -123,7 +143,10 @@ export class TtsSessionManager {
       return;
     }
 
-    const model = await this.resolveModel(modelCode);
+    const clientParams = this.gateway.getClientParams(conversationId);
+    const voiceId = clientParams?.voiceId || 'Cherry';
+
+    const model = await this.resolveModel(modelCode, voiceId);
     const provider = model.provider || '';
 
     if (provider === 'volcengine') {
@@ -135,12 +158,11 @@ export class TtsSessionManager {
       throw new Error('DashScope API Key 未配置');
     }
 
-    const clientParams = this.gateway.getClientParams(conversationId);
-    const voiceId = this.resolveVoice(clientParams?.voiceId || 'Cherry');
+    const resolvedVoice = this.resolveVoice(voiceId);
     const voiceSpeed = clientParams?.speed || 1.0;
     const modelCodeResolved = model.code || 'qwen3-tts-flash-realtime';
 
-    this.logger.debug(`打开TTS会话: ${conversationId}, model=${modelCodeResolved}, voice=${voiceId}, speed=${voiceSpeed}`);
+    this.logger.debug(`打开TTS会话: ${conversationId}, model=${modelCodeResolved}, voice=${resolvedVoice}, speed=${voiceSpeed}`);
 
     const wsUrl = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${modelCodeResolved}`;
     const ws = new WebSocket(wsUrl, {
@@ -159,7 +181,7 @@ export class TtsSessionManager {
     const session: ActiveTtsSession = {
       conversationId,
       ws,
-      voice: voiceId,
+      voice: resolvedVoice,
       speed: voiceSpeed,
       seq: 0,
       closed: false,
@@ -219,7 +241,7 @@ export class TtsSessionManager {
         event_id: crypto.randomUUID(),
         type: 'session.update',
         session: {
-          voice: voiceId,
+          voice: resolvedVoice,
           mode: 'commit',
           response_format: 'pcm',
           sample_rate: 24000,
@@ -344,7 +366,7 @@ export class TtsSessionManager {
         event_id: crypto.randomUUID(),
         type: 'input_text_buffer.commit',
       });
-    }, 100);
+    }, 20);
   }
 
   /**
@@ -708,20 +730,46 @@ export class TtsSessionManager {
   }
 
   /**
-   * 解析模型：指定编码 > 默认实时TTS模型 > 通用TTS模型
+   * 解析模型：指定编码 > 音色关联模型 > 默认实时TTS模型 > 通用TTS模型
    *
    * @param modelCode 模型编码
+   * @param voice 音色标识（可选，用于从 voiceProfile 查询关联模型）
    * @returns 模型信息
    */
-  private async resolveModel(modelCode?: string): Promise<any> {
+  private async resolveModel(modelCode?: string, voice?: string): Promise<any> {
     if (modelCode) {
       try { return await this.modelRouting.selectModelByIntent('tts', 'tts:realtime', modelCode); } catch { /* fallthrough */ }
+    }
+
+    if (voice) {
+      const code = await this.getVoiceModelCode(voice);
+      if (code) {
+        try { return await this.modelRouting.selectModelByIntent('tts', 'tts:realtime', code); } catch { /* fallthrough */ }
+      }
     }
 
     const realtime = await this.findRealtimeModel();
     if (realtime) return realtime;
 
     return this.modelRouting.selectModel('tts');
+  }
+
+  /**
+   * 从音色配置获取模型编码
+   *
+   * @param voiceId 音色ID
+   * @returns 模型编码或 undefined
+   */
+  private async getVoiceModelCode(voiceId: string): Promise<string | undefined> {
+    try {
+      const profile = await this.prisma.voiceProfile.findFirst({
+        where: { voiceId, status: true },
+        orderBy: { isDefault: 'desc' },
+      });
+      return profile?.modelCode || undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /**

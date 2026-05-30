@@ -70,6 +70,7 @@ const voicesLoading = ref(false);
 
 /**
  * 获取语音配置显示标签
+ * 显示格式：音色名 (性别) - 提供商 · 模型编码
  * @param voice 语音配置
  * @returns {string} 显示标签
  */
@@ -80,7 +81,8 @@ function voiceLabel(voice: VoiceProfileItem): string {
     neutral: '中性',
   }
   const gender = voice.gender ? ` (${genderMap[voice.gender] || voice.gender})` : ''
-  return `${voice.name}${gender} - ${voice.provider}`
+  const modelInfo = voice.modelCode ? ` · ${voice.modelCode}` : ''
+  return `${voice.name}${gender} - ${voice.provider}${modelInfo}`
 }
 
 /**
@@ -135,7 +137,7 @@ function handleSave() {
       ttsStreamService.changeSpeed(settings.speed)
     }
     if (settings.modelCode !== oldConfig.modelCode) {
-      ttsStreamService.changeModel(settings.modelCode)
+      ttsStreamService.changeModel(settings.modelCode || '')
     }
   }
 

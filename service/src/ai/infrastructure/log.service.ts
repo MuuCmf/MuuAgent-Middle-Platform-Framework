@@ -7,7 +7,7 @@ import { NormalizedError } from '../handlers/error.handler';
  * 日志数据接口
  */
 export interface LogData {
-  modelId: string;
+  modelId: string | null;
   modelCode: string;
   modelType: string;
   request: string;

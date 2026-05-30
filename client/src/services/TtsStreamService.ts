@@ -60,6 +60,11 @@ class TtsStreamService {
   private ttsEndReceived = false
   private ttsEndResolve: (() => void) | null = null
 
+  /** 是否已开始播放（用于预缓冲控制） */
+  private hasStartedPlayback = false
+  /** 预缓冲最小块数：累积足够音频再开始播放，避免边播边等导致卡顿 */
+  private readonly MIN_BUFFER_COUNT = 5
+
   /**
    * 获取当前播放状态
    */
@@ -282,6 +287,7 @@ class TtsStreamService {
     this.audioQueue = []
     this.isProcessing = false
     this.isPaused = false
+    this.hasStartedPlayback = false
     this.nextChunkTime = 0
     this.ttsEndReceived = false
     this.ttsEndResolve = null
@@ -339,6 +345,7 @@ class TtsStreamService {
     this.audioQueue = []
     this.isProcessing = false
     this.isPaused = false
+    this.hasStartedPlayback = false
     this.nextChunkTime = 0
     this.currentChunk = null
     this.retryCount = 0
@@ -381,6 +388,9 @@ class TtsStreamService {
   /**
    * 处理接收到的音频块
    *
+   * 预缓冲策略：首次播放前累积 MIN_BUFFER_COUNT 个音频块再开始，
+   * 避免首个块立即播放后等待后续块到达导致的卡顿。
+   *
    * @param chunk 音频块数据
    */
   private handleAudioChunk(chunk: AudioChunkData): void {
@@ -398,6 +408,12 @@ class TtsStreamService {
     this.audioQueue.push(chunk)
 
     if (!this.isProcessing && !this.isPaused) {
+      // 预缓冲：首次播放或队列排空后重新累积足够块数再开始
+      // 如果已收到 tts_end 说明后续无更多块，立即开始无需等待
+      if (!this.hasStartedPlayback && this.audioQueue.length < this.MIN_BUFFER_COUNT && !this.ttsEndReceived) {
+        console.log(`[TtsStream] 预缓冲中: ${this.audioQueue.length}/${this.MIN_BUFFER_COUNT}`)
+        return
+      }
       this.processQueue()
     }
   }
@@ -415,6 +431,7 @@ class TtsStreamService {
 
     console.log(`[TtsStream] 开始处理队列: 队列长度=${this.audioQueue.length}`)
     this.isProcessing = true
+    this.hasStartedPlayback = true
 
     try {
       while (this.audioQueue.length > 0 && !this.isPaused) {
@@ -471,50 +488,44 @@ class TtsStreamService {
   private nextChunkTime = 0
 
   /**
-   * 异步解码 PCM 数据（使用 Promise 包装，避免阻塞主线程）
+   * 解码 PCM 数据（同步执行，移除 setTimeout 避免不必要的延迟）
    *
    * @param base64Data Base64 编码的 PCM 数据
    * @returns Float32Array 音频数据和采样数
    */
-  private async decodePcmAsync(base64Data: string): Promise<{ floatData: Float32Array; sampleCount: number }> {
-    return new Promise((resolve) => {
-      // 使用 setTimeout 让浏览器有机会处理其他任务
-      setTimeout(() => {
-        const binary = atob(base64Data)
-        const sampleCount = Math.floor(binary.length / 2)
-        if (sampleCount === 0) {
-          resolve({ floatData: new Float32Array(0), sampleCount: 0 })
-          return
-        }
+  private decodePcm(base64Data: string): { floatData: Float32Array; sampleCount: number } {
+    const binary = atob(base64Data)
+    const sampleCount = Math.floor(binary.length / 2)
+    if (sampleCount === 0) {
+      return { floatData: new Float32Array(0), sampleCount: 0 }
+    }
 
-        const pcmData = new Int16Array(sampleCount)
-        for (let i = 0; i < sampleCount; i++) {
-          pcmData[i] = binary.charCodeAt(i * 2) | (binary.charCodeAt(i * 2 + 1) << 8)
-        }
+    const pcmData = new Int16Array(sampleCount)
+    for (let i = 0; i < sampleCount; i++) {
+      pcmData[i] = binary.charCodeAt(i * 2) | (binary.charCodeAt(i * 2 + 1) << 8)
+    }
 
-        const floatData = new Float32Array(sampleCount)
-        for (let i = 0; i < sampleCount; i++) {
-          floatData[i] = pcmData[i] / 32768
-        }
+    const floatData = new Float32Array(sampleCount)
+    for (let i = 0; i < sampleCount; i++) {
+      floatData[i] = pcmData[i] / 32768
+    }
 
-        resolve({ floatData, sampleCount })
-      }, 0)
-    })
+    return { floatData, sampleCount }
   }
 
   /**
    * 播放 PCM 音频块
    *
-   * 使用异步解码避免阻塞主线程，使用 nextChunkTime 实现无间隙连续播放
+   * 使用 nextChunkTime 实现无间隙连续播放。
+   * 首次播放前确保 AudioContext 已就绪（resume），避免首个块被调度到未激活的上下文中。
    *
    * @param chunk 音频块数据
    */
   private async playPcmChunk(chunk: AudioChunkData): Promise<void> {
-    const ctx = this.getAudioContext()
+    const ctx = await this.ensureAudioContext()
     const sampleRate = chunk.sampleRate || 24000
 
-    // 异步解码，避免阻塞主线程
-    const { floatData, sampleCount } = await this.decodePcmAsync(chunk.data)
+    const { floatData, sampleCount } = this.decodePcm(chunk.data)
 
     if (sampleCount === 0) {
       console.warn('[TtsStream] PCM 块数据为空')
@@ -667,14 +678,29 @@ class TtsStreamService {
         throw new Error(`浏览器不支持 AudioContext 或音频被安全策略阻止: ${e}`)
       }
     }
-    if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume().then(() => {
-        console.log('[TtsStream] AudioContext resume 成功')
-      }).catch((e) => {
-        console.warn('[TtsStream] AudioContext resume 失败:', e)
-      })
-    }
     return this.audioContext
+  }
+
+  /**
+   * 获取 AudioContext 并确保其已就绪（resume）
+   *
+   * 浏览器安全策略要求 AudioContext 在用户交互后才能激活。
+   * 如果上下文为 suspended 状态，await resume 完成后再调度音频，
+   * 避免音频块被调度到未激活的上下文中导致丢失或延迟。
+   *
+   * @returns 就绪的 AudioContext 实例
+   */
+  private async ensureAudioContext(): Promise<AudioContext> {
+    const ctx = this.getAudioContext()
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume()
+        console.log('[TtsStream] AudioContext resume 成功')
+      } catch (e) {
+        console.warn('[TtsStream] AudioContext resume 失败:', e)
+      }
+    }
+    return ctx
   }
 
   /**
@@ -731,6 +757,7 @@ class TtsStreamService {
     this.audioQueue = []
     this.isProcessing = false
     this.isPaused = false
+    this.hasStartedPlayback = false
     this.nextChunkTime = 0
     this.currentChunk = null
     this.retryCount = 0
