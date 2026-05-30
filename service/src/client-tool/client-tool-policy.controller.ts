@@ -3,11 +3,13 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ClientToolPolicyService } from './client-tool-policy.service';
 import { ToolPermissionPolicy, ClientToolModulePolicy } from './client-tool-entry';
 import { TenantGuard } from '../common/guards/tenant.guard';
+import { TenantPermissionGuard } from '../common/guards/tenant-permission.guard';
+import { RequireTenantPermission } from '../common/decorators/tenant-permission.decorator';
 import { success } from '../common/response/api.response';
 
 @ApiTags('客户端工具权限')
 @Controller('client-tool/policy')
-@UseGuards(TenantGuard)
+@UseGuards(TenantGuard, TenantPermissionGuard)
 export class ClientToolPolicyController {
   constructor(private readonly policyService: ClientToolPolicyService) {}
 
@@ -16,6 +18,7 @@ export class ClientToolPolicyController {
    */
   @Get()
   @ApiOperation({ summary: '获取所有客户端工具权限策略' })
+  @RequireTenantPermission('toolPolicy', 'read')
   getAllPolicies(): object {
     const policies = this.policyService.getAllPolicies();
     return success(policies);
@@ -27,6 +30,7 @@ export class ClientToolPolicyController {
    */
   @Get(':moduleName')
   @ApiOperation({ summary: '获取指定模块的权限策略' })
+  @RequireTenantPermission('toolPolicy', 'read')
   getModulePolicy(@Param('moduleName') moduleName: string): object {
     const policy = this.policyService.getModulePolicy(moduleName);
     if (!policy) {
@@ -42,6 +46,7 @@ export class ClientToolPolicyController {
    */
   @Get(':moduleName/:toolName')
   @ApiOperation({ summary: '获取指定工具的权限策略' })
+  @RequireTenantPermission('toolPolicy', 'read')
   getToolPolicy(
     @Param('moduleName') moduleName: string,
     @Param('toolName') toolName: string,
@@ -58,6 +63,7 @@ export class ClientToolPolicyController {
    */
   @Put(':moduleName/:toolName')
   @ApiOperation({ summary: '覆盖指定工具的权限策略' })
+  @RequireTenantPermission('toolPolicy', 'write')
   setToolPolicyOverride(
     @Param('moduleName') moduleName: string,
     @Param('toolName') toolName: string,
@@ -75,6 +81,7 @@ export class ClientToolPolicyController {
    */
   @Put(':moduleName')
   @ApiOperation({ summary: '覆盖指定模块的默认策略' })
+  @RequireTenantPermission('toolPolicy', 'write')
   setModulePolicyOverride(
     @Param('moduleName') moduleName: string,
     @Body() override: Partial<Pick<ClientToolModulePolicy, 'defaultConfirmMode' | 'defaultTimeout'>>,
@@ -91,6 +98,7 @@ export class ClientToolPolicyController {
    */
   @Delete(':moduleName/:toolName')
   @ApiOperation({ summary: '删除工具策略覆盖（恢复默认）' })
+  @RequireTenantPermission('toolPolicy', 'write')
   deleteToolPolicyOverride(
     @Param('moduleName') moduleName: string,
     @Param('toolName') toolName: string,
@@ -104,6 +112,7 @@ export class ClientToolPolicyController {
    */
   @Delete()
   @ApiOperation({ summary: '重置所有策略覆盖（恢复全部默认）' })
+  @RequireTenantPermission('toolPolicy', 'write')
   resetAllOverrides(): object {
     this.policyService.resetAllOverrides();
     return success({ reset: true });

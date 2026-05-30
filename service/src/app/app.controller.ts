@@ -16,7 +16,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { AppService } from './app.service';
-import { CreateAppDto, UpdateAppDto, QueryAppDto, ResetSecretDto } from './dto/app.dto';
+import { CreateAppDto, UpdateAppDto, QueryAppDto, ResetSecretDto, UpdatePermissionsDto } from './dto/app.dto';
 import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { RequireScope } from '../common/decorators/scope.decorator';
@@ -142,5 +142,34 @@ export class AppController {
   async getUsage(@Param('id') id: string) {
     const result = await this.appService.getUsage(id);
     return success(result);
+  }
+
+  /**
+   * 获取租户权限配置
+   * @param id 应用ID
+   * @returns {Promise<object>} 权限配置
+   */
+  @Get('/:id/permissions')
+  @ApiOperation({ summary: '获取租户权限配置' })
+  @ApiParam({ name: 'id', description: '应用ID' })
+  @RequireScope(AdminScope.APP_READ)
+  async getPermissions(@Param('id') id: string) {
+    const result = await this.appService.getPermissions(id);
+    return success(result);
+  }
+
+  /**
+   * 更新租户权限配置
+   * @param id 应用ID
+   * @param dto 权限配置DTO
+   * @returns {Promise<object>} 更新后的权限配置
+   */
+  @Put('/:id/permissions')
+  @ApiOperation({ summary: '更新租户权限配置' })
+  @ApiParam({ name: 'id', description: '应用ID' })
+  @RequireScope(AdminScope.APP_WRITE)
+  async updatePermissions(@Param('id') id: string, @Body() dto: UpdatePermissionsDto) {
+    const result = await this.appService.updatePermissions(id, dto.permissions);
+    return success(result, '更新权限配置成功');
   }
 }

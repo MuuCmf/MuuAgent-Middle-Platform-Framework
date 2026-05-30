@@ -22,6 +22,8 @@ import { ScopeGuard } from '../common/guards/scope.guard';
 import { AdminScope } from '../common/constants/scope.constants';
 import { RequireScope } from '../common/decorators/scope.decorator';
 import { TenantGuard } from '../common/guards/tenant.guard';
+import { TenantPermissionGuard } from '../common/guards/tenant-permission.guard';
+import { RequireTenantPermission } from '../common/decorators/tenant-permission.decorator';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { extractIsolationContext } from '../common/services/base-isolated.service';
 import { success, page } from '../common/response/api.response';
@@ -32,7 +34,7 @@ import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
  * 会话管理控制器（用户API）
  */
 @ApiTags('会话管理（业务端）')
-@UseGuards(TenantGuard, RateLimitGuard)
+@UseGuards(TenantGuard, TenantPermissionGuard, RateLimitGuard)
 @UseInterceptors(RateLimitInterceptor)
 @Controller('conversation')
 export class ConversationController {
@@ -50,6 +52,7 @@ export class ConversationController {
   @Post()
   @ApiOperation({ summary: '创建会话' })
   @ApiResponse({ status: 201, description: '创建成功' })
+  @RequireTenantPermission('conversation', 'create')
   async create(@Body() dto: CreateConversationDto, @Req() req: Request) {
     const context = extractIsolationContext(req);
     const result = await this.conversationService.create(dto, context);
@@ -100,6 +103,7 @@ export class ConversationController {
   @Put(':id')
   @ApiOperation({ summary: '更新会话' })
   @ApiResponse({ status: 200, description: '更新成功' })
+  @RequireTenantPermission('conversation', 'update')
   async update(
     @Param('id') id: any,
     @Body() dto: UpdateConversationDto,
@@ -118,6 +122,7 @@ export class ConversationController {
   @Delete(':id')
   @ApiOperation({ summary: '删除会话' })
   @ApiResponse({ status: 200, description: '删除成功' })
+  @RequireTenantPermission('conversation', 'delete')
   async remove(@Param('id') id: any, @Req() req: Request) {
     const context = extractIsolationContext(req);
     await this.conversationService.remove(id, context);
@@ -150,6 +155,7 @@ export class ConversationController {
   @Post(':id/messages')
   @ApiOperation({ summary: '添加消息到会话' })
   @ApiResponse({ status: 201, description: '添加成功' })
+  @RequireTenantPermission('conversation', 'addMessage')
   async addMessage(
     @Param('id') id: any,
     @Body() dto: AddMessageDto,

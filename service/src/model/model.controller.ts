@@ -23,6 +23,7 @@ import {
 } from './dto/model.dto';
 import { success, page } from '../common/response/api.response';
 import { TenantGuard } from '../common/guards/tenant.guard';
+import { TenantPermissionGuard } from '../common/guards/tenant-permission.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
 import { getProvidersByType } from '../ai/providers/provider-registry';
@@ -181,7 +182,7 @@ export class ModelAdminController {
  */
 @ApiTags('模型（业务端）')
 @ApiBearerAuth()
-@UseGuards(TenantGuard, RateLimitGuard)
+@UseGuards(TenantGuard, TenantPermissionGuard, RateLimitGuard)
 @UseInterceptors(RateLimitInterceptor)
 @Controller('model')
 export class ModelController {

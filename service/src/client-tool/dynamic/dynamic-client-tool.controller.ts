@@ -1,8 +1,12 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiProperty, ApiPropertyOptional, ApiBearerAuth } from '@nestjs/swagger';
 import { IsString, IsOptional, IsObject, IsBoolean, IsIn, IsInt, IsNotEmpty } from 'class-validator';
 import { DynamicClientToolService, CreateDynamicClientToolDto, UpdateDynamicClientToolDto } from './dynamic-client-tool.service';
+import { TenantGuard } from '../../common/guards/tenant.guard';
+import { TenantPermissionGuard } from '../../common/guards/tenant-permission.guard';
+import { RequireTenantPermission } from '../../common/decorators/tenant-permission.decorator';
 import { success as apiSuccess } from '../../common/response/api.response';
+import type { Request } from 'express';
 
 class CreateDynamicClientToolBody {
   @ApiProperty({ description: '工具名称' })
@@ -107,6 +111,8 @@ class UpdateDynamicClientToolBody {
 }
 
 @ApiTags('动态客户端工具')
+@ApiBearerAuth('api-key')
+@UseGuards(TenantGuard, TenantPermissionGuard)
 @Controller('agent/dynamic-client-tools')
 export class DynamicClientToolController {
   constructor(
@@ -120,7 +126,9 @@ export class DynamicClientToolController {
    */
   @Post()
   @ApiOperation({ summary: '创建动态客户端工具' })
-  async create(@Body() body: CreateDynamicClientToolBody) {
+  @RequireTenantPermission('dynamicTool', 'create')
+  async create(@Body() body: CreateDynamicClientToolBody, @Req() req: Request) {
+    const appCode = (req as any).appCode || body.appCode;
     const dto: CreateDynamicClientToolDto = {
       name: body.name,
       displayName: body.displayName,
@@ -131,7 +139,7 @@ export class DynamicClientToolController {
       confirmMode: body.confirmMode as 'auto' | 'confirm' | 'deny' | undefined,
       confirmMessage: body.confirmMessage,
       timeout: body.timeout,
-      appCode: body.appCode,
+      appCode,
       uid: body.uid,
     };
     const tool = await this.dynamicClientToolService.create(dto);
@@ -149,8 +157,10 @@ export class DynamicClientToolController {
   async findAll(
     @Query('appCode') appCode?: string,
     @Query('uid') uid?: string,
+    @Req() req?: Request,
   ) {
-    const tools = await this.dynamicClientToolService.findAll(appCode, uid);
+    const effectiveAppCode = (req as any)?.appCode || appCode;
+    const tools = await this.dynamicClientToolService.findAll(effectiveAppCode, uid);
     return apiSuccess(tools);
   }
 
@@ -167,8 +177,10 @@ export class DynamicClientToolController {
   async syncForClient(
     @Query('appCode') appCode?: string,
     @Query('uid') uid?: string,
+    @Req() req?: Request,
   ) {
-    const definitions = await this.dynamicClientToolService.getDefinitionsForClient(appCode, uid);
+    const effectiveAppCode = (req as any)?.appCode || appCode;
+    const definitions = await this.dynamicClientToolService.getDefinitionsForClient(effectiveAppCode, uid);
     return apiSuccess(definitions);
   }
 
@@ -192,6 +204,7 @@ export class DynamicClientToolController {
    */
   @Put(':id')
   @ApiOperation({ summary: '更新动态客户端工具' })
+  @RequireTenantPermission('dynamicTool', 'update')
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateDynamicClientToolBody,
@@ -218,6 +231,7 @@ export class DynamicClientToolController {
    */
   @Delete(':id')
   @ApiOperation({ summary: '删除动态客户端工具' })
+  @RequireTenantPermission('dynamicTool', 'delete')
   async remove(@Param('id', ParseIntPipe) id: number) {
     const tool = await this.dynamicClientToolService.remove(id);
     return apiSuccess(tool);

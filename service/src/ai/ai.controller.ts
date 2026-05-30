@@ -2,6 +2,8 @@ import { Controller, Post, Body, Req, Sse, UseGuards, UseInterceptors } from '@n
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AiService } from './ai.service';
 import { TenantGuard } from '../common/guards/tenant.guard';
+import { TenantPermissionGuard } from '../common/guards/tenant-permission.guard';
+import { RequireTenantPermission } from '../common/decorators/tenant-permission.decorator';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
 import {
@@ -22,7 +24,7 @@ import { StreamEmitter, SseResponseBuilder } from '../stream';
  */
 @ApiTags('模型（业务端）')
 @ApiBearerAuth('api-key')
-@UseGuards(TenantGuard, RateLimitGuard)
+@UseGuards(TenantGuard, TenantPermissionGuard, RateLimitGuard)
 @UseInterceptors(RateLimitInterceptor)
 @Controller('ai')
 export class AiController {
@@ -52,6 +54,7 @@ export class AiController {
    */
   @Post('invoke')
   @ApiOperation({ summary: '同步调用' })
+  @RequireTenantPermission('ai', 'invoke')
   async invoke(@Body() dto: AiInvokeDto, @Req() req: Request) {
     const clientIp = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || '';
@@ -70,6 +73,7 @@ export class AiController {
   @Post('stream')
   @Sse()
   @ApiOperation({ summary: 'SSE流式调用' })
+  @RequireTenantPermission('ai', 'stream')
   stream(
     @Body() dto: AiInvokeDto,
     @Req() req: Request,
@@ -92,6 +96,7 @@ export class AiController {
    */
   @Post('image')
   @ApiOperation({ summary: '文生图' })
+  @RequireTenantPermission('ai', 'image')
   async imageGenerate(@Body() dto: ImageGenerateDto, @Req() req: Request) {
     const clientIp = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || '';
@@ -109,6 +114,7 @@ export class AiController {
    */
   @Post('tts')
   @ApiOperation({ summary: '语音合成' })
+  @RequireTenantPermission('ai', 'tts')
   async tts(@Body() dto: TtsDto, @Req() req: Request) {
     const clientIp = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || '';
@@ -126,6 +132,7 @@ export class AiController {
    */
   @Post('asr')
   @ApiOperation({ summary: '语音识别' })
+  @RequireTenantPermission('ai', 'asr')
   async asr(@Body() dto: AsrDto, @Req() req: Request) {
     const clientIp = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || '';

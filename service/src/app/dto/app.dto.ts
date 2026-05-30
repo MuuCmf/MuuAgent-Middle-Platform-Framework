@@ -7,8 +7,10 @@ import {
   IsDateString,
   MaxLength,
   Min,
+  IsObject,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
+import { TenantPermissions } from '../../common/constants/tenant-permission.constants';
 
 /**
  * 创建应用DTO
@@ -105,4 +107,13 @@ export class ResetSecretDto {
   @IsOptional()
   @IsBoolean()
   resetApiKey?: boolean;
+}
+
+/**
+ * 更新租户权限DTO
+ */
+export class UpdatePermissionsDto {
+  @ApiProperty({ description: '租户功能权限配置', type: Object })
+  @IsObject()
+  permissions: TenantPermissions;
 }

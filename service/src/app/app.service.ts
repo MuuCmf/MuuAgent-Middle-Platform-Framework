@@ -5,6 +5,11 @@ import { CreateAppDto, UpdateAppDto, QueryAppDto, ResetSecretDto } from './dto/a
 import { randomUUID } from 'crypto';
 import { SkillRegistry } from '../skill/skill-registry';
 import { IsolationContext } from '../common/services/base-isolated.service';
+import {
+  TenantPermissions,
+  parseTenantPermissions,
+  DEFAULT_TENANT_PERMISSIONS,
+} from '../common/constants/tenant-permission.constants';
 
 /**
  * 应用管理服务
@@ -290,6 +295,48 @@ export class AppService {
   }
 
   /**
+   * 获取租户权限配置
+   * @param id 应用ID
+   * @returns {Required<TenantPermissions>} 合并后的完整权限
+   */
+  async getPermissions(id: string): Promise<Required<TenantPermissions>> {
+    const app = await this.prisma.appTenant.findUnique({
+      where: { id: id as any },
+    });
+
+    if (!app) {
+      throw new NotFoundException('应用不存在');
+    }
+
+    return parseTenantPermissions(app.permissions || '{}');
+  }
+
+  /**
+   * 更新租户权限配置
+   * @param id 应用ID
+   * @param permissions 权限配置
+   * @returns {Required<TenantPermissions>} 更新后的完整权限
+   */
+  async updatePermissions(id: string, permissions: TenantPermissions): Promise<Required<TenantPermissions>> {
+    const existing = await this.prisma.appTenant.findUnique({
+      where: { id: id as any },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('应用不存在');
+    }
+
+    await this.prisma.appTenant.update({
+      where: { id: id as any },
+      data: {
+        permissions: JSON.stringify(permissions),
+      },
+    });
+
+    return parseTenantPermissions(permissions);
+  }
+
+  /**
    * 格式化应用数据
    * @param app 应用数据
    * @param showSecret 是否显示密钥
@@ -308,6 +355,7 @@ export class AppService {
       enableOAuth: app.enableOAuth,
       status: app.status,
       expireAt: app.expireAt,
+      permissions: parseTenantPermissions(app.permissions || '{}'),
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,
     };

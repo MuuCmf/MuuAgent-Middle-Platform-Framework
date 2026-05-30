@@ -23,6 +23,8 @@ import { ScopeGuard } from "../common/guards/scope.guard";
 import { AdminScope } from "../common/constants/scope.constants";
 import { RequireScope } from "../common/decorators/scope.decorator";
 import { TenantGuard } from "../common/guards/tenant.guard";
+import { TenantPermissionGuard } from "../common/guards/tenant-permission.guard";
+import { RequireTenantPermission } from "../common/decorators/tenant-permission.decorator";
 import { RateLimitGuard } from "../rate-limit/rate-limit.guard";
 import { RateLimitInterceptor } from "../rate-limit/rate-limit.interceptor";
 import { extractIsolationContext, IsolationContext } from "../common/services/base-isolated.service";
@@ -181,7 +183,7 @@ export class AgentAdminController {
 
 @ApiTags("智能体 (业务端)")
 @ApiBearerAuth("api-key")
-@UseGuards(TenantGuard, RateLimitGuard)
+@UseGuards(TenantGuard, TenantPermissionGuard, RateLimitGuard)
 @UseInterceptors(RateLimitInterceptor)
 @Controller("agent")
 export class AgentController {
@@ -201,6 +203,7 @@ export class AgentController {
    */
   @Post("chat")
   @ApiOperation({ summary: "Agent对话（同步）" })
+  @RequireTenantPermission('agent', 'chat')
   async chat(@Body() dto: AgentChatDto, @Req() req: Request) {
     const uid = this.extractUid(req, dto);
     const appCode = (req as any).appCode;
@@ -223,6 +226,7 @@ export class AgentController {
   @Post("chat/stream")
   @Sse()
   @ApiOperation({ summary: "Agent对话（流式）" })
+  @RequireTenantPermission('agent', 'stream')
   async chatStream(
     @Body() dto: AgentChatDto,
     @Req() req: Request,

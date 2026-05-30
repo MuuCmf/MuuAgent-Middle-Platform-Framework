@@ -258,6 +258,16 @@
       <el-card class="detail-card" shadow="never">
         <template #header>
           <div class="card-header">
+            <span class="card-header__title">{{ $t('app.permissionConfig') }}</span>
+          </div>
+        </template>
+
+        <PermissionConfig :app-id="app.id" />
+      </el-card>
+
+      <el-card class="detail-card" shadow="never">
+        <template #header>
+          <div class="card-header">
             <span class="card-header__title">{{ $t('app.oauthClient') }}</span>
             <el-tag v-if="!app.enableOAuth" type="warning" size="small" effect="light" round>
               {{ $t('app.oauthNotEnabled') }}
@@ -286,6 +296,7 @@ import { ArrowLeft, Edit, Monitor, SetUp, Collection, TrendCharts, Coin } from '
 import { appApi, type App, type AppUsage } from '@/api/app'
 import AppEditDrawer from './components/AppEditDrawer.vue'
 import OAuthClientManager from './components/OAuthClientManager.vue'
+import PermissionConfig from './components/PermissionConfig.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()

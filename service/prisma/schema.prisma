@@ -288,6 +288,9 @@ model AppTenant {
   // ===== OAuth 配置 =====
   enableOAuth   Boolean  @default(false) @map("enable_oauth") /// 是否启用OAuth
 
+  // ===== 权限控制 =====
+  permissions   String?  @db.Text /// 功能权限(JSON)
+
   // ===== 状态 =====
   status        Boolean  @default(true)
   expireAt      DateTime?

@@ -16,8 +16,106 @@ export interface App {
   enableOAuth: boolean
   status: boolean
   expireAt: string | null
+  permissions: TenantPermissions
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * 智能体权限
+ */
+export interface AgentPermission {
+  /** 对话 */
+  chat?: boolean
+  /** 流式对话 */
+  stream?: boolean
+}
+
+/**
+ * AI调用权限
+ */
+export interface AiPermission {
+  /** 同步调用 */
+  invoke?: boolean
+  /** 流式调用 */
+  stream?: boolean
+  /** 文生图 */
+  image?: boolean
+  /** 语音合成 */
+  tts?: boolean
+  /** 语音识别 */
+  asr?: boolean
+}
+
+/**
+ * 知识库权限
+ */
+export interface KbPermission {
+  /** 向量检索 */
+  retrieval?: boolean
+  /** RAG问答 */
+  ragChat?: boolean
+}
+
+/**
+ * 会话权限
+ */
+export interface ConversationPermission {
+  /** 创建 */
+  create?: boolean
+  /** 更新 */
+  update?: boolean
+  /** 删除 */
+  delete?: boolean
+  /** 添加消息 */
+  addMessage?: boolean
+}
+
+/**
+ * 文件权限
+ */
+export interface FilePermission {
+  /** 上传 */
+  upload?: boolean
+  /** 下载 */
+  download?: boolean
+  /** 删除 */
+  delete?: boolean
+}
+
+/**
+ * 动态工具权限
+ */
+export interface DynamicToolPermission {
+  /** 创建 */
+  create?: boolean
+  /** 更新 */
+  update?: boolean
+  /** 删除 */
+  delete?: boolean
+}
+
+/**
+ * 工具策略权限
+ */
+export interface ToolPolicyPermission {
+  /** 读取 */
+  read?: boolean
+  /** 修改 */
+  write?: boolean
+}
+
+/**
+ * 租户完整权限配置
+ */
+export interface TenantPermissions {
+  agent?: AgentPermission
+  ai?: AiPermission
+  kb?: KbPermission
+  conversation?: ConversationPermission
+  file?: FilePermission
+  dynamicTool?: DynamicToolPermission
+  toolPolicy?: ToolPolicyPermission
 }
 
 /**
@@ -162,5 +260,24 @@ export const appApi = {
    */
   getUsage(id: string): Promise<AxiosResponse<ApiResponse<AppUsage>>> {
     return adminRequest.get(`api/admin/apps/${id}/usage`)
+  },
+
+  /**
+   * 获取租户权限配置
+   * @param id 应用ID
+   * @returns {Promise<AxiosResponse<ApiResponse<TenantPermissions>>>} 权限配置
+   */
+  getPermissions(id: string): Promise<AxiosResponse<ApiResponse<TenantPermissions>>> {
+    return adminRequest.get(`api/admin/apps/${id}/permissions`)
+  },
+
+  /**
+   * 更新租户权限配置
+   * @param id 应用ID
+   * @param permissions 权限配置
+   * @returns {Promise<AxiosResponse<ApiResponse<TenantPermissions>>>} 更新后的权限
+   */
+  updatePermissions(id: string, permissions: TenantPermissions): Promise<AxiosResponse<ApiResponse<TenantPermissions>>> {
+    return adminRequest.put(`api/admin/apps/${id}/permissions`, { permissions })
   },
 }

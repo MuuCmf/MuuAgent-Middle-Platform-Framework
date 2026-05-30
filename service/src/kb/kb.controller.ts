@@ -22,6 +22,7 @@ import { ScopeGuard } from '../common/guards/scope.guard';
 import { AdminScope } from '../common/constants/scope.constants';
 import { RequireScope } from '../common/decorators/scope.decorator';
 import { TenantGuard } from '../common/guards/tenant.guard';
+import { TenantPermissionGuard } from '../common/guards/tenant-permission.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { extractIsolationContext } from '../common/services/base-isolated.service';
 import { success, page } from '../common/response/api.response';
@@ -120,7 +121,7 @@ export class KbController {
  */
 @ApiTags('知识库（业务端）')
 @ApiBearerAuth()
-@UseGuards(TenantGuard, RateLimitGuard)
+@UseGuards(TenantGuard, TenantPermissionGuard, RateLimitGuard)
 @UseInterceptors(RateLimitInterceptor)
 @Controller('kb')
 export class ClientKbController {

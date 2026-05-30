@@ -11,15 +11,20 @@ import {
   StreamableFile,
   Header,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { FileService } from './file.service';
 import { UploadFileDto, QueryFileListDto, ProcessFileDto, DeleteFileDto } from './dto/file.dto';
+import { TenantGuard } from '../common/guards/tenant.guard';
+import { TenantPermissionGuard } from '../common/guards/tenant-permission.guard';
+import { RequireTenantPermission } from '../common/decorators/tenant-permission.decorator';
 
 @ApiTags('文件管理')
-@ApiBearerAuth()
+@ApiBearerAuth('api-key')
+@UseGuards(TenantGuard, TenantPermissionGuard)
 @Controller('file')
 export class FileController {
   constructor(private readonly fileService: FileService) {}
@@ -35,6 +40,7 @@ export class FileController {
   @ApiOperation({ summary: '上传单个文件' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file'))
+  @RequireTenantPermission('file', 'upload')
   async uploadSingle(
     @UploadedFiles() file: Express.Multer.File,
     @Body() dto: UploadFileDto,
@@ -61,6 +67,7 @@ export class FileController {
   @ApiOperation({ summary: '批量上传文件' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FilesInterceptor('files', 10))
+  @RequireTenantPermission('file', 'upload')
   async uploadMultiple(
     @UploadedFiles() files: Express.Multer.File[],
     @Body() dto: UploadFileDto,
@@ -84,6 +91,7 @@ export class FileController {
   @Get('download/:id')
   @ApiOperation({ summary: '下载文件' })
   @Header('Content-Disposition', 'attachment')
+  @RequireTenantPermission('file', 'download')
   async download(@Param('id') id: string) {
     const result = await this.fileService.download(id);
     return new StreamableFile(result.stream as any, {
@@ -123,6 +131,7 @@ export class FileController {
    */
   @Delete(':id')
   @ApiOperation({ summary: '删除文件' })
+  @RequireTenantPermission('file', 'delete')
   async delete(@Param('id') id: string, @Body() dto: DeleteFileDto) {
     await this.fileService.delete(id, dto.permanent);
     return { success: true };

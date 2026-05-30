@@ -2,6 +2,7 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { VoiceProfileService } from './voice-profile.service';
 import { TenantGuard } from '../common/guards/tenant.guard';
+import { TenantPermissionGuard } from '../common/guards/tenant-permission.guard';
 import { success } from '../common/response/api.response';
 
 /**
@@ -9,7 +10,7 @@ import { success } from '../common/response/api.response';
  */
 @ApiTags('语音配置（业务端）')
 @ApiBearerAuth('api-key')
-@UseGuards(TenantGuard)
+@UseGuards(TenantGuard, TenantPermissionGuard)
 @Controller('voice-profile')
 export class VoiceProfileClientController {
   constructor(private readonly voiceProfileService: VoiceProfileService) {}

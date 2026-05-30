@@ -2,6 +2,8 @@ import { Controller, Post, Body, HttpCode, UseGuards, Logger } from '@nestjs/com
 import { ClientToolRegistry } from './client-tool-registry';
 import { ClientToolCallResult } from './client-tool-handler.interface';
 import { TenantGuard } from '../common/guards/tenant.guard';
+import { TenantPermissionGuard } from '../common/guards/tenant-permission.guard';
+import { RequireTenantPermission } from '../common/decorators/tenant-permission.decorator';
 import { success as apiSuccess } from '../common/response/api.response';
 
 /**
@@ -19,7 +21,7 @@ import { success as apiSuccess } from '../common/response/api.response';
  * 无需额外创建结果回传 Controller。
  */
 @Controller('agent/chat')
-@UseGuards(TenantGuard)
+@UseGuards(TenantGuard, TenantPermissionGuard)
 export class ClientToolResultController {
   private readonly logger = new Logger(ClientToolResultController.name);
 
@@ -32,6 +34,7 @@ export class ClientToolResultController {
    */
   @Post('client-tool-result')
   @HttpCode(200)
+  @RequireTenantPermission('agent', 'chat')
   async receiveResult(
     @Body() body: {
       /** 会话ID */
