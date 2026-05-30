@@ -224,11 +224,23 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
           appCode: context.appCode,
           onChunk: (chunk) => {
             stepText += chunk;
-            applySegments(parser.process(chunk));
+            const segments = parser.process(chunk);
 
-            // 实时句子检测并触发 TTS（最少4字符触发，确保短句也能及时合成）
-            if (isTtsActive()) {
-              sentenceBuffer += chunk;
+            // 从 segments 提取非 thinking 文本用于 TTS
+            let ttsDelta = '';
+            let inThinking = thinkingBlockOpened;
+            for (const seg of segments) {
+              if (seg.type === 'begin_thinking') inThinking = true;
+              else if (seg.type === 'end_thinking') inThinking = false;
+              else if (seg.type === 'text_delta' && !inThinking && seg.content) {
+                ttsDelta += seg.content;
+              }
+            }
+
+            applySegments(segments);
+
+            if (isTtsActive() && ttsDelta) {
+              sentenceBuffer += ttsDelta;
               if (this.ttsService!.isSentenceComplete(sentenceBuffer)) {
                 const sentence = sentenceBuffer;
                 sentenceBuffer = '';

@@ -85,27 +85,27 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
   },
 
   aliyun: {
-    name: '阿里云通义',
+    name: '阿里云',
     defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     paths: {
       chat: '/chat/completions',
       embedding: '/embeddings',
       image: '/images/generations',
     },
-    supportedTypes: ['llm', 'embedding', 'tts', 'asr', 'image'],
+    supportedTypes: ['llm', 'embedding', 'image'],
     codePrefixes: ['qwen', '通义'],
     requireApiKey: true,
   },
 
   tencent: {
-    name: '腾讯混元',
+    name: '腾讯云',
     defaultBaseUrl: 'https://api.hunyuan.cloud.tencent.com/v1',
     paths: {
       chat: '/chat/completions',
       embedding: '/embeddings',
       image: '/images/generations',
     },
-    supportedTypes: ['llm', 'embedding', 'tts', 'asr', 'image'],
+    supportedTypes: ['llm', 'embedding', 'image'],
     codePrefixes: ['hunyuan', '混元'],
     requireApiKey: true,
   },

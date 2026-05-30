@@ -239,8 +239,13 @@ export class TtsService {
       // 通知合成结束
       this.gateway.notifyEnd(conversationId);
     } catch (error) {
-      this.logger.error(`TTS 合成失败: ${(error as Error).message}`);
-      this.gateway.notifyError(conversationId, `语音合成失败: ${(error as Error).message}`);
+      const message = (error as Error).message;
+      this.logger.error(`TTS 合成失败: ${message}`);
+
+      // 纯标点/空白文本导致的无音频数据错误属于正常情况，不推给前端造成干扰
+      if (!message.includes('未返回音频数据')) {
+        this.gateway.notifyError(conversationId, `语音合成失败: ${message}`);
+      }
       this.gateway.notifyEnd(conversationId);
     }
   }
@@ -319,12 +324,13 @@ export class TtsService {
 
   /**
    * 清洗文本（去除Markdown、Emoji等）
+   * 清洗后若仅剩标点符号（无汉字/字母/数字），返回空字符串跳过合成
    * @param text 原始文本
    * @returns 清洗后文本
    */
   private cleanText(text: string): string {
     if (!text) return '';
-    return text
+    const cleaned = text
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '')
       .replace(/\*\*([^*]+)\*\*/g, '$1')
@@ -335,5 +341,8 @@ export class TtsService {
       .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/gu, '')
       .replace(/\s+/g, ' ')
       .trim();
+    if (!cleaned) return '';
+    if (!/[\u4e00-\u9fff\w]/.test(cleaned)) return '';
+    return cleaned;
   }
 }
