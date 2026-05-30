@@ -19,6 +19,22 @@ export class OpenAIStrategy extends BaseStrategy {
   readonly providerId = 'openai';
 
   /**
+   * 清理并标准化 baseURL
+   * 兼容处理火山引擎等可能误配置的情况
+   * @param baseURL 原始 baseURL
+   * @returns 标准化后的 baseURL
+   */
+  private normalizeBaseURL(baseURL?: string | null): string {
+    if (!baseURL) return 'https://api.openai.com/v1';
+    let url = baseURL.trim();
+    // 移除末尾的 /responses（常见火山引擎误配置）
+    url = url.replace(/\/responses\/?$/, '');
+    // 移除末尾的 /（防止双斜杠）
+    url = url.replace(/\/+$/, '');
+    return url;
+  }
+
+  /**
    * TTS语音合成
    * @param params TTS参数
    * @returns {Promise<TTSExecutionResult>} 音频结果
@@ -30,7 +46,7 @@ export class OpenAIStrategy extends BaseStrategy {
 
     const openai = new OpenAI({
       apiKey: model.apiKey || process.env.OPENAI_API_KEY,
-      baseURL: model.endpoint || 'https://api.openai.com/v1',
+      baseURL: this.normalizeBaseURL(model.endpoint),
     });
     
     const response = await openai.audio.speech.create({
@@ -70,7 +86,7 @@ export class OpenAIStrategy extends BaseStrategy {
 
     const openai = new OpenAI({
       apiKey: model.apiKey || process.env.OPENAI_API_KEY,
-      baseURL: model.endpoint || 'https://api.openai.com/v1',
+      baseURL: this.normalizeBaseURL(model.endpoint),
     });
 
     const response = await openai.audio.speech.create({
@@ -125,7 +141,7 @@ export class OpenAIStrategy extends BaseStrategy {
 
     const openai = new OpenAI({
       apiKey: model.apiKey || process.env.OPENAI_API_KEY,
-      baseURL: model.endpoint || 'https://api.openai.com/v1',
+      baseURL: this.normalizeBaseURL(model.endpoint),
     });
     
     const audioBuffer = Buffer.from(audio, 'base64');

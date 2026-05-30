@@ -49,16 +49,6 @@ export enum ModelTag {
   VOICE = 'voice',         // 语音
 }
 
-/**
- * 模型分类枚举
- */
-export enum ModelCategory {
-  GENERAL = 'general',       // 通用
-  CODE = 'code',             // 编程
-  MATH = 'math',             // 数学
-  CREATIVE = 'creative',     // 创意
-  PROFESSIONAL = 'professional', // 专业
-}
 
 /**
  * 创建模型DTO
@@ -132,15 +122,6 @@ export class CreateModelDto {
   tags?: string;
 
   @ApiPropertyOptional({ 
-    description: '模型分类',
-    enum: ModelCategory,
-    example: ModelCategory.GENERAL
-  })
-  @IsString()
-  @IsOptional()
-  category?: string;
-
-  @ApiPropertyOptional({ 
     description: '能力声明(JSON数组)', 
     example: '["tts:realtime"]',
   })
@@ -209,11 +190,6 @@ export class UpdateModelDto {
   @IsOptional()
   tags?: string;
 
-  @ApiPropertyOptional({ description: '模型分类' })
-  @IsString()
-  @IsOptional()
-  category?: string;
-
   @ApiPropertyOptional({ description: '能力声明(JSON数组)' })
   @IsString()
   @IsOptional()
@@ -248,11 +224,6 @@ export class QueryModelDto {
   @IsString()
   @IsOptional()
   tags?: string;
-
-  @ApiPropertyOptional({ description: '模型分类' })
-  @IsString()
-  @IsOptional()
-  category?: string;
 
   @ApiPropertyOptional({ description: '页码', default: 1 })
   @Type(() => Number)

@@ -24,6 +24,8 @@ export interface ProviderConfig {
     embedding: string;
     image: string;
   };
+  /** 支持的模型类型 */
+  supportedTypes: string[];
   /** 根据 model code 前缀自动识别，优先级从上到下 */
   codePrefixes?: string[];
   /** 是否需要 apiKey */
@@ -37,17 +39,25 @@ export interface ProviderConfig {
  * key 为 provider 标识（小写），与数据库 Model.provider 字段对应
  */
 export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
-  openai: {
-    name: 'OpenAI',
-    defaultBaseUrl: 'https://api.openai.com/v1',
-    paths: {
-      chat: '/chat/completions',
-      embedding: '/embeddings',
-      image: '/images/generations',
-    },
-    requireApiKey: true,
-  },
 
+  ollama: {
+    name: 'Ollama',
+    defaultBaseUrl: 'http://localhost:11434',
+    paths: {
+      chat: '/api/chat',
+      embedding: '/api/embeddings',
+      image: '/api/generate',
+    },
+    supportedTypes: ['llm', 'embedding'],
+    codePrefixes: ['llama', 'mistral', 'codestral', 'qwen', 'gemma'],
+    requireApiKey: false,
+    normalizeBaseUrl: (endpoint: string) => {
+      if (!endpoint) return 'http://localhost:11434';
+      return endpoint
+        .replace('/api/chat', '')
+        .replace('/chat', '');
+    },
+  },
   deepseek: {
     name: 'DeepSeek',
     defaultBaseUrl: 'https://api.deepseek.com/v1',
@@ -56,6 +66,7 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/embeddings',
       image: '/images/generations',
     },
+    supportedTypes: ['llm', 'embedding'],
     codePrefixes: ['deepseek'],
     requireApiKey: true,
   },
@@ -68,36 +79,8 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/embeddings',
       image: '/images/generations',
     },
+    supportedTypes: ['llm', 'embedding', 'image', 'tts'],
     codePrefixes: ['glm-', 'chatglm'],
-    requireApiKey: true,
-  },
-
-  ollama: {
-    name: 'Ollama',
-    defaultBaseUrl: 'http://localhost:11434',
-    paths: {
-      chat: '/api/chat',
-      embedding: '/api/embeddings',
-      image: '/api/generate',
-    },
-    codePrefixes: ['llama', 'mistral', 'codestral', 'qwen', 'gemma'],
-    requireApiKey: false,
-    normalizeBaseUrl: (endpoint: string) => {
-      if (!endpoint) return 'http://localhost:11434';
-      return endpoint
-        .replace('/api/chat', '')
-        .replace('/chat', '');
-    },
-  },
-
-  azure: {
-    name: 'Azure OpenAI',
-    defaultBaseUrl: '',
-    paths: {
-      chat: `/openai/deployments/{model}/chat/completions`,
-      embedding: `/openai/deployments/{model}/embeddings`,
-      image: `/openai/deployments/{model}/images/generations`,
-    },
     requireApiKey: true,
   },
 
@@ -109,6 +92,7 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/embeddings',
       image: '/images/generations',
     },
+    supportedTypes: ['llm', 'embedding', 'tts', 'asr', 'image'],
     codePrefixes: ['qwen', '通义'],
     requireApiKey: true,
   },
@@ -121,6 +105,7 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/embeddings',
       image: '/images/generations',
     },
+    supportedTypes: ['llm', 'embedding', 'tts', 'asr', 'image'],
     codePrefixes: ['hunyuan', '混元'],
     requireApiKey: true,
   },
@@ -133,6 +118,7 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/api/v1/embeddings',
       image: '/api/v1/images/generations',
     },
+    supportedTypes: ['llm', 'tts', 'asr'],
     codePrefixes: ['seed-tts', 'doubao-tts'],
     requireApiKey: true,
   },
@@ -145,6 +131,7 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/embeddings',
       image: '/images/generations',
     },
+    supportedTypes: ['llm', 'embedding', 'tts', 'asr', 'image'],
     requireApiKey: false,
   },
 };
@@ -249,4 +236,40 @@ export function resolveBaseUrl(
 
   // 去掉 API 路径后缀，返回纯 base URL
   return stripApiPath(endpoint);
+}
+
+/**
+ * 提供商选项（用于前端下拉选择）
+ */
+export interface ProviderOption {
+  /** 提供商标识 */
+  value: string;
+  /** 提供商显示名称 */
+  label: string;
+  /** 默认 Base URL */
+  defaultBaseUrl: string;
+  /** 是否需要 API Key */
+  requireApiKey: boolean;
+}
+
+/**
+ * 根据模型类型获取支持的提供商列表
+ * @param modelType 模型类型: llm / embedding / tts / asr / image
+ * @returns 支持的提供商选项列表
+ */
+export function getProvidersByType(modelType: string): ProviderOption[] {
+  const options: ProviderOption[] = [];
+
+  for (const [providerId, config] of Object.entries(PROVIDER_REGISTRY)) {
+    if (config.supportedTypes.includes(modelType)) {
+      options.push({
+        value: providerId,
+        label: config.name,
+        defaultBaseUrl: config.defaultBaseUrl,
+        requireApiKey: config.requireApiKey ?? true,
+      });
+    }
+  }
+
+  return options;
 }

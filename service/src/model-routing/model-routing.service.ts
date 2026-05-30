@@ -609,12 +609,12 @@ export class ModelRoutingService {
       return model.type === intent;
     }
 
-    // llm/multimodal 类型：检查 category 匹配
+    // llm/multimodal 类型：检查 tags 匹配
     if (modelType === "llm" || modelType === "multimodal") {
-      // general 分类的模型支持所有意图
-      if (!model.category || model.category === "general") return true;
-      // 精确匹配
-      return model.category === intent;
+      const tags = this.parseModelTags(model.tags);
+      // 无标签或包含 general 的模型支持所有意图
+      if (tags.length === 0 || tags.includes("general")) return true;
+      return tags.includes(intent);
     }
 
     return true;
@@ -628,16 +628,17 @@ export class ModelRoutingService {
    * @returns {Model[]} 筛选后的模型列表
    */
   filterByIntent(models: Model[], intent: string, modelType: string): Model[] {
-    // image/tts/asr 等特殊类型不需要按 category 筛选，直接返回
+    // image/tts/asr 等特殊类型不需要按 tags 筛选，直接返回
     if (["image", "tts", "asr", "embedding"].includes(modelType)) {
       return models;
     }
 
-    // LLM 类型按 category 筛选
+    // LLM 类型按 tags 筛选
     if (modelType === "llm" || modelType === "multimodal") {
-      const filtered = models.filter(
-        (m) => !m.category || m.category === "general" || m.category === intent,
-      );
+      const filtered = models.filter((m) => {
+        const tags = this.parseModelTags(m.tags);
+        return tags.length === 0 || tags.includes("general") || tags.includes(intent);
+      });
 
       // 如果没有精确匹配，回退到所有模型
       if (filtered.length === 0) {
@@ -649,6 +650,20 @@ export class ModelRoutingService {
     }
 
     return models;
+  }
+
+  /**
+   * 解析模型的 tags JSON 字符串
+   * @param tags 模型的 tags 字段值
+   * @returns {string[]} 标签数组
+   */
+  private parseModelTags(tags?: string | null): string[] {
+    if (!tags) return [];
+    try {
+      return JSON.parse(tags);
+    } catch {
+      return [];
+    }
   }
 
   /**

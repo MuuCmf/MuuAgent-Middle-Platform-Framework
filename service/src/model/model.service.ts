@@ -38,7 +38,6 @@ export class ModelService {
         description: dto.description,
         config: dto.config,
         tags: dto.tags,
-        category: dto.category,
         capabilities: dto.capabilities,
       },
     });
@@ -142,14 +141,13 @@ export class ModelService {
    * @returns {Promise<Object>} 分页模型列表
    */
   async findAll(query: QueryModelDto) {
-    const { type, provider, status, category, tags, page = 1, pageSize = 10 } = query;
+    const { type, provider, status, tags, page = 1, pageSize = 10 } = query;
     const skip = (page - 1) * pageSize;
 
     const where: Record<string, unknown> = {};
     if (type) where.type = type;
     if (provider) where.provider = provider;
     if (status !== undefined) where.status = status;
-    if (category) where.category = category;
     if (tags) where.tags = { contains: tags };
 
     const [list, total] = await Promise.all([

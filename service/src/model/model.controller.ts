@@ -25,6 +25,7 @@ import { success, page } from '../common/response/api.response';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
+import { getProvidersByType } from '../ai/providers/provider-registry';
 
 /**
  * 模型管理控制器（管理端）
@@ -92,6 +93,19 @@ export class ModelAdminController {
   async remove(@Param('id') id: string) {
     await this.modelService.remove(id);
     return success(null, '模型删除成功');
+  }
+
+  /**
+   * 获取指定模型类型支持的提供商列表
+   * @param type 模型类型
+   * @returns {Promise<Object>} 提供商列表
+   */
+  @Get('supported-providers')
+  @ApiOperation({ summary: '获取支持的提供商列表' })
+  @RequireScope(AdminScope.MODEL_READ)
+  async getSupportedProviders(@Query('type') type: string) {
+    const providers = getProvidersByType(type || 'llm');
+    return success(providers);
   }
 
   /**

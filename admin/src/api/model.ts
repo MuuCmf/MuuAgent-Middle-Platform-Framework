@@ -33,13 +33,20 @@ export interface ModelForm {
   description?: string
   config?: string
   tags?: string
-  category?: string
   capabilities?: string
 }
 
 export interface ModelListResponse {
   list: Model[]
   total: number
+}
+
+/** 提供商选项 */
+export interface ProviderOption {
+  value: string
+  label: string
+  defaultBaseUrl: string
+  requireApiKey: boolean
 }
 
 export const modelApi = {
@@ -63,5 +70,12 @@ export const modelApi = {
   
   delete(id: number): Promise<AxiosResponse<ApiResponse<void>>> {
     return adminRequest.delete(`api/admin/model/${id}`)
+  },
+
+  /** 获取指定模型类型支持的提供商列表 */
+  getSupportedProviders(type: string): Promise<AxiosResponse<ApiResponse<ProviderOption[]>>> {
+    return adminRequest.get('api/admin/model/supported-providers', {
+      params: { type }
+    })
   }
 }
