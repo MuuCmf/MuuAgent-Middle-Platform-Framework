@@ -67,6 +67,7 @@ temp/
 development_docs/
 public/
 uploads/
+examples/
 
 # Docker
 .docker/

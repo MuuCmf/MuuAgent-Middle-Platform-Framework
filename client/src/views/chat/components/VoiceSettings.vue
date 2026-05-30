@@ -168,6 +168,7 @@ defineExpose({ open });
 
 <style lang="scss" scoped>
 .form-item-tip {
+  width: 100%;
   font-size: 12px;
   color: #999;
   margin-top: 4px;
