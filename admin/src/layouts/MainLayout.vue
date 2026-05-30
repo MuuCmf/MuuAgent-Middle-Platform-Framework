@@ -35,6 +35,10 @@
                 <el-icon><Lock /></el-icon>
                 {{ $t('layout.changePassword') }}
               </el-dropdown-item>
+              <el-dropdown-item v-if="isSuperAdmin" command="adminManagement">
+                <el-icon><UserFilled /></el-icon>
+                {{ $t('layout.adminManagement') }}
+              </el-dropdown-item>
               <el-dropdown-item divided command="logout">
                 <el-icon><SwitchButton /></el-icon>
                 {{ $t('layout.logout') }}
@@ -134,7 +138,7 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Monitor, ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
+import { Monitor, ArrowDown, User, Lock, SwitchButton, UserFilled } from '@element-plus/icons-vue'
 import Logo from './components/Logo.vue'
 import LocaleSwitch from '@/components/LocaleSwitch.vue'
 import { userApi, type AdminUser } from '@/api/user'
@@ -155,6 +159,8 @@ const passwordLoading = ref(false)
 const version = ref<string>('')
 
 const activeMenu = computed(() => route.path)
+
+const isSuperAdmin = computed(() => userInfo.value?.isSuperAdmin === true)
 
 const menuRoutes = computed(() => {
   const mainRoute = router.options.routes.find(r => r.path === '/')
@@ -230,6 +236,9 @@ const handleCommand = (command: string) => {
       break
     case 'password':
       showPasswordDialog.value = true
+      break
+    case 'adminManagement':
+      router.push('/admin-management')
       break
     case 'logout':
       handleLogout()

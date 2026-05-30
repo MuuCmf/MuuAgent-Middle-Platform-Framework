@@ -133,7 +133,7 @@ const routes: RouteRecordRaw[] = [
         path: "admin-management",
         name: "AdminManagement",
         component: () => import("@/views/admin-management/index.vue"),
-        meta: { title: "route.adminManagement", icon: "UserFilled" },
+        meta: { title: "route.adminManagement", icon: "UserFilled", hidden: true },
       },
     ],
   },

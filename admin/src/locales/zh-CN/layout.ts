@@ -40,6 +40,7 @@ export default {
     client: '客户端',
     profile: '个人信息',
     changePassword: '修改密码',
+    adminManagement: '管理员管理',
     logout: '退出登录',
     darkMode: '暗色',
     lightMode: '亮色',

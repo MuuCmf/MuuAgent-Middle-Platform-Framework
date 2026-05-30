@@ -40,6 +40,7 @@ export default {
     client: 'Client',
     profile: 'Profile',
     changePassword: 'Change Password',
+    adminManagement: 'Admin Management',
     logout: 'Logout',
     darkMode: 'Dark',
     lightMode: 'Light',
