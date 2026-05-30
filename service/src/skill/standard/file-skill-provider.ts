@@ -131,7 +131,7 @@ export class FileSkillProvider implements ISkillProvider {
   }
 
   private matchesAppContext(entry: SkillIndexEntry, context?: IsolationContext): boolean {
-    if (!context || context.isSuperAdmin) return true;
+    if (!context || context.skipIsolation) return true;
     if (entry.isPublic) return true;
     if (!context.appCode) return entry.isPublic;
     return entry.appCode === context.appCode;

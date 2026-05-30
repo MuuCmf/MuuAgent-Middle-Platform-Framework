@@ -59,7 +59,8 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { adminRequest, clearCachedToken } from '@/utils/request'
+import { clearCachedToken } from '@/utils/request'
+import { adminApi } from '@/api/admin'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -90,10 +91,11 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       try {
-        const response = await adminRequest.post('api/admin/login', loginForm)
-        const { accessToken, refreshToken, admin } = response.data.data
-        
-        console.log('[登录] 收到响应:', { accessToken: '存在', refreshToken: refreshToken ? '存在' : '不存在', admin })
+        const { data } = await adminApi.login({
+          username: loginForm.username,
+          password: loginForm.password,
+        })
+        const { accessToken, refreshToken, admin } = data.data
         
         localStorage.setItem('admin_token', accessToken)
         localStorage.setItem('admin_refresh_token', refreshToken)
@@ -119,7 +121,7 @@ const handleLogin = async () => {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #f0f2f5;
 }
 
 .login-box {

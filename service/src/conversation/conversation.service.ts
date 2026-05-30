@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateConversationDto, ConversationType } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
@@ -38,7 +38,7 @@ export class ConversationService {
       title: dto.title,
       uid: dto.uid,
       status: 'active',
-    }, context || { appCode: null, isSuperAdmin: false });
+    }, context || { appCode: null, skipIsolation: false });
 
     const conversation = await this.prisma.conversation.create({ data: data as any });
 
@@ -68,7 +68,7 @@ export class ConversationService {
     this.logger.log(`getOrCreate: conversationType=${conversationType}, targetId=${targetId}, conversationId=${conversationId}, uid=${uid}`);
 
     if (conversationId) {
-      const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
+      const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
       const existing = await this.prisma.conversation.findFirst({
         where: { id: conversationId, ...isolationWhere, status: { not: 'deleted' } },
       });
@@ -105,9 +105,9 @@ export class ConversationService {
    * @returns 更新后的会话
    */
   async update(id: string, dto: UpdateConversationDto, context?: IsolationContext) {
-    const safeContext = context || { appCode: null, isSuperAdmin: false };
+    const safeContext = context || { appCode: null, skipIsolation: false };
     const where = this.isolationService.buildOwnerWhere(id, safeContext);
-    if (safeContext.uid && !safeContext.isSuperAdmin) {
+    if (safeContext.uid && !safeContext.skipIsolation) {
       where.uid = safeContext.uid;
     }
     const conversation = await this.prisma.conversation.findFirst({
@@ -130,9 +130,9 @@ export class ConversationService {
    * @param context 隔离上下文
    */
   async remove(id: string, context?: IsolationContext) {
-    const safeContext = context || { appCode: null, isSuperAdmin: false };
+    const safeContext = context || { appCode: null, skipIsolation: false };
     const where = this.isolationService.buildOwnerWhere(id, safeContext);
-    if (safeContext.uid && !safeContext.isSuperAdmin) {
+    if (safeContext.uid && !safeContext.skipIsolation) {
       where.uid = safeContext.uid;
     }
     const conversation = await this.prisma.conversation.findFirst({
@@ -157,8 +157,8 @@ export class ConversationService {
    * @returns 会话详情（包含消息）
    */
   async findOne(id: string, messageLimit?: number, context?: IsolationContext) {
-    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
-    if (context?.uid && !context.isSuperAdmin) {
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
+    if (context?.uid && !context.skipIsolation) {
       isolationWhere.uid = context.uid;
     }
     const conversation = await this.prisma.conversation.findFirst({
@@ -207,13 +207,13 @@ export class ConversationService {
     const { conversationType, targetId, uid, status, keyword, page = 1, pageSize = 20 } = query;
     const skip = (page - 1) * pageSize;
 
-    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
     const where: any = { ...isolationWhere };
 
     if (conversationType) where.conversationType = conversationType;
     if (targetId) where.targetId = targetId;
     if (uid) where.uid = uid;
-    if (context?.uid && !context.isSuperAdmin) {
+    if (context?.uid && !context.skipIsolation) {
       where.uid = context.uid;
     }
     if (status) {

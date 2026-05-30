@@ -5,6 +5,8 @@ import { BuiltinToolDto } from './dto/builtin-tool.dto';
 import { success } from '../../common/response/api.response';
 import { CombinedAuthGuard } from '../../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../../common/guards/scope.guard';
+import { RequireScope } from '../../common/decorators/scope.decorator';
+import { AdminScope } from '../../common/constants/scope.constants';
 
 /**
  * 工具管理控制器
@@ -22,6 +24,7 @@ export class ToolController {
    */
   @Get('builtin')
   @ApiOperation({ summary: '获取内置工具列表' })
+  @RequireScope(AdminScope.SKILL_READ)
   @ApiResponse({ status: 200, description: '成功获取内置工具列表', type: [BuiltinToolDto] })
   async getBuiltinTools() {
     const tools = this.toolRegistry.getBuiltinTools();
@@ -37,6 +40,7 @@ export class ToolController {
    */
   @Get('builtin/:name')
   @ApiOperation({ summary: '获取工具详情' })
+  @RequireScope(AdminScope.SKILL_READ)
   @ApiResponse({ status: 200, description: '成功获取工具详情', type: BuiltinToolDto })
   @ApiResponse({ status: 404, description: '工具不存在' })
   async getToolDetail(@Param('name') name: string) {

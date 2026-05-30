@@ -94,7 +94,7 @@ export class UseSkillTool extends BaseTool {
     }
     return {
       appCode: context.agent.appCode || null,
-      isSuperAdmin: false,
+      skipIsolation: false,
     };
   }
 }

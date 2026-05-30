@@ -12,6 +12,7 @@ export default {
     apps: '应用管理',
     rateLimit: '限流配置',
     cache: '缓存管理',
+    adminManagement: '管理员管理',
   },
   route: {
     login: '登录',
@@ -33,6 +34,7 @@ export default {
     conversationList: '会话列表',
     conversationDetail: '会话详情',
     logs: '调用日志',
+    adminManagement: '管理员管理',
   },
   layout: {
     client: '客户端',

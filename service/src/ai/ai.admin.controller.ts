@@ -5,6 +5,8 @@ import { TtsService } from './tts/tts.service';
 import { StrategyFactory } from './strategies/strategy.factory';
 import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
+import { RequireScope } from '../common/decorators/scope.decorator';
+import { AdminScope } from '../common/constants/scope.constants';
 import { TtsDto, TtsRealtimeDto, TtsCapabilityDto, AsrDto } from './dto/ai.dto';
 import { ModelService } from '../model/model.service';
 import { PrismaService } from '../common/prisma/prisma.service';
@@ -38,6 +40,7 @@ export class AdminAiController {
    */
   @Post('tts')
   @ApiOperation({ summary: '语音合成（管理端测试）' })
+  @RequireScope(AdminScope.MODEL_READ)
   async tts(@Body() dto: TtsDto, @Req() req: Request) {
     const clientIp = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || '';
@@ -55,6 +58,7 @@ export class AdminAiController {
    */
   @Post('asr')
   @ApiOperation({ summary: '语音识别（管理端测试）' })
+  @RequireScope(AdminScope.MODEL_READ)
   async asr(@Body() dto: AsrDto, @Req() req: Request) {
     const clientIp = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || '';
@@ -71,6 +75,7 @@ export class AdminAiController {
    */
   @Post('tts/realtime')
   @ApiOperation({ summary: '实时流式语音合成（管理端测试）' })
+  @RequireScope(AdminScope.MODEL_READ)
   async ttsRealtime(@Body() dto: TtsRealtimeDto) {
     this.ttsService.streamSynthesize(
       dto.text, dto.conversationId, dto.voice, dto.speed, dto.modelCode,
@@ -88,6 +93,7 @@ export class AdminAiController {
    */
   @Post('tts/batch')
   @ApiOperation({ summary: '批量语音合成（管理端测试）' })
+  @RequireScope(AdminScope.MODEL_READ)
   async ttsBatch(@Body() dto: TtsDto) {
     const conversationId = dto.conversationId || crypto.randomUUID();
 
@@ -107,6 +113,7 @@ export class AdminAiController {
    */
   @Post('tts/capability')
   @ApiOperation({ summary: '查询TTS模型能力（管理端测试用）' })
+  @RequireScope(AdminScope.MODEL_READ)
   async ttsCapability(@Body() dto: TtsCapabilityDto) {
     let modelCode = dto.modelCode;
 

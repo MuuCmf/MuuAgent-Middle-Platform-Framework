@@ -33,7 +33,7 @@ import {
   QueryAgentDto,
 } from "./dto/agent.dto";
 import { success, page } from "../common/response/api.response";
-import { Request, Response } from "express";
+import { Request } from "express";
 import { Observable } from 'rxjs';
 import { Sse } from '@nestjs/common';
 import { StreamEmitter, SseResponseBuilder } from '../stream';

@@ -7,6 +7,10 @@
  */
 export enum AdminScope {
 
+  // 应用管理
+  APP_READ = 'app:read',
+  APP_WRITE = 'app:write',
+
   // 模型管理
   MODEL_READ = 'model:read',
   MODEL_WRITE = 'model:write',
@@ -71,6 +75,10 @@ export enum AdminScope {
   INTENT_CACHE_READ = 'intent-cache:read',
   INTENT_CACHE_WRITE = 'intent-cache:write',
 
+  // 管理员
+  ADMIN_READ = 'admin:read',
+  ADMIN_WRITE = 'admin:write',
+
   // 意图路由日志
   INTENT_ROUTING_LOG_READ = 'intent-routing-log:read',
 }
@@ -80,6 +88,7 @@ export enum AdminScope {
  * write scope 自动包含对应 read scope
  */
 export const SCOPE_HIERARCHY: Record<string, string[]> = {
+  [AdminScope.APP_WRITE]: [AdminScope.APP_READ],
   [AdminScope.MODEL_WRITE]: [AdminScope.MODEL_READ],
   [AdminScope.MODEL_TEMPLATE_WRITE]: [AdminScope.MODEL_TEMPLATE_READ],
   [AdminScope.AGENT_WRITE]: [AdminScope.AGENT_READ],
@@ -95,12 +104,14 @@ export const SCOPE_HIERARCHY: Record<string, string[]> = {
   [AdminScope.LOG_WRITE]: [AdminScope.LOG_READ],
   [AdminScope.INTENT_KEYWORD_WRITE]: [AdminScope.INTENT_KEYWORD_READ],
   [AdminScope.INTENT_CACHE_WRITE]: [AdminScope.INTENT_CACHE_READ],
+  [AdminScope.ADMIN_WRITE]: [AdminScope.ADMIN_READ],
 };
 
 /**
  * Scope 分组（用于授权页面展示和快速选择）
  */
 export const SCOPE_GROUPS: { label: string; scopes: AdminScope[] }[] = [
+  { label: '应用管理', scopes: [AdminScope.APP_READ, AdminScope.APP_WRITE] },
   { label: '模型管理', scopes: [AdminScope.MODEL_READ, AdminScope.MODEL_WRITE] },
   { label: '模型模板', scopes: [AdminScope.MODEL_TEMPLATE_READ, AdminScope.MODEL_TEMPLATE_WRITE] },
   { label: '智能体', scopes: [AdminScope.AGENT_READ, AdminScope.AGENT_WRITE] },
@@ -114,12 +125,130 @@ export const SCOPE_GROUPS: { label: string; scopes: AdminScope[] }[] = [
   { label: '限流', scopes: [AdminScope.RATE_LIMIT_READ, AdminScope.RATE_LIMIT_WRITE] },
   { label: '任务', scopes: [AdminScope.TASK_READ, AdminScope.TASK_WRITE] },
   { label: '日志', scopes: [AdminScope.LOG_READ, AdminScope.LOG_WRITE] },
+  { label: '管理员', scopes: [AdminScope.ADMIN_READ, AdminScope.ADMIN_WRITE] },
 ];
+
+/**
+ * 角色枚举
+ */
+export enum AdminRole {
+  /** 超级管理员 */
+  ADMIN = 'admin',
+  /** 运维管理员 */
+  OPS = 'ops',
+  /** 只读用户 */
+  READ = 'read',
+}
+
+/**
+ * 角色-Scope 映射
+ *
+ * admin（超级管理员）：拥有所有权限（由 ScopeGuard 特殊处理，无需列出全部 scope）
+ * ops（运维管理员）：可读写业务模块，但不能管理管理员账号
+ * read（只读用户）：只能查看，不能增删改
+ */
+export const ROLE_SCOPES: Record<string, AdminScope[]> = {
+  [AdminRole.ADMIN]: [],
+
+  [AdminRole.OPS]: [
+    // 应用管理：读写
+    AdminScope.APP_READ,
+    AdminScope.APP_WRITE,
+
+    // 模型管理：读写
+    AdminScope.MODEL_READ,
+    AdminScope.MODEL_WRITE,
+    AdminScope.MODEL_TEMPLATE_READ,
+    AdminScope.MODEL_TEMPLATE_WRITE,
+
+    // 智能体：读写
+    AdminScope.AGENT_READ,
+    AdminScope.AGENT_WRITE,
+
+    // 技能：读写+执行
+    AdminScope.SKILL_READ,
+    AdminScope.SKILL_WRITE,
+    AdminScope.SKILL_EXECUTE,
+
+    // 知识库+文档：读写
+    AdminScope.KB_READ,
+    AdminScope.KB_WRITE,
+    AdminScope.DOCUMENT_READ,
+    AdminScope.DOCUMENT_WRITE,
+
+    // 会话：只读（运维不应删除用户会话）
+    AdminScope.CONVERSATION_READ,
+
+    // Prompt模板：读写
+    AdminScope.PROMPT_TEMPLATE_READ,
+    AdminScope.PROMPT_TEMPLATE_WRITE,
+
+    // 模型路由调度：读写
+    AdminScope.MODEL_ROUTING_READ,
+    AdminScope.MODEL_ROUTING_WRITE,
+    AdminScope.INTENT_KEYWORD_READ,
+    AdminScope.INTENT_KEYWORD_WRITE,
+    AdminScope.INTENT_DASHBOARD_READ,
+    AdminScope.INTENT_CACHE_READ,
+    AdminScope.INTENT_CACHE_WRITE,
+    AdminScope.INTENT_ROUTING_LOG_READ,
+
+    // MCP Server：读写
+    AdminScope.MCP_SERVER_READ,
+    AdminScope.MCP_SERVER_WRITE,
+
+    // 限流：只读（运维可查看，修改需超管）
+    AdminScope.RATE_LIMIT_READ,
+
+    // 任务：读写
+    AdminScope.TASK_READ,
+    AdminScope.TASK_WRITE,
+
+    // 日志：只读
+    AdminScope.LOG_READ,
+
+    // 管理员：只读（运维可查看管理员列表，但不能增删改）
+    AdminScope.ADMIN_READ,
+  ],
+
+  [AdminRole.READ]: [
+    // 所有模块只读
+    AdminScope.APP_READ,
+    AdminScope.MODEL_READ,
+    AdminScope.MODEL_TEMPLATE_READ,
+    AdminScope.AGENT_READ,
+    AdminScope.SKILL_READ,
+    AdminScope.KB_READ,
+    AdminScope.DOCUMENT_READ,
+    AdminScope.CONVERSATION_READ,
+    AdminScope.PROMPT_TEMPLATE_READ,
+    AdminScope.MODEL_ROUTING_READ,
+    AdminScope.INTENT_KEYWORD_READ,
+    AdminScope.INTENT_DASHBOARD_READ,
+    AdminScope.INTENT_CACHE_READ,
+    AdminScope.INTENT_ROUTING_LOG_READ,
+    AdminScope.MCP_SERVER_READ,
+    AdminScope.RATE_LIMIT_READ,
+    AdminScope.TASK_READ,
+    AdminScope.LOG_READ,
+  ],
+};
+
+/**
+ * 角色描述映射
+ */
+export const ROLE_DESCRIPTIONS: Record<string, string> = {
+  [AdminRole.ADMIN]: '超级管理员，拥有系统全部权限',
+  [AdminRole.OPS]: '运维管理员，可管理业务模块，不能管理管理员账号和限流规则',
+  [AdminRole.READ]: '只读用户，只能查看各模块数据，不能增删改',
+};
 
 /**
  * Scope 描述映射（用于前端展示）
  */
 export const SCOPE_DESCRIPTIONS: Record<AdminScope, string> = {
+  [AdminScope.APP_READ]: '查看应用列表和详情',
+  [AdminScope.APP_WRITE]: '创建、更新、删除应用和重置密钥',
   [AdminScope.MODEL_READ]: '查看模型列表和详情',
   [AdminScope.MODEL_WRITE]: '创建、更新、删除模型',
   [AdminScope.MODEL_TEMPLATE_READ]: '查看模型参数模板',
@@ -153,4 +282,6 @@ export const SCOPE_DESCRIPTIONS: Record<AdminScope, string> = {
   [AdminScope.TASK_WRITE]: '清空队列和重试任务',
   [AdminScope.LOG_READ]: '查看操作日志和统计',
   [AdminScope.LOG_WRITE]: '管理日志（预留）',
+  [AdminScope.ADMIN_READ]: '查看管理员列表和详情',
+  [AdminScope.ADMIN_WRITE]: '创建、更新、删除管理员',
 };

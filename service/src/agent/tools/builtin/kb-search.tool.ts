@@ -168,7 +168,7 @@ ${buildSkillHint('了解知识库的使用方式和内容范围')}`,
     }
     return {
       appCode: context.agent.appCode || null,
-      isSuperAdmin: false,
+      skipIsolation: false,
     };
   }
 }

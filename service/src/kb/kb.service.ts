@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateKbDto } from './dto/create-kb.dto';
 import { UpdateKbDto } from './dto/update-kb.dto';
@@ -61,7 +61,7 @@ export class KbService {
       createdBy: dto.uid,
       appCode: dto.appCode,
       isPublic: dto.isPublic ?? false,
-    }, context || { appCode: null, isSuperAdmin: false });
+    }, context || { appCode: null, skipIsolation: false });
 
     const kb = await this.prisma.kbInfo.create({ data });
 
@@ -85,7 +85,7 @@ export class KbService {
     const pageSize = dto.pageSize || 10;
     const skip = (pageNum - 1) * pageSize;
 
-    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false });
     const where: any = {
       isDeleted: false,
       ...isolationWhere,
@@ -177,7 +177,7 @@ export class KbService {
    * @returns {Promise<any>} 知识库详情
    */
   async findOne(kbId: string, context?: IsolationContext): Promise<any> {
-    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false });
     const kb = await this.prisma.kbInfo.findFirst({
       where: { id: kbId, isDeleted: false, ...isolationWhere },
       include: {
@@ -224,7 +224,7 @@ export class KbService {
    * @returns {Promise<any>} 更新结果
    */
   async update(dto: UpdateKbDto, context?: IsolationContext): Promise<any> {
-    const where = this.isolationService.buildOwnerWhere(dto.kbId, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(dto.kbId, context || { appCode: null, skipIsolation: false });
     const kb = await this.prisma.kbInfo.findFirst({
       where: { ...where, isDeleted: false },
     });
@@ -287,7 +287,7 @@ export class KbService {
    * @returns {Promise<any>} 删除结果
    */
   async delete(dto: DeleteKbDto, context?: IsolationContext): Promise<any> {
-    const where = this.isolationService.buildOwnerWhere(dto.kbId, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(dto.kbId, context || { appCode: null, skipIsolation: false });
     const kb = await this.prisma.kbInfo.findFirst({
       where: { ...where, isDeleted: false },
     });

@@ -14,6 +14,8 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { VoiceProfileService } from './voice-profile.service';
 import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
+import { RequireScope } from '../common/decorators/scope.decorator';
+import { AdminScope } from '../common/constants/scope.constants';
 import { success } from '../common/response/api.response';
 
 /**
@@ -37,6 +39,7 @@ export class VoiceProfileController {
    */
   @Get()
   @ApiOperation({ summary: '分页查询语音配置列表' })
+  @RequireScope(AdminScope.MODEL_READ)
   async findAll(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
@@ -62,6 +65,7 @@ export class VoiceProfileController {
    */
   @Get('default')
   @ApiOperation({ summary: '获取默认语音配置' })
+  @RequireScope(AdminScope.MODEL_READ)
   async getDefault() {
     const result = await this.voiceProfileService.getDefault();
     return success(result);
@@ -74,6 +78,7 @@ export class VoiceProfileController {
    */
   @Get(':id')
   @ApiOperation({ summary: '获取单个语音配置' })
+  @RequireScope(AdminScope.MODEL_READ)
   async findOne(@Param('id') id: string) {
     const result = await this.voiceProfileService.findById(BigInt(id));
     return success(result);
@@ -86,6 +91,7 @@ export class VoiceProfileController {
    */
   @Post()
   @ApiOperation({ summary: '创建语音配置' })
+  @RequireScope(AdminScope.MODEL_WRITE)
   async create(
     @Body() body: {
       name: string;
@@ -113,6 +119,7 @@ export class VoiceProfileController {
    */
   @Put(':id')
   @ApiOperation({ summary: '更新语音配置' })
+  @RequireScope(AdminScope.MODEL_WRITE)
   async update(
     @Param('id') id: string,
     @Body() body: {
@@ -138,6 +145,7 @@ export class VoiceProfileController {
    */
   @Delete(':id')
   @ApiOperation({ summary: '删除语音配置' })
+  @RequireScope(AdminScope.MODEL_WRITE)
   async delete(@Param('id') id: string) {
     await this.voiceProfileService.delete(BigInt(id));
     return success(null, '删除成功');
@@ -150,6 +158,7 @@ export class VoiceProfileController {
    */
   @Patch(':id/default')
   @ApiOperation({ summary: '设为默认语音配置' })
+  @RequireScope(AdminScope.MODEL_WRITE)
   async setDefault(@Param('id') id: string) {
     const result = await this.voiceProfileService.setDefault(BigInt(id));
     return success(result, '已设为默认');
@@ -163,6 +172,7 @@ export class VoiceProfileController {
    */
   @Post(':id/test')
   @ApiOperation({ summary: '测试语音配置' })
+  @RequireScope(AdminScope.MODEL_READ)
   async testVoice(
     @Param('id') id: string,
     @Body() body: { text?: string },

@@ -3,13 +3,17 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
+import { UpdateAdminDto } from './dto/update-admin.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { QueryAdminDto } from './dto/query-admin.dto';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { AdminUser } from '@prisma/client';
@@ -38,7 +42,7 @@ export class AdminService {
    */
   private async generateRefreshToken(adminId: string): Promise<string> {
     const token = crypto.randomBytes(32).toString('base64url');
-    
+
     const expiresIn = this.configService.get<string>('REFRESH_TOKEN_EXPIRES_IN') || '7d';
     const expiresAt = this.calculateExpiresAt(expiresIn);
 
@@ -150,6 +154,29 @@ export class AdminService {
   }
 
   /**
+   * 管理员登出
+   * @param adminId 管理员ID
+   * @param refreshToken 刷新令牌
+   * @returns {Promise<void>}
+   */
+  async logout(adminId: string, refreshToken?: string): Promise<void> {
+    if (refreshToken) {
+      await this.prisma.adminRefreshToken.deleteMany({
+        where: {
+          adminId: adminId as any,
+          token: refreshToken,
+        },
+      }).catch(() => {});
+    } else {
+      await this.prisma.adminRefreshToken.deleteMany({
+        where: {
+          adminId: adminId as any,
+        },
+      }).catch(() => {});
+    }
+  }
+
+  /**
    * 刷新访问令牌
    * @param refreshToken 刷新令牌
    * @returns {Promise<{accessToken: string, refreshToken: string}>} 新的令牌对
@@ -201,10 +228,12 @@ export class AdminService {
 
   /**
    * 创建管理员
+   * @param operatorId 操作者ID
+   * @param operatorIsSuperAdmin 操作者是否为超管
    * @param createAdminDto 创建管理员DTO
    * @returns {Promise<Partial<AdminUser>>} 创建的管理员信息
    */
-  async createAdmin(createAdminDto: CreateAdminDto): Promise<Partial<AdminUser>> {
+  async createAdmin(operatorId: string, operatorIsSuperAdmin: boolean, createAdminDto: CreateAdminDto): Promise<Partial<AdminUser>> {
     const { username, password, ...rest } = createAdminDto;
 
     const existingAdmin = await this.prisma.adminUser.findUnique({
@@ -213,6 +242,10 @@ export class AdminService {
 
     if (existingAdmin) {
       throw new ConflictException('账号已存在');
+    }
+
+    if (rest.role === 'admin' && !operatorIsSuperAdmin) {
+      throw new ForbiddenException('只有超级管理员才能创建超管账号');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -248,7 +281,56 @@ export class AdminService {
   }
 
   /**
-   * 获取管理员列表
+   * 分页查询管理员列表
+   * @param query 查询参数
+   * @returns {Promise<{list: Partial<AdminUser>[], total: number, page: number, pageSize: number}>} 分页结果
+   */
+  async findPage(query: QueryAdminDto): Promise<{
+    list: Partial<AdminUser>[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    const { page = 1, pageSize = 10, keyword, role, status } = query;
+    const skip = (page - 1) * pageSize;
+
+    const where: any = {};
+
+    if (keyword) {
+      where.OR = [
+        { username: { contains: keyword } },
+        { nickname: { contains: keyword } },
+      ];
+    }
+
+    if (role) {
+      where.role = role;
+    }
+
+    if (status !== undefined) {
+      where.status = status;
+    }
+
+    const [list, total] = await Promise.all([
+      this.prisma.adminUser.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.adminUser.count({ where }),
+    ]);
+
+    return {
+      list: list.map(({ password, ...admin }) => admin),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  /**
+   * 获取管理员列表（全量）
    * @returns {Promise<Partial<AdminUser>[]>} 管理员列表
    */
   async findAll(): Promise<Partial<AdminUser>[]> {
@@ -260,12 +342,52 @@ export class AdminService {
   }
 
   /**
+   * 更新管理员信息
+   * @param operatorId 操作者ID
+   * @param operatorIsSuperAdmin 操作者是否为超管
+   * @param id 管理员ID
+   * @param updateAdminDto 更新管理员DTO
+   * @returns {Promise<Partial<AdminUser>>} 更新后的管理员信息
+   */
+  async update(operatorId: string, operatorIsSuperAdmin: boolean, id: string, updateAdminDto: UpdateAdminDto): Promise<Partial<AdminUser>> {
+    const target = await this.findById(id);
+
+    if (target.isSuperAdmin && operatorId !== id) {
+      throw new ForbiddenException('不能修改超级管理员信息');
+    }
+
+    if (updateAdminDto.role === 'admin' && !operatorIsSuperAdmin) {
+      throw new ForbiddenException('只有超级管理员才能将角色设为超管');
+    }
+
+    const admin = await this.prisma.adminUser.update({
+      where: { id: id as any },
+      data: updateAdminDto,
+    });
+
+    const { password: _, ...adminWithoutPassword } = admin;
+
+    return adminWithoutPassword;
+  }
+
+  /**
    * 更新管理员状态
+   * @param operatorId 操作者ID
    * @param id 管理员ID
    * @param status 状态
    * @returns {Promise<Partial<AdminUser>>} 更新后的管理员信息
    */
-  async updateStatus(id: string, status: number): Promise<Partial<AdminUser>> {
+  async updateStatus(operatorId: string, id: string, status: number): Promise<Partial<AdminUser>> {
+    const target = await this.findById(id);
+
+    if (target.isSuperAdmin) {
+      throw new ForbiddenException('不能修改超级管理员状态');
+    }
+
+    if (operatorId === id && status === 0) {
+      throw new BadRequestException('不能禁用自己');
+    }
+
     const admin = await this.prisma.adminUser.update({
       where: { id: id as any },
       data: { status },
@@ -278,10 +400,25 @@ export class AdminService {
 
   /**
    * 删除管理员
+   * @param operatorId 操作者ID
    * @param id 管理员ID
    * @returns {Promise<void>}
    */
-  async delete(id: string): Promise<void> {
+  async delete(operatorId: string, id: string): Promise<void> {
+    if (operatorId === id) {
+      throw new BadRequestException('不能删除自己');
+    }
+
+    const target = await this.findById(id);
+
+    if (target.isSuperAdmin) {
+      throw new ForbiddenException('不能删除超级管理员');
+    }
+
+    await this.prisma.adminRefreshToken.deleteMany({
+      where: { adminId: id as any },
+    }).catch(() => {});
+
     await this.prisma.adminUser.delete({
       where: { id: id as any },
     });
@@ -313,5 +450,31 @@ export class AdminService {
       where: { id: id as any },
       data: { password: hashedPassword },
     });
+  }
+
+  /**
+   * 重置密码（管理员为其他管理员重置）
+   * @param operatorId 操作者ID
+   * @param id 管理员ID
+   * @param newPassword 新密码
+   * @returns {Promise<void>}
+   */
+  async resetPassword(operatorId: string, id: string, newPassword: string): Promise<void> {
+    const target = await this.findById(id);
+
+    if (target.isSuperAdmin && operatorId !== id) {
+      throw new ForbiddenException('不能重置超级管理员密码');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.adminUser.update({
+      where: { id: id as any },
+      data: { password: hashedPassword },
+    });
+
+    await this.prisma.adminRefreshToken.deleteMany({
+      where: { adminId: id as any },
+    }).catch(() => {});
   }
 }

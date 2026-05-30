@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RetrievalService } from '../retrieval/retrieval.service';
 import { SkillRegistry } from './skill-registry';
@@ -66,7 +66,7 @@ export class SkillKbService {
     const kbCodes = new Set<string>();
 
     for (const skillName of skillNames) {
-      const skill = await this.skillRegistry.resolve(skillName, isolationContext || { appCode: null, isSuperAdmin: false });
+      const skill = await this.skillRegistry.resolve(skillName, isolationContext || { appCode: null, skipIsolation: false });
       if (skill?.frontmatter?.requires?.knowledgeBases) {
         for (const kbCode of skill.frontmatter.requires.knowledgeBases) {
           kbCodes.add(kbCode);
@@ -110,7 +110,7 @@ export class SkillKbService {
     if (agent.skills) {
       const agentSkills = AgentSkills.fromJson(agent.skills);
       if (!agentSkills.isEmpty()) {
-        const context: IsolationContext = isolationContext || { appCode: agent.appCode || null, isSuperAdmin: false };
+        const context: IsolationContext = isolationContext || { appCode: agent.appCode || null, skipIsolation: false };
         const skillKbCodes = await this.resolveKbCodes(agentSkills, context);
         skillKbCodes.forEach(code => allKbCodes.add(code));
       }

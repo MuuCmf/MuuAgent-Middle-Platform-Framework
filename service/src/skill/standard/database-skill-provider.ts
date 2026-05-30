@@ -256,7 +256,7 @@ export class DatabaseSkillProvider implements ISkillProvider {
    * 构建查询条件（支持用户级隔离）
    */
   private buildWhereClause(context?: IsolationContext) {
-    if (!context || context.isSuperAdmin) {
+    if (!context || context.skipIsolation) {
       return {};
     }
     
@@ -291,7 +291,7 @@ export class DatabaseSkillProvider implements ISkillProvider {
     skill: { appCode: string | null; uid: string | null; isPublic: boolean },
     context?: IsolationContext,
   ): boolean {
-    if (!context || context.isSuperAdmin) return true;
+    if (!context || context.skipIsolation) return true;
     if (skill.isPublic) return true;
     
     if (!context.appCode) return skill.isPublic;

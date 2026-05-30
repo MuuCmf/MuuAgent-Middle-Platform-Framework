@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+﻿import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { IsolationService, IsolationContext } from '../common/services/base-isolated.service';
 import { ContextBuilder } from './execution/context-builder';
@@ -51,13 +51,13 @@ export class AgentService {
       kbRetrievalConfig: dto.kbRetrievalConfig || JSON.stringify({ strategy: 'TOOL' }),
       appCode: dto.appCode,
       isPublic: dto.isPublic ?? false,
-    }, context || { appCode: null, isSuperAdmin: false });
+    }, context || { appCode: null, skipIsolation: false });
 
     return this.prisma.agent.create({ data });
   }
 
   async update(id: string, dto: UpdateAgentDto, context?: IsolationContext) {
-    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, skipIsolation: false });
     const agent = await this.prisma.agent.findFirst({ where });
     if (!agent) {
       throw new NotFoundException('智能体不存在或无权限操作');
@@ -72,7 +72,7 @@ export class AgentService {
   }
 
   async remove(id: string, context?: IsolationContext): Promise<void> {
-    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, isSuperAdmin: false });
+    const where = this.isolationService.buildOwnerWhere(id, context || { appCode: null, skipIsolation: false });
     const agent = await this.prisma.agent.findFirst({ where });
     if (!agent) {
       throw new NotFoundException('智能体不存在或无权限操作');
@@ -82,7 +82,7 @@ export class AgentService {
   }
 
   async findOne(id: string, context?: IsolationContext) {
-    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false });
     const agent = await this.prisma.agent.findFirst({
       where: { id, ...isolationWhere },
     });
@@ -93,14 +93,14 @@ export class AgentService {
   }
 
   async findByCode(code: string, context?: IsolationContext) {
-    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false });
     const agent = await this.prisma.agent.findFirst({
       where: { code, ...isolationWhere },
     });
     if (!agent) {
       throw new NotFoundException('智能体不存在');
     }
-    const isoCtx: IsolationContext = context || { appCode: null, isSuperAdmin: false };
+    const isoCtx: IsolationContext = context || { appCode: null, skipIsolation: false };
     const supportsWorkspace = await this.checkWorkspaceSupport(agent, isoCtx);
     return { ...agent, supportsWorkspace };
   }
@@ -109,7 +109,7 @@ export class AgentService {
     const { status, page = 1, pageSize = 10 } = query;
     const skip = (page - 1) * pageSize;
 
-    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false });
     const where: Record<string, unknown> = { ...isolationWhere };
     if (status !== undefined) where.status = status;
 
@@ -123,7 +123,7 @@ export class AgentService {
       this.prisma.agent.count({ where }),
     ]);
 
-    const isoCtx: IsolationContext = context || { appCode: null, isSuperAdmin: false };
+    const isoCtx: IsolationContext = context || { appCode: null, skipIsolation: false };
     const enrichedList = await Promise.all(
       list.map(async (agent) => {
         const supportsWorkspace = await this.checkWorkspaceSupport(agent, isoCtx);
@@ -136,7 +136,7 @@ export class AgentService {
 
   async syncChat(dto: AgentChatDto, clientIp: string, uid?: string, appCode?: string): Promise<Record<string, unknown>> {
     const startTime = Date.now();
-    const isolationContext: IsolationContext = { appCode: appCode || null, isSuperAdmin: false };
+    const isolationContext: IsolationContext = { appCode: appCode || null, skipIsolation: false };
     const agent = await this.getAgent(dto.agentId, isolationContext);
     const context = await this.contextBuilder.build(dto, agent, uid, isolationContext);
     context.clientIp = clientIp;
@@ -165,7 +165,7 @@ export class AgentService {
   ): Promise<void> {
     this.logger.log(`[AgentStream] streamChat 开始, agentId: ${dto.agentId}`);
     const startTime = Date.now();
-    const isolationContext: IsolationContext = { appCode: appCode || null, isSuperAdmin: false };
+    const isolationContext: IsolationContext = { appCode: appCode || null, skipIsolation: false };
     const agent = await this.getAgent(dto.agentId, isolationContext);
     this.logger.log(`[AgentStream] 获取到智能体, id: ${agent.id}`);
 
@@ -204,7 +204,7 @@ export class AgentService {
 
   private async getAgent(agentId: string, context?: IsolationContext) {
     this.logger.log(`[AgentStream] 获取智能体: ${agentId}`);
-    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false });
 
     const where = {
       AND: [
@@ -216,7 +216,6 @@ export class AgentService {
     let agent;
     try {
       agent = await this.prisma.agent.findFirst({ where });
-      //this.logger.log(`[AgentStream] 查询结果: ${JSON.stringify(agent)}`);
     } catch (e) {
       this.logger.error(`[AgentStream] 查询智能体失败: ${e}`);
       agent = await this.prisma.agent.findFirst({

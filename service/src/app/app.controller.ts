@@ -53,6 +53,7 @@ export class AppController {
    */
   @Get('/')
   @ApiOperation({ summary: '获取应用列表' })
+  @RequireScope(AdminScope.APP_READ)
   async getList(@Query() query: QueryAppDto) {
     const result = await this.appService.findAll(query);
     return page(result.list, result.total, query.page || 1, query.pageSize || 10);
@@ -66,6 +67,7 @@ export class AppController {
   @Get('/:id')
   @ApiOperation({ summary: '获取应用详情' })
   @ApiParam({ name: 'id', description: '应用ID' })
+  @RequireScope(AdminScope.APP_READ)
   async getOne(@Param('id') id: string) {
     const result = await this.appService.findOne(id);
     return success(result);
@@ -78,6 +80,7 @@ export class AppController {
    */
   @Post('/')
   @ApiOperation({ summary: '创建应用' })
+  @RequireScope(AdminScope.APP_WRITE)
   async create(@Body() dto: CreateAppDto) {
     const result = await this.appService.create(dto);
     return success(result, '创建应用成功');
@@ -92,6 +95,7 @@ export class AppController {
   @Put('/:id')
   @ApiOperation({ summary: '更新应用' })
   @ApiParam({ name: 'id', description: '应用ID' })
+  @RequireScope(AdminScope.APP_WRITE)
   async update(@Param('id') id: string, @Body() dto: UpdateAppDto) {
     const result = await this.appService.update(id, dto);
     return success(result, '更新应用成功');
@@ -105,6 +109,7 @@ export class AppController {
   @Delete('/:id')
   @ApiOperation({ summary: '删除应用' })
   @ApiParam({ name: 'id', description: '应用ID' })
+  @RequireScope(AdminScope.APP_WRITE)
   async delete(@Param('id') id: string) {
     await this.appService.delete(id);
     return success(null, '删除应用成功');
@@ -119,6 +124,7 @@ export class AppController {
   @Post('/:id/reset-secret')
   @ApiOperation({ summary: '重置应用密钥' })
   @ApiParam({ name: 'id', description: '应用ID' })
+  @RequireScope(AdminScope.APP_WRITE)
   async resetSecret(@Param('id') id: string, @Body() dto: ResetSecretDto) {
     const result = await this.appService.resetSecret(id, dto);
     return success(result, '重置密钥成功');
@@ -132,6 +138,7 @@ export class AppController {
   @Get('/:id/usage')
   @ApiOperation({ summary: '获取应用使用统计' })
   @ApiParam({ name: 'id', description: '应用ID' })
+  @RequireScope(AdminScope.APP_READ)
   async getUsage(@Param('id') id: string) {
     const result = await this.appService.getUsage(id);
     return success(result);

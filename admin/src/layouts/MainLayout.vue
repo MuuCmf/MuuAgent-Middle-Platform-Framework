@@ -138,6 +138,7 @@ import { Monitor, ArrowDown, User, Lock, SwitchButton } from '@element-plus/icon
 import Logo from './components/Logo.vue'
 import LocaleSwitch from '@/components/LocaleSwitch.vue'
 import { userApi, type AdminUser } from '@/api/user'
+import { adminApi } from '@/api/admin'
 import { clearCachedToken } from '@/utils/request'
 import { useI18n } from 'vue-i18n'
 import { versionApi } from '@/api/version'
@@ -285,6 +286,8 @@ const handleLogout = async () => {
     )
     
     userApi.logout()
+    const refreshToken = localStorage.getItem('admin_refresh_token')
+    await adminApi.logout(refreshToken || undefined).catch(() => {})
     clearCachedToken()
     ElMessage.success(t('layout.logoutSuccess'))
     router.push('/login')

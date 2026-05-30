@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { AgentChatDto } from '../dto/agent.dto';
 import { ExecutionContext } from './execution-context';
 import { IsolationContext } from '../../common/services/base-isolated.service';
@@ -73,7 +73,7 @@ export class ContextBuilder {
 
     const conversationHistory = await this.buildConversationHistory(conversation);
 
-    const isoCtx: IsolationContext = isolationContext || { appCode: agent.appCode || null, isSuperAdmin: false };
+    const isoCtx: IsolationContext = isolationContext || { appCode: agent.appCode || null, skipIsolation: false };
     const agentSkills = AgentSkills.fromJson(agent.skills);
     const agentMcpServers = agent.mcpServers ? JSON.parse(agent.mcpServers) : [];
     this.logger.debug(`Agent MCP Servers: ${JSON.stringify(agentMcpServers)}`);

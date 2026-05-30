@@ -129,6 +129,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/cache/index.vue"),
         meta: { title: "route.cache", icon: "Coin" },
       },
+      {
+        path: "admin-management",
+        name: "AdminManagement",
+        component: () => import("@/views/admin-management/index.vue"),
+        meta: { title: "route.adminManagement", icon: "UserFilled" },
+      },
     ],
   },
 ];

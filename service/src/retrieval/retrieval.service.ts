@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { VectorService } from '../vector/vector.service';
 import { AiService } from '../ai/ai.service';
@@ -92,7 +92,7 @@ export class RetrievalService {
     const startTime = Date.now();
     const requestId = uuidv4();
 
-    const isolationWhere = IsolationService.buildIsolationWhere(context || { appCode: null, isSuperAdmin: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false });
     const kb = await this.prisma.kbInfo.findFirst({
       where: { id: dto.kbId, isDeleted: false, status: true, ...isolationWhere },
     });
@@ -413,7 +413,7 @@ export class RetrievalService {
     const startTime = Date.now();
     const requestId = uuidv4();
 
-    const isolationContext = context || { appCode: null, isSuperAdmin: false };
+    const isolationContext = context || { appCode: null, skipIsolation: false };
     const conversation = await this.conversationService.getOrCreate(
       ConversationType.KB_RAG,
       dto.kbId,
@@ -437,7 +437,7 @@ export class RetrievalService {
       dto.query,
     );
 
-    const isolationWhere = IsolationService.buildIsolationWhere(isolationContext);
+    const isolationWhere = this.isolationService.buildIsolationWhere(isolationContext);
     const kb = await this.prisma.kbInfo.findFirst({
       where: { id: dto.kbId, isDeleted: false, status: true, ...isolationWhere },
     });
@@ -590,7 +590,7 @@ export class RetrievalService {
     const startTime = Date.now();
     const requestId = uuidv4();
 
-    const isolationContext = context || { appCode: null, isSuperAdmin: false };
+    const isolationContext = context || { appCode: null, skipIsolation: false };
     const conversation = await this.conversationService.getOrCreate(
       ConversationType.KB_RAG,
       dto.kbId,
@@ -614,7 +614,7 @@ export class RetrievalService {
       dto.query,
     );
 
-    const isolationWhere = IsolationService.buildIsolationWhere(isolationContext);
+    const isolationWhere = this.isolationService.buildIsolationWhere(isolationContext);
     const kb = await this.prisma.kbInfo.findFirst({
       where: { id: dto.kbId, isDeleted: false, status: true, ...isolationWhere },
     });

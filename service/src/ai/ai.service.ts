@@ -150,7 +150,7 @@ export class AiService {
     try {
       const isolationContext: IsolationContext = {
         appCode: appCode || null,
-        isSuperAdmin: false,
+        skipIsolation: false,
       };
 
       const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();
@@ -309,7 +309,7 @@ export class AiService {
     try {
       const isolationContext: IsolationContext = {
         appCode: appCode || null,
-        isSuperAdmin: false,
+        skipIsolation: false,
       };
 
       const lastUserMessage = dto.messages.filter((m) => m.role === 'user').pop();

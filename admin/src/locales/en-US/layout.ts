@@ -12,6 +12,7 @@ export default {
     apps: 'Applications',
     rateLimit: 'Rate Limit',
     cache: 'Cache',
+    adminManagement: 'Admin Management',
   },
   route: {
     login: 'Login',
@@ -33,6 +34,7 @@ export default {
     conversationList: 'Conversation List',
     conversationDetail: 'Conversation Detail',
     logs: 'Call Logs',
+    adminManagement: 'Admin Management',
   },
   layout: {
     client: 'Client',

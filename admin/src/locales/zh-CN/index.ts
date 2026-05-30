@@ -14,6 +14,7 @@ import rateLimit from './rateLimit'
 import dashboard from './dashboard'
 import cache from './cache'
 import voice from './voice'
+import admin from './admin'
 
 export default {
   ...common,
@@ -32,4 +33,5 @@ export default {
   ...dashboard,
   ...cache,
   ...voice,
+  ...admin,
 }
