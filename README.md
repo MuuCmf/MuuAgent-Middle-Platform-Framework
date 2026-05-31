@@ -627,7 +627,7 @@ npm run version:major
 ## 📞 联系方式
 
 - 项目主页: [Muu官网](https://www.muucmf.cc)
-- 问题反馈: [Issue Tracker](https://github.com/muucmf/muuagent/issues)
+- 问题反馈: [Issue Tracker](https://github.com/MuuCmf/MuuAgent-Middle-Platform-Framework/issues)
 - 邮箱: <59262424@qq.com>
 
 ## 🙏 致谢
