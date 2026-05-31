@@ -51,6 +51,8 @@ export default {
         image: 'Image Generation',
         tts: 'Text-to-Speech',
         asr: 'Speech Recognition',
+        lmm: 'LMM',
+        s2s: 'S2S',
       },
       modelName: 'Model Name',
       provider: 'Provider',

@@ -34,7 +34,7 @@
 ### 1. 模型管理
 
 - ✅ 模型注册与配置
-- ✅ 多类型支持（LLM、Embedding、TTS、ASR、Image、Multimodal）
+- ✅ 多类型支持（LLM、Embedding、TTS、ASR、Image、LMM）
 - ✅ 多提供商支持（OpenAI、Azure、阿里云、腾讯云、Ollama、Custom）
 - ✅ 权重配置（负载均衡）
 - ✅ 状态管理（启用/禁用）
@@ -94,7 +94,7 @@ model Model {
   id          String   @id @default(uuid())
   name        String   /// 模型名称
   code        String   @unique /// 模型唯一标识码
-  type        String   /// 模型类型: llm / embedding / tts / asr / image / multimodal
+  type        String   /// 模型类型: llm / embedding / tts / asr / image / lmm / s2s
   provider    String   /// 提供商: openai / ollama / azure / aliyun / tencent / custom
   endpoint    String   /// 模型API地址
   apiKey      String?  /// API密钥
@@ -118,7 +118,7 @@ model ModelTemplate {
   id             String   @id @default(uuid())
   name           String   /// 模板名称
   code           String   @unique /// 模板唯一标识
-  modelType      String   /// 适配模型类型: llm / embedding / multimodal
+  modelType      String   /// 适配模型类型: llm / embedding / lmm / s2s
   temperature    Float    @default(0.7) /// 温度参数(0-1)
   topP           Float    @default(0.7) /// 核采样参数(0-1)
   contextWindow  Int      @default(8192) /// 上下文窗口大小
@@ -190,7 +190,8 @@ http://localhost:5173/models
 | `tts` | 语音合成模型 | 文本转语音 |
 | `asr` | 语音识别模型 | 语音转文本 |
 | `image` | 图像模型 | 图像生成、图像理解 |
-| `multimodal` | 多模态模型 | 图文混合处理 |
+| `lmm` | 大多模态模型 | 图文混合对话 |
+| `s2s` | 端到端语音模型 | 语音对话、语音交互 |
 
 ### 提供商
 
@@ -314,7 +315,6 @@ const probability = {
 | 客服问答 | `customer_service` | 0.3 | 0.8 | 准确、一致的回答 |
 | 创意文案 | `creative` | 0.8 | 0.9 | 创意性强、多样性高 |
 | 向量生成 | `vector` | 0.0 | 1.0 | 确定的向量化结果 |
-| 多模态生成 | `multimodal` | 0.5 | 0.7 | 平衡图文理解 |
 | 代码生成 | `code` | 0.2 | 0.8 | 准确的代码生成 |
 
 ### 默认模板

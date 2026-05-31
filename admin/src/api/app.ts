@@ -45,6 +45,8 @@ export interface AiPermission {
   tts?: boolean
   /** 语音识别 */
   asr?: boolean
+  /** 端到端语音 */
+  s2s?: boolean
 }
 
 /**

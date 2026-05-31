@@ -214,7 +214,7 @@
 import { ref, computed, onMounted, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, ChatDotSquare, Grid, Headset, Microphone, Picture } from '@element-plus/icons-vue'
+import { Plus, ChatDotSquare, Grid, Headset, Microphone, Picture, Monitor, Phone } from '@element-plus/icons-vue'
 import { useModelStore } from '@/stores/model'
 import { modelApi, type Model, type ModelForm, type ProviderOption } from '@/api/model'
 import VoiceModelTestDrawer from './VoiceModelTestDrawer.vue'
@@ -240,6 +240,8 @@ const modelTypeOptions = computed<ModelTypeOption[]>(() => [
   { value: 'tts', icon: Headset, label: t('model.tts'), desc: t('model.ttsShortDesc') },
   { value: 'asr', icon: Microphone, label: t('model.asr'), desc: t('model.asrShortDesc') },
   { value: 'image', icon: Picture, label: t('model.image'), desc: t('model.imageShortDesc') },
+  { value: 'lmm', icon: Monitor, label: t('model.lmm'), desc: t('model.lmmShortDesc') },
+  { value: 's2s', icon: Phone, label: t('model.s2s'), desc: t('model.s2sShortDesc') },
 ])
 
 /** 提供商选项列表 */
@@ -585,8 +587,7 @@ onMounted(() => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 calc((100% - 16px) / 3);
   background: var(--el-fill-color-blank);
   user-select: none;
 

@@ -203,7 +203,7 @@ export default {
     createStrategyTitle: 'Create Strategy',
     cancel: 'Cancel',
     confirm: 'Confirm',
-    modelTypePlaceholder: 'Enter model type, e.g. gpt-4, claude-3',
+    modelTypePlaceholder: 'Please select model type',
     strategyPlaceholder: 'Please select scheduling strategy',
     deleteConfirm: 'Are you sure to delete this strategy?',
     deleteTitle: 'Tip',

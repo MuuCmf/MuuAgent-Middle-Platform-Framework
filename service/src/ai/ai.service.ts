@@ -12,6 +12,7 @@ import {
   ImageGenerateDto,
   TtsDto,
   AsrDto,
+  S2SDto,
 } from './dto/ai.dto';
 import { Model } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
@@ -944,6 +945,91 @@ export class AiService {
       const normalized = this.errorHandler.normalize(error);
       throw new HttpException(
         `语音识别失败: ${normalized.message}`,
+        normalized.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * S2S端到端语音
+   * @param dto S2S调用参数
+   * @param clientIp 客户端IP
+   * @param userAgent 用户代理
+   * @param uid 用户标识
+   * @param appCode 应用编码
+   * @returns {Promise<Record<string, unknown>>} 语音结果
+   */
+  async s2s(
+    dto: S2SDto,
+    clientIp: string,
+    userAgent: string,
+    uid?: string,
+    appCode?: string,
+  ): Promise<Record<string, unknown>> {
+    const context = this.contextManager.createFromParams(
+      clientIp,
+      userAgent,
+      uid,
+      appCode,
+    );
+
+    const modelType = dto.modelType || 's2s';
+
+    this.logger.debug(`S2S端到端语音开始: requestId=${context.requestId}, modelCode=${dto.modelCode}`);
+
+    try {
+      const model = await this.selectModel(dto.modelCode, modelType);
+
+      await this.mcpService.checkCircuit(model.id as any);
+
+      const strategy = this.strategyFactory.getStrategy(model.provider);
+
+      if (!strategy.executeS2S) {
+        throw new HttpException(
+          `模型提供商 ${model.provider} 不支持S2S功能`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await strategy.executeS2S({
+        model,
+        audio: dto.audio,
+        audioFormat: dto.audioFormat,
+        voice: dto.voice,
+        context,
+      });
+
+      await this.mcpService.reportSuccess(model.id as any);
+
+      await this.logService.saveLog({
+        modelId: model.id as any,
+        modelCode: model.code,
+        modelType,
+        request: JSON.stringify({ audioLength: dto.audio.length, voice: dto.voice }),
+        response: JSON.stringify({ format: result.format, text: result.text }),
+        costMs: this.contextManager.calculateDuration(context),
+        success: true,
+        clientIp,
+        userAgent,
+        uid,
+        appCode,
+      });
+
+      return {
+        audioData: result.audioData,
+        format: result.format,
+        text: result.text,
+        duration: result.duration,
+      };
+    } catch (error) {
+      const model = await this.selectModel(dto.modelCode, modelType).catch(() => null);
+      if (model) {
+        await this.mcpService.reportError(model.id as any);
+      }
+
+      const normalized = this.errorHandler.normalize(error);
+      throw new HttpException(
+        `端到端语音失败: ${normalized.message}`,
         normalized.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

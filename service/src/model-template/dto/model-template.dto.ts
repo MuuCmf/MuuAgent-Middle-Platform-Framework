@@ -17,7 +17,9 @@ import { Transform } from 'class-transformer';
 export enum TemplateModelType {
   LLM = 'llm',
   EMBEDDING = 'embedding',
-  MULTIMODAL = 'multimodal',
+  LMM = 'lmm',
+  /** 端到端语音 */
+  S2S = 's2s',
 }
 
 /**
@@ -27,7 +29,6 @@ export enum SceneTag {
   CUSTOMER_SERVICE = 'customer_service', // 客服问答
   CREATIVE = 'creative',                 // 创意文案
   VECTOR = 'vector',                     // 向量生成
-  MULTIMODAL = 'multimodal',             // 多模态生成
   CODE = 'code',                         // 代码生成
 }
 

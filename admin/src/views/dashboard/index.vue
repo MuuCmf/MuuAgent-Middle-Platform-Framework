@@ -437,7 +437,8 @@ const getModelTypeDesc = (type: string) => {
     tts: t('dashboard.modelTypeStats.descriptions.tts'),
     asr: t('dashboard.modelTypeStats.descriptions.asr'),
     image: t('dashboard.modelTypeStats.descriptions.image'),
-    multimodal: t('dashboard.modelTypeStats.descriptions.multimodal')
+    lmm: t('dashboard.modelTypeStats.descriptions.lmm'),
+    s2s: t('dashboard.modelTypeStats.descriptions.s2s')
   }
   return descMap[type] || t('dashboard.modelTypeStats.descriptions.other')
 }

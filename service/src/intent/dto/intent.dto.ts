@@ -30,6 +30,8 @@ export enum IntentType {
   TTS = 'tts',
   /** 语音识别 */
   ASR = 'asr',
+  /** 端到端语音 */
+  S2S = 's2s',
 }
 
 /**
@@ -40,8 +42,9 @@ export const INTENT_TO_MODEL_TYPE: Record<string, string> = {
   [IntentType.CODE]: 'llm',
   [IntentType.MATH]: 'llm',
   [IntentType.CREATIVE]: 'llm',
-  [IntentType.PROFESSIONAL]: 'llm',
+  [IntentType.PROFESSIONAL]: 'lmm',
   [IntentType.IMAGE]: 'image',
   [IntentType.TTS]: 'tts',
   [IntentType.ASR]: 'asr',
+  [IntentType.S2S]: 's2s',
 };

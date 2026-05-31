@@ -4,6 +4,9 @@ import {
   TTSExecutionParams,
   TTSExecutionResult,
   TTSStreamChunk,
+  S2SExecutionParams,
+  S2SExecutionResult,
+  S2SStreamChunk,
 } from './provider.strategy.interface';
 
 /**
@@ -386,6 +389,207 @@ export class VolcengineStrategy extends BaseStrategy {
 
     if (seq === 0) {
       throw new HttpException('火山引擎 V3 流式TTS未返回音频数据', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // ===================== S2S 端到端语音 =====================
+
+  /**
+   * S2S端到端语音（非流式）
+   *
+   * 通过 HTTP POST 调用火山引擎 S2S API，收集所有音频块后返回完整结果。
+   *
+   * @param params S2S执行参数
+   * @returns {Promise<S2SExecutionResult>} 语音结果
+   */
+  async executeS2S(params: S2SExecutionParams): Promise<S2SExecutionResult> {
+    const { model, audio, voice } = params;
+
+    this.logger.debug(
+      `Volcengine S2S: model=${model.code}, voice=${voice || 'default'}`,
+    );
+
+    const apiKey = this.resolveApiKey(model.apiKey);
+    this.validateApiKey(apiKey);
+
+    try {
+      const response = await fetch(`${this.baseURL}/api/v1/s2s`, {
+        method: 'POST',
+        headers: this.buildHeaders(apiKey, model.code, model.config),
+        body: JSON.stringify({
+          user: { uid: crypto.randomUUID() },
+          namespace: 'S2S',
+          req_params: {
+            audio: audio,
+            speaker: voice || this.defaultVoice,
+            audio_params: {
+              format: 'mp3',
+              sample_rate: this.defaultSampleRate,
+            },
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new HttpException(
+          `火山引擎 S2S API 错误: ${response.status} ${errorText}`,
+          response.status,
+        );
+      }
+
+      const responseText = await response.text();
+      const lines = this.parseResponseLines(responseText);
+      const audioData = this.extractAudioFromLines(lines);
+
+      if (!audioData) {
+        throw new HttpException('火山引擎 S2S 未返回音频数据', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+
+      return {
+        audioData,
+        format: 'mp3',
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException(
+        `火山引擎 S2S 失败: ${(error as Error).message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * 流式S2S端到端语音
+   *
+   * 通过 HTTP POST 调用火山引擎 S2S API，使用 ReadableStream 逐块 yield 音频数据。
+   *
+   * @param params S2S执行参数
+   * @returns 音频块异步迭代器
+   */
+  async *executeS2SStream(params: S2SExecutionParams): AsyncIterable<S2SStreamChunk> {
+    const { model, audio, voice } = params;
+
+    this.logger.debug(
+      `Volcengine S2S 流式: model=${model.code}, voice=${voice || 'default'}`,
+    );
+
+    const apiKey = this.resolveApiKey(model.apiKey);
+    this.validateApiKey(apiKey);
+
+    const response = await fetch(`${this.baseURL}/api/v1/s2s`, {
+      method: 'POST',
+      headers: this.buildHeaders(apiKey, model.code, model.config),
+      body: JSON.stringify({
+        user: { uid: crypto.randomUUID() },
+        namespace: 'S2S',
+        req_params: {
+          audio: audio,
+          speaker: voice || this.defaultVoice,
+          audio_params: {
+            format: 'mp3',
+            sample_rate: this.defaultSampleRate,
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new HttpException(
+        `火山引擎 S2S API 错误: ${response.status} ${errorText}`,
+        response.status,
+      );
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new HttpException('火山引擎 S2S API 响应体不可读', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let seq = 0;
+    let hasError = false;
+    let errorMessage = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          let parsed: any;
+          try {
+            parsed = JSON.parse(trimmed);
+          } catch {
+            continue;
+          }
+
+          const successCodes = [0, 20000000];
+          if (parsed.event === 'error' || (parsed.code !== undefined && !successCodes.includes(parsed.code))) {
+            hasError = true;
+            errorMessage = parsed.message || parsed.error || `火山引擎错误码: ${parsed.code}`;
+            this.logger.error(`火山引擎 S2S API 错误: ${errorMessage}`);
+            continue;
+          }
+
+          const audioData = parsed.data || parsed.audio;
+          if (audioData) {
+            const isLast = parsed.is_last === true;
+            const textDelta = parsed.text || parsed.text_delta;
+
+            this.logger.debug(`收到S2S音频块, seq=${seq}, isLast=${isLast}`);
+
+            yield {
+              audioData,
+              format: 'mp3',
+              sequence: seq++,
+              isLast,
+              textDelta,
+              sampleRate: this.defaultSampleRate,
+            };
+
+            if (isLast) return;
+          }
+        }
+      }
+
+      if (buffer.trim()) {
+        try {
+          const parsed = JSON.parse(buffer.trim());
+          const audioData = parsed.data || parsed.audio;
+          if (audioData) {
+            yield {
+              audioData,
+              format: 'mp3',
+              sequence: seq++,
+              isLast: true,
+              textDelta: parsed.text,
+              sampleRate: this.defaultSampleRate,
+            };
+          }
+        } catch {
+          // ignore malformed final chunk
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (hasError) {
+      throw new HttpException(`火山引擎 S2S 错误: ${errorMessage}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    if (seq === 0) {
+      throw new HttpException('火山引擎 S2S 未返回音频数据', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }

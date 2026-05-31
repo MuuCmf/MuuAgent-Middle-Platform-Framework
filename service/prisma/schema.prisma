@@ -12,7 +12,7 @@ model Model {
   id          BigInt  @id @default(0)
   name        String   /// 模型名称
   code        String   @unique /// 模型唯一标识码
-  type        String   /// 模型类型: llm / embedding / tts / asr / image / multimodal
+  type        String   /// 模型类型: llm / embedding / tts / asr / image / lmm / s2s
   provider    String   /// 提供商: openai / ollama / azure / aliyun / tencent / custom
   endpoint    String   /// 模型API地址
   apiKey      String?  /// API密钥
@@ -44,7 +44,7 @@ model ModelTemplate {
   id             BigInt  @id @default(0)
   name           String   /// 模板名称
   code           String   @unique /// 模板唯一标识
-  modelType      String   /// 适配模型类型: llm / embedding / multimodal
+  modelType      String   /// 适配模型类型: llm / embedding / lmm / s2s
   temperature    Float    @default(0.7) /// 温度参数(0-1)
   topP           Float    @default(0.7) /// 核采样参数(0-1)
   contextWindow  Int      @default(8192) /// 上下文窗口大小
@@ -973,7 +973,7 @@ model IntentRoutingLog {
   source            String   @default("keyword") /// 分类来源: keyword/ai/default
   selectedModelId   BigInt?  @map("selected_model_id") /// 选中的模型ID
   selectedModelCode String?  @map("selected_model_code") /// 选中的模型标识
-  modelType         String?  @map("model_type") /// 模型类型: llm/tts/asr/image
+  modelType         String?  @map("model_type") /// 模型类型: llm/tts/asr/image/lmm/s2s
   isDegraded        Boolean  @default(false) @map("is_degraded") /// 是否降级
   degradeReason     String?  @map("degrade_reason") /// 降级原因
   costMs            Int      @default(0) @map("cost_ms") /// 路由耗时(毫秒)

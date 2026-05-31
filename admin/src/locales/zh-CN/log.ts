@@ -51,6 +51,8 @@ export default {
         image: '图像生成',
         tts: '语音合成',
         asr: '语音识别',
+        lmm: 'LMM',
+        s2s: 'S2S',
       },
       modelName: '模型名称',
       provider: '提供商',

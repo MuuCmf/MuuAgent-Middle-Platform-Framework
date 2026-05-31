@@ -56,6 +56,41 @@ export class AiInvokeDto {
 }
 
 /**
+ * S2S端到端语音DTO
+ */
+export class S2SDto {
+  @ApiPropertyOptional({ description: '模型类型', default: 's2s' })
+  @IsString()
+  @IsOptional()
+  modelType?: string;
+
+  @ApiProperty({ description: '输入音频数据(Base64)' })
+  @IsString()
+  @IsNotEmpty()
+  audio: string;
+
+  @ApiPropertyOptional({ description: '输入音频格式' })
+  @IsString()
+  @IsOptional()
+  audioFormat?: string;
+
+  @ApiPropertyOptional({ description: '输出音色标识' })
+  @IsString()
+  @IsOptional()
+  voice?: string;
+
+  @ApiPropertyOptional({ description: '指定模型标识' })
+  @IsString()
+  @IsOptional()
+  modelCode?: string;
+
+  @ApiPropertyOptional({ description: '调用用户唯一标识(透传)' })
+  @IsString()
+  @IsOptional()
+  uid?: string;
+}
+
+/**
  * Embedding向量生成请求DTO
  */
 export class EmbeddingDto {

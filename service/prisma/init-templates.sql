@@ -21,6 +21,25 @@ VALUES (
   datetime('now')
 );
 
+INSERT INTO ModelTemplate (id, name, code, modelType, temperature, topP, contextWindow, maxTokens, sceneTag, description, remark, isDefault, status, createdAt, updatedAt)
+VALUES (
+  'template-s2s',
+  '语音对话模板',
+  's2s-template',
+  's2s',
+  0.7,
+  0.7,
+  8192,
+  0,
+  'customer_service',
+  '端到端语音交互、语音助手，实时语音输入输出，自然流畅的语音对话体验',
+  '适用于豆包S2S等端到端语音模型',
+  0,
+  1,
+  datetime('now'),
+  datetime('now')
+);
+
 -- 创意文案模板
 INSERT INTO ModelTemplate (id, name, code, modelType, temperature, topP, contextWindow, maxTokens, sceneTag, description, remark, isDefault, status, createdAt, updatedAt)
 VALUES (
@@ -61,20 +80,20 @@ VALUES (
   datetime('now')
 );
 
--- 多模态生成模板
+-- LMM大多模态模板
 INSERT INTO ModelTemplate (id, name, code, modelType, temperature, topP, contextWindow, maxTokens, sceneTag, description, remark, isDefault, status, createdAt, updatedAt)
 VALUES (
-  'template-multimodal',
-  '多模态生成模板',
-  'multimodal-template',
-  'multimodal',
+  'template-lmm',
+  'LMM大多模态模板',
+  'lmm-template',
+  'lmm',
   0.7,
   0.8,
   4096,
   500,
-  'multimodal',
-  '图文生成、图片描述、多模态问答，平衡创意与贴合度，适配多模态输入输出场景',
-  '适用于文心一格、DALL·E等多模态模型',
+  NULL,
+  '图文理解、多模态对话、图片描述，平衡创意与贴合度，适配大多模态输入输出场景',
+  '适用于GPT-4o、Claude-3.5-Sonnet、Gemini等LMM模型',
   1,
   1,
   datetime('now'),

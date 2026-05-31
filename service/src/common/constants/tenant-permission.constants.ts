@@ -28,6 +28,8 @@ export interface AiPermission {
   tts?: boolean;
   /** 语音识别（默认 true） */
   asr?: boolean;
+  /** 端到端语音（默认 true） */
+  s2s?: boolean;
 }
 
 /** 知识库模块权限 */
@@ -102,7 +104,7 @@ export interface TenantPermissions {
  */
 export const DEFAULT_TENANT_PERMISSIONS: Required<TenantPermissions> = {
   agent: { chat: true, stream: true },
-  ai: { invoke: true, stream: true, image: true, tts: true, asr: true },
+  ai: { invoke: true, stream: true, image: true, tts: true, asr: true, s2s: true },
   kb: { retrieval: true, ragChat: true },
   conversation: { create: true, update: true, delete: true, addMessage: true },
   file: { upload: true, download: true, delete: false },

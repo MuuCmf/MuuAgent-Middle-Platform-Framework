@@ -9,6 +9,8 @@
         <el-option :label="t('log.ai.modelTypeOptions.image')" value="image" />
         <el-option :label="t('log.ai.modelTypeOptions.tts')" value="tts" />
         <el-option :label="t('log.ai.modelTypeOptions.asr')" value="asr" />
+        <el-option :label="t('log.ai.modelTypeOptions.lmm')" value="lmm" />
+        <el-option :label="t('log.ai.modelTypeOptions.s2s')" value="s2s" />
       </el-select>
       <el-select v-model="filters.success" :placeholder="t('log.common.callStatus')" clearable style="width: 120px" @change="handleSearch">
         <el-option :label="t('log.common.success')" :value="true" />

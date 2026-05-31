@@ -75,6 +75,54 @@ export interface TTSStreamChunk {
 }
 
 /**
+ * S2S端到端语音执行参数接口
+ */
+export interface S2SExecutionParams {
+  /** 模型配置 */
+  model: Model;
+  /** 输入音频数据（Base64 编码） */
+  audio: string;
+  /** 输入音频格式 */
+  audioFormat?: string;
+  /** 输出音色标识（可选） */
+  voice?: string;
+  /** 执行上下文 */
+  context: ExecutionContext;
+}
+
+/**
+ * S2S端到端语音执行结果接口
+ */
+export interface S2SExecutionResult {
+  /** 输出音频数据（Base64 编码） */
+  audioData: string;
+  /** 输出音频格式 */
+  format: string;
+  /** 中间转写文本（可选） */
+  text?: string;
+  /** 音频时长（毫秒，可选） */
+  duration?: number;
+}
+
+/**
+ * S2S流式音频块
+ */
+export interface S2SStreamChunk {
+  /** 输出音频数据（Base64 编码） */
+  audioData: string;
+  /** 音频格式：pcm / mp3 / opus */
+  format: string;
+  /** 当前块序号（从0开始） */
+  sequence: number;
+  /** 是否为最后一块 */
+  isLast: boolean;
+  /** 流式文本中间结果（可选） */
+  textDelta?: string;
+  /** PCM 采样率（仅 format=pcm 时有效，默认 24000） */
+  sampleRate?: number;
+}
+
+/**
  * Provider 策略接口
  * 每个提供商实现自己的策略
  */
@@ -150,4 +198,18 @@ export interface IProviderStrategy {
    * @returns ASR结果
    */
   executeASR?(params: ASRExecutionParams): Promise<ASRExecutionResult>;
+
+  /**
+   * S2S端到端语音（可选）
+   * @param params S2S参数
+   * @returns S2S结果
+   */
+  executeS2S?(params: S2SExecutionParams): Promise<S2SExecutionResult>;
+
+  /**
+   * 流式S2S端到端语音（可选）
+   * @param params S2S执行参数
+   * @returns 音频块异步迭代器
+   */
+  executeS2SStream?(params: S2SExecutionParams): AsyncIterable<S2SStreamChunk>;
 }

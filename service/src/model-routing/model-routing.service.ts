@@ -602,8 +602,8 @@ export class ModelRoutingService {
    * @returns {boolean} 类型是否兼容
    */
   private isIntentTypeCompatible(model: Model, intent: string): boolean {
-    // image/tts/asr/embedding 类型：意图必须与模型类型匹配
-    if (["image", "tts", "asr", "embedding"].includes(intent)) {
+    // image/tts/asr/embedding/s2s 类型：意图必须与模型类型匹配
+    if (["image", "tts", "asr", "embedding", "s2s"].includes(intent)) {
       return model.type === intent;
     }
     // 文字类意图：所有模型都兼容（用户指定模型应被尊重）
@@ -627,12 +627,12 @@ export class ModelRoutingService {
     if (intent === "general") return true;
 
     // image/tts/asr/embedding 类型：意图必须与模型类型匹配
-    if (["image", "tts", "asr", "embedding"].includes(intent)) {
+    if (["image", "tts", "asr", "embedding", "s2s"].includes(intent)) {
       return model.type === intent;
     }
 
-    // llm/multimodal 类型：检查 tags 匹配
-    if (modelType === "llm" || modelType === "multimodal") {
+    // llm/lmm 类型：检查 tags 匹配
+    if (modelType === "llm" || modelType === "lmm") {
       const tags = this.parseModelTags(model.tags);
       // 无标签或包含 general 的模型支持所有意图
       if (tags.length === 0 || tags.includes("general")) return true;
@@ -653,13 +653,13 @@ export class ModelRoutingService {
     // general 是默认意图，所有模型都可处理，无需筛选
     if (intent === "general") return models;
 
-    // image/tts/asr 等特殊类型不需要按 tags 筛选，直接返回
-    if (["image", "tts", "asr", "embedding"].includes(modelType)) {
+    // image/tts/asr/s2s 等特殊类型不需要按 tags 筛选，直接返回
+    if (["image", "tts", "asr", "embedding", "s2s"].includes(modelType)) {
       return models;
     }
 
-    // LLM 类型按 tags 筛选
-    if (modelType === "llm" || modelType === "multimodal") {
+    // LMM 类型按 tags 筛选
+    if (modelType === "llm" || modelType === "lmm") {
       const filtered = models.filter((m) => {
         const tags = this.parseModelTags(m.tags);
         return tags.length === 0 || tags.includes("general") || tags.includes(intent);

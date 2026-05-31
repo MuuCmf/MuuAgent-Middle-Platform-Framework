@@ -203,7 +203,7 @@ export default {
     createStrategyTitle: '新建策略',
     cancel: '取消',
     confirm: '确定',
-    modelTypePlaceholder: '请输入模型类型，如：gpt-4, claude-3',
+    modelTypePlaceholder: '请选择模型类型',
     strategyPlaceholder: '请选择调度策略',
     deleteConfirm: '确定要删除该策略吗？',
     deleteTitle: '提示',

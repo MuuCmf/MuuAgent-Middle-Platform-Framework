@@ -28,7 +28,7 @@
     <el-table :data="strategies" stripe v-loading="strategyLoading">
       <el-table-column prop="modelType" :label="$t('strategyConfig.modelType')">
         <template #default="{ row }">
-          <el-tag>{{ row.modelType }}</el-tag>
+          <el-tag>{{ getModelTypeLabel(row.modelType) }}</el-tag>
         </template>
       </el-table-column>
 
@@ -81,7 +81,15 @@
   <el-dialog v-model="dialogVisible" :title="editingStrategy ? $t('strategyConfig.editStrategy') : $t('strategyConfig.createStrategyTitle')" width="700px" @close="resetForm">
     <el-form :model="form" :rules="rules" ref="formRef" label-width="140px">
       <el-form-item :label="$t('strategyConfig.modelType')" prop="modelType">
-        <el-input v-model="form.modelType" :placeholder="$t('strategyConfig.modelTypePlaceholder')" :disabled="!!editingStrategy" />
+        <el-select v-model="form.modelType" :placeholder="$t('strategyConfig.modelTypePlaceholder')" :disabled="!!editingStrategy" style="width: 100%">
+          <el-option :label="$t('model.llm')" value="llm" />
+          <el-option :label="$t('model.embedding')" value="embedding" />
+          <el-option :label="$t('model.tts')" value="tts" />
+          <el-option :label="$t('model.asr')" value="asr" />
+          <el-option :label="$t('model.image')" value="image" />
+          <el-option :label="$t('model.lmm')" value="lmm" />
+          <el-option :label="$t('model.s2s')" value="s2s" />
+        </el-select>
       </el-form-item>
 
       <el-form-item :label="$t('strategyConfig.strategy')" prop="strategy">
@@ -177,7 +185,7 @@ const form = reactive<ModelRoutingStrategyForm>({
 
 const rules: FormRules = {
   modelType: [
-    { required: true, message: t('strategyConfig.requiredModelType'), trigger: 'blur' }
+    { required: true, message: t('strategyConfig.requiredModelType'), trigger: 'change' }
   ],
   strategy: [
     { required: true, message: t('strategyConfig.requiredStrategy'), trigger: 'change' }
@@ -188,6 +196,19 @@ const rules: FormRules = {
   timeout: [
     { required: true, message: t('strategyConfig.requiredTimeout'), trigger: 'blur' }
   ]
+}
+
+const getModelTypeLabel = (modelType: string) => {
+  const map: Record<string, string> = {
+    llm: t('model.llm'),
+    embedding: t('model.embedding'),
+    tts: t('model.tts'),
+    asr: t('model.asr'),
+    image: t('model.image'),
+    lmm: t('model.lmm'),
+    s2s: t('model.s2s')
+  }
+  return map[modelType] || modelType
 }
 
 const getStrategyLabel = (strategy: string) => {

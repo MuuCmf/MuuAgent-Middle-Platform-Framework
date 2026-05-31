@@ -21,7 +21,8 @@
         @change="loadTemplates">
         <el-option label="LLM" value="llm" />
         <el-option :label="$t('model.embedding')" value="embedding" />
-        <el-option :label="$t('model.multimodal')" value="multimodal" />
+        <el-option :label="$t('model.lmm')" value="lmm" />
+        <el-option :label="$t('model.s2s')" value="s2s" />
       </el-select>
 
       <el-select v-model="filterSceneTag" :placeholder="$t('model.sceneTagFilter')" clearable style="width: 150px;"
@@ -29,7 +30,6 @@
         <el-option :label="$t('model.customerService')" value="customer_service" />
         <el-option :label="$t('model.creativeWriting')" value="creative" />
         <el-option :label="$t('model.vectorGeneration')" value="vector" />
-        <el-option :label="$t('model.multimodalGeneration')" value="multimodal" />
         <el-option :label="$t('model.codeGeneration')" value="code" />
       </el-select>
     </div>
@@ -145,10 +145,16 @@
                     <span class="select-option-desc">{{ $t('model.embeddingDesc') }}</span>
                   </div>
                 </el-option>
-                <el-option :label="$t('model.multimodal')" value="multimodal">
+                <el-option :label="$t('model.lmm')" value="lmm">
                   <div class="select-option-content">
-                    <span>{{ $t('model.multimodal') }}</span>
-                    <span class="select-option-desc">{{ $t('model.multimodalDesc') }}</span>
+                    <span>{{ $t('model.lmm') }}</span>
+                    <span class="select-option-desc">{{ $t('model.lmmDesc') }}</span>
+                  </div>
+                </el-option>
+                <el-option :label="$t('model.s2s')" value="s2s">
+                  <div class="select-option-content">
+                    <span>{{ $t('model.s2s') }}</span>
+                    <span class="select-option-desc">{{ $t('model.s2sDesc') }}</span>
                   </div>
                 </el-option>
               </el-select>
@@ -161,7 +167,6 @@
                 <el-option :label="$t('model.customerServiceDesc')" value="customer_service" />
                 <el-option :label="$t('model.creativeWritingDesc')" value="creative" />
                 <el-option :label="$t('model.vectorGenerationDesc')" value="vector" />
-                <el-option :label="$t('model.multimodalGenerationDesc')" value="multimodal" />
                 <el-option :label="$t('model.codeGenerationDesc')" value="code" />
               </el-select>
               <div class="form-item-tip">
@@ -383,7 +388,8 @@ const getModelTypeLabel = (type: string): string => {
   const typeMap: Record<string, string> = {
     llm: 'LLM',
     embedding: t('model.embedding'),
-    multimodal: t('model.multimodal')
+    lmm: t('model.lmm'),
+    s2s: t('model.s2s')
   }
   return typeMap[type] || type
 }
@@ -398,7 +404,6 @@ const getSceneTagLabel = (tag: string): string => {
     customer_service: t('model.customerService'),
     creative: t('model.creativeWriting'),
     vector: t('model.vectorGeneration'),
-    multimodal: t('model.multimodalGeneration'),
     code: t('model.codeGeneration')
   }
   return tagMap[tag] || tag

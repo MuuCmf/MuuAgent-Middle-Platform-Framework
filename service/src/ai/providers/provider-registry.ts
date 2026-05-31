@@ -23,6 +23,8 @@ export interface ProviderConfig {
     chat: string;
     embedding: string;
     image: string;
+    /** S2S 端到端语音路径（可选） */
+    s2s?: string;
   };
   /** 支持的模型类型 */
   supportedTypes: string[];
@@ -48,7 +50,7 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/api/embeddings',
       image: '/api/generate',
     },
-    supportedTypes: ['llm', 'embedding'],
+    supportedTypes: ['llm', 'embedding', 'lmm'],
     codePrefixes: ['llama', 'mistral', 'codestral', 'qwen', 'gemma'],
     requireApiKey: false,
     normalizeBaseUrl: (endpoint: string) => {
@@ -66,7 +68,7 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/embeddings',
       image: '/images/generations',
     },
-    supportedTypes: ['llm', 'embedding'],
+    supportedTypes: ['llm', 'embedding', 'lmm'],
     codePrefixes: ['deepseek'],
     requireApiKey: true,
   },
@@ -79,7 +81,7 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/embeddings',
       image: '/images/generations',
     },
-    supportedTypes: ['llm', 'embedding', 'image', 'tts'],
+    supportedTypes: ['llm', 'embedding', 'image', 'tts', 'lmm'],
     codePrefixes: ['glm-', 'chatglm'],
     requireApiKey: true,
   },
@@ -92,7 +94,7 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/embeddings',
       image: '/images/generations',
     },
-    supportedTypes: ['llm', 'embedding', 'image'],
+    supportedTypes: ['llm', 'embedding', 'image', 'lmm'],
     codePrefixes: ['qwen', '通义'],
     requireApiKey: true,
   },
@@ -105,7 +107,7 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/embeddings',
       image: '/images/generations',
     },
-    supportedTypes: ['llm', 'embedding', 'image'],
+    supportedTypes: ['llm', 'embedding', 'image', 'lmm'],
     codePrefixes: ['hunyuan', '混元'],
     requireApiKey: true,
   },
@@ -117,9 +119,10 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       chat: '/api/v1/chat/completions',
       embedding: '/api/v1/embeddings',
       image: '/api/v1/images/generations',
+      s2s: '/api/v1/s2s',
     },
-    supportedTypes: ['llm', 'tts', 'asr'],
-    codePrefixes: ['seed-tts', 'doubao-tts'],
+    supportedTypes: ['llm', 'tts', 'asr', 's2s'],
+    codePrefixes: ['seed-tts', 'doubao-tts', 'doubao-s2s'],
     requireApiKey: true,
   },
 
@@ -131,7 +134,7 @@ export const PROVIDER_REGISTRY: Record<string, ProviderConfig> = {
       embedding: '/embeddings',
       image: '/images/generations',
     },
-    supportedTypes: ['llm', 'embedding', 'tts', 'asr', 'image'],
+    supportedTypes: ['llm', 'embedding', 'tts', 'asr', 'image', 'lmm', 's2s'],
     requireApiKey: false,
   },
 };
@@ -254,7 +257,7 @@ export interface ProviderOption {
 
 /**
  * 根据模型类型获取支持的提供商列表
- * @param modelType 模型类型: llm / embedding / tts / asr / image
+ * @param modelType 模型类型: llm / embedding / tts / asr / image / lmm
  * @returns 支持的提供商选项列表
  */
 export function getProvidersByType(modelType: string): ProviderOption[] {

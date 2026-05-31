@@ -20,7 +20,9 @@ export enum ModelType {
   TTS = 'tts',
   ASR = 'asr',
   IMAGE = 'image',
-  MULTIMODAL = 'multimodal',
+  LMM = 'lmm',
+  /** 端到端语音 */
+  S2S = 's2s',
 }
 
 /**

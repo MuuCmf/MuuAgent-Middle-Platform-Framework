@@ -79,7 +79,6 @@ export function getRecommendedModelType(sceneTag: string): string {
     creative: 'llm',
     code: 'llm',
     vector: 'embedding',
-    multimodal: 'multimodal',
   };
   return sceneToModelType[sceneTag] || 'llm';
 }
