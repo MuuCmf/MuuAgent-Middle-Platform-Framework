@@ -8,8 +8,6 @@ dist-ssr
 .env
 .env.*
 *.local
-.gitkeep
-deploy/nginx/ssl
 desktop/release
 service/public/admin
 service/public/client

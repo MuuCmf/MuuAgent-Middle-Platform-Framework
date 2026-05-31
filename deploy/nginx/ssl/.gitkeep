@@ -1,0 +1,8 @@
+# 将 SSL 证书文件放置在此目录
+# cert.pem - SSL 证书
+# key.pem  - SSL 私钥
+#
+# 开发环境可运行以下命令生成自签名证书：
+#   bash deploy/scripts/generate-ssl.sh
+#
+# 生产环境请使用正式 CA 签发的证书

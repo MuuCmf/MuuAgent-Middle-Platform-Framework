@@ -26,10 +26,18 @@ FROM node:18-alpine AS admin-builder
 
 WORKDIR /app
 
+# 前端构建参数（运行时通过 docker-compose build args 注入）
+ARG VITE_API_BASE_URL=""
+ARG VITE_WS_URL=""
+
 COPY admin/package*.json ./
 RUN npm ci
 
 COPY admin/ ./
+
+# 注入前端环境变量并构建
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_WS_URL=${VITE_WS_URL}
 RUN npm run build
 
 # ---- 构建阶段 3：用户端 (Client) ----
@@ -37,10 +45,18 @@ FROM node:18-alpine AS client-builder
 
 WORKDIR /app
 
+# 前端构建参数
+ARG VITE_API_BASE_URL=""
+ARG VITE_WS_URL=""
+
 COPY client/package*.json ./
 RUN npm ci
 
 COPY client/ ./
+
+# 注入前端环境变量并构建
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_WS_URL=${VITE_WS_URL}
 RUN npm run build
 
 # ---- 生产运行阶段 ----
@@ -74,6 +90,10 @@ COPY --from=admin-builder --chown=appuser:appgroup /app/dist /app/public/admin
 # 复制用户端静态文件
 COPY --from=client-builder --chown=appuser:appgroup /app/dist /app/public/client
 
+# 复制启动脚本
+COPY --chown=appuser:appgroup deploy/scripts/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # 创建必要的数据目录
 RUN mkdir -p /app/uploads && chown -R appuser:appgroup /app/uploads
 
@@ -89,4 +109,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 # 启动命令
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/main.js"]
+CMD ["/app/entrypoint.sh"]

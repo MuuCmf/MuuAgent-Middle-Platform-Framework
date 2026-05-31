@@ -6,12 +6,12 @@
 
 # 配置变量
 BACKUP_DIR="/backups/mysql"
-MYSQL_CONTAINER="muu_ai_mysql"
+MYSQL_CONTAINER="muu_agent_mysql"
 MYSQL_USER="root"
 MYSQL_PASSWORD="${MYSQL_ROOT_PASSWORD:-Root_Pass_2026}"
-DATABASE="muu_ai_platform"
+DATABASE="muu_agent_platform"
 DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/muu_ai_$DATE.sql"
+BACKUP_FILE="$BACKUP_DIR/muu_agent_$DATE.sql"
 
 # 创建备份目录
 mkdir -p $BACKUP_DIR

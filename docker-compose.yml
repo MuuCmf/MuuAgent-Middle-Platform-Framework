@@ -16,7 +16,7 @@ version: '3.8'
 
 x-common: &common
   networks:
-    - muu_ai_network
+    - muu_agent_network
   restart: unless-stopped
 
 services:
@@ -25,15 +25,15 @@ services:
   # ===========================================
   mysql:
     image: mysql:8.0
-    container_name: muu_ai_mysql
+    container_name: muu_agent_mysql
     <<: *common
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Root_Pass_2026}
-      MYSQL_DATABASE: muu_ai_platform
-      MYSQL_USER: muu_ai
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-MuAI_2026_Prod_Pass}
+      MYSQL_DATABASE: muu_agent_platform
+      MYSQL_USER: muu_agent
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-MuAgent_2026_Prod_Pass}
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./deploy/mysql/init:/docker-entrypoint-initdb.d
@@ -57,10 +57,10 @@ services:
   # ===========================================
   redis:
     image: redis:7-alpine
-    container_name: muu_ai_redis
+    container_name: muu_agent_redis
     <<: *common
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
@@ -75,11 +75,11 @@ services:
   # ===========================================
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: muu_ai_qdrant
+    container_name: muu_agent_qdrant
     <<: *common
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - "${QDRANT_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     environment:
@@ -98,15 +98,20 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: muu_ai_service
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_WS_URL: ${VITE_WS_URL:-}
+    container_name: muu_agent_service
     <<: *common
     ports:
       - "${APP_PORT:-3002}:3002"
     env_file:
       - ${ENV_FILE:-./service/.env}
     environment:
-      # Docker 环境覆盖：数据库和缓存使用容器内地址
-      DATABASE_URL: mysql://muu_ai:${MYSQL_PASSWORD:-MuAI_2026_Prod_Pass}@mysql:3306/muu_ai_platform?connection_limit=10&pool_timeout=30
+      # Docker 环境覆盖：确保容器内端口一致
+      PORT: 3002
+      # 数据库和缓存使用容器内地址
+      DATABASE_URL: mysql://muu_agent:${MYSQL_PASSWORD:-MuAgent_2026_Prod_Pass}@mysql:3306/muu_agent_platform?connection_limit=10&pool_timeout=30
       REDIS_URL: redis://redis:6379
       VECTOR_DB_HOST: qdrant
       VECTOR_DB_PORT: 6333
@@ -139,7 +144,7 @@ services:
   # ===========================================
   nginx:
     image: nginx:alpine
-    container_name: muu_ai_nginx
+    container_name: muu_agent_nginx
     <<: *common
     ports:
       - "${NGINX_HTTP_PORT:-80}:80"
@@ -166,5 +171,5 @@ volumes:
     driver: local
 
 networks:
-  muu_ai_network:
+  muu_agent_network:
     driver: bridge
