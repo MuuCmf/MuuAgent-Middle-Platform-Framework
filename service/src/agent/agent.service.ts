@@ -1,4 +1,4 @@
-﻿import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { IsolationService, IsolationContext } from '../common/services/base-isolated.service';
 import { ContextBuilder } from './execution/context-builder';
@@ -44,6 +44,7 @@ export class AgentService {
       mcpServers: dto.mcpServers || '[]',
       maxSteps: dto.maxSteps ?? 5,
       status: dto.status ?? true,
+      sort: dto.sort ?? 0,
       modelTemplateCode: dto.modelTemplateCode,
       customModelParams: dto.customModelParams,
       reasoningMode: dto.reasoningMode || 'NONE',
@@ -118,7 +119,10 @@ export class AgentService {
         where,
         skip,
         take: pageSize,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [
+          { sort: 'desc' },
+          { createdAt: 'desc' },
+        ],
       }),
       this.prisma.agent.count({ where }),
     ]);

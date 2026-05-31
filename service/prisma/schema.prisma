@@ -127,6 +127,7 @@ model Agent {
   mcpServers      String?  @map("mcp_servers") @db.Text /// 绑定的MCP Server名称列表(JSON数组)
   maxSteps        Int      @default(5) /// 最大执行步数
   status          Boolean  @default(true) /// 是否启用
+  sort            Int      @default(0) /// 排序权重(数值越大越靠前)
 
   // ===== 模型模板配置 =====
   modelTemplateCode  String?  @map("model_template_code") /// 绑定的模型模板标识

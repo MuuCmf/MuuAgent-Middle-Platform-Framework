@@ -1,6 +1,6 @@
 <template>
-  <el-drawer :model-value="visible" :title="editingAgent ? $t('agent.editAgent') : $t('agent.createAgent')" direction="rtl" size="680px"
-    class="agent-edit-drawer" @update:model-value="handleClose">
+  <el-drawer :model-value="visible" :title="editingAgent ? $t('agent.editAgent') : $t('agent.createAgent')"
+    direction="rtl" size="680px" class="agent-edit-drawer" @update:model-value="handleClose">
     <el-form :model="form" :rules="rules" label-width="100px" ref="formRef" class="agent-form">
       <div class="form-section">
         <div class="section-title">{{ $t('agent.basicInfo') }}</div>
@@ -27,7 +27,8 @@
         </el-form-item>
 
         <el-form-item :label="$t('agent.systemPrompt')" prop="systemPrompt" required>
-          <el-input v-model="form.systemPrompt" type="textarea" :rows="4" :placeholder="$t('agent.systemPromptPlaceholder')" />
+          <el-input v-model="form.systemPrompt" type="textarea" :rows="4"
+            :placeholder="$t('agent.systemPromptPlaceholder')" />
         </el-form-item>
       </div>
 
@@ -37,7 +38,9 @@
 
         <div class="model-call-guide">
           <div class="guide-header">
-            <el-icon><InfoFilled /></el-icon>
+            <el-icon>
+              <InfoFilled />
+            </el-icon>
             <span>{{ $t('agent.modelCallMechanism') }}</span>
           </div>
           <div class="guide-content">
@@ -53,8 +56,10 @@
         </div>
 
         <el-form-item :label="$t('agent.modelTemplate')">
-          <el-select v-model="form.modelTemplateCode" :placeholder="$t('agent.selectModelTemplate')" clearable class="w-full" @change="handleModelTemplateChange">
-            <el-option v-for="template in modelTemplates" :key="template.code" :label="template.name" :value="template.code">
+          <el-select v-model="form.modelTemplateCode" :placeholder="$t('agent.selectModelTemplate')" clearable
+            class="w-full" @change="handleModelTemplateChange">
+            <el-option v-for="template in modelTemplates" :key="template.code" :label="template.name"
+              :value="template.code">
               <div class="template-option">
                 <span>{{ template.name }}</span>
                 <el-tag size="small" type="info">{{ template.sceneTag || $t('agent.general') }}</el-tag>
@@ -65,7 +70,9 @@
 
         <div v-if="selectedModelTemplate" class="template-info-card">
           <div class="info-card-header">
-            <el-icon><InfoFilled /></el-icon>
+            <el-icon>
+              <InfoFilled />
+            </el-icon>
             <span>{{ $t('agent.templateParamsPreview') }}</span>
           </div>
           <div class="info-card-body">
@@ -89,20 +96,24 @@
         </div>
 
         <el-form-item :label="$t('agent.customParams')">
-          <el-switch v-model="enableCustomParams" :active-text="$t('agent.enable')" :inactive-text="$t('agent.disable')" />
+          <el-switch v-model="enableCustomParams" :active-text="$t('agent.enable')"
+            :inactive-text="$t('agent.disable')" />
         </el-form-item>
 
         <template v-if="enableCustomParams">
           <div class="preset-quick-select">
             <span class="preset-label">{{ $t('agent.quickPreset') }}</span>
             <el-button-group>
-              <el-button size="small" :type="currentPreset === 'precise' ? 'primary' : 'default'" @click="applyPreset('precise')">
+              <el-button size="small" :type="currentPreset === 'precise' ? 'primary' : 'default'"
+                @click="applyPreset('precise')">
                 {{ $t('agent.preciseMode') }}
               </el-button>
-              <el-button size="small" :type="currentPreset === 'balanced' ? 'primary' : 'default'" @click="applyPreset('balanced')">
+              <el-button size="small" :type="currentPreset === 'balanced' ? 'primary' : 'default'"
+                @click="applyPreset('balanced')">
                 {{ $t('agent.balancedMode') }}
               </el-button>
-              <el-button size="small" :type="currentPreset === 'creative' ? 'primary' : 'default'" @click="applyPreset('creative')">
+              <el-button size="small" :type="currentPreset === 'creative' ? 'primary' : 'default'"
+                @click="applyPreset('creative')">
                 {{ $t('agent.creativeMode') }}
               </el-button>
             </el-button-group>
@@ -116,14 +127,8 @@
                   {{ getTemperatureLabel(customParams.temperature) }}
                 </el-tag>
               </div>
-              <el-slider 
-                v-model="customParams.temperature" 
-                :min="0" 
-                :max="1" 
-                :step="0.1" 
-                :marks="temperatureMarks"
-                class="param-slider"
-              />
+              <el-slider v-model="customParams.temperature" :min="0" :max="1" :step="0.1" :marks="temperatureMarks"
+                class="param-slider" />
               <div class="param-desc">
                 <span v-if="customParams.temperature < 0.3">{{ $t('agent.preciseOutput') }}</span>
                 <span v-else-if="customParams.temperature < 0.7">{{ $t('agent.balancedOutput') }}</span>
@@ -136,14 +141,8 @@
                 <span class="param-name">{{ $t('agent.topPParam') }}</span>
                 <el-tag size="small" type="info">{{ customParams.topP }}</el-tag>
               </div>
-              <el-slider 
-                v-model="customParams.topP" 
-                :min="0" 
-                :max="1" 
-                :step="0.05"
-                :marks="topPMarks"
-                class="param-slider"
-              />
+              <el-slider v-model="customParams.topP" :min="0" :max="1" :step="0.05" :marks="topPMarks"
+                class="param-slider" />
               <div class="param-desc">{{ $t('agent.topPDesc') }}</div>
             </div>
 
@@ -153,14 +152,8 @@
                   <div class="param-header">
                     <span class="param-name">{{ $t('agent.maxGenerationLength') }}</span>
                   </div>
-                  <el-input-number 
-                    v-model="customParams.maxTokens" 
-                    :min="256" 
-                    :max="128000" 
-                    :step="256" 
-                    class="w-full"
-                    controls-position="right"
-                  />
+                  <el-input-number v-model="customParams.maxTokens" :min="256" :max="128000" :step="256" class="w-full"
+                    controls-position="right" />
                   <div class="param-desc">{{ $t('agent.maxGenerationLengthDesc') }}</div>
                 </div>
               </el-col>
@@ -169,14 +162,8 @@
                   <div class="param-header">
                     <span class="param-name">{{ $t('agent.contextWindow') }}</span>
                   </div>
-                  <el-input-number 
-                    v-model="customParams.contextWindow" 
-                    :min="1024" 
-                    :max="128000" 
-                    :step="1024" 
-                    class="w-full"
-                    controls-position="right"
-                  />
+                  <el-input-number v-model="customParams.contextWindow" :min="1024" :max="128000" :step="1024"
+                    class="w-full" controls-position="right" />
                   <div class="param-desc">{{ $t('agent.contextWindowDesc') }}</div>
                 </div>
               </el-col>
@@ -185,7 +172,9 @@
 
           <div v-if="selectedModelTemplate" class="params-compare">
             <div class="compare-title">
-              <el-icon><Warning /></el-icon>
+              <el-icon>
+                <Warning />
+              </el-icon>
               <span>{{ $t('agent.paramsCompare') }}</span>
             </div>
             <div class="compare-table">
@@ -199,7 +188,8 @@
                 <span class="compare-cell">{{ $t('agent.temperature') }}</span>
                 <span class="compare-cell">{{ selectedModelTemplate.temperature }}</span>
                 <span class="compare-cell highlight">{{ customParams.temperature }}</span>
-                <span class="compare-cell" :class="getDiffClass(customParams.temperature - selectedModelTemplate.temperature)">
+                <span class="compare-cell"
+                  :class="getDiffClass(customParams.temperature - selectedModelTemplate.temperature)">
                   {{ formatDiff(customParams.temperature - selectedModelTemplate.temperature) }}
                 </span>
               </div>
@@ -215,7 +205,8 @@
                 <span class="compare-cell">{{ $t('agent.maxTokens') }}</span>
                 <span class="compare-cell">{{ selectedModelTemplate.maxTokens }}</span>
                 <span class="compare-cell highlight">{{ customParams.maxTokens }}</span>
-                <span class="compare-cell" :class="getDiffClass(customParams.maxTokens - selectedModelTemplate.maxTokens)">
+                <span class="compare-cell"
+                  :class="getDiffClass(customParams.maxTokens - selectedModelTemplate.maxTokens)">
                   {{ formatDiff(customParams.maxTokens - selectedModelTemplate.maxTokens) }}
                 </span>
               </div>
@@ -263,8 +254,8 @@
             </div>
 
             <div v-if="promptMode === 'template'" class="template-selector">
-              <el-select v-model="selectedTemplateCode" :placeholder="$t('agent.selectPromptTemplate')" @change="handleTemplateChange"
-                class="w-full">
+              <el-select v-model="selectedTemplateCode" :placeholder="$t('agent.selectPromptTemplate')"
+                @change="handleTemplateChange" class="w-full">
                 <el-option v-for="template in promptTemplates" :key="template.code" :label="template.name"
                   :value="template.code">
                   <div class="template-option">
@@ -297,14 +288,14 @@
               <el-collapse class="help-collapse">
                 <el-collapse-item :title="$t('agent.viewExampleTemplate')">
                   <pre class="example-code">你是一个智能助手，可以使用以下工具：
-{TOOLS}
+              {TOOLS}
 
-请按照以下格式思考和回答：
-Thought: 分析用户问题
-Action: 工具名称
-Action Input: 工具参数
-Observation: 观察结果
-Final Answer: 最终答案</pre>
+              请按照以下格式思考和回答：
+              Thought: 分析用户问题
+              Action: 工具名称
+              Action Input: 工具参数
+              Observation: 观察结果
+              Final Answer: 最终答案</pre>
                 </el-collapse-item>
               </el-collapse>
             </div>
@@ -371,26 +362,26 @@ Final Answer: 最终答案</pre>
       <div class="form-section">
         <div class="section-title">{{ $t('agent.knowledgeBaseConfig') }}</div>
         <div class="section-desc">{{ $t('agent.knowledgeBaseConfigDesc') }}</div>
-        <KbRetrievalConfig
-          v-model="form.kbRetrievalConfig"
-          v-model:knowledgeBases="form.knowledgeBases"
-        />
+        <KbRetrievalConfig v-model="form.kbRetrievalConfig" v-model:knowledgeBases="form.knowledgeBases" />
       </div>
 
       <div class="form-section">
         <div class="section-title">{{ $t('agent.advancedSettings') }}</div>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item :label="$t('agent.maxSteps')">
-              <el-input-number v-model="form.maxSteps" :min="1" :max="999" class="w-full" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item :label="$t('common.status')">
-              <el-switch v-model="form.status" :active-text="$t('common.enable')" :inactive-text="$t('common.disable')" />
-            </el-form-item>
-          </el-col>
-        </el-row>
+
+        <el-form-item :label="$t('agent.maxSteps')">
+          <el-input-number v-model="form.maxSteps" :min="1" :max="999" class="w-full" />
+        </el-form-item>
+
+        <el-form-item :label="$t('agent.sort')">
+          <el-input-number v-model="form.sort" :min="0" :max="9999" class="w-full" />
+          <div class="field-tip">{{ $t('agent.sortTip') }}</div>
+        </el-form-item>
+
+        <el-form-item :label="$t('common.status')">
+          <el-switch v-model="form.status" :active-text="$t('common.enable')" :inactive-text="$t('common.disable')" />
+        </el-form-item>
+
+
       </div>
     </el-form>
 
@@ -404,28 +395,14 @@ Final Answer: 最终答案</pre>
     <SkillSelectDialog v-model="skillSelectDialogVisible" :skills="availableSkills" :selected-codes="selectedSkillCodes"
       @confirm="handleSkillSelect" />
 
-    <el-dialog
-      v-model="mcpServerSelectDialogVisible"
-      :title="$t('agent.selectMcpServer')"
-      width="700px"
-      :close-on-click-modal="false"
-    >
+    <el-dialog v-model="mcpServerSelectDialogVisible" :title="$t('agent.selectMcpServer')" width="700px"
+      :close-on-click-modal="false">
       <div class="mcp-server-filter">
-        <el-input
-          v-model="mcpServerSearchForm.keyword"
-          :placeholder="$t('agent.searchName')"
-          clearable
-          style="width: 200px"
-          @input="handleMcpServerSearch"
-        />
+        <el-input v-model="mcpServerSearchForm.keyword" :placeholder="$t('agent.searchName')" clearable
+          style="width: 200px" @input="handleMcpServerSearch" />
       </div>
-      <el-table
-        :data="availableMcpServers"
-        v-loading="mcpServerLoading"
-        @selection-change="handleMcpServerSelectionChange"
-        ref="mcpServerTableRef"
-        max-height="400"
-      >
+      <el-table :data="availableMcpServers" v-loading="mcpServerLoading"
+        @selection-change="handleMcpServerSelectionChange" ref="mcpServerTableRef" max-height="400">
         <el-table-column type="selection" width="50" />
         <el-table-column prop="name" :label="$t('common.name')" width="150" />
         <el-table-column prop="displayName" :label="$t('agent.displayName')" width="150">
@@ -443,16 +420,9 @@ Final Answer: 最终答案</pre>
         </el-table-column>
       </el-table>
       <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="mcpServerSearchForm.page"
-          v-model:page-size="mcpServerSearchForm.pageSize"
-          :page-sizes="[10, 20, 50]"
-          :total="mcpServerTotal"
-          layout="total, sizes, prev, pager, next"
-          small
-          @size-change="loadMcpServers"
-          @current-change="loadMcpServers"
-        />
+        <el-pagination v-model:current-page="mcpServerSearchForm.page" v-model:page-size="mcpServerSearchForm.pageSize"
+          :page-sizes="[10, 20, 50]" :total="mcpServerTotal" layout="total, sizes, prev, pager, next" small
+          @size-change="loadMcpServers" @current-change="loadMcpServers" />
       </div>
       <template #footer>
         <el-button @click="mcpServerSelectDialogVisible = false">{{ $t('common.cancel') }}</el-button>
@@ -492,6 +462,7 @@ interface InternalAgentForm {
   allowedBuiltinTools?: string
   maxSteps: number
   status: boolean
+  sort: number
   modelTemplateCode?: string
   customModelParams?: string
   reasoningMode?: string
@@ -542,6 +513,7 @@ const form = ref<InternalAgentForm>({
   allowedBuiltinTools: '[]',
   maxSteps: 5,
   status: true,
+  sort: 0,
   modelTemplateCode: '',
   customModelParams: '',
   reasoningMode: 'NONE',
@@ -694,6 +666,7 @@ watch(() => props.visible, (newVal) => {
         mcpServers: editingAgent.value.mcpServers || '[]',
         appCode: editingAgent.value.appCode || '',
         isPublic: editingAgent.value.isPublic ?? false,
+        sort: editingAgent.value.sort ?? 0,
         knowledgeBases: (editingAgent.value as any).knowledgeBases || '[]',
         kbRetrievalConfig: {
           strategy: 'HYBRID',
@@ -790,6 +763,7 @@ const resetForm = () => {
     skills: '[]',
     maxSteps: 5,
     status: true,
+    sort: 0,
     modelTemplateCode: '',
     customModelParams: '',
     reasoningMode: 'NONE',
@@ -913,7 +887,7 @@ const loadMcpServers = async () => {
     })
     availableMcpServers.value = data.data.list || []
     mcpServerTotal.value = data.data.total
-    
+
     if (mcpServerTableRef.value && availableMcpServers.value.length > 0) {
       nextTick(() => {
         availableMcpServers.value.forEach(server => {

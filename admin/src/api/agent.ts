@@ -54,6 +54,7 @@ export interface Agent {
   mcpServers?: string
   maxSteps: number
   status: boolean
+  sort: number
   modelTemplateCode?: string
   customModelParams?: string
   reasoningMode?: string
@@ -75,6 +76,7 @@ export interface AgentForm {
   mcpServers?: string
   maxSteps: number
   status: boolean
+  sort: number
   modelTemplateCode?: string
   customModelParams?: string
   reasoningMode?: string

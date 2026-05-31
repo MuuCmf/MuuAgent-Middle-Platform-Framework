@@ -102,6 +102,8 @@ export default {
     knowledgeBaseConfigDesc: 'Bind knowledge bases and configure retrieval strategies, retrieval will merge knowledge bases bound here and declared by skills',
     advancedSettings: 'Advanced Settings',
     maxSteps: 'Max Steps',
+    sort: 'Sort',
+    sortTip: 'Higher value means higher priority',
     searchName: 'Search Name',
     displayName: 'Display Name',
     pleaseInputAgentName: 'Please input agent name',

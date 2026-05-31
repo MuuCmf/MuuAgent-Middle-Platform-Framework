@@ -66,6 +66,7 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="sort" :label="$t('agent.sort')" width="80" />
         <el-table-column prop="status" :label="$t('common.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status ? 'success' : 'danger'" size="small">

@@ -68,6 +68,11 @@ export class CreateAgentDto {
   @IsOptional()
   status?: boolean;
 
+  @ApiPropertyOptional({ description: '排序权重(数值越大越靠前)', default: 0 })
+  @IsNumber()
+  @IsOptional()
+  sort?: number;
+
   // ===== 模型模板配置 =====
 
   @ApiPropertyOptional({ description: '绑定的模型模板标识' })
@@ -171,6 +176,11 @@ export class UpdateAgentDto {
   @IsBoolean()
   @IsOptional()
   status?: boolean;
+
+  @ApiPropertyOptional({ description: '排序权重(数值越大越靠前)' })
+  @IsNumber()
+  @IsOptional()
+  sort?: number;
 
   // ===== 模型模板配置 =====
 

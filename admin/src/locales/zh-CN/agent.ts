@@ -102,6 +102,8 @@ export default {
     knowledgeBaseConfigDesc: '绑定知识库并配置检索策略，检索时会合并使用此处绑定和技能声明的知识库',
     advancedSettings: '高级设置',
     maxSteps: '最大步数',
+    sort: '排序',
+    sortTip: '数值越大越靠前',
     searchName: '搜索名称',
     displayName: '显示名称',
     pleaseInputAgentName: '请输入智能体名称',
