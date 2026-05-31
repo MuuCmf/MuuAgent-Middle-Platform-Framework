@@ -48,6 +48,7 @@ Thumbs.db
 .trae/
 .codebuddy/
 .agent/
+.dbg/
 CLAUDE.md
 *.swp
 *.swo
