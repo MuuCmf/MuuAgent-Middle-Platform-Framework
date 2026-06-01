@@ -732,8 +732,6 @@ export class AiService {
         context,
       });
 
-      await this.mcpService.reportSuccess(model.id as any);
-
       await this.logService.saveLog({
         modelId: model.id as any,
         modelCode: model.code,
@@ -1138,8 +1136,6 @@ export class AiService {
       uid,
       appCode,
     });
-
-    await this.mcpService.reportError(modelId);
 
     throw new HttpException(
       `模型调用失败: ${normalized.message}`,

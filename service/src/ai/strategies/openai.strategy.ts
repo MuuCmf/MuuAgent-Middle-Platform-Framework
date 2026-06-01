@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { generateText, streamText } from 'ai';
 import { BaseStrategy } from './base.strategy';
 import {
   TTSExecutionParams,
@@ -6,7 +7,10 @@ import {
   TTSStreamChunk,
   ASRExecutionParams,
   ASRExecutionResult,
+  OmniExecutionParams,
+  OmniExecutionResult,
 } from './provider.strategy.interface';
+import { StreamChunk } from '../interfaces/executor.interface';
 import OpenAI from 'openai';
 
 /**
@@ -159,5 +163,73 @@ export class OpenAIStrategy extends BaseStrategy {
       text: response.text,
       language: 'zh',
     };
+  }
+
+  /**
+   * 执行 Omni 模型同步调用
+   * 支持多模态输入输出，底层复用标准 Chat API
+   * 
+   * @param params Omni 执行参数
+   * @returns Omni 执行结果
+   */
+  async executeOmni(params: OmniExecutionParams): Promise<OmniExecutionResult> {
+    const { model, system, messages, tools, options, context } = params;
+
+    this.logger.debug(`Omni同步调用: model=${model.code}, messages=${messages.length}`);
+
+    const provider = this.createProvider(model);
+    const modelName = this.getModelName(model);
+
+    const result = await generateText({
+      model: provider.chat(modelName),
+      system,
+      messages,
+      tools: tools && Object.keys(tools).length > 0 ? tools : undefined,
+      temperature: options?.temperature ?? 0.7,
+      maxTokens: options?.maxTokens,
+    } as any);
+
+    const usage = result.usage as any;
+
+    return {
+      text: result.text as string,
+      usage: usage
+        ? {
+            promptTokens: usage.inputTokens ?? 0,
+            completionTokens: usage.outputTokens ?? 0,
+            totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+          }
+        : undefined,
+      raw: result,
+    };
+  }
+
+  /**
+   * 执行 Omni 模型流式调用
+   * 
+   * @param params Omni 执行参数
+   * @returns 流式响应块迭代器
+   */
+  async *streamOmni(params: OmniExecutionParams): AsyncIterable<StreamChunk> {
+    const { model, system, messages, tools, options, context } = params;
+
+    this.logger.debug(`Omni流式调用: model=${model.code}, messages=${messages.length}`);
+
+    const provider = this.createProvider(model);
+    const modelName = this.getModelName(model);
+
+    const streamResult = streamText({
+      model: provider.chat(modelName),
+      system,
+      messages,
+      tools: tools && Object.keys(tools).length > 0 ? tools : undefined,
+      temperature: options?.temperature ?? 0.7,
+      maxTokens: options?.maxTokens,
+    } as any);
+
+    for await (const part of streamResult.fullStream) {
+      const chunk = this.transformStreamPart(part);
+      if (chunk) yield chunk;
+    }
   }
 }

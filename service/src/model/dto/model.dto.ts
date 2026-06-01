@@ -23,6 +23,8 @@ export enum ModelType {
   LMM = 'lmm',
   /** 端到端语音 */
   S2S = 's2s',
+  /** 全能多模态 */
+  OMNI = 'omni',
 }
 
 /**

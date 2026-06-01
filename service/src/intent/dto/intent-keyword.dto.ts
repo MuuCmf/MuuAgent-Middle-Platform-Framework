@@ -18,9 +18,11 @@ export enum IntentType {
   CODE = 'code',
   MATH = 'math',
   CREATIVE = 'creative',
+  PROFESSIONAL = 'professional',
   IMAGE = 'image',
   TTS = 'tts',
   ASR = 'asr',
+  S2S = 's2s',
 }
 
 /**

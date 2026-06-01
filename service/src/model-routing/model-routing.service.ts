@@ -10,6 +10,7 @@ import {
   StrategyType,
   CircuitStatus,
 } from "./dto/model-routing.dto";
+import { INTENT_TO_MODEL_TYPE, INTENT_TO_CAPABILITY } from "../intent/dto/intent.dto";
 import { Model } from "@prisma/client";
 
 /**
@@ -396,7 +397,10 @@ export class ModelRoutingService {
 
   /**
    * 根据意图选择最优模型
-   * @param modelType 模型技术类型
+   * 支持 Omni 模型优先调度 + 专用模型降级
+   * 所有模型统一通过 capabilities 进行能力匹配
+   * 
+   * @param modelType 调用方传入的模型类型（兜底用）
    * @param intent 对话意图
    * @param specifiedModelCode 用户指定的模型代码（可选）
    * @returns {Promise<Model>} 选中的模型
@@ -410,14 +414,11 @@ export class ModelRoutingService {
     let isDegraded = false;
     let degradeReason: string | undefined;
 
-    // 1. 指定模型能力校验（仅类型兼容性检查，不做标签级意图过滤）
+    // 1. 指定模型能力校验（用户指定的模型优先级最高）
     if (specifiedModelCode) {
       try {
         const model = await this.modelService.findByCode(specifiedModelCode);
-        // 用户指定模型时只检查类型是否匹配（如图片/语音模型不能用于文字对话）
-        // 不做标签过滤：用户主动选择的模型应被尊重，即使标签不匹配也能处理通用任务
-        if (this.isIntentTypeCompatible(model, intent)) {
-          // 记录路由日志
+        if (this.isModelCompatibleForIntent(model, intent)) {
           this.routingLogService
             .log({
               userMessage: "",
@@ -435,7 +436,7 @@ export class ModelRoutingService {
           return model;
         }
         isDegraded = true;
-        degradeReason = `指定模型 ${specifiedModelCode} 类型不匹配，不支持意图 ${intent}`;
+        degradeReason = `指定模型 ${specifiedModelCode} 不支持意图 ${intent}`;
         this.logger.warn(degradeReason);
       } catch {
         isDegraded = true;
@@ -444,48 +445,70 @@ export class ModelRoutingService {
       }
     }
 
-    // 2. 获取可用模型
-    const strategy = await this.getStrategy(modelType);
-    let models = await this.modelService.getAvailableModels(modelType);
+    // 2. 获取意图的模型类型优先级列表
+    const preferredTypes = INTENT_TO_MODEL_TYPE[intent] || [modelType];
 
-    if (!models.length) {
-      // 记录失败日志
-      this.routingLogService
-        .log({
-          userMessage: "",
-          detectedIntent: intent,
-          confidence: 1.0,
-          source: "auto",
-          modelType,
-          isDegraded,
-          degradeReason: degradeReason || "无可用模型",
-          costMs: Date.now() - startTime,
-          success: false,
-          errorMessage: "无可用模型",
-        })
-        .catch(() => {});
-      throw new HttpException("无可用模型", HttpStatus.SERVICE_UNAVAILABLE);
-    }
+    // 3. 按优先级遍历类型
+    for (const preferredType of preferredTypes) {
+      let models = await this.modelService.getAvailableModels(preferredType);
+      if (!models.length) continue;
 
-    // 3. 按意图筛选模型
-    models = this.filterByIntent(models, intent, modelType);
+      // 按能力筛选（所有类型统一走 capabilities）
+      models = this.filterByIntent(models, intent, preferredType);
+      if (!models.length) continue;
 
-    // 4. 过滤熔断模型
-    const availableModels: Model[] = [];
-    for (const model of models) {
-      const rule = await this.getRule(model.id as any);
-      if (rule.circuitStatus !== CircuitStatus.OPEN) {
-        availableModels.push(model);
+      // 过滤熔断模型
+      const strategy = await this.getStrategy(preferredType);
+      const availableModels: Model[] = [];
+      for (const model of models) {
+        const rule = await this.getRule(model.id as any);
+        if (rule.circuitStatus !== CircuitStatus.OPEN) {
+          availableModels.push(model);
+        }
       }
-    }
 
-    if (!availableModels.length) {
-      // 所有模型都熔断，尝试使用降级模型
-      if (strategy.fallbackModelId) {
-        try {
-          const fallbackModel = await this.modelService.findOne(
-            strategy.fallbackModelId,
-          );
+      if (!availableModels.length) {
+        // 所有模型都熔断，尝试使用降级模型
+        if (strategy.fallbackModelId) {
+          try {
+            const fallbackModel = await this.modelService.findOne(
+              strategy.fallbackModelId,
+            );
+            if (preferredType !== preferredTypes[0]) {
+              isDegraded = true;
+              degradeReason = `首选类型 ${preferredTypes[0]} 不可用，降级至 ${fallbackModel.code}`;
+            }
+            this.routingLogService
+              .log({
+                userMessage: "",
+                detectedIntent: intent,
+                confidence: 1.0,
+                source: "auto",
+                selectedModelId: Number(fallbackModel.id),
+                selectedModelCode: fallbackModel.code,
+                modelType,
+                isDegraded: true,
+                degradeReason: "所有模型熔断，使用降级模型",
+                costMs: Date.now() - startTime,
+                success: true,
+              })
+              .catch(() => {});
+            return fallbackModel;
+          } catch {
+            this.logger.warn(
+              `降级模型 ${strategy.fallbackModelId} 不可用，尝试兜底模型`,
+            );
+          }
+        }
+
+        // 兜底逻辑：尝试使用第一个可用模型（忽略熔断状态）
+        if (models.length > 0) {
+          const fallbackModel = models[0];
+          this.logger.warn(`所有模型熔断，使用兜底模型: ${fallbackModel.code}`);
+          if (preferredType !== preferredTypes[0]) {
+            isDegraded = true;
+            degradeReason = `首选类型 ${preferredTypes[0]} 不可用，降级至 ${fallbackModel.code}`;
+          }
           this.routingLogService
             .log({
               userMessage: "",
@@ -496,39 +519,42 @@ export class ModelRoutingService {
               selectedModelCode: fallbackModel.code,
               modelType,
               isDegraded: true,
-              degradeReason: "所有模型熔断，使用降级模型",
+              degradeReason: "所有模型熔断，使用兜底模型",
               costMs: Date.now() - startTime,
               success: true,
             })
             .catch(() => {});
           return fallbackModel;
-        } catch {
-          this.logger.warn(
-            `降级模型 ${strategy.fallbackModelId} 不可用，尝试兜底模型`,
-          );
         }
+
+        continue;
       }
 
-      // 兜底逻辑：尝试使用第一个可用模型（忽略熔断状态）
-      if (models.length > 0) {
-        const fallbackModel = models[0];
-        this.logger.warn(`所有模型熔断，使用兜底模型: ${fallbackModel.code}`);
-        this.routingLogService
-          .log({
-            userMessage: "",
-            detectedIntent: intent,
-            confidence: 1.0,
-            source: "auto",
-            selectedModelId: Number(fallbackModel.id),
-            selectedModelCode: fallbackModel.code,
-            modelType,
-            isDegraded: true,
-            degradeReason: "所有模型熔断，使用兜底模型",
-            costMs: Date.now() - startTime,
-            success: true,
-          })
-          .catch(() => {});
-        return fallbackModel;
+      // 按策略选择
+      let selectedModel: Model;
+      switch (strategy.strategy) {
+        case StrategyType.WEIGHT:
+          selectedModel = this.selectByWeight(availableModels);
+          break;
+        case StrategyType.RANDOM:
+          selectedModel = this.selectByRandom(availableModels);
+          break;
+        case StrategyType.ROUND_ROBIN:
+          selectedModel = this.selectByRoundRobin(preferredType, availableModels);
+          break;
+        case StrategyType.FAILOVER:
+          selectedModel = availableModels[0];
+          break;
+        default:
+          selectedModel = this.selectByWeight(availableModels);
+      }
+
+      // 记录降级信息
+      if (isDegraded || preferredType !== preferredTypes[0]) {
+        isDegraded = true;
+        degradeReason = degradeReason
+          ? `${degradeReason}，自动调度切换至 ${selectedModel.code}`
+          : `首选类型 ${preferredTypes[0]} 不可用，降级至 ${selectedModel.code}`;
       }
 
       this.routingLogService
@@ -537,82 +563,65 @@ export class ModelRoutingService {
           detectedIntent: intent,
           confidence: 1.0,
           source: "auto",
+          selectedModelId: Number(selectedModel.id),
+          selectedModelCode: selectedModel.code,
           modelType,
-          isDegraded: true,
-          degradeReason: "所有模型不可用",
+          isDegraded,
+          degradeReason,
           costMs: Date.now() - startTime,
-          success: false,
-          errorMessage: "所有模型不可用",
+          success: true,
         })
         .catch(() => {});
-      throw new HttpException("所有模型不可用", HttpStatus.SERVICE_UNAVAILABLE);
+
+      this.logger.log(
+        `意图调度: intent=${intent}, modelType=${preferredType}, selected=${selectedModel.code}`,
+      );
+      return selectedModel;
     }
 
-    // 5. 按策略选择模型
-    let selectedModel: Model;
-    switch (strategy.strategy) {
-      case StrategyType.WEIGHT:
-        selectedModel = this.selectByWeight(availableModels);
-        break;
-      case StrategyType.RANDOM:
-        selectedModel = this.selectByRandom(availableModels);
-        break;
-      case StrategyType.ROUND_ROBIN:
-        selectedModel = this.selectByRoundRobin(modelType, availableModels);
-        break;
-      case StrategyType.FAILOVER:
-        selectedModel = availableModels[0];
-        break;
-      default:
-        selectedModel = this.selectByWeight(availableModels);
-    }
-
-    // 记录路由日志（自动调度成功后更新降级原因）
-    if (isDegraded) {
-      degradeReason = `${degradeReason}，自动调度切换至 ${selectedModel.code}`;
-    }
-
+    // 4. 全部不可用 → 报错
     this.routingLogService
       .log({
         userMessage: "",
         detectedIntent: intent,
         confidence: 1.0,
         source: "auto",
-        selectedModelId: Number(selectedModel.id),
-        selectedModelCode: selectedModel.code,
         modelType,
         isDegraded,
-        degradeReason,
+        degradeReason: degradeReason || "无可用模型",
         costMs: Date.now() - startTime,
-        success: true,
+        success: false,
+        errorMessage: "无可用模型",
       })
       .catch(() => {});
-
-    this.logger.log(
-      `意图调度: intent=${intent}, modelType=${modelType}, selected=${selectedModel.code}`,
-    );
-    return selectedModel;
+    throw new HttpException("无可用模型", HttpStatus.SERVICE_UNAVAILABLE);
   }
 
   /**
-   * 检查模型类型是否与意图兼容（仅做类型级校验，不做标签级意图过滤）
-   * 用于用户指定模型时的轻量检查，尊重用户的选择
+   * 检查指定模型是否与意图兼容
+   * 用于用户指定模型场景的校验，所有类型统一走 capabilities
+   * 
    * @param model 模型信息
    * @param intent 对话意图
-   * @returns {boolean} 类型是否兼容
+   * @returns {boolean} 是否兼容
    */
-  private isIntentTypeCompatible(model: Model, intent: string): boolean {
-    // image/tts/asr/embedding/s2s 类型：意图必须与模型类型匹配
-    if (["image", "tts", "asr", "embedding", "s2s"].includes(intent)) {
+  private isModelCompatibleForIntent(model: Model, intent: string): boolean {
+    const requiredCaps = INTENT_TO_CAPABILITY[intent];
+    if (!requiredCaps || requiredCaps.length === 0) return true;
+
+    // image/tts/asr/s2s/embedding 类型：type 匹配即可，capabilities 非硬性
+    if (['image', 'tts', 'asr', 'embedding', 's2s'].includes(model.type)) {
       return model.type === intent;
     }
-    // 文字类意图：所有模型都兼容（用户指定模型应被尊重）
-    return true;
+
+    // llm/lmm/omni 类型：严格按 capabilities 校验
+    return this.hasRequiredCapabilities(model, requiredCaps);
   }
 
   /**
-   * 检查模型是否支持指定意图（含标签级意图过滤）
+   * 检查模型是否支持指定意图（含能力过滤）
    * 用于自动调度时的严格校验
+   * 
    * @param model 模型信息
    * @param intent 对话意图
    * @param modelType 模型技术类型
@@ -623,71 +632,77 @@ export class ModelRoutingService {
     intent: string,
     modelType: string,
   ): boolean {
-    // general 是默认意图，所有模型都应该支持
     if (intent === "general") return true;
 
-    // image/tts/asr/embedding 类型：意图必须与模型类型匹配
-    if (["image", "tts", "asr", "embedding", "s2s"].includes(intent)) {
+    const requiredCaps = INTENT_TO_CAPABILITY[intent];
+    if (!requiredCaps || requiredCaps.length === 0) return true;
+
+    // image/tts/asr/s2s 类型：type 匹配即可
+    if (['image', 'tts', 'asr', 'embedding', 's2s'].includes(intent)) {
       return model.type === intent;
     }
 
-    // llm/lmm 类型：检查 tags 匹配
-    if (modelType === "llm" || modelType === "lmm") {
-      const tags = this.parseModelTags(model.tags);
-      // 无标签或包含 general 的模型支持所有意图
-      if (tags.length === 0 || tags.includes("general")) return true;
-      return tags.includes(intent);
+    // llm/lmm/omni 类型：按 capabilities 校验
+    if (modelType === 'llm' || modelType === 'lmm' || modelType === 'omni') {
+      return this.hasRequiredCapabilities(model, requiredCaps);
     }
 
     return true;
   }
 
   /**
-   * 按意图筛选模型列表
+   * 按能力筛选模型列表
+   * 
+   * 所有模型类型统一通过 capabilities 进行能力匹配。
+   * image/tts/asr/s2s/embedding 类型：capabilities 不作为硬性要求，type 本身已足够表达意图
+   * llm/lmm/omni 类型：严格按 capabilities 匹配
+   * 
    * @param models 模型列表
    * @param intent 对话意图
    * @param modelType 模型技术类型
    * @returns {Model[]} 筛选后的模型列表
    */
   filterByIntent(models: Model[], intent: string, modelType: string): Model[] {
-    // general 是默认意图，所有模型都可处理，无需筛选
-    if (intent === "general") return models;
+    if (intent === 'general') return models;
 
-    // image/tts/asr/s2s 等特殊类型不需要按 tags 筛选，直接返回
-    if (["image", "tts", "asr", "embedding", "s2s"].includes(modelType)) {
+    const requiredCaps = INTENT_TO_CAPABILITY[intent] || [];
+    if (requiredCaps.length === 0) return models;
+
+    // image/tts/asr/s2s/embedding 类型：type 已足够表达意图
+    if (['image', 'tts', 'asr', 'embedding', 's2s'].includes(modelType)) {
       return models;
     }
 
-    // LMM 类型按 tags 筛选
-    if (modelType === "llm" || modelType === "lmm") {
-      const filtered = models.filter((m) => {
-        const tags = this.parseModelTags(m.tags);
-        return tags.length === 0 || tags.includes("general") || tags.includes(intent);
-      });
+    // llm/lmm/omni 类型：严格按 capabilities 能力匹配
+    const filtered = models.filter(m => this.hasRequiredCapabilities(m, requiredCaps));
 
-      // 如果没有精确匹配，回退到所有模型
-      if (filtered.length === 0) {
-        this.logger.warn(`意图 ${intent} 无匹配模型，回退到所有可用模型`);
-        return models;
-      }
-
-      return filtered;
+    // 如果没有精确匹配，回退到所有模型（兜底）
+    if (filtered.length === 0) {
+      this.logger.warn(`意图 ${intent} 无能力匹配的模型，回退到全部可用模型`);
+      return models;
     }
 
-    return models;
+    return filtered;
   }
 
   /**
-   * 解析模型的 tags JSON 字符串
-   * @param tags 模型的 tags 字段值
-   * @returns {string[]} 标签数组
+   * 检查模型是否具备所需能力
+   * 
+   * @param model 模型信息
+   * @param requiredCapabilities 所需能力列表
+   * @returns {boolean} 是否具备全部所需能力
    */
-  private parseModelTags(tags?: string | null): string[] {
-    if (!tags) return [];
+  private hasRequiredCapabilities(model: Model, requiredCapabilities: string[]): boolean {
+    if (!model.capabilities) {
+      return true;
+    }
+
     try {
-      return JSON.parse(tags);
+      const declaredCaps = JSON.parse(model.capabilities) as string[];
+      return requiredCapabilities.every(cap => declaredCaps.includes(cap));
     } catch {
-      return [];
+      this.logger.warn(`模型 ${model.code} 的 capabilities 格式无效: ${model.capabilities}`);
+      return true;
     }
   }
 

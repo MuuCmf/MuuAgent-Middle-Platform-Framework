@@ -35,16 +35,38 @@ export enum IntentType {
 }
 
 /**
- * 意图到模型类型的映射
+ * 意图到模型类型的映射（支持优先级列表）
+ * 
+ * 数组顺序 = 调度优先级：
+ *   - 排在越前面的类型越优先被使用
+ *   - 前一个类型无可用模型时，自动降级到下一个类型
+ * 
+ * Omni 类型排在首位，实现"Omni 优先，专用兜底"的策略
  */
-export const INTENT_TO_MODEL_TYPE: Record<string, string> = {
-  [IntentType.GENERAL]: 'llm',
-  [IntentType.CODE]: 'llm',
-  [IntentType.MATH]: 'llm',
-  [IntentType.CREATIVE]: 'llm',
-  [IntentType.PROFESSIONAL]: 'lmm',
-  [IntentType.IMAGE]: 'image',
-  [IntentType.TTS]: 'tts',
-  [IntentType.ASR]: 'asr',
-  [IntentType.S2S]: 's2s',
+export const INTENT_TO_MODEL_TYPE: Record<string, string[]> = {
+  [IntentType.GENERAL]: ['omni', 'llm'],
+  [IntentType.CODE]: ['omni', 'llm'],
+  [IntentType.MATH]: ['omni', 'llm'],
+  [IntentType.CREATIVE]: ['omni', 'llm'],
+  [IntentType.PROFESSIONAL]: ['omni', 'lmm'],
+  [IntentType.IMAGE]: ['omni', 'image'],
+  [IntentType.TTS]: ['omni', 'tts'],
+  [IntentType.ASR]: ['omni', 'asr'],
+  [IntentType.S2S]: ['omni', 's2s'],
+};
+
+/**
+ * 意图到能力标识的映射
+ * 用于 filterByIntent() 对所有模型进行能力匹配，替代原有的 tags 筛选
+ */
+export const INTENT_TO_CAPABILITY: Record<string, string[]> = {
+  [IntentType.GENERAL]: ['llm:chat'],
+  [IntentType.CODE]: ['llm:chat', 'llm:reasoning'],
+  [IntentType.MATH]: ['llm:chat', 'llm:reasoning'],
+  [IntentType.CREATIVE]: ['llm:chat', 'llm:reasoning'],
+  [IntentType.PROFESSIONAL]: ['lmm:vision'],
+  [IntentType.IMAGE]: ['image'],
+  [IntentType.TTS]: ['tts', 'tts:realtime'],
+  [IntentType.ASR]: ['asr'],
+  [IntentType.S2S]: ['s2s'],
 };

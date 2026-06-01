@@ -140,7 +140,8 @@ export class IntentClassifierService implements OnModuleInit {
    * @returns {string} 模型类型
    */
   getModelTypeForIntent(intent: string): string {
-    return INTENT_TO_MODEL_TYPE[intent] || 'llm';
+    const types = INTENT_TO_MODEL_TYPE[intent];
+    return (types && types.length > 0) ? types[0] : 'llm';
   }
 
   /**

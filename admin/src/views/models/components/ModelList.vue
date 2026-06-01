@@ -29,28 +29,32 @@
           <el-tag>
             <template v-if="row.type === 'tts'">🔊 </template>
             <template v-else-if="row.type === 'asr'">🎤 </template>
-            {{ row.type }}
+            <template v-else-if="row.type === 'omni'">🌟 </template>
+            {{ row.type === 'omni' ? 'Omni' : row.type }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="tags" :label="$t('model.tags')" width="200">
+      <el-table-column prop="capabilities" :label="$t('model.capabilities')" width="240">
         <template #default="{ row }">
           <el-space wrap>
-            <el-tag v-for="tag in parseTags(row.tags)" :key="tag" size="small" type="success">
-              {{ getTagLabel(tag) }}
-            </el-tag>
-          </el-space>
-        </template>
-      </el-table-column>
-      <el-table-column prop="capabilities" :label="$t('model.capabilities')" width="200">
-        <template #default="{ row }">
-          <el-space wrap>
-            <el-tag v-if="getCapabilities(row.capabilities).includes('tts:realtime')" size="small" type="primary">{{
-              $t('model.capTtsRealtime') }}</el-tag>
-            <el-tag v-if="getCapabilities(row.capabilities).includes('tts')" size="small" type="warning">{{
-              $t('model.capTts') }}</el-tag>
-            <el-tag v-if="getCapabilities(row.capabilities).includes('asr')" size="small" type="success">{{
-              $t('model.capAsr') }}</el-tag>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('llm:chat')" size="small" type="success">{{
+              $t('model.capLlmChat') }}</el-tag>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('llm:reasoning')" size="small"
+              type="success">{{ $t('model.capLlmReasoning') }}</el-tag>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('lmm:vision')" size="small"
+              type="primary">{{ $t('model.capLmmVision') }}</el-tag>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('image')" size="small"
+              type="warning">{{ $t('model.capImage') }}</el-tag>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('tts:realtime')" size="small"
+              type="primary">{{ $t('model.capTtsRealtime') }}</el-tag>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('tts')" size="small"
+              type="warning">{{ $t('model.capTts') }}</el-tag>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('asr')" size="small"
+              type="success">{{ $t('model.capAsr') }}</el-tag>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('embedding')" size="small"
+              type="info">{{ $t('model.capEmbedding') }}</el-tag>
+            <el-tag v-if="getCapabilities(row.capabilities).includes('s2s')" size="small"
+              type="info">{{ $t('model.capS2s') }}</el-tag>
             <span v-if="!row.capabilities" class="no-cap">-</span>
           </el-space>
         </template>
@@ -163,27 +167,43 @@
       <div class="form-section">
         <div class="section-title">{{ $t('model.advancedOptions') }}</div>
 
-        <el-form-item :label="$t('model.tags')">
-          <el-select v-model="selectedTags" multiple :placeholder="$t('model.modelTypePlaceholder')"
-            style="width: 100%;" @change="handleTagsChange">
-            <el-option :label="$t('model.chat')" value="chat" />
-            <el-option :label="$t('model.code')" value="code" />
-            <el-option :label="$t('model.math')" value="math" />
-            <el-option :label="$t('model.creative')" value="creative" />
-            <el-option :label="$t('model.reasoning')" value="reasoning" />
-          </el-select>
-          <div class="field-hint">{{ $t('model.tagsHint') }}</div>
-        </el-form-item>
-
-        <!-- TTS/ASR 能力声明 -->
-        <el-form-item v-if="modelForm.type === 'tts' || modelForm.type === 'asr'" :label="$t('model.capabilities')">
+        <el-form-item :label="$t('model.capabilities')">
           <el-checkbox-group v-model="selectedCapabilities" @change="handleCapabilitiesChange">
-            <el-checkbox v-if="modelForm.type === 'tts'" value="tts">{{ $t('model.capTts') }}</el-checkbox>
-            <el-checkbox v-if="modelForm.type === 'tts'" value="tts:realtime">{{ $t('model.capTtsRealtime')
-            }}</el-checkbox>
-            <el-checkbox v-if="modelForm.type === 'asr'" value="asr">{{ $t('model.capAsr') }}</el-checkbox>
+            <!-- Omni / LLM 类型能力 -->
+            <template v-if="modelForm.type === 'omni' || modelForm.type === 'llm'">
+              <el-checkbox value="llm:chat">{{ $t('model.capLlmChat') }}</el-checkbox>
+              <el-checkbox value="llm:reasoning">{{ $t('model.capLlmReasoning') }}</el-checkbox>
+            </template>
+            <!-- Omni / LMM 类型能力 -->
+            <template v-if="modelForm.type === 'omni' || modelForm.type === 'lmm'">
+              <el-checkbox value="lmm:vision">{{ $t('model.capLmmVision') }}</el-checkbox>
+            </template>
+            <!-- Omni / Image 类型能力 -->
+            <template v-if="modelForm.type === 'omni' || modelForm.type === 'image'">
+              <el-checkbox value="image">{{ $t('model.capImage') }}</el-checkbox>
+            </template>
+            <!-- Omni / TTS 类型能力 -->
+            <template v-if="modelForm.type === 'omni' || modelForm.type === 'tts'">
+              <el-checkbox value="tts">{{ $t('model.capTts') }}</el-checkbox>
+              <el-checkbox value="tts:realtime">{{ $t('model.capTtsRealtime') }}</el-checkbox>
+            </template>
+            <!-- Omni / ASR 类型能力 -->
+            <template v-if="modelForm.type === 'omni' || modelForm.type === 'asr'">
+              <el-checkbox value="asr">{{ $t('model.capAsr') }}</el-checkbox>
+            </template>
+            <!-- Omni / Embedding 类型能力 -->
+            <template v-if="modelForm.type === 'omni' || modelForm.type === 'embedding'">
+              <el-checkbox value="embedding">{{ $t('model.capEmbedding') }}</el-checkbox>
+            </template>
+            <!-- S2S 类型能力 -->
+            <template v-if="modelForm.type === 'omni' || modelForm.type === 's2s'">
+              <el-checkbox value="s2s">{{ $t('model.capS2s') }}</el-checkbox>
+            </template>
           </el-checkbox-group>
-          <div class="field-hint">{{ $t('model.capabilitiesTip') }}</div>
+          <div class="field-hint" v-if="modelForm.type === 'omni'">{{ $t('model.capabilitiesTip') }}</div>
+          <div class="field-hint" v-else-if="modelForm.type === 'llm' || modelForm.type === 'lmm'">{{
+            $t('model.capabilitiesTipLlm') }}</div>
+          <div class="field-hint" v-else>{{ $t('model.capabilitiesTip') }}</div>
         </el-form-item>
       </div>
 
@@ -194,9 +214,9 @@
             :active-text="modelForm.status ? $t('model.enabled') : $t('model.disabled')" />
         </el-form-item>
 
-        <el-alert v-if="modelForm.type === 'tts' || modelForm.type === 'asr'"
-          :title="modelForm.type === 'tts' ? $t('model.ttsTip') : $t('model.asrTip')"
-          :description="modelForm.type === 'tts' ? $t('model.ttsTipDesc') : $t('model.asrTipDesc')" type="info"
+        <el-alert v-if="modelForm.type === 'tts' || modelForm.type === 'asr' || modelForm.type === 'omni'"
+          :title="modelForm.type === 'tts' ? $t('model.ttsTip') : modelForm.type === 'asr' ? $t('model.asrTip') : $t('model.omniTip')"
+          :description="modelForm.type === 'tts' ? $t('model.ttsTipDesc') : modelForm.type === 'asr' ? $t('model.asrTipDesc') : $t('model.omniTipDesc')" type="info"
           show-icon :closable="false" />
       </div>
     </el-form>
@@ -235,6 +255,7 @@ interface ModelTypeOption {
 
 /** 模型类型点选列表 */
 const modelTypeOptions = computed<ModelTypeOption[]>(() => [
+  { value: 'omni', icon: ChatDotSquare, label: t('model.omni'), desc: t('model.omniShortDesc') },
   { value: 'llm', icon: ChatDotSquare, label: t('model.llm'), desc: t('model.llmShortDesc') },
   { value: 'embedding', icon: Grid, label: t('model.embedding'), desc: t('model.embeddingShortDesc') },
   { value: 'tts', icon: Headset, label: t('model.tts'), desc: t('model.ttsShortDesc') },
@@ -249,9 +270,9 @@ const providerOptions = ref<ProviderOption[]>([])
 /** 提供商列表加载状态 */
 const providersLoading = ref(false)
 
+/** 模型表单响应式数据 */
 const modelDialogVisible = ref(false)
 const editingModel = ref<Model | null>(null)
-const selectedTags = ref<string[]>([])
 const selectedCapabilities = ref<string[]>([])
 const clearApiKey = ref(false)
 const modelForm = ref<ModelForm>({
@@ -292,7 +313,6 @@ const resetModelForm = () => {
     tags: '',
     capabilities: ''
   }
-  selectedTags.value = []
   selectedCapabilities.value = []
   clearApiKey.value = false
   editingModel.value = null
@@ -312,24 +332,7 @@ const parseTags = (tags?: string): string[] => {
   }
 }
 
-/**
- * 获取标签中文名
- * @param tag 标签值
- * @returns 标签中文名
- */
-const getTagLabel = (tag: string): string => {
-  const tagMap: Record<string, string> = {
-    chat: t('model.chat'),
-    code: t('model.code'),
-    math: t('model.math'),
-    creative: t('model.creative'),
-    reasoning: t('model.reasoning'),
-  }
-  return tagMap[tag] || tag
-}
-
-/**
- * 获取提供商选项列表
+/** 获取提供商选项列表
  * @param type 模型类型
  */
 const fetchProviders = async (type: string) => {
@@ -430,14 +433,6 @@ const handleCapabilitiesChange = (caps: string[]) => {
 }
 
 /**
- * 标签变更处理
- * @param tags 选中的标签数组
- */
-const handleTagsChange = (tags: string[]) => {
-  modelForm.value.tags = JSON.stringify(tags)
-}
-
-/**
  * 添加模型
  */
 const handleAddModel = () => {
@@ -454,7 +449,6 @@ const handleAddModel = () => {
 const handleEditModel = (model: Model) => {
   editingModel.value = model
   modelForm.value = { ...model, apiKey: '' }
-  selectedTags.value = parseTags(model.tags)
   selectedCapabilities.value = parseTags(model.capabilities)
   clearApiKey.value = false
   modelDialogVisible.value = true
