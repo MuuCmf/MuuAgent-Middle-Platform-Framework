@@ -23,11 +23,10 @@ export interface OAuthClient {
  * 创建客户端请求参数
  */
 export interface CreateClientDto {
-  name: string
-  redirectUris: string[]
-  scopes: string[]
-  grants?: string[]
-  appCode?: string
+  name: string;
+  scopes: string[];
+  grants?: string[];
+  appCode?: string;
 }
 
 /**
@@ -35,10 +34,8 @@ export interface CreateClientDto {
  */
 export interface UpdateClientDto {
   name?: string
-  redirectUris?: string[]
   scopes?: string[]
   grants?: string[]
-  appCode?: string
   status?: number
 }
 

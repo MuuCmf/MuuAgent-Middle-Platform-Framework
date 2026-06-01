@@ -53,77 +53,6 @@ export class OAuthService {
   }
 
   /**
-   * 生成授权码
-   * @param clientId 客户端ID
-   * @param userId 用户ID
-   * @param redirectUri 回调地址
-   * @param scope 权限范围
-   * @param state 状态参数
-   * @returns {Promise<string>} 授权码
-   */
-  async generateAuthorizationCode(
-    clientId: string,
-    userId: string,
-    redirectUri: string,
-    scope: string,
-    state?: string,
-  ): Promise<string> {
-    const code = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-    await this.prisma.oAuthCode.create({
-      data: {
-        code,
-        clientId,
-        userId: userId as any,
-        redirectUri,
-        scope,
-        state,
-        expiresAt,
-      },
-    });
-
-    return code;
-  }
-
-  /**
-   * 用授权码换取访问令牌
-   * @param code 授权码
-   * @param clientId 客户端ID
-   * @param clientSecret 客户端密钥
-   * @param redirectUri 回调地址
-   * @returns {Promise<any>} 令牌信息
-   */
-  async exchangeCodeForToken(
-    code: string,
-    clientId: string,
-    clientSecret: string,
-    redirectUri: string,
-  ) {
-    await this.validateClient(clientId, clientSecret, redirectUri);
-
-    const authCode = await this.prisma.oAuthCode.findUnique({
-      where: { code },
-    });
-
-    if (!authCode) {
-      throw new BadRequestException('授权码不存在');
-    }
-
-    if (authCode.clientId !== clientId || authCode.redirectUri !== redirectUri) {
-      throw new BadRequestException('授权码信息不匹配');
-    }
-
-    if (authCode.expiresAt < new Date()) {
-      throw new BadRequestException('授权码已过期');
-    }
-
-    await this.prisma.oAuthCode.delete({ where: { code } });
-
-    return this.generateTokens(clientId, authCode.userId as any, authCode.scope);
-  }
-
-  /**
    * 生成访问令牌和刷新令牌
    * @param clientId 客户端ID
    * @param userId 用户ID
@@ -156,6 +85,27 @@ export class OAuthService {
       expires_in: 7200,
       scope,
     };
+  }
+
+  /**
+   * 客户端凭证模式生成令牌（client_credentials）
+   * 适用于后端服务之间的直接调用，无需用户交互授权
+   * @param clientId 客户端ID
+   * @param clientSecret 客户端密钥
+   * @returns {Promise<any>} 令牌信息
+   */
+  async generateClientCredentialsToken(clientId: string, clientSecret: string) {
+    const client = await this.validateClient(clientId, clientSecret);
+
+    const grants = JSON.parse(client.grants as any);
+    if (!grants.includes('client_credentials')) {
+      throw new BadRequestException('客户端不支持 client_credentials 授权类型');
+    }
+
+    const scopes = JSON.parse(client.scopes as any);
+    const scopeString = scopes.join(' ');
+
+    return this.generateTokens(clientId, '0', scopeString);
   }
 
   /**
@@ -328,7 +278,7 @@ export class OAuthService {
         name: data.name,
         redirectUris: JSON.stringify(data.redirectUris),
         scopes: JSON.stringify(data.scopes),
-        grants: JSON.stringify(data.grants || ['authorization_code', 'refresh_token']),
+        grants: JSON.stringify(data.grants || ['client_credentials', 'refresh_token']),
         appCode: data.appCode || null,
         status: 1,
       },

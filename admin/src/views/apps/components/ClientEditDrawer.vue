@@ -17,31 +17,6 @@
         <el-input v-model="formData.name" :placeholder="$t('app.pleaseInputClientName')" />
       </el-form-item>
 
-      <el-form-item :label="$t('app.callbackUrl')" prop="redirectUris">
-        <div style="width: 100%;">
-          <div
-            v-for="(_, index) in formData.redirectUris"
-            :key="index"
-            style="display: flex; gap: 8px; margin-bottom: 8px;"
-          >
-            <el-input
-              v-model="formData.redirectUris[index]"
-              :placeholder="$t('app.pleaseInputCallbackUrl')"
-              style="flex: 1;"
-            />
-            <el-button
-              type="danger"
-              :icon="Delete"
-              @click="removeRedirectUri(index)"
-              :disabled="formData.redirectUris.length === 1"
-            />
-          </div>
-          <el-button type="primary" :icon="Plus" @click="addRedirectUri">
-            {{ $t('app.addCallbackUrl') }}
-          </el-button>
-        </div>
-      </el-form-item>
-
       <el-form-item :label="$t('app.permissionScope')" prop="scopes">
         <div style="width: 100%;">
           <div
@@ -70,7 +45,7 @@
 
       <el-form-item :label="$t('app.authorizationType')" prop="grants">
         <el-checkbox-group v-model="formData.grants">
-          <el-checkbox label="authorization_code">{{ $t('app.authorizationCodeMode') }}</el-checkbox>
+          <el-checkbox label="client_credentials">{{ $t('app.clientCredentialsMode') }}</el-checkbox>
           <el-checkbox label="refresh_token">{{ $t('app.refreshToken') }}</el-checkbox>
         </el-checkbox-group>
       </el-form-item>
@@ -97,7 +72,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { oauthApi, type OAuthClient, type CreateClientDto, type UpdateClientDto } from '@/api/oauth'
 import { scopeApi } from '@/api/scope'
@@ -133,18 +107,14 @@ const scopeGroups = ref<Array<{ label: string; scopes: ScopeOption[] }>>([])
 
 const formData = ref<CreateClientDto & { status?: number }>({
   name: '',
-  redirectUris: [''],
   scopes: [],
-  grants: ['authorization_code', 'refresh_token'],
+  grants: ['client_credentials', 'refresh_token'],
   status: 1,
 })
 
 const rules: FormRules = {
   name: [
     { required: true, message: t('app.pleaseInputClientName'), trigger: 'blur' },
-  ],
-  redirectUris: [
-    { required: true, message: t('app.atLeastOneCallbackUrl'), trigger: 'change' },
   ],
   scopes: [
     { required: true, message: t('app.pleaseSelectPermissionScope'), trigger: 'change' },
@@ -193,29 +163,13 @@ onMounted(() => {
 })
 
 /**
- * 添加回调地址
- */
-const addRedirectUri = () => {
-  formData.value.redirectUris.push('')
-}
-
-/**
- * 删除回调地址
- * @param index 索引
- */
-const removeRedirectUri = (index: number) => {
-  formData.value.redirectUris.splice(index, 1)
-}
-
-/**
  * 重置表单
  */
 const resetForm = () => {
   formData.value = {
     name: '',
-    redirectUris: [''],
     scopes: [],
-    grants: ['authorization_code', 'refresh_token'],
+    grants: ['client_credentials', 'refresh_token'],
     status: 1,
   }
   formRef.value?.clearValidate()
@@ -243,7 +197,6 @@ const handleSubmit = async () => {
       if (isEdit.value && props.client) {
         const updateData: UpdateClientDto = {
           name: formData.value.name,
-          redirectUris: formData.value.redirectUris,
           scopes: formData.value.scopes,
           grants: formData.value.grants,
           status: formData.value.status,
@@ -253,7 +206,6 @@ const handleSubmit = async () => {
       } else {
         const createData: CreateClientDto = {
           name: formData.value.name,
-          redirectUris: formData.value.redirectUris,
           scopes: formData.value.scopes,
           grants: formData.value.grants,
           appCode: props.appCode,
@@ -286,7 +238,6 @@ watch(
     if (newVisible && props.client) {
       formData.value = {
         name: props.client.name,
-        redirectUris: [...props.client.redirectUris],
         scopes: [...props.client.scopes],
         grants: [...props.client.grants],
         status: props.client.status,

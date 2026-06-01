@@ -112,7 +112,7 @@ export default {
     pleaseSelectPermissionScope: '请选择权限范围',
     authorizationType: '授权类型',
     pleaseSelectAuthorizationType: '请选择授权类型',
-    authorizationCodeMode: '授权码模式',
+    clientCredentialsMode: '客户端凭证模式',
     refreshToken: '刷新令牌',
     clientStatus: '客户端状态',
     clientUpdateSuccess: '客户端更新成功',

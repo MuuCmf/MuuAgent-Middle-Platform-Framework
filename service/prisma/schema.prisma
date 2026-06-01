@@ -617,7 +617,7 @@ model OAuthClient {
   name              String   /// 客户端名称
   redirectUris      String   @map("redirect_uris") @db.Text /// 回调地址列表(JSON数组)
   scopes            String   @map("scopes") @db.Text /// 权限范围(JSON数组)
-  grants            String   @default("[\"authorization_code\",\"refresh_token\"]") /// 授权类型(JSON数组)
+  grants            String   @default("[\"client_credentials\",\"refresh_token\"]") /// 授权类型(JSON数组)
   status            Int      @default(1) /// 状态: 1正常 0禁用
 
   // ===== 应用隔离 =====

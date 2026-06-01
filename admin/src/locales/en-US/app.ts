@@ -112,7 +112,7 @@ export default {
     pleaseSelectPermissionScope: 'Please select permission scope',
     authorizationType: 'Authorization Type',
     pleaseSelectAuthorizationType: 'Please select authorization type',
-    authorizationCodeMode: 'Authorization Code Mode',
+    clientCredentialsMode: 'Client Credentials',
     refreshToken: 'Refresh Token',
     clientStatus: 'Client Status',
     clientUpdateSuccess: 'Client updated successfully',

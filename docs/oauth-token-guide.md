@@ -2,25 +2,14 @@
 
 ## 概述
 
-MuuAgent 中台支持 OAuth 2.0 授权码模式，允许三方应用获取访问令牌（Access Token）来调用管理端接口。本指南详细介绍如何创建 OAuth 客户端、获取 Token 以及使用 Token 进行接口调用。
+MuuAgent 中台提供两套认证方式，分别对应两种接口类型：
 
-## OAuth 架构
+| 认证方式 | 适用接口 | 说明 |
+|---------|---------|------|
+| **OAuth 2.0 客户端凭证模式** | 管理端接口 `/admin/*` | 通过 client_id + client_secret 获取 Token，调用各类管理接口 |
+| **API Key 认证** | 业务端接口 `/agent` `/ai` `/kb` | 通过 API Key + 透传 UID 调用业务接口 |
 
-### 认证流程
-
-```
-三方应用                    MuuAgent 中台
-    │                            │
-    ├─ 1. 创建 OAuth 客户端 ──────►│
-    │                            │
-    ├─ 2. 获取授权码 ────────────►│
-    │                            │
-    ├─ 3. 换取 Access Token ─────►│
-    │                            │
-    ├─ 4. 调用受保护接口 ────────►│
-    │                            │
-    └─ 5. 刷新 Token（过期时）───►│
-```
+本指南主要介绍 OAuth 客户端凭证模式的使用方法。
 
 ### 术语说明
 
@@ -28,10 +17,47 @@ MuuAgent 中台支持 OAuth 2.0 授权码模式，允许三方应用获取访问
 |------|------|
 | **Client ID** | 客户端唯一标识，创建客户端时自动生成 |
 | **Client Secret** | 客户端密钥，创建时生成，仅返回一次 |
-| **Authorization Code** | 授权码，用于换取 Token，有效期 10 分钟 |
 | **Access Token** | 访问令牌，用于 API 调用，有效期 2 小时 |
 | **Refresh Token** | 刷新令牌，用于获取新的 Access Token，有效期 7 天 |
 | **Scope** | 权限范围，定义客户端可访问的资源 |
+| **API Key** | 租户 API 密钥，用于业务端接口认证 |
+
+---
+
+## 认证架构
+
+### 管理端接口认证（OAuth 客户端凭证模式）
+
+```
+三方应用                      MuuAgent 中台
+    │                              │
+    ├─ 1. 创建 OAuth 客户端 ───────►│
+    │                              │
+    ├─ 2. POST /oauth/token ──────►│
+    │   grant_type=client_credentials
+    │   client_id + client_secret
+    │                              │
+    ├─ 3. 返回 access_token ──────►│
+    │                              │
+    ├─ 4. 调用 /admin/* 接口 ──────►│
+    │   Authorization: Bearer <token>
+    │                              │
+    └─ 5. 刷新 Token（过期时）────►│
+        POST /oauth/token
+        grant_type=refresh_token
+```
+
+### 业务端接口认证（API Key）
+
+```
+三方应用                      MuuAgent 中台
+    │                              │
+    ├─ 调用 /agent /ai /kb 接口 ──►│
+    │   x-api-key: <API Key>
+    │   x-uid: <用户ID>
+    │                              │
+    └─ 返回业务数据 ──────────────►│
+```
 
 ---
 
@@ -51,9 +77,8 @@ MuuAgent 中台支持 OAuth 2.0 授权码模式，允许三方应用获取访问
 3. 点击「创建客户端」按钮
 4. 填写以下信息：
    - **名称**：客户端名称（用于标识）
-   - **回调地址**：授权后的重定向地址（可填多个）
    - **权限范围**：选择需要的权限
-   - **授权类型**：默认 `authorization_code` 和 `refresh_token`
+   - **授权类型**：默认 `client_credentials` 和 `refresh_token`
    - **所属应用**：关联的应用（可选）
 
 5. 点击「保存」
@@ -66,9 +91,8 @@ curl -X POST https://api.yourdomain.com/admin/oauth/clients \
   -H "Content-Type: application/json" \
   -d '{
     "name": "我的第三方应用",
-    "redirectUris": ["https://example.com/callback"],
     "scopes": ["model:read", "agent:read"],
-    "grants": ["authorization_code", "refresh_token"],
+    "grants": ["client_credentials", "refresh_token"],
     "appCode": "myapp"
   }'
 ```
@@ -83,9 +107,8 @@ curl -X POST https://api.yourdomain.com/admin/oauth/clients \
     "clientId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "clientSecret": "7f8d9c2a3b4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0",
     "name": "我的第三方应用",
-    "redirectUris": ["https://example.com/callback"],
     "scopes": ["model:read", "agent:read"],
-    "grants": ["authorization_code", "refresh_token"],
+    "grants": ["client_credentials", "refresh_token"],
     "appCode": "myapp",
     "status": 1
   },
@@ -106,106 +129,37 @@ curl -X POST https://api.yourdomain.com/admin/oauth/clients/{id}/reset-secret \
 
 ---
 
-## 第二步：获取授权码
+## 第二步：获取 Access Token（客户端凭证模式）
 
-### 授权端点
+### 令牌端点
 
 ```
-GET /oauth/authorize
+POST /oauth/token
+Content-Type: application/x-www-form-urlencoded
 ```
 
 ### 请求参数
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `client_id` | string | 是 | 客户端 ID |
-| `redirect_uri` | string | 是 | 回调地址（必须与注册时一致） |
-| `response_type` | string | 是 | 固定值 `code` |
-| `scope` | string | 是 | 权限范围，空格分隔 |
-| `state` | string | 否 | 状态参数，用于防止 CSRF |
-
-### 请求示例
-
-```bash
-curl "https://api.yourdomain.com/oauth/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=https://example.com/callback&response_type=code&scope=model:read%20agent:read&state=random123"
-```
-
-### 响应示例
-
-```json
-{
-  "client_name": "我的第三方应用",
-  "scope": "model:read agent:read",
-  "scope_details": [
-    { "scope": "model:read", "description": "查看模型列表和详情" },
-    { "scope": "agent:read", "description": "查看智能体列表和详情" }
-  ],
-  "state": "random123",
-  "redirect_uri": "https://example.com/callback"
-}
-```
-
-### 用户确认授权
-
-管理员需要确认授权才能生成授权码：
-
-```bash
-curl -X POST https://api.yourdomain.com/oauth/authorize/confirm \
-  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "clientId": "YOUR_CLIENT_ID",
-    "redirectUri": "https://example.com/callback",
-    "scope": "model:read agent:read",
-    "state": "random123"
-  }'
-```
-
-### 授权码响应
-
-```json
-{
-  "code": "abc123def456...",
-  "state": "random123"
-}
-```
-
-**授权码有效期：10 分钟**
-
----
-
-## 第三步：换取 Access Token
-
-### 令牌端点
-
-```
-POST /oauth/token
-```
-
-### 请求参数（授权码模式）
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `grant_type` | string | 是 | 固定值 `authorization_code` |
-| `code` | string | 是 | 授权码 |
+| `grant_type` | string | 是 | 固定值 `client_credentials` |
 | `client_id` | string | 是 | 客户端 ID |
 | `client_secret` | string | 是 | 客户端密钥 |
-| `redirect_uri` | string | 是 | 回调地址（必须与授权时一致） |
 
 ### 请求示例
 
 ```bash
 curl -X POST https://api.yourdomain.com/oauth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=authorization_code&code=abc123def456...&client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET&redirect_uri=https://example.com/callback"
+  -d "grant_type=client_credentials&client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET"
 ```
 
 ### Token 响应
 
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "abc123def456...",
+  "access_token": "base64url随机字符串...",
+  "refresh_token": "base64url随机字符串...",
   "token_type": "Bearer",
   "expires_in": 7200,
   "scope": "model:read agent:read"
@@ -221,7 +175,7 @@ curl -X POST https://api.yourdomain.com/oauth/token \
 
 ---
 
-## 第四步：使用 Access Token 调用接口
+## 第三步：使用 Access Token 调用管理端接口
 
 ### 请求格式
 
@@ -231,6 +185,8 @@ curl -X POST https://api.yourdomain.com/oauth/token \
 curl -X GET https://api.yourdomain.com/admin/model \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
+
+OAuth Token 会自动关联到对应的 OAuthClient，服务端会根据 OAuthClient 的 `appCode` 进行数据隔离。**无需**额外传递 `x-app-code` 请求头。
 
 ### 完整示例
 
@@ -250,7 +206,7 @@ curl -X GET https://api.yourdomain.com/admin/agent \
 
 ### 权限验证
 
-Token 只能访问授权时指定的 scope：
+Token 只能访问创建客户端时指定的 scope：
 
 | Scope | 可访问的接口 |
 |-------|-------------|
@@ -260,33 +216,32 @@ Token 只能访问授权时指定的 scope：
 | `agent:write` | POST/PUT/DELETE /admin/agent |
 | `oauth:read` | GET /admin/oauth/clients |
 | `oauth:write` | POST/PUT/DELETE /admin/oauth/clients |
+| `app:read` | GET /admin/app |
+| `app:write` | POST/PUT/DELETE /admin/app |
+| `kb:read` | GET /admin/kb |
+| `kb:write` | POST/PUT/DELETE /admin/kb |
+| `skill:read` | GET /admin/skill |
+| `skill:write` | POST/PUT/DELETE /admin/skill |
+| `skill:execute` | POST /admin/skill/execute |
+| `log:read` | GET /admin/log |
+| `rate-limit:read` | GET /admin/rate-limit |
+| `rate-limit:write` | POST/PUT/DELETE /admin/rate-limit |
 
 **权限继承：** `write` 权限自动包含 `read` 权限
 
 ---
 
-## 第五步：刷新 Access Token
+## 第四步：刷新 Access Token
 
-当 Access Token 过期（HTTP 401 错误）时，使用 Refresh Token 获取新的 Token。
-
-### 请求参数（刷新模式）
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `grant_type` | string | 是 | 固定值 `refresh_token` |
-| `refresh_token` | string | 是 | 刷新令牌 |
-| `client_id` | string | 是 | 客户端 ID |
-| `client_secret` | string | 是 | 客户端密钥 |
-
-### 请求示例
+当 Access Token 过期（HTTP 401）时，使用 Refresh Token 获取新的 Token：
 
 ```bash
 curl -X POST https://api.yourdomain.com/oauth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=refresh_token&refresh_token=abc123def456...&client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET"
+  -d "grant_type=refresh_token&refresh_token=YOUR_REFRESH_TOKEN&client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET"
 ```
 
-### 响应示例
+### 响应
 
 ```json
 {
@@ -300,9 +255,45 @@ curl -X POST https://api.yourdomain.com/oauth/token \
 
 ---
 
+## 第五步：调用业务端接口
+
+管理端接口用于管理配置（模型、应用、知识库等 CRUD），业务端接口用于实际的业务调用（AI 对话、智能体执行、知识库检索）。
+
+### 认证方式
+
+业务端接口使用 **API Key + 透传 UID** 认证：
+
+| 请求头 | 说明 |
+|--------|------|
+| `x-api-key` | 中台 AppTenant 的 API Key |
+| `x-uid` | 终端用户 ID，标识操作者 |
+
+### 请求示例
+
+```bash
+curl -X POST https://api.yourdomain.com/agent/chat \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "x-uid: user_12345" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": 1,
+    "question": "你好"
+  }'
+```
+
+完整业务端接口列表：
+
+| 接口 | 说明 |
+|------|------|
+| `/agent/*` | 智能体对话、执行 |
+| `/ai/*` | AI 模型调用 |
+| `/kb/*` | 知识库检索 |
+
+---
+
 ## 撤销令牌
 
-### 撤销访问令牌或刷新令牌
+撤销访问令牌或刷新令牌：
 
 ```bash
 curl -X POST https://api.yourdomain.com/oauth/revoke \
@@ -310,7 +301,7 @@ curl -X POST https://api.yourdomain.com/oauth/revoke \
   -d '{ "token": "YOUR_TOKEN" }'
 ```
 
-### 响应
+响应：
 
 ```json
 { "message": "令牌已撤销" }
@@ -318,63 +309,51 @@ curl -X POST https://api.yourdomain.com/oauth/revoke \
 
 ---
 
-## 权限范围（Scope）列表
+## PHP SDK 示例
 
-### 应用管理
+中台提供了 PHP 客户端 SDK `MuuAgent`，封装了 OAuth Token 管理和接口调用逻辑。
 
-| Scope | 描述 |
-|-------|------|
-| `app:read` | 查看应用列表和详情 |
-| `app:write` | 创建、更新、删除应用 |
+### 配置
 
-### 模型管理
+`.env` 文件：
 
-| Scope | 描述 |
-|-------|------|
-| `model:read` | 查看模型列表和详情 |
-| `model:write` | 创建、更新、删除模型 |
+```ini
+[MUUAGENT]
+muuagent.base_url = http://localhost:3000
+muuagent.client_id = your_client_id
+muuagent.client_secret = your_client_secret
+muuagent.api_key = your_api_key
+muuagent.app_code = muucmf_t6
+```
 
-### 智能体
+### 调用管理端接口
 
-| Scope | 描述 |
-|-------|------|
-| `agent:read` | 查看智能体列表和详情 |
-| `agent:write` | 创建、更新、删除智能体 |
+```php
+$agent = new MuuAgent();
 
-### 技能
+// 获取模型列表
+$models = $agent->callAdmin('GET', '/admin/model');
 
-| Scope | 描述 |
-|-------|------|
-| `skill:read` | 查看技能列表和详情 |
-| `skill:write` | 创建、更新、删除技能 |
-| `skill:execute` | 执行技能和测试函数 |
+// 创建智能体
+$agent->callAdmin('POST', '/admin/agent', [
+    'name' => '客服助手',
+    'description' => '智能客服',
+]);
+```
 
-### 知识库
+### 调用业务端接口
 
-| Scope | 描述 |
-|-------|------|
-| `kb:read` | 查看知识库列表和详情 |
-| `kb:write` | 创建、更新、删除知识库 |
+```php
+$agent = new MuuAgent();
 
-### OAuth
+// AI 对话，传入终端用户 ID
+$result = $agent->callApi('POST', '/agent/chat', [
+    'agent_id' => 1,
+    'question' => '你好',
+], uid: 'user_12345');
+```
 
-| Scope | 描述 |
-|-------|------|
-| `oauth:read` | 查看 OAuth 客户端和令牌 |
-| `oauth:write` | 管理 OAuth 客户端和令牌 |
-
-### 限流
-
-| Scope | 描述 |
-|-------|------|
-| `rate-limit:read` | 查看限流规则和统计 |
-| `rate-limit:write` | 管理限流规则 |
-
-### 日志
-
-| Scope | 描述 |
-|-------|------|
-| `log:read` | 查看操作日志和统计 |
+SDK 自动处理 Token 的获取、缓存和刷新，开发者无需手动管理 Token 生命周期。
 
 ---
 
@@ -423,42 +402,39 @@ curl -X POST https://api.yourdomain.com/oauth/revoke \
 - ✅ 定期审查权限配置
 - ✅ 根据实际需求调整权限
 
-### 4. 回调地址验证
+### 4. API Key 安全
 
-- ✅ 注册时使用精确的回调地址
-- ✅ 避免使用通配符地址
-- ✅ 验证回调地址是否匹配
+- ✅ API Key 对应中台 AppTenant，具有独立的配额限制
+- ✅ 在服务端使用 API Key，不要暴露给客户端
 
 ---
 
 ## 完整流程图
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        OAuth 2.0 授权码流程                           │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  1. 创建客户端                                                         │
-│     POST /admin/oauth/clients                                         │
-│     ↓                                                                 │
-│  2. 获取授权码（用户确认）                                             │
-│     GET  /oauth/authorize                                             │
-│     POST /oauth/authorize/confirm                                     │
-│     ↓                                                                 │
-│  3. 换取 Token                                                        │
-│     POST /oauth/token?grant_type=authorization_code                   │
-│     ↓                                                                 │
-│  4. 调用受保护接口                                                     │
-│     GET /admin/model                                                  │
-│     Headers: Authorization: Bearer <access_token>                     │
-│     ↓                                                                 │
-│  5. Token 过期 → 刷新 Token                                           │
-│     POST /oauth/token?grant_type=refresh_token                        │
-│     ↓                                                                 │
-│  6. 撤销 Token（可选）                                                 │
-│     POST /oauth/revoke                                                │
-│                                                                       │
-└─────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────┐
+│             OAuth 客户端凭证模式流程                  │
+├───────────────────────────────────────────────────────┤
+│                                                       │
+│  1. 创建 OAuth 客户端                                  │
+│     POST /admin/oauth/clients                        │
+│     → 获取 client_id + client_secret                 │
+│     ↓                                                │
+│  2. 获取 Token                                        │
+│     POST /oauth/token?grant_type=client_credentials   │
+│     → 获取 access_token + refresh_token               │
+│     ↓                                                │
+│  3. 调用管理端接口                                     │
+│     GET  /admin/model                                │
+│     Headers: Authorization: Bearer <access_token>     │
+│     ↓                                                │
+│  4. Token 过期 → 刷新 Token                           │
+│     POST /oauth/token?grant_type=refresh_token        │
+│     ↓                                                │
+│  5. 撤销 Token（可选）                                 │
+│     POST /oauth/revoke                               │
+│                                                       │
+└───────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -471,4 +447,5 @@ curl -X POST https://api.yourdomain.com/oauth/revoke \
 
 ## 更新日志
 
-- **2026-05-25**：初始版本，实现 OAuth 2.0 授权码模式使用指南
+- **2026-06-01**：重构为客户端凭证模式，移除授权码模式，新增业务端 API Key 认证说明
+- **2026-05-25**：初始版本

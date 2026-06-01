@@ -1,13 +1,11 @@
-import { Controller, Post, Get, Put, Delete, Body, Query, Param, Res, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, Query, Param, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { OAuthService } from './oauth.service';
-import { AdminGuard } from '../common/guards/admin.guard';
 import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { RequireScope } from '../common/decorators/scope.decorator';
-import { AdminScope, SCOPE_DESCRIPTIONS } from '../common/constants/scope.constants';
+import { AdminScope } from '../common/constants/scope.constants';
 import { success } from '../common/response/api.response';
-import { Response, Request } from 'express';
 
 /**
  * OAuth认证控制器
@@ -22,92 +20,25 @@ export class OAuthController {
   constructor(private oauthService: OAuthService) {}
 
   /**
-   * 授权端点
-   * @param clientId 客户端ID
-   * @param redirectUri 回调地址
-   * @param responseType 响应类型
-   * @param scope 权限范围
-   * @param state 状态参数
-   * @param res 响应对象
-   */
-  @Get('authorize')
-  @ApiOperation({ summary: '授权页面', description: '用户登录并授权第三方应用' })
-  async authorize(
-    @Query('client_id') clientId: string,
-    @Query('redirect_uri') redirectUri: string,
-    @Query('response_type') responseType: string,
-    @Query('scope') scope: string,
-    @Query('state') state: string,
-    @Res() res: Response,
-  ) {
-    const client = await this.oauthService.validateClient(clientId, undefined, redirectUri);
-
-    // 解析 scope 并附带描述信息
-    const scopes = scope ? scope.split(' ') : [];
-    const scopeDetails = scopes.map((s) => ({
-      scope: s,
-      description: (SCOPE_DESCRIPTIONS as Record<string, string>)[s] || s,
-    }));
-
-    res.json({
-      client_name: client.name,
-      scope,
-      scope_details: scopeDetails,
-      state,
-      redirect_uri: redirectUri,
-    });
-  }
-
-  /**
-   * 用户确认授权
-   * @param req 请求对象
-   * @param body 请求体
-   * @returns {Promise<any>} 授权码
-   */
-  @Post('authorize/confirm')
-  @UseGuards(AdminGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '确认授权', description: '用户确认授权后生成授权码' })
-  async confirmAuthorize(
-    @Req() req: Request,
-    @Body() body: { clientId: string; redirectUri: string; scope: string; state?: string },
-  ) {
-    const admin = req.admin as any;
-    const code = await this.oauthService.generateAuthorizationCode(
-      body.clientId,
-      admin.id,
-      body.redirectUri,
-      body.scope,
-      body.state,
-    );
-
-    return { code, state: body.state };
-  }
-
-  /**
    * 令牌端点
    * @param body 请求体
    * @returns {Promise<any>} 令牌信息
    */
   @Post('token')
-  @ApiOperation({ summary: '获取令牌', description: '用授权码换取访问令牌' })
+  @ApiOperation({ summary: '获取令牌', description: '支持客户端凭证和刷新令牌两种模式' })
   @ApiResponse({ status: 200, description: '获取成功' })
   async token(
     @Body() body: {
       grant_type: string;
-      code?: string;
       client_id: string;
       client_secret: string;
-      redirect_uri: string;
       refresh_token?: string;
     },
   ) {
-    if (body.grant_type === 'authorization_code') {
-      return this.oauthService.exchangeCodeForToken(
-        body.code!,
+    if (body.grant_type === 'client_credentials') {
+      return this.oauthService.generateClientCredentialsToken(
         body.client_id,
         body.client_secret,
-        body.redirect_uri,
       );
     } else if (body.grant_type === 'refresh_token') {
       return this.oauthService.refreshAccessToken(
@@ -117,7 +48,7 @@ export class OAuthController {
       );
     }
 
-    throw new Error('不支持的授权类型');
+    throw new BadRequestException('不支持的授权类型');
   }
 
   /**
