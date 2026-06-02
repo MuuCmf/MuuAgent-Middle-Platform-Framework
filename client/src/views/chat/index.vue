@@ -93,8 +93,9 @@
           :agents="enabledAgents"
           :workspace-is-active="workspaceIsActive"
           :workspace-dir-name="workspaceDirName"
-          :models="models"
+          :models="filteredModels"
           :selected-llm-model="selectedLlmModel"
+          :selected-model-type="selectedModelType"
           :voice-enabled="voiceEnabled"
           @send="handleSendMessage"
           @stop="handleStopGeneration"
@@ -103,7 +104,9 @@
           @workspace-select="handleWorkspaceSelect"
           @workspace-clear="handleWorkspaceClear"
           @llm-model-change="handleLlmModelChange"
+          @model-type-change="handleModelTypeChange"
           @voice-toggle="handleTtsToggle"
+          @file-upload="handleFileUpload"
         />
       </div>
     </template>
@@ -137,12 +140,13 @@ const {
   chatMode,
   selectedAgent,
   selectedLlmModel,
+  selectedModelType,
+  filteredModels,
   messages,
   isLoading,
   currentConversationId,
   currentConversationTitle,
   conversations,
-  models,
   enabledAgents,
   toolPolicies,
   workspaceIsActive,
@@ -159,6 +163,7 @@ const {
   ttsStatus,
   handleModeChange,
   handleLlmModelChange,
+  handleModelTypeChange,
   handleAgentChange,
   handleKbChange,
   handleSendMessage,
@@ -171,6 +176,7 @@ const {
   handleWorkspaceRefresh,
   handleFileClick,
   handleTtsToggle,
+  handleFileUpload,
   getModelName,
   getAgentName,
   getKbName,

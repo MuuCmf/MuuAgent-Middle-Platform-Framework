@@ -168,8 +168,11 @@ export class AiService {
       const model = await this.selectModel(dto.modelCode, effectiveModelType, intent);
       const resolvedTargetId = dto.modelCode || model.code;
 
+      // 根据模型类型确定会话类型
+      const conversationType = this.getConversationTypeByModelType(effectiveModelType);
+
       const conversation = await this.conversationService.getOrCreate(
-        ConversationType.MODEL,
+        conversationType,
         resolvedTargetId,
         dto.conversationId,
         uid,
@@ -328,8 +331,11 @@ export class AiService {
       modelId = model.id as any;
       const resolvedTargetId = dto.modelCode || model.code;
 
+      // 根据模型类型确定会话类型
+      const conversationType = this.getConversationTypeByModelType(effectiveModelType);
+
       const conversation = await this.conversationService.getOrCreate(
-        ConversationType.MODEL,
+        conversationType,
         resolvedTargetId,
         dto.conversationId,
         uid,
@@ -1042,7 +1048,7 @@ export class AiService {
   private async buildMessagesWithHistory(
     conversation: any,
     messages: Array<{ role: string; content: string }>,
-  ): Promise<Array<{ role: string; content: string }>> {
+  ): Promise<Array<{ role: string; content: string | Array<Record<string, unknown>> }>> {
     let conversationHistory: Array<{ role: string; content: string }> = [];
 
     if (conversation.messageCount > 0) {
@@ -1056,7 +1062,82 @@ export class AiService {
       }));
     }
 
-    return [...conversationHistory, ...messages];
+    const combined = [...conversationHistory, ...messages];
+    return this.preprocessMultimodalMessages(combined);
+  }
+
+  /**
+   * 预处理消息列表，将 Markdown 图片转为结构化多模态内容
+   * 支持两种格式的图片标记：
+   *   - data:image/...;base64,... 数据 URL（直接使用）
+   *   - http(s)://... 图片 URL（服务端下载后转为 Base64）
+   * 确保多模态模型能正确解析图片内容，同时数据库只存储 URL 保持简洁
+   * @param messages 原始消息列表
+   * @returns 处理后的消息列表（包含结构化内容数组）
+   */
+  private async preprocessMultimodalMessages(
+    messages: Array<{ role: string; content: string }>,
+  ): Promise<Array<{ role: string; content: string | Array<Record<string, unknown>> }>> {
+    const dataUrlRegex = /!\[([^\]]*)\]\(data:image\/([^;)]+);base64,([^)]+)\)/g;
+    const httpImageRegex = /!\[([^\]]*)\]\(((?:http|https):\/\/[^\s)]+\.(?:png|jpg|jpeg|gif|webp|bmp|svg)(?:\?[^\s)]*)?)\)/gi;
+
+    const results = await Promise.all(messages.map(async (msg) => {
+      if (msg.role !== 'user') return msg;
+      if (!msg.content) return msg;
+
+      const dataUrlMatches = Array.from(msg.content.matchAll(dataUrlRegex));
+      const httpImageMatches = Array.from(msg.content.matchAll(httpImageRegex));
+
+      if (dataUrlMatches.length === 0 && httpImageMatches.length === 0) return msg;
+
+      const allMatches: Array<{ index: number; match: RegExpMatchArray; type: 'dataurl' | 'http' }> = [
+        ...dataUrlMatches.map((m) => ({ index: m.index!, match: m, type: 'dataurl' as const })),
+        ...httpImageMatches.map((m) => ({ index: m.index!, match: m, type: 'http' as const })),
+      ].sort((a, b) => a.index - b.index);
+
+      const parts: Array<Record<string, unknown>> = [];
+      let lastIndex = 0;
+
+      for (const { index, match, type } of allMatches) {
+        if (index > lastIndex) {
+          parts.push({ type: 'text', text: msg.content.slice(lastIndex, index) });
+        }
+
+        if (type === 'dataurl') {
+          const mimeType = `image/${match[2]}`;
+          parts.push({
+            type: 'image',
+            image: `data:${mimeType};base64,${match[3]}`,
+            mimeType,
+          });
+        } else {
+          const imageUrl = match[2];
+          try {
+            const { default: axios } = await import('axios');
+            const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 10000 });
+            const contentType = response.headers['content-type'] || 'image/png';
+            const base64 = Buffer.from(response.data).toString('base64');
+            parts.push({
+              type: 'image',
+              image: `data:${contentType};base64,${base64}`,
+              mimeType: contentType,
+            });
+          } catch {
+            parts.push({ type: 'text', text: match[0] });
+          }
+        }
+
+        lastIndex = index + match[0].length;
+      }
+
+      if (lastIndex < msg.content.length) {
+        parts.push({ type: 'text', text: msg.content.slice(lastIndex) });
+      }
+
+      return { ...msg, content: parts };
+    }));
+
+    return results;
   }
 
   /**
@@ -1323,6 +1404,15 @@ export class AiService {
    */
   getToolCallParser(): ToolCallParser {
     return this.toolCallParser;
+  }
+
+  /**
+   * 根据模型类型获取对应的会话类型（所有模型对话统一使用 MODEL 类型）
+   * @param _modelType 模型类型（llm/lmm/omni）
+   * @returns 会话类型，始终返回 MODEL
+   */
+  private getConversationTypeByModelType(_modelType: string): ConversationType {
+    return ConversationType.MODEL;
   }
 
 }

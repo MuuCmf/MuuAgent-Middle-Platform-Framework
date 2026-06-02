@@ -1,4 +1,4 @@
-﻿import {
+import {
   Injectable,
   NotFoundException,
   ConflictException,
@@ -593,9 +593,12 @@ Final Answer: 对用户问题的最终回答
 - code: 编程开发、代码编写、调试、技术问题
 - math: 数学计算、公式推导、统计分析
 - creative: 创意写作、文案创作、翻译润色
+- professional: 专业领域咨询（法律、医学、金融、教育等）
+- vision: 视觉理解、图片分析、识别图片内容、查看图片
 - image: 图像生成、绘图、图片处理
 - tts: 语音合成、文字转语音、朗读
 - asr: 语音识别、语音转文字
+- s2s: 端到端语音对话、语音交流
 
 ## 用户消息
 

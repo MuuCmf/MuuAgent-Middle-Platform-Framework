@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateConversationDto, ConversationType } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';

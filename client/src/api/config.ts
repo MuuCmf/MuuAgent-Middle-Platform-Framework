@@ -14,4 +14,5 @@ export const API_ENDPOINTS = {
   models: '/api/model',
   agents: '/api/agent',
   conversations: '/api/conversation',
+  fileUpload: '/api/file/upload',
 }

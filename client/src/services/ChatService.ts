@@ -60,6 +60,29 @@ export class ChatService {
     const response = await httpClient.getInstance().get(API_ENDPOINTS.models)
     return response.data
   }
+
+  /**
+   * 上传文件
+   * @param file 文件对象
+   * @param fileType 文件类型（image/video/file）
+   * @returns 上传结果（包含文件URL等）
+   */
+  async uploadFile(file: File, fileType: string): Promise<any> {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('businessType', fileType === 'image' ? 'image' : 'file')
+
+    const response = await httpClient.getInstance().post(
+      API_ENDPOINTS.fileUpload,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      },
+    )
+    return response.data
+  }
 }
 
 /** AI聊天服务实例 */

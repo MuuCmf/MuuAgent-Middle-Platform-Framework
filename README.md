@@ -395,7 +395,7 @@ MuuAgent/
 │   ├── model-management-guide.md # 模型管理指南
 │   ├── agent-guide.md            # 智能体指南
 │   ├── builtin-tool-registration-guide.md # 内置工具注册指南
-│   ├── custom_tool-guide.md      # 自定义工具指南
+│   ├── custom-skill-guide.md      # 自定义技能指南
 │   ├── knowledge-base-retrieval.md # 知识库检索
 │   ├── qdrant-configuration.md   # Qdrant 配置
 │   ├── smart-routing.md          # 智能路由

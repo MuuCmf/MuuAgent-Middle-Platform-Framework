@@ -7,6 +7,7 @@ import {
   Query,
   Body,
   UseInterceptors,
+  UploadedFile,
   UploadedFiles,
   StreamableFile,
   Header,
@@ -42,7 +43,7 @@ export class FileController {
   @UseInterceptors(FileInterceptor('file'))
   @RequireTenantPermission('file', 'upload')
   async uploadSingle(
-    @UploadedFiles() file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadFileDto,
     @Req() request: Request,
   ) {

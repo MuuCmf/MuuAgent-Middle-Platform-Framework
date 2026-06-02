@@ -3,33 +3,26 @@
     <div class="input-wrapper">
       <div v-if="currentMode === 'chat'" class="agent-chips-bar">
         <div class="agent-chips-row">
-          <div
-            :class="['agent-chip', { active: !selectedAgent }]"
-            @click="handleAgentSelect('')"
-          >
-            <el-icon :size="13"><Cpu /></el-icon>
+          <div :class="['agent-chip', { active: !selectedAgent }]" @click="handleAgentSelect('')">
+            <el-icon :size="13">
+              <Cpu />
+            </el-icon>
             <span>大模型</span>
           </div>
-          <div
-            v-for="agent in agents"
-            :key="agent.id"
-            :class="['agent-chip', { active: selectedAgent === agent.id }]"
-            @click="handleAgentSelect(agent.id)"
-          >
-            <el-icon :size="13"><User /></el-icon>
+          <div v-for="agent in agents" :key="agent.id" :class="['agent-chip', { active: selectedAgent === agent.id }]"
+            @click="handleAgentSelect(agent.id)">
+            <el-icon :size="13">
+              <User />
+            </el-icon>
             <span>{{ agent.name }}</span>
           </div>
         </div>
       </div>
 
       <div v-if="showCommandMenu" class="command-menu">
-        <div
-          v-for="(cmd, idx) in filteredCommands"
-          :key="cmd.name"
-          :class="['command-item', { active: idx === commandIndex }]"
-          @click="selectCommand(cmd)"
-          @mouseenter="commandIndex = idx"
-        >
+        <div v-for="(cmd, idx) in filteredCommands" :key="cmd.name"
+          :class="['command-item', { active: idx === commandIndex }]" @click="selectCommand(cmd)"
+          @mouseenter="commandIndex = idx">
           <span class="command-name">/{{ cmd.name }}</span>
           <span class="command-desc">{{ cmd.description }}</span>
         </div>
@@ -42,46 +35,66 @@
             <div class="model-sheet-panel">
               <div class="model-sheet-header">
                 <span class="model-sheet-title">选择模型</span>
-                <el-icon class="model-sheet-close" :size="20" @click="showModelSheet = false"><Close /></el-icon>
+                <el-icon class="model-sheet-close" :size="20" @click="showModelSheet = false">
+                  <Close />
+                </el-icon>
               </div>
               <div class="model-sheet-body">
-                <div
-                  :class="['model-sheet-item', { active: internalModelCode === 'mcp-llm' || !internalModelCode }]"
-                  @click="selectModel('mcp-llm')"
-                >
+                <div :class="['model-sheet-item', { active: internalModelCode === 'mcp-llm' || !internalModelCode }]"
+                  @click="selectModel('mcp-llm')">
                   <div class="model-sheet-icon mcp-icon">
-                    <el-icon :size="20"><Star /></el-icon>
+                    <el-icon :size="20">
+                      <Star />
+                    </el-icon>
                   </div>
                   <div class="model-sheet-info">
                     <span class="model-sheet-name">Auto 智能调度</span>
                     <span class="model-sheet-desc">自动选择最优模型，支持负载均衡和故障转移</span>
                   </div>
-                  <el-icon v-if="internalModelCode === 'mcp-llm' || !internalModelCode" class="model-sheet-check" :size="18"><Check /></el-icon>
+                  <el-icon v-if="internalModelCode === 'mcp-llm' || !internalModelCode" class="model-sheet-check"
+                    :size="18">
+                    <Check />
+                  </el-icon>
                 </div>
 
                 <div class="model-sheet-divider">
                   <span>指定模型</span>
                 </div>
 
-                <div
-                  v-for="model in enabledModels"
-                  :key="model.id"
+                <!-- 模型类型切换标签 -->
+                <div class="model-type-tabs">
+                  <div v-for="tab in modelTypeOptions" :key="tab.value"
+                    :class="['model-type-tab', { active: internalModelType === tab.value }]"
+                    @click="handleModelTypeTabChange(tab.value)">
+                    <span class="model-type-tab-icon">{{ tab.icon }}</span>
+                    <span class="model-type-tab-label">{{ tab.label }}</span>
+                  </div>
+                </div>
+
+
+
+                <div v-for="model in enabledModels" :key="model.id"
                   :class="['model-sheet-item', { active: internalModelCode === model.code }]"
-                  @click="selectModel(model.code)"
-                >
+                  @click="selectModel(model.code)">
                   <div class="model-sheet-icon">
-                    <el-icon :size="20"><Cpu /></el-icon>
+                    <el-icon :size="20">
+                      <Cpu />
+                    </el-icon>
                   </div>
                   <div class="model-sheet-info">
                     <span class="model-sheet-name">{{ model.name }}</span>
-                    <span class="model-sheet-desc">{{ model.description || 'LLM模型' }}</span>
+                    <span class="model-sheet-desc">{{ model.description || currentModelTypeLabel + '模型' }}</span>
                   </div>
-                  <el-icon v-if="internalModelCode === model.code" class="model-sheet-check" :size="18"><Check /></el-icon>
+                  <el-icon v-if="internalModelCode === model.code" class="model-sheet-check" :size="18">
+                    <Check />
+                  </el-icon>
                 </div>
 
                 <div v-if="enabledModels.length === 0" class="model-sheet-empty">
-                  <el-icon :size="40" color="var(--text-tertiary)"><Cpu /></el-icon>
-                  <span>暂无可用模型</span>
+                  <el-icon :size="40" color="var(--text-tertiary)">
+                    <Cpu />
+                  </el-icon>
+                  <span>暂无可用{{ currentModelTypeLabel }}模型</span>
                 </div>
               </div>
             </div>
@@ -96,15 +109,14 @@
             <div class="mode-sheet-panel">
               <div class="mode-sheet-header">
                 <span class="mode-sheet-title">选择模式</span>
-                <el-icon class="mode-sheet-close" :size="20" @click="showModeSheet = false"><Close /></el-icon>
+                <el-icon class="mode-sheet-close" :size="20" @click="showModeSheet = false">
+                  <Close />
+                </el-icon>
               </div>
               <div class="mode-sheet-body">
-                <div
-                  v-for="item in modeOptions"
-                  :key="item.value"
+                <div v-for="item in modeOptions" :key="item.value"
                   :class="['mode-sheet-item', { active: currentMode === item.value }]"
-                  @click="handleModeSheetSelect(item.value)"
-                >
+                  @click="handleModeSheetSelect(item.value)">
                   <div :class="['mode-sheet-icon', `mode-icon-${item.value}`]">
                     <span class="mode-sheet-emoji">{{ item.icon }}</span>
                   </div>
@@ -112,7 +124,9 @@
                     <span class="mode-sheet-name">{{ item.label }}</span>
                     <span class="mode-sheet-desc">{{ item.description }}</span>
                   </div>
-                  <el-icon v-if="currentMode === item.value" class="mode-sheet-check" :size="18"><Check /></el-icon>
+                  <el-icon v-if="currentMode === item.value" class="mode-sheet-check" :size="18">
+                    <Check />
+                  </el-icon>
                 </div>
               </div>
             </div>
@@ -126,60 +140,108 @@
             <div class="mode-trigger" @click="showModeSheet = true">
               <span class="mode-trigger-icon">{{ currentModeIcon }}</span>
               <span class="mode-trigger-text">{{ currentModeLabel }}</span>
-              <el-icon :size="12" class="mode-trigger-arrow"><ArrowUp /></el-icon>
+              <el-icon :size="12" class="mode-trigger-arrow">
+                <ArrowUp />
+              </el-icon>
             </div>
             <div class="model-trigger" @click="showModelSheet = true">
-              <el-icon :size="14"><Cpu /></el-icon>
+              <el-icon :size="14">
+                <Cpu />
+              </el-icon>
               <span class="model-trigger-text">{{ currentModelDisplayName }}</span>
-              <el-icon :size="12" class="model-trigger-arrow"><ArrowUp /></el-icon>
+              <span class="model-type-badge">{{ currentModelTypeLabel }}</span>
+              <el-icon :size="12" class="model-trigger-arrow">
+                <ArrowUp />
+              </el-icon>
             </div>
-            <div v-if="currentMode === 'chat' && selectedAgent && selectedAgentSupportsWorkspace" class="workspace-trigger" @click="handleWorkspaceTrigger">
+            <div v-if="currentMode === 'chat' && selectedAgent && selectedAgentSupportsWorkspace"
+              class="workspace-trigger" @click="handleWorkspaceTrigger">
               <template v-if="workspaceIsActive">
-                <el-icon :size="14"><FolderOpened /></el-icon>
+                <el-icon :size="14">
+                  <FolderOpened />
+                </el-icon>
                 <span class="workspace-trigger-text">{{ workspaceDirName || '已选择' }}</span>
-                <el-icon :size="12" class="workspace-trigger-clear" @click.stop="handleWorkspaceClear"><Close /></el-icon>
+                <el-icon :size="12" class="workspace-trigger-clear" @click.stop="handleWorkspaceClear">
+                  <Close />
+                </el-icon>
               </template>
               <template v-else>
-                <el-icon :size="14"><Folder /></el-icon>
+                <el-icon :size="14">
+                  <Folder />
+                </el-icon>
                 <span class="workspace-trigger-text">请选择工作目录</span>
               </template>
             </div>
           </div>
           <div class="bottom-bar-right">
-            <div class="voice-trigger" :class="{ 'voice-active': voiceEnabled }" @click="handleVoiceClick" @contextmenu.prevent="handleVoiceSettings" :title="voiceEnabled ? '语音播报已开启（点击切换，右键设置）' : '语音播报已关闭（点击切换，右键设置）'">
-              <el-icon :size="16"><Headset /></el-icon>
+            <div class="upload-trigger" @click="showFilePicker = true" title="上传文件">
+              <el-icon :size="18">
+                <Plus />
+              </el-icon>
+            </div>
+            <div class="voice-trigger" :class="{ 'voice-active': voiceEnabled }" @click="handleVoiceClick"
+              @contextmenu.prevent="handleVoiceSettings"
+              :title="voiceEnabled ? '语音播报已开启（点击切换，右键设置）' : '语音播报已关闭（点击切换，右键设置）'">
+              <el-icon :size="16">
+                <Headset />
+              </el-icon>
               <span class="voice-trigger-badge" :class="{ active: voiceEnabled }" />
             </div>
           </div>
+
+          <!-- 文件上传弹出层 -->
+          <Teleport to="body">
+            <Transition name="file-sheet">
+              <div v-if="showFilePicker" class="file-sheet-overlay" @click.self="showFilePicker = false">
+                <div class="file-sheet-panel">
+                  <div class="file-sheet-header">
+                    <span class="file-sheet-title">上传文件</span>
+                    <el-icon class="file-sheet-close" :size="20" @click="showFilePicker = false">
+                      <Close />
+                    </el-icon>
+                  </div>
+                  <div class="file-sheet-body">
+                    <div class="file-sheet-item" @click="selectFileType('image/*', 'image')">
+                      <span class="file-sheet-emoji">🖼️</span>
+                      <div class="file-sheet-info">
+                        <div class="file-sheet-name">图片</div>
+                        <div class="file-sheet-desc">上传 JPG、PNG、GIF 等格式图片</div>
+                      </div>
+                    </div>
+                    <div class="file-sheet-item" @click="selectFileType('video/*', 'video')">
+                      <span class="file-sheet-emoji">🎬</span>
+                      <div class="file-sheet-info">
+                        <div class="file-sheet-name">视频</div>
+                        <div class="file-sheet-desc">上传 MP4、AVI、MOV 等格式视频</div>
+                      </div>
+                    </div>
+                    <div class="file-sheet-item" @click="selectFileType('.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar', 'file')">
+                      <span class="file-sheet-emoji">📄</span>
+                      <div class="file-sheet-info">
+                        <div class="file-sheet-name">文件</div>
+                        <div class="file-sheet-desc">上传 PDF、Word、Excel、PPT 等文档</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </Teleport>
+
+          <input ref="fileInputRef" type="file" style="display: none" @change="handleFileChange" />
         </div>
-        <el-input
-          ref="inputRef"
-          v-model="inputText"
-          type="textarea"
-          :rows="3"
-          :placeholder="getPlaceholder()"
-          @keydown="handleKeydown"
-          @input="handleInput"
-          :disabled="isLoading"
-          resize="none"
-        />
+        <el-input ref="inputRef" v-model="inputText" type="textarea" :rows="3" :placeholder="getPlaceholder()"
+          @keydown="handleKeydown" @input="handleInput" :disabled="isLoading" resize="none" />
         <div class="input-actions">
-          <el-button
-            v-if="isLoading"
-            type="danger"
-            @click="emit('stop')"
-            circle
-          >
-            <el-icon><VideoPause /></el-icon>
+          <el-button v-if="isLoading" type="danger" @click="emit('stop')" circle>
+            <el-icon>
+              <VideoPause />
+            </el-icon>
           </el-button>
-          <el-button
-            v-else
-            type="primary"
-            :disabled="!inputText.trim()"
-            @click="handleSend"
-            circle
-          >
-            <el-icon><Promotion /></el-icon>
+          <el-button v-else type="primary" :disabled="!inputText.trim()" @click="handleSend" circle>
+            <el-icon>
+              <Promotion />
+            </el-icon>
           </el-button>
         </div>
       </div>
@@ -190,7 +252,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
-import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check, Headset } from '@element-plus/icons-vue'
+import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check, Headset, Plus } from '@element-plus/icons-vue'
 import VoiceSettings from './VoiceSettings.vue'
 
 /**
@@ -236,6 +298,8 @@ interface Props {
   models?: any[]
   /** 当前选中的模型编码 */
   selectedLlmModel?: string
+  /** 当前选中的模型类型筛选 */
+  selectedModelType?: string
   /** 语音播报是否启用 */
   voiceEnabled?: boolean
 }
@@ -247,6 +311,7 @@ const props = withDefaults(defineProps<Props>(), {
   workspaceDirName: null,
   models: () => [],
   selectedLlmModel: 'mcp-llm',
+  selectedModelType: 'llm',
   voiceEnabled: false,
 })
 
@@ -285,12 +350,27 @@ const emit = defineEmits<{
   'workspace-clear': []
   /** 模型变更 */
   'llm-model-change': [value: string]
+  /** 模型类型筛选变更 */
+  'model-type-change': [value: string]
   /** 语音播报开关切换 */
   'voice-toggle': []
+  /** 文件上传 */
+  'file-upload': [file: File, fileType: string]
 }>()
 
 /** 内部模型编码（用于本地响应式） */
 const internalModelCode = ref<string>(props.selectedLlmModel)
+
+/** 内部模型类型筛选（用于本地响应式） */
+const internalModelType = ref<string>(props.selectedModelType)
+
+/** 模型类型标签选项 */
+const modelTypeOptions = [
+  { value: 'llm', label: 'LLM', icon: '💬', description: '大语言模型' },
+  { value: 'lmm', label: 'LMM', icon: '🖼️', description: '多模态模型' },
+  { value: 'omni', label: 'OMNI', icon: '🌟', description: '全能多模态模型' },
+]
+
 /** 模型上拉面板是否显示 */
 const showModelSheet = ref(false)
 /** 模式上拉面板是否显示 */
@@ -298,6 +378,13 @@ const showModeSheet = ref(false)
 
 /** 语音设置对话框引用 */
 const voiceSettingsRef = ref<InstanceType<typeof VoiceSettings>>()
+
+/** 文件选择器是否显示 */
+const showFilePicker = ref(false)
+/** 隐藏的文件输入框引用 */
+const fileInputRef = ref<HTMLInputElement | null>()
+/** 当前待上传的文件类型 */
+const pendingFileType = ref('')
 
 /** 输入文本 */
 const inputText = ref('')
@@ -352,11 +439,24 @@ watch(() => props.selectedLlmModel, (newVal) => {
   internalModelCode.value = newVal
 })
 
+/** 监听外部模型类型变更 */
+watch(() => props.selectedModelType, (newVal) => {
+  internalModelType.value = newVal
+})
+
 /**
- * 已启用的LLM模型列表
+ * 已启用的模型列表（按选中类型筛选）
  */
 const enabledModels = computed(() => {
-  return props.models.filter((m: ModelItem) => m.status === true && m.type === 'llm')
+  return props.models.filter((m: ModelItem) => m.status === true && m.type === internalModelType.value)
+})
+
+/**
+ * 当前模型类型标签文字
+ */
+const currentModelTypeLabel = computed(() => {
+  const tab = modelTypeOptions.find((t) => t.value === internalModelType.value)
+  return tab?.label || 'LLM'
 })
 
 /**
@@ -387,6 +487,17 @@ const selectModel = (code: string) => {
   internalModelCode.value = code
   emit('llm-model-change', code)
   showModelSheet.value = false
+}
+
+/**
+ * 切换模型类型筛选标签
+ * @param modelType 模型类型
+ */
+const handleModelTypeTabChange = (modelType: string) => {
+  internalModelType.value = modelType
+  internalModelCode.value = 'mcp-llm'
+  emit('model-type-change', modelType)
+  emit('llm-model-change', 'mcp-llm')
 }
 
 /**
@@ -537,6 +648,32 @@ const handleVoiceSettings = () => {
 }
 
 /**
+ * 选择文件类型，触发原生文件选择器
+ * @param accept 允许的文件类型
+ * @param fileType 文件类别（image/video/file）
+ */
+const selectFileType = (accept: string, fileType: string) => {
+  pendingFileType.value = fileType
+  if (fileInputRef.value) {
+    fileInputRef.value.accept = accept
+    fileInputRef.value.value = ''
+    fileInputRef.value.click()
+  }
+  showFilePicker.value = false
+}
+
+/**
+ * 处理文件选择完成
+ * @param e 事件对象
+ */
+const handleFileChange = (e: Event) => {
+  const target = e.target as HTMLInputElement
+  if (target.files && target.files.length > 0) {
+    emit('file-upload', target.files[0], pendingFileType.value)
+  }
+}
+
+/**
  * 获取输入框占位文本
  * @returns 占位文本
  */
@@ -579,7 +716,9 @@ const getPlaceholder = (): string => {
   scrollbar-width: none;
   -ms-overflow-style: none;
 
-  &::-webkit-scrollbar { display: none; }
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .agent-chip {
@@ -608,7 +747,9 @@ const getPlaceholder = (): string => {
     color: white;
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
 
-    .el-icon { color: white; }
+    .el-icon {
+      color: white;
+    }
   }
 }
 
@@ -722,6 +863,145 @@ const getPlaceholder = (): string => {
   }
 }
 
+.upload-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-tertiary);
+
+  &:hover {
+    background: var(--bg-tertiary);
+    color: var(--primary-color);
+  }
+}
+
+.file-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.file-sheet-panel {
+  width: 100%;
+  max-width: 400px;
+  background: var(--white);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+  margin: 0 20px;
+}
+
+.file-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.file-sheet-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.file-sheet-close {
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: color 0.2s;
+
+  &:hover {
+    color: var(--text-color);
+  }
+}
+
+.file-sheet-body {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: var(--bg-secondary);
+  }
+}
+
+.file-sheet-emoji {
+  font-size: 28px;
+  line-height: 1;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.file-sheet-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-sheet-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.file-sheet-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.file-sheet-enter-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.file-sheet-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.file-sheet-enter-from,
+.file-sheet-leave-to {
+  opacity: 0;
+
+  .file-sheet-panel {
+    transform: scale(0.9) translateY(20px);
+    opacity: 0;
+  }
+}
+
+.file-sheet-enter-to,
+.file-sheet-leave-from {
+  opacity: 1;
+}
+
 .model-trigger,
 .workspace-trigger {
   display: inline-flex;
@@ -792,17 +1072,75 @@ const getPlaceholder = (): string => {
   color: var(--primary-color) !important;
 }
 
+.model-type-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--primary-color);
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  line-height: 1.4;
+}
+
+.model-type-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px 4px;
+}
+
+.model-type-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg-secondary);
+  border: 1px solid transparent;
+  user-select: none;
+
+  &:hover {
+    background: var(--bg-tertiary);
+  }
+
+  &.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+
+    .model-type-tab-label {
+      color: #fff;
+    }
+  }
+}
+
+.model-type-tab-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.model-type-tab-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: color 0.2s;
+}
+
 .mode-trigger {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    border-radius: 14px;
-    background: var(--bg-secondary);
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
 
   &:hover {
     background: var(--bg-tertiary);

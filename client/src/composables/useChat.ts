@@ -256,6 +256,9 @@ export function useChat() {
   /** 当前选中的LLM模型 */
   const selectedLlmModel = ref<string>("mcp-llm");
 
+  /** 当前选中的模型类型筛选（llm/lmm/omni） */
+  const selectedModelType = ref<string>("llm");
+
   // ========== 聊天状态 ==========
 
   /** 聊天消息列表 */
@@ -269,9 +272,6 @@ export function useChat() {
 
   /** 选中的类型：模型/智能体 */
   const selectedType = ref<"model" | "agent">("model");
-
-  /** 选中的模型 */
-  const selectedModel = ref<string>("mcp-llm");
 
   /** 会话列表 */
   const conversations = ref<Conversation[]>([]);
@@ -334,6 +334,11 @@ export function useChat() {
   /** 启用的智能体列表 */
   const enabledAgents = computed(() => {
     return agents.value.filter((a: any) => a.status === true);
+  });
+
+  /** 按选中类型筛选的模型列表 */
+  const filteredModels = computed(() => {
+    return models.value.filter((m: any) => m.status === true && m.type === selectedModelType.value);
   });
 
   /** 客户端工具权限策略 */
@@ -502,8 +507,8 @@ export function useChat() {
       } else {
         params.conversationType = selectedType.value;
         if (selectedType.value === "model") {
-          if (selectedModel.value && selectedModel.value !== "mcp-llm") {
-            params.targetId = String(selectedModel.value);
+          if (selectedLlmModel.value && selectedLlmModel.value !== "mcp-llm") {
+            params.targetId = String(selectedLlmModel.value);
           }
         } else if (selectedType.value === "agent") {
           if (selectedAgent.value) {
@@ -616,8 +621,12 @@ export function useChat() {
     scrollToBottom();
   };
 
-  /** 发送聊天消息 */
-  const sendChatMessage = async (content: string) => {
+  /**
+   * 发送聊天消息
+   * @param content 用户消息内容（显示在UI并存储到数据库）
+   * @param aiContent 发送给AI的消息内容（可选，不传则使用content）
+   */
+  const sendChatMessage = async (content: string, aiContent?: string) => {
     await clientToolService.syncToRegistry();
 
     if (workspace.dirHandle.value) {
@@ -682,9 +691,10 @@ export function useChat() {
 
     try {
       if (selectedType.value === "model") {
-        await streamModelChat(assistantIndex, userMessage, controller.signal);
+        const msgForAI = aiContent ? { ...userMessage, content: aiContent } : userMessage;
+        await streamModelChat(assistantIndex, msgForAI, controller.signal);
       } else {
-        await streamAgentChat(content, assistantIndex, controller.signal);
+        await streamAgentChat(aiContent || content, assistantIndex, controller.signal);
       }
     } catch {
       isLoading.value = false;
@@ -711,6 +721,7 @@ export function useChat() {
       chatService.streamChat(
         {
           modelCode: currentModelCode.value,
+          modelType: selectedModelType.value,
           messages: messagesToSend,
           conversationId: currentConversationId.value,
         },
@@ -1020,6 +1031,14 @@ export function useChat() {
   /** LLM模型变更 */
   const handleLlmModelChange = (modelCode: string) => {
     selectedLlmModel.value = modelCode;
+    loadConversations();
+  };
+
+  /** 模型类型筛选变更 */
+  const handleModelTypeChange = (modelType: string) => {
+    selectedModelType.value = modelType;
+    selectedLlmModel.value = "mcp-llm";
+    loadConversations();
   };
 
   /** 智能体变更 */
@@ -1213,6 +1232,39 @@ export function useChat() {
     ttsStreamService.changeSpeed(speed)
   }
 
+  // ========== 文件上传 ==========
+
+  /**
+   * 处理文件上传
+   * 将文件上传到服务器，添加用户消息并自动触发 AI 处理
+   * 消息内容使用服务器 URL（UI 显示和 DB 存储），服务端会自行下载图片转为多模态内容传给 AI
+   * @param file 文件对象
+   * @param fileType 文件类型（image/video/file）
+   */
+  const handleFileUpload = async (file: File, fileType: string) => {
+    try {
+      const response = await chatService.uploadFile(file, fileType);
+      const result = response.data || response;
+      const fileUrl = result.fileUrl || '';
+
+      const fileSize = (file.size / 1024 / 1024).toFixed(2);
+
+      if (fileType === 'image') {
+        const displayContent = `![${file.name}](${fileUrl})`;
+        await sendChatMessage(displayContent);
+      } else {
+        messages.value.push({
+          role: "user",
+          content: `[${fileType === 'video' ? '视频' : '文件'}] ${file.name}（${fileSize}MB）\n${fileUrl}`,
+          timestamp: Date.now(),
+        });
+      }
+    } catch (error) {
+      ElMessage.error("文件上传失败");
+      console.error("文件上传错误:", error);
+    }
+  };
+
   // ========== 初始化 ==========
 
   /** 加载模型列表 */
@@ -1249,6 +1301,8 @@ export function useChat() {
     messagesRef,
     selectedAgent,
     selectedLlmModel,
+    selectedModelType,
+    filteredModels,
     messages,
     isLoading,
     currentConversationId,
@@ -1272,6 +1326,7 @@ export function useChat() {
     ttsStatus,
     handleModeChange,
     handleLlmModelChange,
+    handleModelTypeChange,
     handleAgentChange,
     handleKbChange,
     handleSendMessage,
@@ -1288,6 +1343,7 @@ export function useChat() {
     handleTtsResume,
     handleTtsChangeVoice,
     handleTtsChangeSpeed,
+    handleFileUpload,
     getModelName,
     getAgentName,
     getKbName,

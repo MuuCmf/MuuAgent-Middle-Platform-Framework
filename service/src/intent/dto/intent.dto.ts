@@ -32,6 +32,8 @@ export enum IntentType {
   ASR = 'asr',
   /** 端到端语音 */
   S2S = 's2s',
+  /** 视觉理解（图片分析/识别，区别于 IMAGE 的生成） */
+  VISION = 'vision',
 }
 
 /**
@@ -53,6 +55,7 @@ export const INTENT_TO_MODEL_TYPE: Record<string, string[]> = {
   [IntentType.TTS]: ['omni', 'tts'],
   [IntentType.ASR]: ['omni', 'asr'],
   [IntentType.S2S]: ['omni', 's2s'],
+  [IntentType.VISION]: ['omni', 'lmm'],
 };
 
 /**
@@ -69,4 +72,5 @@ export const INTENT_TO_CAPABILITY: Record<string, string[]> = {
   [IntentType.TTS]: ['tts', 'tts:realtime'],
   [IntentType.ASR]: ['asr'],
   [IntentType.S2S]: ['s2s'],
+  [IntentType.VISION]: ['lmm:vision'],
 };
