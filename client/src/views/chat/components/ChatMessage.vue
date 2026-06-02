@@ -50,7 +50,15 @@
         <div
           v-else-if="message.role === 'user'"
           class="message-text user-text"
-        >{{ message.content }}</div>
+        >
+          <Markdown
+            :content="processedContent"
+            mode="static"
+            :controls="markdownControls"
+            :codeOptions="codeOptions"
+            :shikiOptions="shikiOptions"
+          />
+        </div>
 
         <template v-else-if="message.role === 'assistant' && !message.type">
           <template v-if="message.contentBlocks && message.contentBlocks.length > 0">

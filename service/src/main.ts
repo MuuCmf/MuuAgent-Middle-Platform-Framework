@@ -90,12 +90,15 @@ async function bootstrap(): Promise<void> {
   // 设置全局前缀
   app.setGlobalPrefix("api");
 
-  // 配置静态文件服务（ public 目录）
-  app.useStaticAssets(join(__dirname, "..", "public", "client"), {
+  // 配置静态文件服务（直接引用源代码目录，避免构建时复制）
+  app.useStaticAssets(join(__dirname, "..", "..", "public", "client"), {
     prefix: "/client",
   });
-  app.useStaticAssets(join(__dirname, "..", "public", "admin"), {
+  app.useStaticAssets(join(__dirname, "..", "..", "public", "admin"), {
     prefix: "/admin",
+  });
+  app.useStaticAssets(join(__dirname, "..", "..", "uploads"), {
+    prefix: "/uploads",
   }); 
 
   // 启用CORS跨域
@@ -153,10 +156,10 @@ async function bootstrap(): Promise<void> {
 
     // SPA 路由回退：/client 和 /admin 路径下的所有路由返回对应的 index.html
     if (req.path.startsWith("/client")) {
-      return res.sendFile(join(__dirname, "..", "public", "client", "index.html"));
+      return res.sendFile(join(__dirname, "..", "..", "public", "client", "index.html"));
     }
     if (req.path.startsWith("/admin")) {
-      return res.sendFile(join(__dirname, "..", "public", "admin", "index.html"));
+      return res.sendFile(join(__dirname, "..", "..", "public", "admin", "index.html"));
     }
 
     // 其他路由返回 404

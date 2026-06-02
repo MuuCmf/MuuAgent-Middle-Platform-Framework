@@ -1,3 +1,5 @@
+import { API_CONFIG } from '../api/config'
+
 /**
  * Markdown 预处理工具函数
  * 用于修正 AI 输出的 Markdown 格式问题
@@ -51,6 +53,18 @@ const KNOWN_LANGUAGES = new Set([
  */
 export function preprocessMarkdown(content: string): string {
   let result = content
+
+  // 将相对路径的图片 URL 转为绝对路径，避免不同环境显示错位
+  const baseUrl = API_CONFIG.baseURL || window.location.origin
+  if (baseUrl) {
+    result = result.replace(
+      /!\[([^\]]*)\]\((\/[^)]+)\)/g,
+      (match, alt, url) => {
+        if (url.startsWith('http://') || url.startsWith('https://')) return match
+        return `![${alt}](${baseUrl}${url})`
+      },
+    )
+  }
 
   result = result.replace(/^(#{1,6})([^\s#])/gm, '$1 $2')
   result = result.replace(/([^\s])(#{1,6})/g, '$1\n\n$2')
