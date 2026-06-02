@@ -70,7 +70,7 @@
               <!-- 文本块 -->
               <div v-if="block.type === 'text'" class="content-block-text">
                 <Markdown
-                  :content="block.content"
+                  :content="preprocessMarkdown(block.content)"
                   :mode="getBlockRenderMode(block)"
                   :controls="markdownControls"
                   :codeOptions="codeOptions"

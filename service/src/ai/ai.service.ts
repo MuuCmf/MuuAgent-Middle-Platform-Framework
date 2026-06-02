@@ -796,6 +796,8 @@ export class AiService {
 
     // 若未指定模型标识，尝试从语音配置中获取
     let modelCode = dto.modelCode;
+    // 标记 voice 是否已通过 voiceProfile 关联到具体模型
+    let voiceMatchedToModel = !!dto.modelCode;
     if (!modelCode && dto.voice) {
       try {
         const voiceProfile = await this.prisma.voiceProfile.findFirst({
@@ -804,6 +806,7 @@ export class AiService {
         });
         if (voiceProfile?.modelCode) {
           modelCode = voiceProfile.modelCode;
+          voiceMatchedToModel = true;
           this.logger.debug(`TTS从语音配置获取模型标识: voice=${dto.voice}, modelCode=${modelCode}`);
         }
       } catch {
@@ -811,7 +814,9 @@ export class AiService {
       }
     }
 
-    this.logger.debug(`TTS语音合成开始: requestId=${context.requestId}, modelCode=${modelCode}`);
+    this.logger.debug(
+      `TTS语音合成开始: requestId=${context.requestId}, modelCode=${modelCode}, voiceMatchedToModel=${voiceMatchedToModel}`,
+    );
 
     try {
       const model = await this.selectModel(modelCode, modelType);
@@ -827,10 +832,21 @@ export class AiService {
         );
       }
 
+      // 如果 voice 未能匹配到具体模型（voiceProfile 不存在或无 modelCode），
+      // 不传入 voice 让策略使用该模型的默认音色，避免 Resource ID 与 Speaker 不匹配
+      const effectiveVoice = voiceMatchedToModel ? dto.voice : undefined;
+
+      // 清洗文本：移除 <thinking> 推理过程，避免朗读思考内容
+      const cleanText = dto.text
+        .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
+        .replace(/<thinking>/g, '')
+        .replace(/<\/thinking>/g, '')
+        .trim();
+
       const result = await strategy.executeTTS({
         model,
-        text: dto.text,
-        voice: dto.voice,
+        text: cleanText || dto.text,
+        voice: effectiveVoice,
         speed: dto.speed,
         context,
       });

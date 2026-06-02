@@ -210,8 +210,14 @@ export class TtsService {
         return;
       }
 
-      const voiceId = voice || clientParams?.voiceId || 'zh_female_vv_uranus_bigtts';
       const voiceSpeed = speed || clientParams?.speed || 1.0;
+
+      // 如果 voice 指定了，检查是否关联到当前模型，否则使用策略默认音色避免不匹配
+      const effectiveVoice = voice
+        ? await this.resolveCompatibleVoice(voice, model)
+        : (clientParams?.voiceId || undefined);
+
+      const voiceId = effectiveVoice || 'zh_female_vv_uranus_bigtts';
 
       const execParams: TTSExecutionParams = {
         model,
@@ -323,6 +329,34 @@ export class TtsService {
   }
 
   /**
+   * 检查音色是否与当前模型兼容，若不兼容则返回 undefined 让策略使用默认音色
+   * @param voice 音色ID
+   * @param model 已选中的模型
+   * @returns 兼容的音色ID，或不兼容时返回 undefined
+   */
+  private async resolveCompatibleVoice(voice: string, model: any): Promise<string | undefined> {
+    try {
+      const profile = await this.prisma.voiceProfile.findFirst({
+        where: { voiceId: voice, status: true },
+        orderBy: { isDefault: 'desc' },
+      });
+      if (!profile) {
+        this.logger.warn(`音色 "${voice}" 未在语音配置表中定义，将使用模型默认音色`);
+        return undefined;
+      }
+      if (profile.modelCode && profile.modelCode !== model.code) {
+        this.logger.warn(
+          `音色 "${voice}" 绑定到模型 "${profile.modelCode}"，当前模型为 "${model.code}"，将使用模型默认音色`,
+        );
+        return undefined;
+      }
+      return voice;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
    * 清洗文本（去除Markdown、Emoji等）
    * 清洗后若仅剩标点符号（无汉字/字母/数字），返回空字符串跳过合成
    * @param text 原始文本
@@ -331,6 +365,10 @@ export class TtsService {
   private cleanText(text: string): string {
     if (!text) return '';
     const cleaned = text
+      // 移除 <thinking>...</thinking> 推理思考过程
+      .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
+      .replace(/<thinking>/g, '')
+      .replace(/<\/thinking>/g, '')
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '')
       .replace(/\*\*([^*]+)\*\*/g, '$1')

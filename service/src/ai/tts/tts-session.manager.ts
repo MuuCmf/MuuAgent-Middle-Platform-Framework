@@ -255,10 +255,14 @@ export class TtsSessionManager {
     }
 
     const clientParams = this.gateway.getClientParams(conversationId);
-    const voiceId = clientParams?.voiceId || 'zh_female_vv_uranus_bigtts';
+    const clientVoiceId = clientParams?.voiceId || 'zh_female_vv_uranus_bigtts';
     const voiceSpeed = clientParams?.speed || 1.0;
 
-    const model = await this.resolveModel(modelCode, voiceId);
+    const model = await this.resolveModel(modelCode, clientVoiceId);
+
+    // 检查客户端传入的音色是否与找到的模型兼容，不兼容则使用模型默认音色
+    const voiceId = await this.resolveCompatibleVoice(clientVoiceId, model);
+
     const apiKey = this.resolveApiKey(model.apiKey);
     const modelCodeResolved = model.code || 'seed-tts-2.0';
     const wsEndpoint = model.endpoint || 'wss://openspeech.bytedance.com/api/v3/tts/bidirection';
@@ -724,6 +728,34 @@ export class TtsSessionManager {
       return fallback[0] || null;
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * 检查音色是否与当前模型兼容，若不兼容则返回 undefined 让策略使用默认音色
+   * @param voice 音色ID
+   * @param model 已选中的模型
+   * @returns 兼容的音色ID，或不兼容时返回 undefined
+   */
+  private async resolveCompatibleVoice(voice: string, model: any): Promise<string> {
+    try {
+      const profile = await this.prisma.voiceProfile.findFirst({
+        where: { voiceId: voice, status: true },
+        orderBy: { isDefault: 'desc' },
+      });
+      if (!profile) {
+        this.logger.warn(`音色 "${voice}" 未在语音配置表中定义，将使用模型默认音色`);
+        return 'zh_female_vv_uranus_bigtts';
+      }
+      if (profile.modelCode && profile.modelCode !== model.code) {
+        this.logger.warn(
+          `音色 "${voice}" 绑定到模型 "${profile.modelCode}"，当前模型为 "${model.code}"，将使用模型默认音色`,
+        );
+        return 'zh_female_vv_uranus_bigtts';
+      }
+      return voice;
+    } catch {
+      return 'zh_female_vv_uranus_bigtts';
     }
   }
 }
