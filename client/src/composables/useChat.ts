@@ -1209,7 +1209,7 @@ export function useChat() {
 
   /**
    * 切换视频对话开关
-   * 开启视频对话时自动启用 TTS 语音播报
+   * 开启视频对话时自动启用 TTS 语音播报并建立连接
    */
   const handleVideoToggle = () => {
     videoEnabled.value = !videoEnabled.value
@@ -1218,6 +1218,10 @@ export function useChat() {
     if (videoEnabled.value && !voiceEnabled.value) {
       voiceEnabled.value = true
       voiceService.updateConfig({ autoPlay: true })
+      // 立即连接 TTS，避免空窗期
+      if (currentConversationId.value) {
+        connectTtsIfEnabled(currentConversationId.value)
+      }
     }
   }
 

@@ -149,7 +149,7 @@
                 <Cpu />
               </el-icon>
               <span class="model-trigger-text">{{ currentModelDisplayName }}</span>
-              <span class="model-type-badge">{{ currentModelTypeLabel }}</span>
+              <span v-if="internalModelCode !== 'mcp-llm'" class="model-type-badge">{{ currentModelTypeLabel }}</span>
               <el-icon :size="12" class="model-trigger-arrow">
                 <ArrowUp />
               </el-icon>
@@ -174,8 +174,9 @@
             </div>
           </div>
           <div class="bottom-bar-right">
+            <!-- 音视频对话主开关：进入/退出 AV 模式（TTS 语音 + 可选摄像头） -->
             <div class="video-trigger" :class="{ 'video-active': videoEnabled }" @click="handleVideoToggleClick"
-              title="视频对话">
+              title="音视频对话（点击开启/关闭，摄像头在弹窗内控制）">
               <el-icon :size="16">
                 <VideoCamera />
               </el-icon>
@@ -238,25 +239,45 @@
           <input ref="fileInputRef" type="file" style="display: none" @change="handleFileChange" />
         </div>
 
-        <!-- 摄像头预览面板 -->
+        <!-- 摄像头控制面板 -->
         <Teleport to="body">
           <Transition name="video-sheet">
-            <div v-if="showCameraPreview" class="video-sheet-overlay" @click.self="showCameraPreview = false">
-              <div class="video-sheet-panel">
-                <div class="video-sheet-header">
-                  <span class="video-sheet-title">摄像头预览</span>
+            <div v-if="showCameraPreview" class="video-sheet-overlay">
+              <div class="video-sheet-panel" :style="{ transform: `translate(${panelOffsetX}px, ${panelOffsetY}px)` }">
+                <div class="video-sheet-header" @mousedown="handlePanelDragStart">
+                  <span class="video-sheet-title">音视频控制</span>
                   <div class="video-sheet-header-right">
-                    <span class="video-sheet-status" :class="{ active: isCapturing }">
-                      {{ isCapturing ? '● 录制中' : '○ 已暂停' }}
-                    </span>
-                    <el-icon class="video-sheet-close" :size="20" @click="showCameraPreview = false">
-                      <Close />
-                    </el-icon>
+                    <el-button size="small" round @click="showCameraPreview = false">
+                      关闭
+                    </el-button>
                   </div>
                 </div>
                 <div class="video-sheet-body">
-                  <video ref="videoRef" autoplay playsinline muted class="camera-video"></video>
-                  <canvas ref="canvasRef" class="camera-canvas" style="display:none"></canvas>
+                  <!-- 摄像头开关按钮 -->
+                  <div class="camera-control-row">
+                    <span class="camera-control-label">摄像头</span>
+                    <el-button
+                      :type="cameraActive ? 'primary' : 'default'"
+                      :icon="cameraActive ? VideoCameraFilled : VideoCamera"
+                      round
+                      size="small"
+                      @click="handleCameraToggle"
+                    >
+                      {{ cameraActive ? '关闭摄像头' : '开启摄像头' }}
+                    </el-button>
+                  </div>
+                  <!-- 视频预览区域 -->
+                  <div v-if="cameraActive" class="camera-preview-area">
+                    <video ref="videoRef" autoplay playsinline muted class="camera-video"></video>
+                    <canvas ref="canvasRef" class="camera-canvas" style="display:none"></canvas>
+                  </div>
+                  <div v-else class="camera-preview-placeholder">
+                    <el-icon :size="48" color="#999">
+                      <VideoCamera />
+                    </el-icon>
+                    <p>摄像头未开启</p>
+                    <p class="camera-hint">仅使用语音进行对话</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -285,7 +306,8 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, onBeforeUnmount } from 'vue'
-import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check, Headset, Plus, VideoCamera } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check, Headset, Plus, VideoCamera, VideoCameraFilled } from '@element-plus/icons-vue'
 import VoiceSettings from './VoiceSettings.vue'
 import { useCamera } from '../../../composables/useCamera'
 
@@ -433,17 +455,39 @@ const showCameraPreview = ref(false)
 const videoRef = ref<HTMLVideoElement | null>(null)
 /** Canvas 元素引用 */
 const canvasRef = ref<HTMLCanvasElement | null>(null)
-/** 摄像头 Composables */
+/** 摄像头 Composables（帧捕获由定时器控制 2s 间隔，useCamera 内部 minFrameInterval 作为安全网） */
 const camera = useCamera({
   hashSize: 8,
   similarityThreshold: 0.95,
-  minFrameInterval: 1000,
   frameQuality: 0.7,
 })
 /** 最近捕获的帧数据 */
 const latestFrame = ref<{ dataUrl: string; mimeType: string } | null>(null)
 /** 帧捕获定时器 */
 let frameTimer: ReturnType<typeof setInterval> | null = null
+/** 摄像头是否已开启（音视频模式下可独立开关） */
+const cameraActive = ref(false)
+
+/**
+ * 压缩帧数据 URL
+ * 将 Base64 图片缩放至目标尺寸再重新编码，减少传输体积
+ * @param dataUrl 原始帧数据 URL
+ * @param maxWidth 目标最大宽度，默认 320
+ * @param quality JPEG 质量，默认 0.6
+ * @returns 压缩后的数据 URL
+ */
+function compressFrame(dataUrl: string, maxWidth = 320, quality = 0.6): string {
+  const img = new Image()
+  img.src = dataUrl
+  const canvas = document.createElement('canvas')
+  const scale = Math.min(1, maxWidth / img.width)
+  canvas.width = img.width * scale
+  canvas.height = img.height * scale
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return dataUrl
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+  return canvas.toDataURL('image/jpeg', quality)
+}
 
 /** 输入文本 */
 const inputText = ref('')
@@ -644,14 +688,15 @@ const selectCommand = (cmd: SlashCommand) => {
 
 /**
  * 发送消息
- * 如果视频对话模式已启用，自动附带当前摄像头帧
+ * 如果摄像头已开启，自动附带当前摄像头帧（压缩后）
  */
 const handleSend = () => {
   if (inputText.value.trim()) {
     let content = inputText.value
-    // 视频对话模式下，自动附带当前帧
-    if (props.videoEnabled && latestFrame.value) {
-      content = `![camera-frame](${latestFrame.value.dataUrl})\n${content}`
+    // 摄像头已开启时，自动附带当前帧（压缩为 320px 宽以减少体积）
+    if (cameraActive.value && latestFrame.value) {
+      const compressed = compressFrame(latestFrame.value.dataUrl, 320, 0.6)
+      content = `![camera-frame](${compressed})\n${content}`
     }
     emit('send', content)
     inputText.value = ''
@@ -713,18 +758,42 @@ const handleVoiceSettings = () => {
 }
 
 /**
- * 处理视频对话按钮点击
- * 切换视频对话模式，同时向父组件发送事件
+ * 处理音视频对话主开关点击
+ * 进入/退出音视频对话模式（TTS 语音 + 可选摄像头）
+ * 进入时默认仅开启音频，不自动启动摄像头
  */
-const handleVideoToggleClick = async () => {
-  emit('video-toggle')
-
-  if (!props.videoEnabled) {
-    // 即将开启视频对话
-    await startCameraPreview()
+const handleVideoToggleClick = () => {
+  if (props.videoEnabled) {
+    if (!showCameraPreview.value) {
+      // AV 模式已开启但弹窗被关闭 → 重新打开弹窗
+      showCameraPreview.value = true
+    } else {
+      // 弹窗已打开 → 退出 AV 模式（关闭摄像头 + 关闭弹窗）
+      stopCameraPreview()
+      cameraActive.value = false
+      emit('video-toggle')
+    }
   } else {
-    // 即将关闭视频对话
-    stopCameraPreview()
+    // 未在 AV 模式 → 进入（仅音频，弹出摄像头控制面板供用户选择）
+    emit('video-toggle')
+    cameraActive.value = false
+    showCameraPreview.value = true
+  }
+}
+
+/**
+ * 独立开关摄像头（不退出音视频对话模式）
+ * 在弹窗内调用，控制摄像头启停
+ */
+const handleCameraToggle = async () => {
+  if (cameraActive.value) {
+    // 关闭摄像头（保留弹窗打开）
+    stopCameraCapture()
+    cameraActive.value = false
+  } else {
+    // 开启摄像头
+    cameraActive.value = true
+    await startCameraPreview()
   }
 }
 
@@ -733,6 +802,7 @@ const handleVideoToggleClick = async () => {
  * 打开摄像头、绑定视频元素、开始定时帧捕获
  */
 const startCameraPreview = async () => {
+  // 确保弹窗已打开
   showCameraPreview.value = true
   await nextTick()
 
@@ -753,23 +823,36 @@ const startCameraPreview = async () => {
   if (success) {
     // 启动定时帧捕获（每 2 秒）
     startFrameCapture()
+  } else {
+    // 启动失败时保持弹窗打开，重置状态
+    cameraActive.value = false
+    ElMessage.error(camera.error.value || '摄像头启动失败，请检查权限')
   }
 }
 
 /**
- * 停止摄像头预览
- * 清除定时器、关闭摄像头、隐藏预览面板
+ * 停止摄像头捕获（保留弹窗打开）
+ * 由 handleCameraToggle（关闭摄像头）调用
  */
-const stopCameraPreview = () => {
+const stopCameraCapture = () => {
   stopFrameCapture()
   camera.stopCamera()
   latestFrame.value = null
+}
+
+/**
+ * 停止摄像头预览并关闭弹窗
+ * 由 handleVideoToggleClick（退出AV模式）调用
+ */
+const stopCameraPreview = () => {
+  stopCameraCapture()
   showCameraPreview.value = false
 }
 
 /**
  * 启动定时帧捕获
  * 每 2 秒捕获一帧，自动去重
+ * 仅在摄像头活跃时更新 latestFrame
  */
 const startFrameCapture = () => {
   stopFrameCapture()
@@ -836,9 +919,52 @@ const getPlaceholder = (): string => {
 /** 摄像头是否正在捕获 */
 const isCapturing = computed(() => camera.isCapturing.value)
 
+/* ===== 弹窗拖拽 ===== */
+/** 弹窗累计偏移量 */
+const panelOffsetX = ref(0)
+const panelOffsetY = ref(0)
+/** 是否正在拖拽 */
+const isDragging = ref(false)
+/** 拖拽起始位置 */
+let dragStartX = 0
+let dragStartY = 0
+/** 拖拽起始偏移量（用于累加） */
+let dragOriginX = 0
+let dragOriginY = 0
+
+/**
+ * 拖拽开始（在 header 上 mousedown）
+ * @param e 鼠标事件
+ */
+const handlePanelDragStart = (e: MouseEvent) => {
+  // 仅左键拖拽，不响应按钮/输入框等交互元素
+  if (e.button !== 0 || (e.target as HTMLElement)?.closest('button, input, .el-button')) return
+  isDragging.value = true
+  dragStartX = e.clientX
+  dragStartY = e.clientY
+  dragOriginX = panelOffsetX.value
+  dragOriginY = panelOffsetY.value
+  document.addEventListener('mousemove', handlePanelDragMove)
+  document.addEventListener('mouseup', handlePanelDragEnd)
+}
+
+/** 拖拽移动 */
+const handlePanelDragMove = (e: MouseEvent) => {
+  panelOffsetX.value = dragOriginX + (e.clientX - dragStartX)
+  panelOffsetY.value = dragOriginY + (e.clientY - dragStartY)
+}
+
+/** 拖拽结束 */
+const handlePanelDragEnd = () => {
+  isDragging.value = false
+  document.removeEventListener('mousemove', handlePanelDragMove)
+  document.removeEventListener('mouseup', handlePanelDragEnd)
+}
+
 /** 组件卸载时清理摄像头资源 */
 onBeforeUnmount(() => {
   stopCameraPreview()
+  handlePanelDragEnd() // 清理拖拽监听器
 })
 </script>
 
@@ -1787,22 +1913,25 @@ html.dark .model-sheet-icon.mcp-icon {
   inset: 0;
   z-index: 9999;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
+  background: transparent;
+  pointer-events: none;
+  padding-bottom: 16px;
 }
 
 .video-sheet-panel {
   width: 100%;
-  max-width: 520px;
+  max-width: 480px;
   background: var(--white);
   border-radius: 16px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
-  margin: 0 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  margin: 0 12px;
+  pointer-events: auto;
+  will-change: transform;
 }
 
 .video-sheet-header {
@@ -1812,6 +1941,12 @@ html.dark .model-sheet-icon.mcp-icon {
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+
+  &:active {
+    cursor: grabbing;
+  }
 }
 
 .video-sheet-title {
@@ -1826,39 +1961,61 @@ html.dark .model-sheet-icon.mcp-icon {
   gap: 12px;
 }
 
-.video-sheet-status {
-  font-size: 13px;
-  color: var(--text-tertiary);
-  font-weight: 500;
-
-  &.active {
-    color: #e6a23c;
-    animation: video-pulse 1.5s ease-in-out infinite;
-  }
-}
-
-@keyframes video-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-.video-sheet-close {
-  cursor: pointer;
-  color: var(--text-tertiary);
-  transition: color 0.2s;
-
-  &:hover {
-    color: var(--text-color);
-  }
-}
-
 .video-sheet-body {
   position: relative;
-  background: #000;
+  background: var(--bg-color, #f5f7fa);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+}
+
+/* 摄像头控制行（弹窗内开关按钮） */
+.camera-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-color, #f5f7fa);
+  box-sizing: border-box;
+}
+
+.camera-control-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+/* 摄像头未开启时的占位提示 */
+.camera-preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #999;
+  font-size: 14px;
+  flex: 1;
+  min-height: 240px;
+}
+
+.camera-preview-placeholder p {
+  margin: 0;
+}
+
+.camera-hint {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.camera-preview-area {
+  width: 100%;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
 }
 
 .camera-video {
