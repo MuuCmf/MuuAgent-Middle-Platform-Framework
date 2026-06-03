@@ -58,6 +58,18 @@
             </div>
           </template>
           <template #actions>
+            <div class="header-voice-video">
+              <!-- 音视频对话主开关 -->
+              <div class="av-trigger" :class="{ active: videoEnabled }" @click="handleVideoToggleFromHeader" title="音视频对话（点击开启/关闭）">
+                <el-icon :size="18"><VideoCamera /></el-icon>
+                <span class="av-trigger-badge" :class="{ active: videoEnabled }" />
+              </div>
+              <!-- 语音播报开关 -->
+              <div class="av-trigger" :class="{ active: voiceEnabled }" @click="handleTtsToggle" @contextmenu.prevent="handleVoiceSettings" title="语音播报（点击切换，右键设置）">
+                <el-icon :size="18"><Headset /></el-icon>
+                <span class="av-trigger-badge" :class="{ active: voiceEnabled }" />
+              </div>
+            </div>
             <ThemeToggle />
             <el-button
               v-if="currentConversationId"
@@ -88,6 +100,7 @@
         </div>
 
         <ChatInput
+          ref="chatInputRef"
           :is-loading="isLoading"
           :mode="chatMode"
           :agents="enabledAgents"
@@ -96,8 +109,6 @@
           :models="filteredModels"
           :selected-llm-model="selectedLlmModel"
           :selected-model-type="selectedModelType"
-          :voice-enabled="voiceEnabled"
-          :video-enabled="videoEnabled"
           @send="handleSendMessage"
           @stop="handleStopGeneration"
           @mode-change="handleModeChange"
@@ -106,8 +117,6 @@
           @workspace-clear="handleWorkspaceClear"
           @llm-model-change="handleLlmModelChange"
           @model-type-change="handleModelTypeChange"
-          @voice-toggle="handleTtsToggle"
-          @video-toggle="handleVideoToggle"
           @file-upload="handleFileUpload"
         />
       </div>
@@ -124,11 +133,12 @@
       />
     </template>
   </AppShell>
+  <VoiceSettings ref="voiceSettingsRef" />
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { Plus, ChatDotRound, Cpu, Star, User, ChatLineRound, FolderOpened } from '@element-plus/icons-vue'
+import { onMounted, ref } from 'vue'
+import { Plus, ChatDotRound, Cpu, Star, User, ChatLineRound, FolderOpened, Headset, VideoCamera } from '@element-plus/icons-vue'
 import AppShell from '../../components/layout/AppShell.vue'
 import AppHeader from '../../components/layout/AppHeader.vue'
 import ThemeToggle from '../../components/common/ThemeToggle.vue'
@@ -136,7 +146,40 @@ import ChatSidebar from './components/ChatSidebar.vue'
 import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import WorkspaceSidebar from './components/WorkspaceSidebar.vue'
+import VoiceSettings from './components/VoiceSettings.vue'
 import { useChat } from '../../composables/useChat'
+
+/** ChatInput 组件引用，用于控制摄像头面板 */
+const chatInputRef = ref<InstanceType<typeof ChatInput>>()
+/** 语音设置弹窗引用 */
+const voiceSettingsRef = ref<InstanceType<typeof VoiceSettings>>()
+
+/**
+ * 从 AppHeader 触发音视频切换
+ * 控制 ChatInput 内的摄像头面板开关
+ */
+const handleVideoToggleFromHeader = () => {
+  if (videoEnabled.value) {
+    // 已经开启音视频模式：如果面板已显示则关闭，否则重新打开面板
+    if (chatInputRef.value?.isCameraPanelVisible()) {
+      chatInputRef.value?.closeCameraPanel()
+      handleVideoToggle()
+    } else {
+      chatInputRef.value?.openCameraPanel()
+    }
+  } else {
+    // 未开启音视频模式：开启并弹出面板
+    handleVideoToggle()
+    chatInputRef.value?.openCameraPanel()
+  }
+}
+
+/**
+ * 打开语音设置弹窗（右键菜单）
+ */
+const handleVoiceSettings = () => {
+  voiceSettingsRef.value?.open()
+}
 
 const {
   chatMode,
@@ -220,6 +263,54 @@ onMounted(() => {
   gap: 8px;
   margin-top: 8px;
   flex-wrap: wrap;
+}
+
+.header-voice-video {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border-color, #e8e8e8);
+}
+
+.av-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-tertiary, #999);
+
+  &:hover {
+    background: var(--bg-tertiary, #f5f5f5);
+    color: var(--primary-color, #409eff);
+  }
+
+  &.active {
+    color: var(--primary-color, #409eff);
+  }
+}
+
+.av-trigger-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-tertiary, #999);
+  border: 2px solid var(--white, #fff);
+  transition: all 0.2s ease;
+
+  &.active {
+    background: #67c23a;
+    box-shadow: 0 0 4px rgba(103, 194, 58, 0.5);
+  }
 }
 
 .model-tag,

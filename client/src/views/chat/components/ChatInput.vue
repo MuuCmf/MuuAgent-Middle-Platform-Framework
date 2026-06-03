@@ -173,24 +173,6 @@
               </template>
             </div>
           </div>
-          <div class="bottom-bar-right">
-            <!-- 音视频对话主开关：进入/退出 AV 模式（TTS 语音 + 可选摄像头） -->
-            <div class="video-trigger" :class="{ 'video-active': videoEnabled }" @click="handleVideoToggleClick"
-              title="音视频对话（点击开启/关闭，摄像头在弹窗内控制）">
-              <el-icon :size="16">
-                <VideoCamera />
-              </el-icon>
-              <span class="video-trigger-badge" :class="{ active: videoEnabled }" />
-            </div>
-            <div class="voice-trigger" :class="{ 'voice-active': voiceEnabled }" @click="handleVoiceClick"
-              @contextmenu.prevent="handleVoiceSettings"
-              :title="voiceEnabled ? '语音播报已开启（点击切换，右键设置）' : '语音播报已关闭（点击切换，右键设置）'">
-              <el-icon :size="16">
-                <Headset />
-              </el-icon>
-              <span class="voice-trigger-badge" :class="{ active: voiceEnabled }" />
-            </div>
-          </div>
 
           <!-- 文件上传弹出层 -->
           <Teleport to="body">
@@ -325,14 +307,12 @@
       </div>
     </div>
   </div>
-  <VoiceSettings ref="voiceSettingsRef" />
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check, Headset, Paperclip, VideoCamera, VideoCameraFilled, Microphone } from '@element-plus/icons-vue'
-import VoiceSettings from './VoiceSettings.vue'
+import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check, Paperclip, VideoCamera, VideoCameraFilled, Microphone } from '@element-plus/icons-vue'
 import { useCamera } from '../../../composables/useCamera'
 import { useVoiceInput } from '../../../composables/useVoiceInput'
 
@@ -381,10 +361,6 @@ interface Props {
   selectedLlmModel?: string
   /** 当前选中的模型类型筛选 */
   selectedModelType?: string
-  /** 语音播报是否启用 */
-  voiceEnabled?: boolean
-  /** 视频对话是否启用 */
-  videoEnabled?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -395,8 +371,6 @@ const props = withDefaults(defineProps<Props>(), {
   models: () => [],
   selectedLlmModel: 'mcp-llm',
   selectedModelType: 'llm',
-  voiceEnabled: false,
-  videoEnabled: false,
 })
 
 /**
@@ -436,10 +410,6 @@ const emit = defineEmits<{
   'llm-model-change': [value: string]
   /** 模型类型筛选变更 */
   'model-type-change': [value: string]
-  /** 语音播报开关切换 */
-  'voice-toggle': []
-  /** 视频对话开关切换 */
-  'video-toggle': []
   /** 文件上传 */
   'file-upload': [file: File, fileType: string]
 }>()
@@ -461,9 +431,6 @@ const modelTypeOptions = [
 const showModelSheet = ref(false)
 /** 模式上拉面板是否显示 */
 const showModeSheet = ref(false)
-
-/** 语音设置对话框引用 */
-const voiceSettingsRef = ref<InstanceType<typeof VoiceSettings>>()
 
 /** 文件选择器是否显示 */
 const showFilePicker = ref(false)
@@ -827,150 +794,6 @@ const handleWorkspaceClear = () => {
 }
 
 /**
- * 处理语音按钮点击
- * 左键点击切换开关，右键点击打开设置面板
- */
-const handleVoiceClick = () => {
-  emit('voice-toggle')
-}
-
-const handleVoiceSettings = () => {
-  voiceSettingsRef.value?.open()
-}
-
-/**
- * 处理音视频对话主开关点击
- * 进入/退出音视频对话模式（TTS 语音 + 可选摄像头）
- * 进入时默认仅开启音频，不自动启动摄像头
- */
-const handleVideoToggleClick = () => {
-  if (props.videoEnabled) {
-    if (!showCameraPreview.value) {
-      // AV 模式已开启但弹窗被关闭 → 重新打开弹窗
-      showCameraPreview.value = true
-    } else {
-      // 弹窗已打开 → 退出 AV 模式（关闭摄像头 + 关闭弹窗）
-      stopCameraPreview()
-      cameraActive.value = false
-      emit('video-toggle')
-    }
-  } else {
-    // 未在 AV 模式 → 进入（仅音频，弹出摄像头控制面板供用户选择）
-    emit('video-toggle')
-    cameraActive.value = false
-    showCameraPreview.value = true
-  }
-}
-
-/**
- * 独立开关摄像头（不退出音视频对话模式）
- * 在弹窗内调用，控制摄像头启停
- */
-const handleCameraToggle = async () => {
-  if (cameraActive.value) {
-    // 关闭摄像头（保留弹窗打开）
-    stopCameraCapture()
-    cameraActive.value = false
-  } else {
-    // 开启摄像头
-    cameraActive.value = true
-    await startCameraPreview()
-  }
-}
-
-/**
- * 启动摄像头预览
- * 打开摄像头、绑定视频元素、开始定时帧捕获
- */
-const startCameraPreview = async () => {
-  // 确保弹窗已打开
-  showCameraPreview.value = true
-  await nextTick()
-
-  // 绑定视频和 Canvas 元素
-  if (videoRef.value) {
-    camera.setVideoElement(videoRef.value)
-  }
-  if (canvasRef.value) {
-    camera.setCanvasElement(canvasRef.value)
-  }
-
-  // 启动摄像头（视频 + 音频）
-  const success = await camera.startCamera({
-    video: { width: 640, height: 480, facingMode: 'user' },
-    audio: true,
-  })
-
-  if (success) {
-    // 启动定时帧捕获（每 2 秒）
-    startFrameCapture()
-  } else {
-    // 启动失败时保持弹窗打开，重置状态
-    cameraActive.value = false
-    ElMessage.error(camera.error.value || '摄像头启动失败，请检查权限')
-  }
-}
-
-/**
- * 停止摄像头捕获（保留弹窗打开）
- * 由 handleCameraToggle（关闭摄像头）调用
- */
-const stopCameraCapture = () => {
-  stopFrameCapture()
-  camera.stopCamera()
-  latestFrame.value = null
-}
-
-/**
- * 停止摄像头预览并关闭弹窗
- * 由 handleVideoToggleClick（退出AV模式）调用
- */
-const stopCameraPreview = () => {
-  stopCameraCapture()
-  showCameraPreview.value = false
-}
-
-/**
- * 启动定时帧捕获
- * 每 2 秒捕获一帧，自动去重
- * 仅在摄像头活跃时更新 latestFrame
- */
-const startFrameCapture = () => {
-  stopFrameCapture()
-  frameTimer = setInterval(() => {
-    const frame = camera.captureFrame()
-    if (frame) {
-      latestFrame.value = frame
-    }
-  }, 2000)
-}
-
-/**
- * 停止定时帧捕获
- */
-const stopFrameCapture = () => {
-  if (frameTimer) {
-    clearInterval(frameTimer)
-    frameTimer = null
-  }
-}
-
-/**
- * 选择文件类型，触发原生文件选择器
- * @param accept 允许的文件类型
- * @param fileType 文件类别（image/video/file）
- */
-const selectFileType = (accept: string, fileType: string) => {
-  pendingFileType.value = fileType
-  if (fileInputRef.value) {
-    fileInputRef.value.accept = accept
-    fileInputRef.value.value = ''
-    fileInputRef.value.click()
-  }
-  showFilePicker.value = false
-}
-
-/**
  * 处理文件选择完成
  * @param e 事件对象
  */
@@ -1046,6 +869,114 @@ const handlePanelDragEnd = () => {
 onBeforeUnmount(() => {
   stopCameraPreview()
   handlePanelDragEnd() // 清理拖拽监听器
+})
+
+/**
+ * 选择文件类型，触发原生文件选择器
+ * @param accept 允许的文件类型
+ * @param fileType 文件类别（image/video/file）
+ */
+const selectFileType = (accept: string, fileType: string) => {
+  pendingFileType.value = fileType
+  if (fileInputRef.value) {
+    fileInputRef.value.accept = accept
+    fileInputRef.value.value = ''
+    fileInputRef.value.click()
+  }
+  showFilePicker.value = false
+}
+
+/**
+ * 独立开关摄像头（不退出音视频对话模式）
+ * 在弹窗内调用，控制摄像头启停
+ */
+const handleCameraToggle = async () => {
+  if (cameraActive.value) {
+    stopCameraCapture()
+    cameraActive.value = false
+  } else {
+    cameraActive.value = true
+    await startCameraPreview()
+  }
+}
+
+/**
+ * 启动摄像头预览
+ */
+const startCameraPreview = async () => {
+  showCameraPreview.value = true
+  await nextTick()
+
+  if (videoRef.value) {
+    camera.setVideoElement(videoRef.value)
+  }
+  if (canvasRef.value) {
+    camera.setCanvasElement(canvasRef.value)
+  }
+
+  const success = await camera.startCamera({
+    video: { width: 640, height: 480, facingMode: 'user' },
+    audio: true,
+  })
+
+  if (success) {
+    startFrameCapture()
+  } else {
+    cameraActive.value = false
+    ElMessage.error(camera.error.value || '摄像头启动失败，请检查权限')
+  }
+}
+
+/**
+ * 停止摄像头捕获（保留弹窗打开）
+ */
+const stopCameraCapture = () => {
+  stopFrameCapture()
+  camera.stopCamera()
+  latestFrame.value = null
+}
+
+/**
+ * 停止摄像头预览并关闭弹窗
+ */
+const stopCameraPreview = () => {
+  stopCameraCapture()
+  showCameraPreview.value = false
+}
+
+/**
+ * 启动定时帧捕获
+ */
+const startFrameCapture = () => {
+  stopFrameCapture()
+  frameTimer = setInterval(() => {
+    const frame = camera.captureFrame()
+    if (frame) {
+      latestFrame.value = frame
+    }
+  }, 2000)
+}
+
+/**
+ * 停止定时帧捕获
+ */
+const stopFrameCapture = () => {
+  if (frameTimer) {
+    clearInterval(frameTimer)
+    frameTimer = null
+  }
+}
+
+/**
+ * 暴露方法给父组件使用
+ */
+defineExpose({
+  /** 打开摄像头面板 */
+  openCameraPanel: () => { showCameraPreview.value = true },
+  /** 关闭摄像头面板 */
+  closeCameraPanel: () => { stopCameraPreview() },
+  /** 摄像头面板是否可见 */
+  isCameraPanelVisible: () => showCameraPreview.value,
 })
 </script>
 
@@ -1173,92 +1104,6 @@ onBeforeUnmount(() => {
   gap: 8px;
   flex-wrap: wrap;
   flex: 1;
-}
-
-.bottom-bar-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  margin-left: 8px;
-}
-
-.voice-trigger {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: var(--text-tertiary);
-
-  &:hover {
-    background: var(--bg-tertiary);
-    color: var(--primary-color);
-  }
-
-  &.voice-active {
-    color: var(--primary-color);
-  }
-}
-
-.voice-trigger-badge {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-tertiary);
-  border: 2px solid var(--white);
-  transition: all 0.2s ease;
-
-  &.active {
-    background: #67c23a;
-    box-shadow: 0 0 4px rgba(103, 194, 58, 0.5);
-  }
-}
-
-.video-trigger {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: var(--text-tertiary);
-
-  &:hover {
-    background: var(--bg-tertiary);
-    color: var(--primary-color);
-  }
-
-  &.video-active {
-    color: var(--primary-color);
-  }
-}
-
-.video-trigger-badge {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-tertiary);
-  border: 2px solid var(--white);
-  transition: all 0.2s ease;
-
-  &.active {
-    background: #e6a23c;
-    box-shadow: 0 0 4px rgba(230, 162, 60, 0.5);
-  }
 }
 
 .upload-trigger {
