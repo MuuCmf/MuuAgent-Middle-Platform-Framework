@@ -278,3 +278,34 @@ export class AsrDto {
   @IsOptional()
   uid?: string;
 }
+
+/**
+ * 语音聊天请求DTO（一键 ASR → LLM → TTS）
+ * 上传音频，服务端自动完成语音识别、LLM回复、语音合成
+ */
+export class VoiceChatDto {
+  @ApiProperty({ description: '音频数据(Base64)' })
+  @IsString()
+  @IsNotEmpty()
+  audio: string;
+
+  @ApiPropertyOptional({ description: '音频格式，默认 webm' })
+  @IsString()
+  @IsOptional()
+  format?: string;
+
+  @ApiPropertyOptional({ description: '会话ID(用于多轮对话)' })
+  @IsString()
+  @IsOptional()
+  conversationId?: string;
+
+  @ApiPropertyOptional({ description: '指定模型标识' })
+  @IsString()
+  @IsOptional()
+  modelCode?: string;
+
+  @ApiPropertyOptional({ description: '调用用户唯一标识(透传)' })
+  @IsString()
+  @IsOptional()
+  uid?: string;
+}

@@ -13,6 +13,7 @@ import {
   TtsDto,
   AsrDto,
   S2SDto,
+  VoiceChatDto,
 } from './dto/ai.dto';
 import { Model } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
@@ -1087,6 +1088,38 @@ export class AiService {
         normalized.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  /**
+   * 语音聊天（ASR 转文字）
+   *
+   * 接收前端录制的音频 Base64，调用 ASR 模型转写为文字，
+   * 返回识别结果供前端走普通 LLM 流式对话。
+   * 此接口是"按住说话→松开识别"的核心入口。
+   *
+   * @param dto 语音聊天参数（音频Base64、格式）
+   * @param clientIp 客户端IP
+   * @param userAgent 用户代理
+   * @param uid 用户唯一标识
+   * @param appCode 应用编码
+   * @returns {Promise<Record<string, unknown>>} { text: 识别文本, confidence, language }
+   */
+  async voiceChat(
+    dto: VoiceChatDto,
+    clientIp: string,
+    userAgent: string,
+    uid?: string,
+    appCode?: string,
+  ): Promise<Record<string, unknown>> {
+    // 复用 ASR 能力：将 audio 传给 ASR 模型进行语音识别
+    const asrDto: AsrDto = {
+      modelType: 'asr',
+      audio: dto.audio,
+      format: dto.format || 'webm',
+      modelCode: dto.modelCode,
+      uid: dto.uid,
+    };
+    return this.asr(asrDto, clientIp, userAgent, uid, appCode);
   }
 
   /**

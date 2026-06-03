@@ -182,11 +182,6 @@
               </el-icon>
               <span class="video-trigger-badge" :class="{ active: videoEnabled }" />
             </div>
-            <div class="upload-trigger" @click="showFilePicker = true" title="上传文件">
-              <el-icon :size="18">
-                <Plus />
-              </el-icon>
-            </div>
             <div class="voice-trigger" :class="{ 'voice-active': voiceEnabled }" @click="handleVoiceClick"
               @contextmenu.prevent="handleVoiceSettings"
               :title="voiceEnabled ? '语音播报已开启（点击切换，右键设置）' : '语音播报已关闭（点击切换，右键设置）'">
@@ -287,6 +282,35 @@
         <el-input ref="inputRef" v-model="inputText" type="textarea" :rows="3" :placeholder="getPlaceholder()"
           @keydown="handleKeydown" @input="handleInput" :disabled="isLoading" resize="none" />
         <div class="input-actions">
+          <!-- 附件上传按钮 -->
+          <div
+            v-if="!isLoading"
+            class="attach-btn"
+            @click="showFilePicker = true"
+            title="上传附件"
+          >
+            <el-icon :size="20">
+              <Paperclip />
+            </el-icon>
+          </div>
+          <!-- 语音输入按钮（按住录音，松开发送识别） -->
+          <div
+            v-if="voiceSupported && !isLoading"
+            class="voice-input-btn"
+            :class="{
+              'is-recording': isVoiceRecording,
+              'is-recognizing': isVoiceRecognizing
+            }"
+            @mousedown.prevent="handleVoicePress"
+            @mouseup.prevent="handleVoiceRelease"
+            @mouseleave.prevent="handleVoiceCancel"
+            title="按住说话，松开识别"
+          >
+            <el-icon :size="20">
+              <Microphone />
+            </el-icon>
+            <span v-if="voiceStatusText" class="voice-status-text">{{ voiceStatusText }}</span>
+          </div>
           <el-button v-if="isLoading" type="danger" @click="emit('stop')" circle>
             <el-icon>
               <VideoPause />
@@ -307,9 +331,10 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check, Headset, Plus, VideoCamera, VideoCameraFilled } from '@element-plus/icons-vue'
+import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check, Headset, Paperclip, VideoCamera, VideoCameraFilled, Microphone } from '@element-plus/icons-vue'
 import VoiceSettings from './VoiceSettings.vue'
 import { useCamera } from '../../../composables/useCamera'
+import { useVoiceInput } from '../../../composables/useVoiceInput'
 
 /**
  * 斜杠命令定义
@@ -501,6 +526,62 @@ const inputRef = ref<any>(null)
 const showCommandMenu = ref(false)
 /** 斜杠命令当前选中索引 */
 const commandIndex = ref(0)
+
+// ========== 语音输入状态 ==========
+
+/** 语音输入状态文本 */
+const voiceStatusText = ref('')
+/** 语音输入 Composable */
+const voiceInput = useVoiceInput(
+  // 识别成功：将文本填入输入框并自动发送
+  (result) => {
+    voiceStatusText.value = ''
+    if (result.text.trim()) {
+      inputText.value = result.text.trim()
+      // 自动发送
+      nextTick(() => handleSend())
+    }
+  },
+  // 识别失败：显示错误提示
+  (err) => {
+    voiceStatusText.value = ''
+    ElMessage.error(`语音识别失败: ${err}`)
+  },
+)
+/** 是否正在录音 */
+const isVoiceRecording = computed(() => voiceInput.status.value === 'recording')
+/** 是否正在识别中 */
+const isVoiceRecognizing = computed(() => voiceInput.status.value === 'recognizing')
+/** 浏览器是否支持语音输入 */
+const voiceSupported = computed(() => voiceInput.isSupported)
+
+/**
+ * 开始录音（鼠标按下）
+ */
+function handleVoicePress() {
+  if (props.isLoading) return
+  voiceInput.startRecording()
+  voiceStatusText.value = '录音中...'
+}
+
+/**
+ * 结束录音（鼠标松开/离开）
+ */
+function handleVoiceRelease() {
+  if (voiceInput.status.value !== 'recording') return
+  voiceStatusText.value = '识别中...'
+  voiceInput.stopAndRecognize()
+}
+
+/**
+ * 取消录音（鼠标移到按钮外）
+ */
+function handleVoiceCancel() {
+  if (voiceInput.status.value === 'recording') {
+    voiceInput.cancelRecording()
+    voiceStatusText.value = ''
+  }
+}
 
 /**
  * 斜杠命令列表
@@ -2052,5 +2133,103 @@ html.dark .model-sheet-icon.mcp-icon {
 .video-sheet-enter-to,
 .video-sheet-leave-from {
   opacity: 1;
+}
+
+/* ========== 语音输入按钮 ========== */
+
+.attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bg-tertiary, #f0f2f5);
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  user-select: none;
+}
+
+.attach-btn:hover {
+  background: var(--bg-secondary, #e8eaed);
+  color: var(--text-color, #333);
+  transform: scale(1.05);
+}
+
+.voice-input-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bg-tertiary, #f0f2f5);
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  justify-content: center;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.voice-input-btn:hover {
+  background: var(--bg-secondary, #e8eaed);
+  color: var(--text-color, #333);
+}
+
+.voice-input-btn:active,
+.voice-input-btn.is-recording {
+  background: linear-gradient(135deg, #f56c6c 0%, #e6474b 100%);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(245, 108, 108, 0.5);
+  transform: scale(1.05);
+}
+
+.voice-input-btn.is-recording .el-icon {
+  animation: voice-pulse 1s ease-in-out infinite;
+}
+
+.voice-input-btn.is-recognizing {
+  background: linear-gradient(135deg, #409eff 0%, #337ecc 100%);
+  color: #fff;
+  pointer-events: none;
+}
+
+.voice-input-btn.is-recognizing .el-icon {
+  animation: voice-spin 1s linear infinite;
+}
+
+.voice-status-text {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--text-secondary, #666);
+  background: var(--bg-color, #fff);
+  padding: 2px 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+@keyframes voice-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes voice-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

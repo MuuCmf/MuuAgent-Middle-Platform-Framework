@@ -13,6 +13,7 @@ import {
   TtsDto,
   AsrDto,
   S2SDto,
+  VoiceChatDto,
 } from './dto/ai.dto';
 import { success } from '../common/response/api.response';
 import { Observable } from 'rxjs';
@@ -158,6 +159,25 @@ export class AiController {
     const uid = this.extractUid(req, dto);
     const appCode = (req as any).appCode;
     const result = await this.aiService.s2s(dto, clientIp, userAgent, uid, appCode);
+    return success(result);
+  }
+
+  /**
+   * 语音聊天（ASR → 文本，前端再用文本走 LLM 流式对话）
+   * 按住说话→松开→音频转文字→返回识别文本
+   * @param dto 调用参数
+   * @param req 请求对象
+   * @returns {Promise<Object>} 识别文本
+   */
+  @Post('voice-chat')
+  @ApiOperation({ summary: '语音聊天（音频转文字）' })
+  @RequireTenantPermission('ai', 'invoke')
+  async voiceChat(@Body() dto: VoiceChatDto, @Req() req: Request) {
+    const clientIp = req.ip || 'unknown';
+    const userAgent = req.headers['user-agent'] || '';
+    const uid = this.extractUid(req, dto);
+    const appCode = (req as any).appCode;
+    const result = await this.aiService.voiceChat(dto, clientIp, userAgent, uid, appCode);
     return success(result);
   }
 }
