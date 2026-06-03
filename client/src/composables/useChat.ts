@@ -293,6 +293,11 @@ export function useChat() {
   /** TTS 播放状态 */
   const ttsStatus = ref<TtsPlaybackStatus>('idle');
 
+  // ========== 视频对话状态 ==========
+
+  /** 视频对话是否启用 */
+  const videoEnabled = ref(false);
+
   /** 工作目录 */
   const workspace = useWorkspace();
 
@@ -1203,6 +1208,20 @@ export function useChat() {
   }
 
   /**
+   * 切换视频对话开关
+   * 开启视频对话时自动启用 TTS 语音播报
+   */
+  const handleVideoToggle = () => {
+    videoEnabled.value = !videoEnabled.value
+
+    // 开启视频对话时自动启用 TTS
+    if (videoEnabled.value && !voiceEnabled.value) {
+      voiceEnabled.value = true
+      voiceService.updateConfig({ autoPlay: true })
+    }
+  }
+
+  /**
    * 暂停语音播报
    */
   const handleTtsPause = () => {
@@ -1324,6 +1343,7 @@ export function useChat() {
     isMessageStreaming,
     voiceEnabled,
     ttsStatus,
+    videoEnabled,
     handleModeChange,
     handleLlmModelChange,
     handleModelTypeChange,
@@ -1339,6 +1359,7 @@ export function useChat() {
     handleWorkspaceRefresh,
     handleFileClick,
     handleTtsToggle,
+    handleVideoToggle,
     handleTtsPause,
     handleTtsResume,
     handleTtsChangeVoice,

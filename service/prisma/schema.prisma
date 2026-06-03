@@ -727,7 +727,7 @@ model Message {
   id             BigInt  @id @default(0)
   conversationId BigInt   @map("conversation_id") /// 会话ID
   role           String   /// 角色: user/assistant/system/tool
-  content        String   @db.Text /// 消息内容
+  content        String   @db.MediumText /// 消息内容
   toolCalls      String?  @map("tool_calls") @db.Text /// 工具调用信息(JSON)
   toolCallId     String?  @map("tool_call_id") /// 工具调用ID
   tokenCount     Int?     @map("token_count") /// Token数量

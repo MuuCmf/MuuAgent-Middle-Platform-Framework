@@ -174,6 +174,13 @@
             </div>
           </div>
           <div class="bottom-bar-right">
+            <div class="video-trigger" :class="{ 'video-active': videoEnabled }" @click="handleVideoToggleClick"
+              title="视频对话">
+              <el-icon :size="16">
+                <VideoCamera />
+              </el-icon>
+              <span class="video-trigger-badge" :class="{ active: videoEnabled }" />
+            </div>
             <div class="upload-trigger" @click="showFilePicker = true" title="上传文件">
               <el-icon :size="18">
                 <Plus />
@@ -230,6 +237,32 @@
 
           <input ref="fileInputRef" type="file" style="display: none" @change="handleFileChange" />
         </div>
+
+        <!-- 摄像头预览面板 -->
+        <Teleport to="body">
+          <Transition name="video-sheet">
+            <div v-if="showCameraPreview" class="video-sheet-overlay" @click.self="showCameraPreview = false">
+              <div class="video-sheet-panel">
+                <div class="video-sheet-header">
+                  <span class="video-sheet-title">摄像头预览</span>
+                  <div class="video-sheet-header-right">
+                    <span class="video-sheet-status" :class="{ active: isCapturing }">
+                      {{ isCapturing ? '● 录制中' : '○ 已暂停' }}
+                    </span>
+                    <el-icon class="video-sheet-close" :size="20" @click="showCameraPreview = false">
+                      <Close />
+                    </el-icon>
+                  </div>
+                </div>
+                <div class="video-sheet-body">
+                  <video ref="videoRef" autoplay playsinline muted class="camera-video"></video>
+                  <canvas ref="canvasRef" class="camera-canvas" style="display:none"></canvas>
+                </div>
+              </div>
+            </div>
+          </Transition>
+        </Teleport>
+
         <el-input ref="inputRef" v-model="inputText" type="textarea" :rows="3" :placeholder="getPlaceholder()"
           @keydown="handleKeydown" @input="handleInput" :disabled="isLoading" resize="none" />
         <div class="input-actions">
@@ -251,9 +284,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, nextTick } from 'vue'
-import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check, Headset, Plus } from '@element-plus/icons-vue'
+import { ref, watch, computed, nextTick, onBeforeUnmount } from 'vue'
+import { Promotion, Cpu, User, VideoPause, Star, ArrowUp, Close, Folder, FolderOpened, Check, Headset, Plus, VideoCamera } from '@element-plus/icons-vue'
 import VoiceSettings from './VoiceSettings.vue'
+import { useCamera } from '../../../composables/useCamera'
 
 /**
  * 斜杠命令定义
@@ -302,6 +336,8 @@ interface Props {
   selectedModelType?: string
   /** 语音播报是否启用 */
   voiceEnabled?: boolean
+  /** 视频对话是否启用 */
+  videoEnabled?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -313,6 +349,7 @@ const props = withDefaults(defineProps<Props>(), {
   selectedLlmModel: 'mcp-llm',
   selectedModelType: 'llm',
   voiceEnabled: false,
+  videoEnabled: false,
 })
 
 /**
@@ -354,6 +391,8 @@ const emit = defineEmits<{
   'model-type-change': [value: string]
   /** 语音播报开关切换 */
   'voice-toggle': []
+  /** 视频对话开关切换 */
+  'video-toggle': []
   /** 文件上传 */
   'file-upload': [file: File, fileType: string]
 }>()
@@ -385,6 +424,26 @@ const showFilePicker = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>()
 /** 当前待上传的文件类型 */
 const pendingFileType = ref('')
+
+// ========== 摄像头状态 ==========
+
+/** 摄像头预览面板是否显示 */
+const showCameraPreview = ref(false)
+/** 视频元素引用 */
+const videoRef = ref<HTMLVideoElement | null>(null)
+/** Canvas 元素引用 */
+const canvasRef = ref<HTMLCanvasElement | null>(null)
+/** 摄像头 Composables */
+const camera = useCamera({
+  hashSize: 8,
+  similarityThreshold: 0.95,
+  minFrameInterval: 1000,
+  frameQuality: 0.7,
+})
+/** 最近捕获的帧数据 */
+const latestFrame = ref<{ dataUrl: string; mimeType: string } | null>(null)
+/** 帧捕获定时器 */
+let frameTimer: ReturnType<typeof setInterval> | null = null
 
 /** 输入文本 */
 const inputText = ref('')
@@ -585,10 +644,16 @@ const selectCommand = (cmd: SlashCommand) => {
 
 /**
  * 发送消息
+ * 如果视频对话模式已启用，自动附带当前摄像头帧
  */
 const handleSend = () => {
   if (inputText.value.trim()) {
-    emit('send', inputText.value)
+    let content = inputText.value
+    // 视频对话模式下，自动附带当前帧
+    if (props.videoEnabled && latestFrame.value) {
+      content = `![camera-frame](${latestFrame.value.dataUrl})\n${content}`
+    }
+    emit('send', content)
     inputText.value = ''
     showCommandMenu.value = false
   }
@@ -648,6 +713,85 @@ const handleVoiceSettings = () => {
 }
 
 /**
+ * 处理视频对话按钮点击
+ * 切换视频对话模式，同时向父组件发送事件
+ */
+const handleVideoToggleClick = async () => {
+  emit('video-toggle')
+
+  if (!props.videoEnabled) {
+    // 即将开启视频对话
+    await startCameraPreview()
+  } else {
+    // 即将关闭视频对话
+    stopCameraPreview()
+  }
+}
+
+/**
+ * 启动摄像头预览
+ * 打开摄像头、绑定视频元素、开始定时帧捕获
+ */
+const startCameraPreview = async () => {
+  showCameraPreview.value = true
+  await nextTick()
+
+  // 绑定视频和 Canvas 元素
+  if (videoRef.value) {
+    camera.setVideoElement(videoRef.value)
+  }
+  if (canvasRef.value) {
+    camera.setCanvasElement(canvasRef.value)
+  }
+
+  // 启动摄像头（视频 + 音频）
+  const success = await camera.startCamera({
+    video: { width: 640, height: 480, facingMode: 'user' },
+    audio: true,
+  })
+
+  if (success) {
+    // 启动定时帧捕获（每 2 秒）
+    startFrameCapture()
+  }
+}
+
+/**
+ * 停止摄像头预览
+ * 清除定时器、关闭摄像头、隐藏预览面板
+ */
+const stopCameraPreview = () => {
+  stopFrameCapture()
+  camera.stopCamera()
+  latestFrame.value = null
+  showCameraPreview.value = false
+}
+
+/**
+ * 启动定时帧捕获
+ * 每 2 秒捕获一帧，自动去重
+ */
+const startFrameCapture = () => {
+  stopFrameCapture()
+  frameTimer = setInterval(() => {
+    const frame = camera.captureFrame()
+    if (frame) {
+      latestFrame.value = frame
+    }
+  }, 2000)
+}
+
+/**
+ * 停止定时帧捕获
+ */
+const stopFrameCapture = () => {
+  if (frameTimer) {
+    clearInterval(frameTimer)
+    frameTimer = null
+  }
+}
+
+/**
  * 选择文件类型，触发原生文件选择器
  * @param accept 允许的文件类型
  * @param fileType 文件类别（image/video/file）
@@ -688,6 +832,14 @@ const getPlaceholder = (): string => {
     default: return '输入消息...'
   }
 }
+
+/** 摄像头是否正在捕获 */
+const isCapturing = computed(() => camera.isCapturing.value)
+
+/** 组件卸载时清理摄像头资源 */
+onBeforeUnmount(() => {
+  stopCameraPreview()
+})
 </script>
 
 <style lang="scss" scoped>
@@ -860,6 +1012,45 @@ const getPlaceholder = (): string => {
   &.active {
     background: #67c23a;
     box-shadow: 0 0 4px rgba(103, 194, 58, 0.5);
+  }
+}
+
+.video-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-tertiary);
+
+  &:hover {
+    background: var(--bg-tertiary);
+    color: var(--primary-color);
+  }
+
+  &.video-active {
+    color: var(--primary-color);
+  }
+}
+
+.video-trigger-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  border: 2px solid var(--white);
+  transition: all 0.2s ease;
+
+  &.active {
+    background: #e6a23c;
+    box-shadow: 0 0 4px rgba(230, 162, 60, 0.5);
   }
 }
 
@@ -1587,5 +1778,122 @@ html.dark .model-sheet-icon.mcp-icon {
   .workspace-section {
     width: 100%;
   }
+}
+
+/* ========== 摄像头预览面板 ========== */
+
+.video-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.video-sheet-panel {
+  width: 100%;
+  max-width: 520px;
+  background: var(--white);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+  margin: 0 20px;
+}
+
+.video-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.video-sheet-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.video-sheet-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.video-sheet-status {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+
+  &.active {
+    color: #e6a23c;
+    animation: video-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes video-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.video-sheet-close {
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: color 0.2s;
+
+  &:hover {
+    color: var(--text-color);
+  }
+}
+
+.video-sheet-body {
+  position: relative;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.camera-video {
+  width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  border-radius: 0 0 16px 16px;
+}
+
+.camera-canvas {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.video-sheet-enter-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.video-sheet-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.video-sheet-enter-from,
+.video-sheet-leave-to {
+  opacity: 0;
+
+  .video-sheet-panel {
+    transform: scale(0.9) translateY(20px);
+    opacity: 0;
+  }
+}
+
+.video-sheet-enter-to,
+.video-sheet-leave-from {
+  opacity: 1;
 }
 </style>

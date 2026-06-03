@@ -1,13 +1,10 @@
 import { Model } from '@prisma/client';
-import type { ModelMessage, Tool } from 'ai';
 import {
   ExecutionParams,
   ExecutionResult,
   StreamChunk,
   ToolCall,
   ExecutionContext,
-  ExecutionOptions,
-  TokenUsage,
 } from '../interfaces/executor.interface';
 
 /**
@@ -126,40 +123,6 @@ export interface S2SStreamChunk {
 }
 
 /**
- * Omni 执行参数接口
- */
-export interface OmniExecutionParams {
-  /** 模型配置 */
-  model: Model;
-  /** 消息列表（可能包含多模态内容） */
-  messages: ModelMessage[];
-  /** 系统提示词 */
-  system?: string;
-  /** 工具定义 */
-  tools?: Record<string, Tool>;
-  /** 执行选项 */
-  options?: ExecutionOptions;
-  /** 执行上下文 */
-  context: ExecutionContext;
-}
-
-/**
- * Omni 执行结果接口
- */
-export interface OmniExecutionResult {
-  /** 文本输出 */
-  text: string;
-  /** 音频输出（Base64，如果模型返回了音频） */
-  audioData?: string;
-  /** 音频格式 */
-  audioFormat?: string;
-  /** Token 使用统计 */
-  usage?: TokenUsage;
-  /** 原始响应 */
-  raw?: unknown;
-}
-
-/**
  * Provider 策略接口
  * 每个提供商实现自己的策略
  */
@@ -249,21 +212,4 @@ export interface IProviderStrategy {
    * @returns 音频块异步迭代器
    */
   executeS2SStream?(params: S2SExecutionParams): AsyncIterable<S2SStreamChunk>;
-
-  /**
-   * 执行 Omni 模型调用（可选实现）
-   * 支持多模态输入输出
-   * 
-   * @param params Omni 执行参数
-   * @returns Omni 执行结果
-   */
-  executeOmni?(params: OmniExecutionParams): Promise<OmniExecutionResult>;
-
-  /**
-   * 流式执行 Omni 模型调用（可选实现）
-   * 
-   * @param params Omni 执行参数
-   * @returns 流式响应块迭代器
-   */
-  streamOmni?(params: OmniExecutionParams): AsyncIterable<StreamChunk>;
 }

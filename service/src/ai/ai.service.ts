@@ -185,11 +185,28 @@ export class AiService {
       );
 
       if (lastUserMessage) {
-        await this.conversationService.addMessage(
+        const strippedContent = this.stripDataUrls(lastUserMessage.content);
+        const savedMessage = await this.conversationService.addMessage(
           conversation.id as any,
           'user',
-          lastUserMessage.content,
+          strippedContent,
         );
+
+        // P3 帧摘要：异步总结帧内容，不阻塞主流程
+        if (lastUserMessage.content !== strippedContent) {
+          this.summarizeFramesInMessage(lastUserMessage.content)
+            .then(async (summaries) => {
+              if (summaries.length > 0) {
+                await this.prisma.message.update({
+                  where: { id: savedMessage.id },
+                  data: { metadata: JSON.stringify({ frameSummaries: summaries }) },
+                });
+              }
+            })
+            .catch(() => {
+              // 摘要失败静默忽略
+            });
+        }
       }
 
       await this.mcpService.checkCircuit(model.id as any);
@@ -350,11 +367,28 @@ export class AiService {
       );
 
       if (lastUserMessage) {
-        await this.conversationService.addMessage(
+        const strippedContent = this.stripDataUrls(lastUserMessage.content);
+        const savedMessage = await this.conversationService.addMessage(
           conversation.id as any,
           'user',
-          lastUserMessage.content,
+          strippedContent,
         );
+
+        // P3 帧摘要：异步总结帧内容，不阻塞主流程
+        if (lastUserMessage.content !== strippedContent) {
+          this.summarizeFramesInMessage(lastUserMessage.content)
+            .then(async (summaries) => {
+              if (summaries.length > 0) {
+                await this.prisma.message.update({
+                  where: { id: savedMessage.id },
+                  data: { metadata: JSON.stringify({ frameSummaries: summaries }) },
+                });
+              }
+            })
+            .catch(() => {
+              // 摘要失败静默忽略
+            });
+        }
       }
 
       if (emitter.completed) {
@@ -1056,6 +1090,77 @@ export class AiService {
   }
 
   /**
+   * 剥离消息中的 Base64 帧数据，替换为轻量占位符
+   * 避免数据库中存储大量 Base64 数据导致 TEXT 字段溢出
+   * 
+   * @param content 原始消息内容，可能包含 data:image/jpeg;base64,... 格式的帧
+   * @returns 剥离后的消息内容，帧被替换为 frame://captured 占位符
+   */
+  private stripDataUrls(content: string): string {
+    if (!content) return content;
+    return content.replace(
+      /!\[([^\]]*)\]\(data:image\/[^)]+\)/g,
+      '![$1](frame://captured)',
+    );
+  }
+
+  /**
+   * 异步总结消息中的帧内容（P3 帧摘要策略）
+   * 使用轻量 LMM 模型对帧进行文字描述，存入消息 metadata
+   * 失败时静默忽略，不影响主对话流程
+   * 
+   * @param originalContent 剥离前的原始消息内容（包含 data:image Base64 帧）
+   * @param modelCode 用于摘要的模型编码，默认自动选择 LMM 模型
+   * @returns 帧摘要文本数组，失败返回空数组
+   */
+  private async summarizeFramesInMessage(
+    originalContent: string,
+    modelCode?: string,
+  ): Promise<string[]> {
+    // 提取原始帧数据
+    const frameRegex = /!\[([^\]]*)\]\(data:image\/([^;)]+);base64,([^)]+)\)/g;
+    const frames: Array<{ label: string; mimeType: string; base64: string }> = [];
+    let match;
+    while ((match = frameRegex.exec(originalContent)) !== null) {
+      frames.push({ label: match[1], mimeType: match[2], base64: match[3] });
+    }
+    if (frames.length === 0) return [];
+
+    try {
+      const model = await this.selectModel(modelCode, 'lmm').catch(() => null);
+      if (!model) {
+        this.logger.debug('帧摘要跳过：无可用 LMM 模型');
+        return [];
+      }
+
+      const summaries: string[] = [];
+      for (const frame of frames) {
+        try {
+          const result = await this.modelExecutor.execute({
+            model,
+            system: '用一句话描述这张图片中的场景和内容。只输出描述，不要其他文字。',
+            messages: [{
+              role: 'user' as const,
+              content: `![${frame.label}](data:image/${frame.mimeType};base64,${frame.base64})`,
+            }] as any,
+            options: { temperature: 0.3, maxTokens: 80 },
+            context: this.contextManager.create({ clientIp: 'frame-summarizer' }),
+          });
+          summaries.push(result.content || '(画面摘要不可用)');
+        } catch {
+          summaries.push('(画面摘要不可用)');
+        }
+      }
+
+      this.logger.debug(`帧摘要完成: frames=${summaries.length}`);
+      return summaries;
+    } catch {
+      // 摘要失败不影响主流程
+      return [];
+    }
+  }
+
+  /**
    * 构建包含历史的消息列表
    * @param conversation 会话信息
    * @param messages 当前消息
@@ -1065,6 +1170,10 @@ export class AiService {
     conversation: any,
     messages: Array<{ role: string; content: string }>,
   ): Promise<Array<{ role: string; content: string | Array<Record<string, unknown>> }>> {
+    /** 历史消息中最大帧数量限制，防止上下文窗口爆炸 */
+    const MAX_HISTORY_FRAMES = 3;
+    const FRAME_REGEX = /!\[[^\]]*\]\(data:image\//g;
+    
     let conversationHistory: Array<{ role: string; content: string }> = [];
 
     if (conversation.messageCount > 0) {
@@ -1072,10 +1181,31 @@ export class AiService {
         conversation.id,
         20,
       );
-      conversationHistory = historyMessages.map((m) => ({
-        role: m.role as 'user' | 'assistant' | 'system',
-        content: m.content,
-      }));
+
+      // 从最新到最旧遍历，限制历史帧总数
+      let frameCount = 0;
+      const trimmedHistory: Array<{ role: string; content: string }> = [];
+
+      for (let i = historyMessages.length - 1; i >= 0; i--) {
+        const m = historyMessages[i];
+        const msgFrameMatches = m.content.match(FRAME_REGEX);
+        const msgFrameCount = msgFrameMatches ? msgFrameMatches.length : 0;
+
+        if (frameCount + msgFrameCount > MAX_HISTORY_FRAMES) {
+          this.logger.debug(
+            `历史帧数已达上限 ${MAX_HISTORY_FRAMES}，截断更早的消息`,
+          );
+          break;
+        }
+
+        frameCount += msgFrameCount;
+        trimmedHistory.unshift({
+          role: m.role as 'user' | 'assistant' | 'system',
+          content: m.content,
+        });
+      }
+
+      conversationHistory = trimmedHistory;
     }
 
     const combined = [...conversationHistory, ...messages];

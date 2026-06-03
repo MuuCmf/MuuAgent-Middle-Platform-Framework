@@ -1,12 +1,13 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { BaseStrategy } from './base.strategy';
-import {
-  TTSExecutionParams,
+import { TTSExecutionParams,
   TTSExecutionResult,
   TTSStreamChunk,
   S2SExecutionParams,
   S2SExecutionResult,
   S2SStreamChunk,
+  ASRExecutionParams,
+  ASRExecutionResult,
 } from './provider.strategy.interface';
 
 /**
@@ -389,6 +390,77 @@ export class VolcengineStrategy extends BaseStrategy {
 
     if (seq === 0) {
       throw new HttpException('火山引擎 V3 流式TTS未返回音频数据', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // ===================== ASR 语音识别 =====================
+
+  /**
+   * ASR语音识别
+   *
+   * 调用火山引擎 V3 ASR API 进行语音识别。
+   * API 参考: https://www.volcengine.com/docs/6561/80818
+   *
+   * @param params ASR执行参数
+   * @returns {Promise<ASRExecutionResult>} 识别结果
+   */
+  async executeASR(params: ASRExecutionParams): Promise<ASRExecutionResult> {
+    const { model, audio, format } = params;
+
+    this.logger.debug(
+      `Volcengine ASR: model=${model.code}, format=${format || 'wav'}`,
+    );
+
+    const apiKey = this.resolveApiKey(model.apiKey);
+    this.validateApiKey(apiKey);
+
+    try {
+      const response = await fetch(`${this.baseURL}/api/v1/asr`, {
+        method: 'POST',
+        headers: this.buildHeaders(apiKey, model.code, model.config),
+        body: JSON.stringify({
+          audio: {
+            data: audio,
+          },
+          audio_format: format || 'wav',
+          language: 'zh-CN',
+          enable_itn: true,
+          enable_punctuation: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new HttpException(
+          `火山引擎 ASR API 错误: ${response.status} ${errorText}`,
+          response.status,
+        );
+      }
+
+      const result = await response.json() as any;
+
+      // V3 ASR 响应格式: { code: 0, message: "Success", data: { text: "识别结果", ... } }
+      const successCodes = [0, 20000000];
+      if (result.code !== undefined && !successCodes.includes(result.code)) {
+        throw new HttpException(
+          `火山引擎 ASR 错误: ${result.message || `错误码 ${result.code}`}`,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      const text = result.data?.text || result.text || '';
+
+      return {
+        text,
+        language: 'zh',
+        confidence: result.data?.confidence,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException(
+        `火山引擎 ASR 失败: ${(error as Error).message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 

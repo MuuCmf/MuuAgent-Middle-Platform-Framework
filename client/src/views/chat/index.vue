@@ -97,6 +97,7 @@
           :selected-llm-model="selectedLlmModel"
           :selected-model-type="selectedModelType"
           :voice-enabled="voiceEnabled"
+          :video-enabled="videoEnabled"
           @send="handleSendMessage"
           @stop="handleStopGeneration"
           @mode-change="handleModeChange"
@@ -106,6 +107,7 @@
           @llm-model-change="handleLlmModelChange"
           @model-type-change="handleModelTypeChange"
           @voice-toggle="handleTtsToggle"
+          @video-toggle="handleVideoToggle"
           @file-upload="handleFileUpload"
         />
       </div>
@@ -161,6 +163,7 @@ const {
   isMessageStreaming,
   voiceEnabled,
   ttsStatus,
+  videoEnabled,
   handleModeChange,
   handleLlmModelChange,
   handleModelTypeChange,
@@ -177,6 +180,7 @@ const {
   handleFileClick,
   handleTtsToggle,
   handleFileUpload,
+  handleVideoToggle,
   getModelName,
   getAgentName,
   getKbName,
