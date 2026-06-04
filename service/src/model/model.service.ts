@@ -184,13 +184,21 @@ export class ModelService {
    * @returns {Promise<Array>} 可用模型列表
    */
   async getAvailableModels(modelType: string) {
-    return this.prisma.model.findMany({
+    const models = await this.prisma.model.findMany({
       where: {
         type: modelType,
         status: true,
       },
       orderBy: { weight: 'desc' },
     });
+    // 调试日志：打印第一个模型的 apiKey 状态
+    if (models.length > 0) {
+      const m = models[0];
+      console.log(`[getAvailableModels] modelType=${modelType}, count=${models.length}, first=code=${m.code}, hasApiKey=${!!m.apiKey}, apiKeyLength=${m.apiKey ? m.apiKey.length : 0}, apiKeyType=${typeof m.apiKey}, apiKeyValue=${m.apiKey ? m.apiKey.substring(0, 8) + '...' : 'null'}, keys=${Object.keys(m).join(',')}`);
+    } else {
+      console.log(`[getAvailableModels] modelType=${modelType}, count=0`);
+    }
+    return models;
   }
 
   /**

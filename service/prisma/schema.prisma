@@ -878,6 +878,7 @@ model Plugin {
 model File {
   id              BigInt  @id @default(0)
   
+  uid             String?  /// 用户唯一标识（用于用户数据隔离）
   fileName        String   @map("file_name") /// 原始文件名
   storageName     String   @map("storage_name") /// 存储文件名
   filePath        String   @map("file_path") /// 文件路径

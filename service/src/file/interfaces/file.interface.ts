@@ -127,6 +127,7 @@ export interface FileListResult {
  */
 export interface FileRecord {
   id: string;
+  uid?: string;
   fileName: string;
   storageName: string;
   filePath: string;

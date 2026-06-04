@@ -398,8 +398,9 @@ export class VolcengineStrategy extends BaseStrategy {
   /**
    * ASR语音识别
    *
-   * 调用火山引擎 V3 ASR API 进行语音识别。
-   * API 参考: https://www.volcengine.com/docs/6561/80818
+   * 调用火山引擎 V3 ASR BigModel API 进行语音识别。
+   * 使用两步流程：提交任务 -> 轮询查询结果
+   * API 参考: https://www.volcengine.com/docs/6561/1354869
    *
    * @param params ASR执行参数
    * @returns {Promise<ASRExecutionResult>} 识别结果
@@ -415,46 +416,119 @@ export class VolcengineStrategy extends BaseStrategy {
     this.validateApiKey(apiKey);
 
     try {
-      const response = await fetch(`${this.baseURL}/api/v1/asr`, {
-        method: 'POST',
-        headers: this.buildHeaders(apiKey, model.code, model.config),
-        body: JSON.stringify({
-          audio: {
-            data: audio,
-          },
-          audio_format: format || 'wav',
-          language: 'zh-CN',
+      const requestId = crypto.randomUUID();
+      
+      // 构建提交请求头
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Api-Key': apiKey,
+        'X-Api-Resource-Id': model.code,
+        'X-Api-Request-Id': requestId,
+        'X-Api-Sequence': '-1',
+      };
+
+      this.logger.debug(`Volcengine ASR: 提交任务，requestId=${requestId}`);
+
+      // 第一步：提交任务
+      const submitRequestBody = {
+        user: {
+          uid: 'MuuAI',
+        },
+        audio: {
+          data: audio,
+          format: format || 'wav',
+          codec: 'raw',
+          rate: 16000,
+          bits: 16,
+          channel: 1,
+        },
+        request: {
+          model_name: 'bigmodel',
           enable_itn: true,
-          enable_punctuation: true,
-        }),
+          enable_punc: true,
+          enable_ddc: false,
+          enable_speaker_info: false,
+          enable_channel_split: false,
+          show_utterances: false,
+          vad_segment: false,
+          sensitive_words_filter: '',
+        },
+      };
+
+      const submitResponse = await fetch(`${this.baseURL}/api/v3/auc/bigmodel/submit`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(submitRequestBody),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
+      if (!submitResponse.ok) {
+        const errorText = await submitResponse.text().catch(() => '');
+        this.logger.error(`火山引擎 ASR 提交任务失败: ${submitResponse.status} ${errorText}`);
         throw new HttpException(
-          `火山引擎 ASR API 错误: ${response.status} ${errorText}`,
-          response.status,
+          `火山引擎 ASR 提交任务失败: ${submitResponse.status} ${errorText}`,
+          submitResponse.status,
         );
       }
 
-      const result = await response.json() as any;
+      this.logger.debug(`Volcengine ASR: 任务提交成功，开始轮询结果`);
 
-      // V3 ASR 响应格式: { code: 0, message: "Success", data: { text: "识别结果", ... } }
-      const successCodes = [0, 20000000];
-      if (result.code !== undefined && !successCodes.includes(result.code)) {
-        throw new HttpException(
-          `火山引擎 ASR 错误: ${result.message || `错误码 ${result.code}`}`,
-          HttpStatus.INTERNAL_SERVER_ERROR,
-        );
+      // 第二步：轮询查询结果（最多轮询 30 次，每次间隔 500ms）
+      const maxPolls = 30;
+      const pollInterval = 500;
+      
+      for (let i = 0; i < maxPolls; i++) {
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        
+        this.logger.debug(`Volcengine ASR: 查询结果 (${i + 1}/${maxPolls})`);
+
+        const queryResponse = await fetch(`${this.baseURL}/api/v3/auc/bigmodel/query`, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({}),
+        });
+
+        if (!queryResponse.ok) {
+          const errorText = await queryResponse.text().catch(() => '');
+          this.logger.error(`火山引擎 ASR 查询失败: ${queryResponse.status} ${errorText}`);
+          throw new HttpException(
+            `火山引擎 ASR 查询失败: ${queryResponse.status} ${errorText}`,
+            queryResponse.status,
+          );
+        }
+
+        const result = await queryResponse.json() as any;
+        
+        // 如果返回空对象，说明还在处理中
+        if (!result || Object.keys(result).length === 0) {
+          continue;
+        }
+
+        // 检查是否有结果
+        if (result.result?.text) {
+          const text = result.result.text;
+          this.logger.debug(`Volcengine ASR: 识别成功，text="${text}"`);
+
+          return {
+            text,
+            language: 'zh',
+            confidence: result.result.confidence,
+          };
+        }
+
+        // 检查是否有错误
+        if (result.code && ![0, 20000000].includes(result.code)) {
+          throw new HttpException(
+            `火山引擎 ASR 错误: ${result.message || `错误码 ${result.code}`}`,
+            HttpStatus.INTERNAL_SERVER_ERROR,
+          );
+        }
       }
 
-      const text = result.data?.text || result.text || '';
+      throw new HttpException(
+        `火山引擎 ASR 超时：在 ${maxPolls * pollInterval / 1000} 秒内未获取到结果`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
 
-      return {
-        text,
-        language: 'zh',
-        confidence: result.data?.confidence,
-      };
     } catch (error) {
       if (error instanceof HttpException) throw error;
       throw new HttpException(

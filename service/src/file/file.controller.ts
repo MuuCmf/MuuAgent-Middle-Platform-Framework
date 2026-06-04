@@ -122,7 +122,8 @@ export class FileController {
   @ApiOperation({ summary: '查询文件列表' })
   async findAll(@Query() query: QueryFileListDto, @Req() request: Request) {
     const appCode = (request as any).appCode;
-    return this.fileService.findAll(query, appCode);
+    const uid = (request as any).user?.uid;
+    return this.fileService.findAll(query, appCode, uid);
   }
 
   /**
