@@ -43,6 +43,13 @@ interface S2sSession {
   currentUserText?: string;
   /** 当前轮次助手消息累积（用于日志记录） */
   currentAssistantText?: string;
+  /** 当前轮次 token 用量信息（用于日志记录） */
+  currentUsage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    [key: string]: any;
+  };
 }
 
 /**
@@ -162,8 +169,12 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
       // 获取模型配置（API Key）
       const model = await this.resolveModel(session.modelCode);
       const apiKey = model.apiKey || '';
-      // 保存模型ID，用于记录 AiInvokeLog
+      // 保存模型ID和模型编码，用于记录 AiInvokeLog
       session.modelId = model.id?.toString();
+      // 以解析后的模型编码为准（客户端可能未传 modelCode 或传入无效值）
+      if (model.code) {
+        session.modelCode = model.code;
+      }
 
       this.logger.debug(`Model: ${JSON.stringify({
         code: model.code,
@@ -281,32 +292,56 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
     });
 
     // 监听 ASR 事件（用户语音识别结果）
-    // ASR_RESPONSE payload 是 requestId UUID，实际识别文本在 CHAT_RESPONSE 之前
-    // 但根据火山引擎文档，ASR_RESPONSE 也可能包含识别文本
+    // ASR_RESPONSE 官方格式: { "results": [ { "text": "{{STRING}}", "is_interim": {{BOOLEAN}} } ] }
     wsClient.on('asrResponse', (payload: any) => {
       if (session.closed) return;
       this.logger.debug(`ASR Response: ${JSON.stringify(payload)}`);
 
-      // 尝试提取识别文本（payload 可能是 requestId 字符串或 JSON 对象）
+      // 尝试提取识别文本
       let asrText = '';
       if (typeof payload === 'string') {
-        // payload 是 requestId，无识别文本
-        return;
-      } else if (payload?.text || payload?.result) {
-        asrText = payload.text || payload.result;
+        // 纯字符串可能是 requestId，尝试作为识别文本（非 UUID 格式时）
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(payload) && payload.trim().length > 0) {
+          asrText = payload.trim();
+        }
+      } else if (typeof payload === 'object' && payload !== null) {
+        // 优先使用官方格式: { results: [ { text: "...", is_interim: ... } ] }
+        if (payload.results && Array.isArray(payload.results) && payload.results.length > 0) {
+          const result = payload.results[0];
+          asrText = result.text || '';
+          
+          // 检查是否是中间结果 (is_interim = true)，如果是则跳过保存
+          if (result.is_interim === true) {
+            this.logger.debug(`ASR 中间结果跳过: ${asrText}`);
+            return;
+          }
+        } else {
+          // 兼容旧版本，尝试从多种字段提取识别文本
+          asrText = payload.text || payload.result || payload.content || payload.query || '';
+        }
       }
 
       if (asrText) {
+        // 如果这是新一轮用户说话，先检查保存上一轮的模型回复（如果还没保存）
+        if (session.currentUserText === undefined || session.currentUserText === '') {
+          if (session.currentAssistantText && session.currentAssistantText.trim().length > 0) {
+            this.logger.debug(`新一轮用户说话，先保存上一轮助手消息: ${session.currentAssistantText}`);
+            this.conversationService.addMessage(session.conversationId, 'assistant', session.currentAssistantText, {
+              metadata: { source: 's2s-chat' },
+            }).catch((e) => this.logger.warn(`保存助手消息失败: ${e.message}`));
+            // 清空上一轮累积的文本
+            session.currentAssistantText = '';
+          }
+        }
+
         // 累积用户文本（用于日志记录）
         session.currentUserText = (session.currentUserText || '') + asrText;
 
-        // 推送用户识别文本到客户端
+        // 推送用户识别文本到客户端（实时推送用于显示）
         this.gateway.pushSpeechText(session.conversationId, asrText, 'user');
-
-        // 保存用户消息到数据库
-        this.conversationService.addMessage(session.conversationId, 'user', asrText, {
-          metadata: { source: 's2s-asr' },
-        }).catch((e) => this.logger.warn(`保存用户消息失败: ${e.message}`));
+        
+        // 注意：不在这里立即保存到数据库，等 ASR 结束或 TTS 开始时一次性保存
       }
     });
 
@@ -316,24 +351,52 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
     });
 
     // 监听 ChatResponse 事件（模型回复文本）
-    // CHAT_RESPONSE 结构: { "content": "模型回复的文本内容" }
+    // CHAT_RESPONSE 官方格式: { "content": "{{STRING}}", "question_id": "{{STRING}}", "reply_id": "{{STRING}}" }
     wsClient.on('chatResponse', (payload: any) => {
       if (session.closed) return;
       this.logger.debug(`Chat Response: ${JSON.stringify(payload)}`);
 
+      // 提取模型回复文本（content 字段）
       const chatText = payload?.content || '';
       if (!chatText) return;
 
       // 累积助手文本（用于日志记录）
       session.currentAssistantText = (session.currentAssistantText || '') + chatText;
 
-      // 推送模型回复文本到客户端
+      // 推送模型回复文本到客户端（实时推送用于显示）
       this.gateway.pushSpeechText(session.conversationId, chatText, 'assistant');
+      
+      // 注意：不在这里立即保存到数据库，等一轮对话结束后一次性保存
+    });
 
-      // 保存助手消息到数据库
-      this.conversationService.addMessage(session.conversationId, 'assistant', chatText, {
-        metadata: { source: 's2s-chat' },
-      }).catch((e) => this.logger.warn(`保存助手消息失败: ${e.message}`));
+    // 监听 UsageResponse 事件（token 用量信息）
+    wsClient.on('usageInfo', (usageData: string | any) => {
+      if (session.closed) return;
+      this.logger.debug(`Usage Info: ${JSON.stringify(usageData)}`);
+
+      // 尝试解析用量数据
+      let usage: any = null;
+      if (typeof usageData === 'string') {
+        try {
+          usage = JSON.parse(usageData);
+        } catch {
+          // 如果不是 JSON，保存为原始字符串
+          usage = { raw: usageData };
+        }
+      } else if (typeof usageData === 'object') {
+        usage = usageData;
+      }
+
+      if (usage) {
+        // 保存到会话状态
+        session.currentUsage = {
+          inputTokens: usage.input_tokens || usage.inputTokens || usage.prompt_tokens || 0,
+          outputTokens: usage.output_tokens || usage.outputTokens || usage.completion_tokens || 0,
+          totalTokens: usage.total_tokens || usage.totalTokens || 0,
+          ...usage,
+        };
+        this.logger.debug(`Token 用量已记录: ${JSON.stringify(session.currentUsage)}`);
+      }
     });
 
     // 监听 TTS 句子开始事件，表示一轮对话的模型回复开始
@@ -341,21 +404,64 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
     wsClient.on('ttsSentenceStart', () => {
       this.logger.debug(`TTS 句子开始: ${session.conversationId}`);
 
+      // 保存累积的用户消息到数据库
+      if (session.currentUserText && session.currentUserText.trim().length > 0) {
+        this.logger.debug(`保存用户消息: ${session.currentUserText}`);
+        this.conversationService.addMessage(session.conversationId, 'user', session.currentUserText, {
+          metadata: { source: 's2s-asr' },
+        }).catch((e) => this.logger.warn(`保存用户消息失败: ${e.message}`));
+      }
+
       // 一轮对话完成，记录调用日志
       this.saveRoundLog(session).catch((e) =>
         this.logger.warn(`保存 S2S 调用日志失败: ${e.message}`),
       );
     });
 
+    // 监听 TTS 句子结束事件，表示一轮模型回复结束
+    wsClient.on('ttsSentenceEnd', () => {
+      this.logger.debug(`TTS 句子结束: ${session.conversationId}`);
+      
+      // 累积的模型回复一次性保存到数据库
+      if (session.currentAssistantText && session.currentAssistantText.trim().length > 0) {
+        this.logger.debug(`保存助手消息: ${session.currentAssistantText}`);
+        this.conversationService.addMessage(session.conversationId, 'assistant', session.currentAssistantText, {
+          metadata: { source: 's2s-chat' },
+        }).catch((e) => this.logger.warn(`保存助手消息失败: ${e.message}`));
+        
+        // 保存后清空累积的文本，避免重复保存
+        session.currentAssistantText = '';
+        session.currentUserText = '';
+      }
+    });
+
     // 监听错误事件
     wsClient.on('error', (error: Error) => {
       this.logger.error(`WebSocket 错误: ${session.conversationId}, error=${error.message}`);
-      this.gateway.notifyError(session.conversationId, `语音对话错误: ${error.message}`);
 
-      // 记录错误日志
-      this.saveErrorLog(session, error.message).catch((e) =>
-        this.logger.warn(`保存 S2S 错误日志失败: ${e.message}`),
-      );
+      // 识别空闲超时（用户长时间未说话，属于正常会话结束）
+      const isIdleTimeout = error.message?.includes('IdleTimeout') || error.message?.includes('52000042');
+
+      if (isIdleTimeout) {
+        // 空闲超时视为正常会话结束，记录为成功日志
+        this.saveRoundLog(session, true).catch((e) =>
+          this.logger.warn(`保存 S2S 超时日志失败: ${e.message}`),
+        );
+        this.gateway.notifyEnd(session.conversationId);
+      } else {
+        this.gateway.notifyError(session.conversationId, `语音对话错误: ${error.message}`);
+        // 记录错误日志
+        this.saveErrorLog(session, error.message).catch((e) =>
+          this.logger.warn(`保存 S2S 错误日志失败: ${e.message}`),
+        );
+      }
+
+      // 自动关闭会话，避免残留
+      if (!session.closed) {
+        this.closeSession(session.conversationId).catch((e) =>
+          this.logger.warn(`关闭会话失败: ${e.message}`),
+        );
+      }
     });
 
     // 监听断开连接事件
@@ -452,6 +558,22 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
 
     this.logger.debug(`关闭 S2S 会话: ${conversationId}`);
 
+    // 保存未保存的用户消息
+    if (session.currentUserText && session.currentUserText.trim().length > 0) {
+      this.logger.debug(`会话关闭，保存用户消息: ${session.currentUserText}`);
+      await this.conversationService.addMessage(conversationId, 'user', session.currentUserText, {
+        metadata: { source: 's2s-asr' },
+      }).catch((e) => this.logger.warn(`保存用户消息失败: ${e.message}`));
+    }
+
+    // 保存未保存的助手消息
+    if (session.currentAssistantText && session.currentAssistantText.trim().length > 0) {
+      this.logger.debug(`会话关闭，保存助手消息: ${session.currentAssistantText}`);
+      await this.conversationService.addMessage(conversationId, 'assistant', session.currentAssistantText, {
+        metadata: { source: 's2s-chat' },
+      }).catch((e) => this.logger.warn(`保存助手消息失败: ${e.message}`));
+    }
+
     // 关闭 WebSocket 连接
     if (session.wsClient) {
       try {
@@ -512,15 +634,27 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
    * 记录 AiInvokeLog（模型调用日志）和 AgentInvokeLog（智能体调用日志，仅智能体对话时）
    *
    * @param session S2S 会话
+   * @param isIdleTimeout 是否为空闲超时（超时时即使无文本也记录日志）
    */
-  private async saveRoundLog(session: S2sSession): Promise<void> {
+  private async saveRoundLog(session: S2sSession, isIdleTimeout = false): Promise<void> {
     const userText = session.currentUserText || '';
     const assistantText = session.currentAssistantText || '';
+    const usage = session.currentUsage;
 
-    // 没有有效文本则跳过
-    if (!userText && !assistantText) return;
+    // 没有有效文本且非超时场景则跳过
+    if (!userText && !assistantText && !isIdleTimeout) return;
 
     const costMs = session.startTime ? Date.now() - session.startTime : 0;
+
+    // 构建请求和响应数据，包含完整信息
+    const requestData = {
+      voice: session.voice,
+      userText,
+    };
+    const responseData = {
+      assistantText,
+      usage: usage || null,
+    };
 
     // 记录 AiInvokeLog（模型调用日志）
     try {
@@ -529,14 +663,16 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
           modelId: session.modelId as any,
           modelCode: session.modelCode || 's2s',
           modelType: 's2s',
-          request: JSON.stringify({ voice: session.voice, userText }),
-          response: JSON.stringify({ assistantText }),
+          request: JSON.stringify(requestData),
+          response: JSON.stringify(responseData),
           costMs,
+          inputTokens: usage?.inputTokens || null,
+          outputTokens: usage?.outputTokens || null,
           success: true,
           clientIp: '',
         },
       });
-      this.logger.debug(`S2S 模型调用日志已保存: ${session.conversationId}`);
+      this.logger.debug(`S2S 模型调用日志已保存: ${session.conversationId}, inputTokens=${usage?.inputTokens || 0}, outputTokens=${usage?.outputTokens || 0}`);
     } catch (e) {
       this.logger.warn(`保存 S2S 模型调用日志失败: ${(e as Error).message}`);
     }
@@ -564,6 +700,7 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
     // 重置当前轮次文本，准备下一轮
     session.currentUserText = '';
     session.currentAssistantText = '';
+    session.currentUsage = undefined;
     session.startTime = Date.now();
   }
 

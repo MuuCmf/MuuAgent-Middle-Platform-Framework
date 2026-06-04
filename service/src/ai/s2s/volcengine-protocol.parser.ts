@@ -35,12 +35,13 @@ export class VolcengineProtocolParser {
     SESSION_FAILED: 153,
     USAGE_RESPONSE: 154,
     TTS_SENTENCE_START: 350,
+    TTS_SENTENCE_END: 351, // 合成音频的分句结束事件
     TTS_RESPONSE: 352,
     TTS_ENDED: 359,
     ASR_INFO: 450,
-    ASR_RESPONSE: 451,
+    ASR_RESPONSE: 451, // 模型识别出用户说话的文本内容
     ASR_ENDED: 459,
-    CHAT_RESPONSE: 550,
+    CHAT_RESPONSE: 550, // 模型回复的文本内容
   };
 
   /**

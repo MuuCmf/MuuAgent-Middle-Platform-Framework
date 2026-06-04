@@ -1325,11 +1325,20 @@ export function useChat() {
    */
   const handleS2sText = (text: string, role: 'user' | 'assistant') => {
     if (!text.trim()) return
+    console.log('[useChat] handleS2sText:', { text, role })
 
     if (role === 'user') {
+      // 如果已经有上一轮的助手消息，说明是新一轮对话开始
+      // 重置助手的消息状态，让下一次助手回复创建新消息
+      if (s2sCurrentAssistantMsgIndex.value >= 0 || s2sLastAssistantText.value.length > 0) {
+        console.log('[useChat] 检测到新一轮对话，重置助手消息状态')
+        s2sCurrentAssistantMsgIndex.value = -1
+        s2sLastAssistantText.value = ''
+      }
+
       // 用户语音识别文本：追加到当前用户消息
       s2sLastUserText.value += text
-      if (s2sCurrentUserMsgIndex.value < 0) {
+      if (s2sCurrentUserMsgIndex.value < 0 || !messages.value[s2sCurrentUserMsgIndex.value]) {
         // 创建新的用户消息
         const msg: Message = {
           role: 'user',
@@ -1338,15 +1347,17 @@ export function useChat() {
         }
         messages.value.push(msg)
         s2sCurrentUserMsgIndex.value = messages.value.length - 1
+        console.log('[useChat] 创建用户消息:', { index: s2sCurrentUserMsgIndex.value, content: s2sLastUserText.value })
       } else {
         // 更新现有用户消息
         messages.value[s2sCurrentUserMsgIndex.value].content = s2sLastUserText.value
+        console.log('[useChat] 更新用户消息:', { index: s2sCurrentUserMsgIndex.value, content: s2sLastUserText.value })
       }
       scrollToBottom()
     } else {
       // 助手回复文本：追加到当前助手消息
       s2sLastAssistantText.value += text
-      if (s2sCurrentAssistantMsgIndex.value < 0) {
+      if (s2sCurrentAssistantMsgIndex.value < 0 || !messages.value[s2sCurrentAssistantMsgIndex.value]) {
         // 创建新的助手消息
         const msg: Message = {
           role: 'assistant',
@@ -1355,9 +1366,11 @@ export function useChat() {
         }
         messages.value.push(msg)
         s2sCurrentAssistantMsgIndex.value = messages.value.length - 1
+        console.log('[useChat] 创建助手消息:', { index: s2sCurrentAssistantMsgIndex.value, content: s2sLastAssistantText.value })
       } else {
         // 更新现有助手消息
         messages.value[s2sCurrentAssistantMsgIndex.value].content = s2sLastAssistantText.value
+        console.log('[useChat] 更新助手消息:', { index: s2sCurrentAssistantMsgIndex.value, content: s2sLastAssistantText.value })
       }
       scrollToBottom()
 

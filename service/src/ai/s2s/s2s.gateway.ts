@@ -192,6 +192,7 @@ export class S2sGateway implements OnGatewayConnection, OnGatewayDisconnect {
   pushSpeechText(conversationId: string, text: string, role: 'user' | 'assistant' = 'user'): boolean {
     const client = this.clients.get(conversationId);
     if (!client?.connected) return false;
+    this.logger.debug(`推送文本: conversationId=${conversationId}, text=${text}, role=${role}`);
     client.emit('speech_text', { text, role });
     return true;
   }
@@ -250,10 +251,13 @@ export class S2sGateway implements OnGatewayConnection, OnGatewayDisconnect {
   getClientParams(conversationId: string): { voiceId: string; modelCode?: string; agentId?: string } | null {
     const client = this.clients.get(conversationId);
     if (!client) return null;
+    // 过滤无效值（空字符串、"undefined"、"null" 等非有效值）
+    const filterInvalid = (v: string | undefined): string | undefined =>
+      v && v !== 'undefined' && v !== 'null' ? v : undefined;
     return {
       voiceId: (client.handshake.query.voiceId as string) || 'zh_female_vv_jupiter_bigtts',
-      modelCode: (client.handshake.query.modelCode as string) || undefined,
-      agentId: (client.handshake.query.agentId as string) || undefined,
+      modelCode: filterInvalid(client.handshake.query.modelCode as string),
+      agentId: filterInvalid(client.handshake.query.agentId as string),
     };
   }
 }
