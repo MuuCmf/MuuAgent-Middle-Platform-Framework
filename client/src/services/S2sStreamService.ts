@@ -63,17 +63,12 @@ class S2sStreamService {
 
   /** 音频发送序号 */
   private sendSeq = 0
-  /** 音频接收序号 */
-  private recvSeq = 0
-
   /** MSE 流式 MP3 播放 */
   private mseMediaSource: MediaSource | null = null
   private mseSourceBuffer: SourceBuffer | null = null
   private mseAudio: HTMLAudioElement | null = null
   private msePendingQueue: Uint8Array[] = []
   private mseInitialized = false
-  private mseReady = false
-  private msePlaying = false
 
   /**
    * 获取当前状态
@@ -132,10 +127,9 @@ class S2sStreamService {
 
     this.conversationId = conversationId
     this.sendSeq = 0
-    this.recvSeq = 0
 
     const config = voiceService.getConfig()
-    const queryVoiceId = voiceId || config.voiceId || 'zh_female_vv_uranus_bigtts'
+    const queryVoiceId = voiceId || config.voiceId || 'zh_female_vv_jupiter_bigtts'
 
     const wsUrl = import.meta.env.VITE_WS_URL || 'http://localhost:3000'
     this.socket = io(`${wsUrl}/s2s`, {
@@ -230,7 +224,7 @@ class S2sStreamService {
    * @param format 音频格式
    * @param isLast 是否最后一块
    */
-  sendAudioChunk(audioData: string, format: string = 'opus', isLast: boolean = false): void {
+  sendAudioChunk(audioData: string, format: string = 'pcm', isLast: boolean = false): void {
     if (!this.socket?.connected) {
       console.warn('S2S WebSocket 未连接')
       return
@@ -265,11 +259,19 @@ class S2sStreamService {
   }
 
   /**
-   * 停止对话
+   * 停止录音（连续对话模式：保持 WS 连接，只告知服务端停止输入）
    */
   stop(): void {
     if (!this.socket?.connected) return
     this.socket.emit('stop')
+    // 连续对话：不断开 WS，保持连接供下次对话复用
+  }
+
+  /**
+   * 结束整个对话（停止录音 + 断开 WS）
+   */
+  endConversation(): void {
+    this.stop()
     this.disconnect()
   }
 
@@ -309,7 +311,6 @@ class S2sStreamService {
     this.updateStatus('idle')
     this.conversationId = null
     this.sendSeq = 0
-    this.recvSeq = 0
   }
 
   /**
@@ -327,7 +328,6 @@ class S2sStreamService {
         try {
           this.mseSourceBuffer = this.mseMediaSource!.addSourceBuffer('audio/mpeg')
           this.mseSourceBuffer.addEventListener('updateend', () => {
-            this.mseReady = true
             this.flushMseQueue()
           })
           this.mseInitialized = true
@@ -336,13 +336,7 @@ class S2sStreamService {
         }
       })
 
-      this.mseAudio.addEventListener('playing', () => {
-        this.msePlaying = true
-      })
-
-      this.mseAudio.addEventListener('ended', () => {
-        this.msePlaying = false
-      })
+      // 播放/结束事件监听已移除（未使用）
 
       // 自动播放
       this.mseAudio.play().catch(err => {
@@ -360,6 +354,15 @@ class S2sStreamService {
    */
   private handleAudioChunk(data: S2sChunkData): void {
     this.callbacks.onChunk?.(data)
+
+    // 跳过空音频块（来自 TTS_ENDED 的结束标记）
+    if (!data.data || data.data.length === 0) {
+      if (data.isLast) {
+        // 连续对话模式：TTS 播完不代表会话结束，用户可继续说话
+        console.log('[S2sStreamService] TTS 音频流结束，等待下一轮对话')
+      }
+      return
+    }
 
     // 使用 MSE 流式播放 MP3
     if (data.format === 'mp3' && this.mseInitialized) {
@@ -409,7 +412,7 @@ class S2sStreamService {
       if (!chunk) break
 
       try {
-        this.mseSourceBuffer.appendBuffer(chunk)
+        this.mseSourceBuffer.appendBuffer(chunk as BufferSource)
         break // 每次只添加一个，等待 updateend
       } catch (err) {
         console.error('MSE flushQueue 失败:', err)
@@ -420,7 +423,7 @@ class S2sStreamService {
   /**
    * 处理音频队列（非 MP3 格式）
    */
-  private async processAudioQueue(): void {
+  private async processAudioQueue(): Promise<void> {
     if (this.isProcessing || this.isPaused) return
     this.isProcessing = true
 
@@ -444,6 +447,10 @@ class S2sStreamService {
       this.audioContext = new AudioContext()
       this.gainNode = this.audioContext.createGain()
       this.gainNode.connect(this.audioContext.destination)
+      // AudioContext 可能被浏览器 suspend，需要用户交互唤醒
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume()
+      }
     }
 
     try {
@@ -453,19 +460,54 @@ class S2sStreamService {
         bytes[i] = binary.charCodeAt(i)
       }
 
-      const audioBuffer = await this.audioContext.decodeAudioData(bytes.buffer)
-
-      this.currentSource = this.audioContext.createBufferSource()
-      this.currentSource.buffer = audioBuffer
-      this.currentSource.connect(this.gainNode!)
-
-      await new Promise<void>((resolve) => {
-        this.currentSource!.onended = () => resolve()
-        this.currentSource!.start()
-      })
+      if (chunk.format === 'pcm') {
+        // 裸 PCM 数据：无容器头，decodeAudioData 无法解码
+        // 使用 createBuffer 手动构造 AudioBuffer
+        await this.playRawPCM(bytes)
+      } else {
+        // 有容器格式（WAV/MP3/OGG）：使用 decodeAudioData
+        const audioBuffer = await this.audioContext.decodeAudioData(bytes.buffer)
+        this.currentSource = this.audioContext.createBufferSource()
+        this.currentSource.buffer = audioBuffer
+        this.currentSource.connect(this.gainNode!)
+        await new Promise<void>((resolve) => {
+          this.currentSource!.onended = () => resolve()
+          this.currentSource!.start()
+        })
+      }
     } catch (err) {
       console.error('音频解码失败:', err)
     }
+  }
+
+  /**
+   * 播放裸 PCM 数据（s16le）
+   *
+   * 火山引擎 S2S 返回的 PCM 格式为：pcm_s16le, 24000Hz, 单声道
+   * 将 int16 样本转换为 float32 后封装为 AudioBuffer 播放
+   *
+   * @param bytes PCM int16 小端序原始字节
+   */
+  private async playRawPCM(bytes: Uint8Array): Promise<void> {
+    // PCM16 (s16le) → Float32
+    const pcm16 = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2)
+    const float32 = new Float32Array(pcm16.length)
+    for (let i = 0; i < pcm16.length; i++) {
+      float32[i] = pcm16[i] / 32768
+    }
+
+    const sampleRate = 24000 // 火山引擎 S2S 固定 24000Hz
+    const audioBuffer = this.audioContext!.createBuffer(1, float32.length, sampleRate)
+    audioBuffer.getChannelData(0).set(float32)
+
+    this.currentSource = this.audioContext!.createBufferSource()
+    this.currentSource.buffer = audioBuffer
+    this.currentSource.connect(this.gainNode!)
+
+    await new Promise<void>((resolve) => {
+      this.currentSource!.onended = () => resolve()
+      this.currentSource!.start()
+    })
   }
 
   /**
@@ -509,8 +551,6 @@ class S2sStreamService {
     this.mseSourceBuffer = null
     this.msePendingQueue = []
     this.mseInitialized = false
-    this.mseReady = false
-    this.msePlaying = false
   }
 
   /**

@@ -1,7 +1,6 @@
 import { ref, readonly } from 'vue'
 import { useAudioRecorder } from './useAudioRecorder'
 import { httpClient } from '../utils/request'
-import { API_ENDPOINTS } from '../api/config'
 
 /**
  * 语音输入状态

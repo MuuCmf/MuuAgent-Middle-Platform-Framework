@@ -839,9 +839,6 @@ const getPlaceholder = (): string => {
   }
 }
 
-/** 摄像头是否正在捕获 */
-const isCapturing = computed(() => camera.isCapturing.value)
-
 /* ===== 弹窗拖拽 ===== */
 /** 弹窗累计偏移量 */
 const panelOffsetX = ref(0)

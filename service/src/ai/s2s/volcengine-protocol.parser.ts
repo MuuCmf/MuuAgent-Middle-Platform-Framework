@@ -217,7 +217,7 @@ export class VolcengineProtocolParser {
     sessionId?: string;
     payload: Buffer;
   } {
-    this.logger.debug('Parsing frame:', data.toString('hex'));
+    //this.logger.debug('Parsing frame:', data.toString('hex'));
     let offset = 0;
     const header = data.slice(0, 4);
     offset += 4;
@@ -248,6 +248,32 @@ export class VolcengineProtocolParser {
         sessionId = data.slice(offset, offset + sessionIdSize).toString('utf8');
         offset += sessionIdSize;
       }
+    }
+
+    // ERROR_INFORMATION (0x0F) 帧结构不同：在 payload 前有 4 字节错误码
+    // 结构：header(4) + errorCode(4) + payloadSize(4) + payload(N)
+    if (messageType === 0x0F) {
+      // 跳过 4 字节错误码
+      const errorCode = offset + 4 <= data.length ? data.readInt32BE(offset) : 0;
+      offset += 4;
+
+      // 确保有足够的数据读取 payloadSize
+      if (offset + 4 > data.length) {
+        this.logger.error('Not enough data for payloadSize in ERROR_INFORMATION');
+        return { messageType, eventId, sessionId, payload: Buffer.alloc(0) };
+      }
+
+      const payloadSize = data.readInt32BE(offset);
+      offset += 4;
+
+      const safePayloadSize = Math.min(payloadSize, data.length - offset);
+      const payload = data.slice(offset, offset + safePayloadSize);
+
+      this.logger.debug(
+        `Parsed ERROR_INFORMATION: errorCode=${errorCode}, payloadSize=${payloadSize}`,
+      );
+
+      return { messageType, eventId, sessionId, payload };
     }
 
     // 确保有足够的数据读取 payloadSize

@@ -9,7 +9,7 @@ import { ref, readonly } from 'vue';
  * @param height 图像高度
  * @returns 二进制哈希字符串，每位表示像素是否高于平均值
  */
-function averageHash(imageData: ImageData, width: number, height: number): string {
+function averageHash(imageData: ImageData, _width: number, _height: number): string {
   const pixels = imageData.data;
   const grayValues: number[] = [];
 

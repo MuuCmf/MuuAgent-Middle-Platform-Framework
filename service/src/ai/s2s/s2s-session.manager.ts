@@ -101,7 +101,9 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
     if (!this.gateway.isConnected(conversationId)) return false;
 
     const clientParams = this.gateway.getClientParams(conversationId);
-    const voice = clientParams?.voiceId || 'zh_female_vv_jupiter_bigtts';
+    const voiceRaw = clientParams?.voiceId || 'zh_female_vv_jupiter_bigtts';
+    // S2S 对话模型使用 jupiter 系列音色，修正客户端可能传入的 uranus 等不兼容音色
+    const voice = voiceRaw.replace('uranus', 'jupiter');
 
     const session: S2sSession = {
       conversationId,
@@ -128,12 +130,16 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
         config: model.config || 'none',
       })}`);
       
-      // 从模型 config 中解析 appId（如果有）
+      // 从模型 config 中解析 appId 和 resourceId（如果有）
       let appKey = '';
       let token = apiKey;
+      let resourceId = 'volc.speech.dialog'; // S2S O 版本默认资源 ID
       if (model.config) {
         try {
           const config = JSON.parse(model.config);
+          if (config.resourceId) {
+            resourceId = config.resourceId;
+          }
           if (config.appId) {
             appKey = config.appId;
             // 如果有 appId，并且 apiKey 包含冒号，则拆分
@@ -160,14 +166,14 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      this.logger.debug(`Auth params: appKey=${appKey ? '***' : 'none'}, token=${token ? '***' : 'none'}, resourceId=${model.code}`);
+      this.logger.debug(`Auth params: appKey=${appKey ? '***' : 'none'}, token=${token ? '***' : 'none'}, resourceId=${resourceId}`);
 
       if (!token) {
         throw new Error('API Key 未配置');
       }
 
       // 创建 WebSocket 客户端实例
-      const wsClient = new VolcengineS2SClient(token, appKey, model.code);
+      const wsClient = new VolcengineS2SClient(token, appKey, resourceId);
       session.wsClient = wsClient;
 
       // 监听 WebSocket 事件
@@ -212,16 +218,16 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
    */
   private setupWebSocketListeners(wsClient: VolcengineS2SClient, session: S2sSession): void {
     // 监听音频响应事件
-    wsClient.on('audio', (audioData: { audioData: Buffer; isLast: boolean }) => {
+    wsClient.on('audio', (audioData: { audioData: Buffer; isLast: boolean; format?: string }) => {
       if (session.closed) return;
 
-      this.logger.log(`✅ 收到音频响应: ${session.conversationId}, size=${audioData.audioData.length}, isLast=${audioData.isLast}`);
+      this.logger.log(`✅ 收到音频响应: ${session.conversationId}, size=${audioData.audioData.length}, isLast=${audioData.isLast}, format=${audioData.format || 'pcm'}`);
 
       // 推送音频块到客户端
       const success = this.gateway.pushAudioChunk(
         session.conversationId,
         audioData.audioData.toString('base64'),
-        'pcm',
+        audioData.format || 'pcm',
         session.seq++,
         audioData.isLast,
       );
@@ -233,12 +239,9 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
       }
     });
 
-    // 监听 ASR 事件
-    wsClient.on('asrResponse', (asrData: any) => {
-      this.logger.debug('ASR Response:', asrData);
-      if (asrData?.results?.[0]?.text) {
-        this.gateway.pushSpeechText(session.conversationId, asrData.results[0].text);
-      }
+    // 监听 ASR 事件（ASR_RESPONSE payload 是 requestId UUID，不含识别文本）
+    wsClient.on('asrResponse', (requestId: string) => {
+      this.logger.debug(`ASR Response requestId: ${requestId}`);
     });
 
     // 监听错误事件
@@ -259,7 +262,9 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
     wsClient.on('sessionFinished', () => {
       this.logger.debug(`会话结束: ${session.conversationId}`);
       if (!session.closed) {
-        this.gateway.notifyEnd(session.conversationId);
+        this.closeSession(session.conversationId).catch((e) =>
+          this.logger.warn(`会话结束后清理失败: ${e.message}`),
+        );
       }
     });
   }
@@ -302,6 +307,28 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
     session.wsClient.sendAudio(pcmData);
 
     session.lastReceiveTime = Date.now();
+  }
+
+  /**
+   * 停止用户输入（仅发 FinishSession，不断开 WS，等待 TTS 音频全部到达）
+   *
+   * @param conversationId 会话ID
+   */
+  async finishInput(conversationId: string): Promise<void> {
+    const session = this.sessions.get(conversationId);
+    if (!session || session.closed) return;
+
+    this.logger.debug(`S2S 停止输入: ${conversationId}`);
+
+    if (session.wsClient) {
+      try {
+        session.wsClient.finishSession();
+      } catch (error) {
+        this.logger.warn(
+          `发送 FinishSession 失败: ${conversationId}, error=${(error as Error).message}`,
+        );
+      }
+    }
   }
 
   /**

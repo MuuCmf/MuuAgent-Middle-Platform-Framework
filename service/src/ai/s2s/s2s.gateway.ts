@@ -56,24 +56,8 @@ export class S2sGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     this.clients.set(conversationId, client);
-    this.logger.debug(`S2S 连接: ${conversationId}`);
-
-    // 创建 S2S 会话（会自动发送 s2s_start 事件）
-    try {
-      const success = await this.sessionManager.openSession(conversationId);
-      if (!success) {
-        this.logger.error(`S2S 会话创建失败: ${conversationId}`);
-        client.emit('s2s_error', { message: '会话创建失败' });
-        client.disconnect();
-      } else {
-        this.logger.debug(`S2S 会话已创建: ${conversationId}`);
-      }
-    } catch (error) {
-      const err = error as Error;
-      this.logger.error(`S2S 会话创建失败: ${err.message}`);
-      client.emit('s2s_error', { message: `会话创建失败: ${err.message}` });
-      client.disconnect();
-    }
+    this.logger.debug(`S2S 客户端连接: ${conversationId}`);
+    // 火山引擎 WS 连接延迟到客户端发送第一个 audio_chunk 时创建
   }
 
   /**
@@ -82,12 +66,30 @@ export class S2sGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @param data 音频数据
    */
   @SubscribeMessage('audio_chunk')
-  handleAudioChunk(
+  async handleAudioChunk(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { data: string; format: string; sequence: number; isLast: boolean },
-  ): void {
+  ): Promise<void> {
     const conversationId = this.getConversationId(client);
     if (!conversationId) return;
+
+    // 首次收到音频块时延迟创建火山引擎 WS 会话
+    if (data.sequence === 0 && !this.sessionManager.isSessionActive(conversationId)) {
+      this.logger.debug(`S2S 首次音频块，延迟创建会话: ${conversationId}`);
+      try {
+        const success = await this.sessionManager.openSession(conversationId);
+        if (!success) {
+          this.logger.error(`S2S 会话创建失败: ${conversationId}`);
+          client.emit('s2s_error', { message: '会话创建失败' });
+          return;
+        }
+      } catch (error) {
+        const err = error as Error;
+        this.logger.error(`S2S 会话创建失败: ${err.message}`);
+        client.emit('s2s_error', { message: `会话创建失败: ${err.message}` });
+        return;
+      }
+    }
 
     this.logger.debug(
       `S2S 接收音频块: ${conversationId}, seq=${data.sequence}, format=${data.format}, isLast=${data.isLast}`,
@@ -136,10 +138,9 @@ export class S2sGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleStop(@ConnectedSocket() client: Socket): void {
     const conversationId = this.getConversationId(client);
     if (!conversationId) return;
-    this.logger.debug(`S2S 停止: ${conversationId}`);
-    this.sessionManager.closeSession(conversationId).catch((e: Error) => {
-      this.logger.warn(`停止S2S会话失败: ${e.message}`);
-    });
+    this.logger.debug(`S2S 停止录音: ${conversationId}`);
+    // 连续对话模式：停止录音由客户端控制，服务端不做任何操作
+    // 火山引擎 VAD 自动检测语音结束，无需发送 FinishSession
   }
 
   /**
@@ -260,7 +261,7 @@ export class S2sGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const client = this.clients.get(conversationId);
     if (!client) return null;
     return {
-      voiceId: (client.handshake.query.voiceId as string) || 'zh_female_vv_uranus_bigtts',
+      voiceId: (client.handshake.query.voiceId as string) || 'zh_female_vv_jupiter_bigtts',
       modelCode: (client.handshake.query.modelCode as string) || undefined,
     };
   }
