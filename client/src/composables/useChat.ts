@@ -304,8 +304,10 @@ export function useChat() {
   /** S2S 端到端语音是否启用 */
   const s2sEnabled = ref(false);
 
-  /** S2S 音频 composable */
-  const s2sAudio = useS2sAudio();
+  /** S2S 音频 composable（含文本回调，将对话文本显示在对话区域） */
+  const s2sAudio = useS2sAudio({}, (text: string, role: 'user' | 'assistant') => {
+    handleS2sText(text, role);
+  });
 
   /** 工作目录 */
   const workspace = useWorkspace();
@@ -1265,7 +1267,7 @@ export function useChat() {
       }
 
       // 启动 S2S 会话
-      s2sAudio.startSession(currentConversationId.value)
+      s2sAudio.startSession(currentConversationId.value, selectedAgent.value || undefined)
       ElMessage.success('实时语音对话已启动，请开始说话')
     } else {
       // 禁用 S2S 时，停止会话
@@ -1288,7 +1290,7 @@ export function useChat() {
       return
     }
 
-    await s2sAudio.startSession(currentConversationId.value)
+    await s2sAudio.startSession(currentConversationId.value, selectedAgent.value || undefined)
   }
 
   /**
@@ -1296,6 +1298,74 @@ export function useChat() {
    */
   const handleS2sStop = () => {
     s2sAudio.stopSession()
+    // 清空 S2S 流式文本追踪
+    s2sLastUserText.value = ''
+    s2sLastAssistantText.value = ''
+    s2sCurrentUserMsgIndex.value = -1
+    s2sCurrentAssistantMsgIndex.value = -1
+  }
+
+  /** S2S 用户文本累积 */
+  const s2sLastUserText = ref('')
+
+  /** S2S 助手文本累积 */
+  const s2sLastAssistantText = ref('')
+
+  /** S2S 当前用户消息索引 */
+  const s2sCurrentUserMsgIndex = ref(-1)
+
+  /** S2S 当前助手消息索引 */
+  const s2sCurrentAssistantMsgIndex = ref(-1)
+
+  /**
+   * 处理 S2S 文本回调，将对话文本显示在对话区域
+   *
+   * @param text 文本内容
+   * @param role 角色（user/assistant）
+   */
+  const handleS2sText = (text: string, role: 'user' | 'assistant') => {
+    if (!text.trim()) return
+
+    if (role === 'user') {
+      // 用户语音识别文本：追加到当前用户消息
+      s2sLastUserText.value += text
+      if (s2sCurrentUserMsgIndex.value < 0) {
+        // 创建新的用户消息
+        const msg: Message = {
+          role: 'user',
+          content: s2sLastUserText.value,
+          timestamp: Date.now(),
+        }
+        messages.value.push(msg)
+        s2sCurrentUserMsgIndex.value = messages.value.length - 1
+      } else {
+        // 更新现有用户消息
+        messages.value[s2sCurrentUserMsgIndex.value].content = s2sLastUserText.value
+      }
+      scrollToBottom()
+    } else {
+      // 助手回复文本：追加到当前助手消息
+      s2sLastAssistantText.value += text
+      if (s2sCurrentAssistantMsgIndex.value < 0) {
+        // 创建新的助手消息
+        const msg: Message = {
+          role: 'assistant',
+          content: s2sLastAssistantText.value,
+          timestamp: Date.now(),
+        }
+        messages.value.push(msg)
+        s2sCurrentAssistantMsgIndex.value = messages.value.length - 1
+      } else {
+        // 更新现有助手消息
+        messages.value[s2sCurrentAssistantMsgIndex.value].content = s2sLastAssistantText.value
+      }
+      scrollToBottom()
+
+      // 助手回复结束后，重置用户消息索引，准备下一轮对话
+      // （ASR 识别到新一轮用户语音时会创建新的用户消息）
+      s2sCurrentUserMsgIndex.value = -1
+      s2sLastUserText.value = ''
+    }
   }
 
   /**

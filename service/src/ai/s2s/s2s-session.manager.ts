@@ -3,6 +3,7 @@ import { S2sGateway } from './s2s.gateway';
 import { StrategyFactory } from '../strategies/strategy.factory';
 import { ModelRoutingService } from '../../model-routing/model-routing.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { ConversationService } from '../../conversation/conversation.service';
 import { S2SExecutionParams } from '../strategies/provider.strategy.interface';
 import { VolcengineS2SClient } from './volcengine-s2s.client';
 
@@ -30,6 +31,18 @@ interface S2sSession {
   lastReceiveTime: number;
   /** WebSocket 客户端实例（火山引擎） */
   wsClient?: VolcengineS2SClient;
+  /** 智能体ID（用于记录 AgentInvokeLog） */
+  agentId?: string;
+  /** 智能体名称（用于 botName） */
+  botName?: string;
+  /** 模型ID（用于记录 AiInvokeLog） */
+  modelId?: string;
+  /** 会话开始时间（用于计算耗时） */
+  startTime?: number;
+  /** 当前轮次用户消息累积（用于日志记录） */
+  currentUserText?: string;
+  /** 当前轮次助手消息累积（用于日志记录） */
+  currentAssistantText?: string;
 }
 
 /**
@@ -66,6 +79,8 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
     private readonly strategyFactory: StrategyFactory,
     private readonly modelRouting: ModelRoutingService,
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => ConversationService))
+    private readonly conversationService: ConversationService,
   ) {}
 
   /**
@@ -104,6 +119,25 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
     const voiceRaw = clientParams?.voiceId || 'zh_female_vv_jupiter_bigtts';
     // S2S 对话模型使用 jupiter 系列音色，修正客户端可能传入的 uranus 等不兼容音色
     const voice = voiceRaw.replace('uranus', 'jupiter');
+    const agentId = clientParams?.agentId;
+    // 过滤无效的 agentId（空字符串、"undefined" 等非有效值）
+    const validAgentId = agentId && agentId !== 'undefined' ? agentId : undefined;
+
+    // 查询智能体信息（用于 botName 和 systemRole）
+    let botName = '豆包';
+    let systemRole = '';
+    if (validAgentId) {
+      try {
+        const agent = await this.prisma.agent.findFirst({ where: { id: validAgentId as any } });
+        if (agent) {
+          botName = agent.name || '豆包';
+          systemRole = agent.systemPrompt || '';
+          this.logger.debug(`智能体对话: botName=${botName}, systemRole长度=${systemRole.length}`);
+        }
+      } catch (e) {
+        this.logger.warn(`查询智能体失败: ${validAgentId}, error=${(e as Error).message}`);
+      }
+    }
 
     const session: S2sSession = {
       conversationId,
@@ -115,6 +149,11 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
       modelCode: modelCode || clientParams?.modelCode,
       seq: 0,
       lastReceiveTime: Date.now(),
+      agentId: validAgentId,
+      botName: botName || undefined,
+      startTime: Date.now(),
+      currentUserText: '',
+      currentAssistantText: '',
     };
 
     this.sessions.set(conversationId, session);
@@ -123,7 +162,9 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
       // 获取模型配置（API Key）
       const model = await this.resolveModel(session.modelCode);
       const apiKey = model.apiKey || '';
-      
+      // 保存模型ID，用于记录 AiInvokeLog
+      session.modelId = model.id?.toString();
+
       this.logger.debug(`Model: ${JSON.stringify({
         code: model.code,
         apiKey: apiKey ? '***' : 'empty',
@@ -185,7 +226,7 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
 
       // 开始会话
       this.logger.log('Starting session...');
-      await wsClient.startSession({ voice });
+      await wsClient.startSession({ voice, botName, systemRole });
 
       this.gateway.notifyStart(conversationId);
       this.logger.debug(`S2S 会话已打开: ${conversationId}`);
@@ -221,7 +262,7 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
     wsClient.on('audio', (audioData: { audioData: Buffer; isLast: boolean; format?: string }) => {
       if (session.closed) return;
 
-      this.logger.log(`✅ 收到音频响应: ${session.conversationId}, size=${audioData.audioData.length}, isLast=${audioData.isLast}, format=${audioData.format || 'pcm'}`);
+      //this.logger.log(`✅ 收到音频响应: ${session.conversationId}, size=${audioData.audioData.length}, isLast=${audioData.isLast}, format=${audioData.format || 'pcm'}`);
 
       // 推送音频块到客户端
       const success = this.gateway.pushAudioChunk(
@@ -239,15 +280,82 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
       }
     });
 
-    // 监听 ASR 事件（ASR_RESPONSE payload 是 requestId UUID，不含识别文本）
-    wsClient.on('asrResponse', (requestId: string) => {
-      this.logger.debug(`ASR Response requestId: ${requestId}`);
+    // 监听 ASR 事件（用户语音识别结果）
+    // ASR_RESPONSE payload 是 requestId UUID，实际识别文本在 CHAT_RESPONSE 之前
+    // 但根据火山引擎文档，ASR_RESPONSE 也可能包含识别文本
+    wsClient.on('asrResponse', (payload: any) => {
+      if (session.closed) return;
+      this.logger.debug(`ASR Response: ${JSON.stringify(payload)}`);
+
+      // 尝试提取识别文本（payload 可能是 requestId 字符串或 JSON 对象）
+      let asrText = '';
+      if (typeof payload === 'string') {
+        // payload 是 requestId，无识别文本
+        return;
+      } else if (payload?.text || payload?.result) {
+        asrText = payload.text || payload.result;
+      }
+
+      if (asrText) {
+        // 累积用户文本（用于日志记录）
+        session.currentUserText = (session.currentUserText || '') + asrText;
+
+        // 推送用户识别文本到客户端
+        this.gateway.pushSpeechText(session.conversationId, asrText, 'user');
+
+        // 保存用户消息到数据库
+        this.conversationService.addMessage(session.conversationId, 'user', asrText, {
+          metadata: { source: 's2s-asr' },
+        }).catch((e) => this.logger.warn(`保存用户消息失败: ${e.message}`));
+      }
+    });
+
+    // 监听 ASR 结束事件，尝试从 asrEnded 获取最终识别文本
+    wsClient.on('asrEnded', () => {
+      this.logger.debug(`ASR 结束: ${session.conversationId}`);
+    });
+
+    // 监听 ChatResponse 事件（模型回复文本）
+    // CHAT_RESPONSE 结构: { "content": "模型回复的文本内容" }
+    wsClient.on('chatResponse', (payload: any) => {
+      if (session.closed) return;
+      this.logger.debug(`Chat Response: ${JSON.stringify(payload)}`);
+
+      const chatText = payload?.content || '';
+      if (!chatText) return;
+
+      // 累积助手文本（用于日志记录）
+      session.currentAssistantText = (session.currentAssistantText || '') + chatText;
+
+      // 推送模型回复文本到客户端
+      this.gateway.pushSpeechText(session.conversationId, chatText, 'assistant');
+
+      // 保存助手消息到数据库
+      this.conversationService.addMessage(session.conversationId, 'assistant', chatText, {
+        metadata: { source: 's2s-chat' },
+      }).catch((e) => this.logger.warn(`保存助手消息失败: ${e.message}`));
+    });
+
+    // 监听 TTS 句子开始事件，表示一轮对话的模型回复开始
+    // 在 TTS_SENTENCE_START 时记录调用日志（此时 ASR 已结束，CHAT_RESPONSE 已到达）
+    wsClient.on('ttsSentenceStart', () => {
+      this.logger.debug(`TTS 句子开始: ${session.conversationId}`);
+
+      // 一轮对话完成，记录调用日志
+      this.saveRoundLog(session).catch((e) =>
+        this.logger.warn(`保存 S2S 调用日志失败: ${e.message}`),
+      );
     });
 
     // 监听错误事件
     wsClient.on('error', (error: Error) => {
       this.logger.error(`WebSocket 错误: ${session.conversationId}, error=${error.message}`);
       this.gateway.notifyError(session.conversationId, `语音对话错误: ${error.message}`);
+
+      // 记录错误日志
+      this.saveErrorLog(session, error.message).catch((e) =>
+        this.logger.warn(`保存 S2S 错误日志失败: ${e.message}`),
+      );
     });
 
     // 监听断开连接事件
@@ -299,7 +407,7 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    this.logger.debug(`发送音频到 WebSocket: ${conversationId}, seq=${sequence}, isLast=${isLast}`);
+    //this.logger.debug(`发送音频到 WebSocket: ${conversationId}, seq=${sequence}, isLast=${isLast}`);
 
     // 注意：火山引擎要求 PCM 16000Hz 格式，客户端发送的是 Base64
     // TODO: 需要实现格式转换（Opus → PCM）
@@ -396,6 +504,121 @@ export class S2sSessionManager implements OnModuleInit, OnModuleDestroy {
 
     // 使用模型路由选择
     return this.modelRouting.selectModel('s2s');
+  }
+
+  /**
+   * 保存一轮 S2S 对话的调用日志
+   *
+   * 记录 AiInvokeLog（模型调用日志）和 AgentInvokeLog（智能体调用日志，仅智能体对话时）
+   *
+   * @param session S2S 会话
+   */
+  private async saveRoundLog(session: S2sSession): Promise<void> {
+    const userText = session.currentUserText || '';
+    const assistantText = session.currentAssistantText || '';
+
+    // 没有有效文本则跳过
+    if (!userText && !assistantText) return;
+
+    const costMs = session.startTime ? Date.now() - session.startTime : 0;
+
+    // 记录 AiInvokeLog（模型调用日志）
+    try {
+      await this.prisma.aiInvokeLog.create({
+        data: {
+          modelId: session.modelId as any,
+          modelCode: session.modelCode || 's2s',
+          modelType: 's2s',
+          request: JSON.stringify({ voice: session.voice, userText }),
+          response: JSON.stringify({ assistantText }),
+          costMs,
+          success: true,
+          clientIp: '',
+        },
+      });
+      this.logger.debug(`S2S 模型调用日志已保存: ${session.conversationId}`);
+    } catch (e) {
+      this.logger.warn(`保存 S2S 模型调用日志失败: ${(e as Error).message}`);
+    }
+
+    // 智能体对话时，记录 AgentInvokeLog
+    if (session.agentId) {
+      try {
+        await this.prisma.agentInvokeLog.create({
+          data: {
+            agentId: session.agentId as any,
+            conversationId: session.conversationId as any,
+            userMessage: userText,
+            agentResponse: assistantText,
+            totalCostMs: costMs,
+            success: true,
+            reasoningMode: 'NONE',
+          },
+        });
+        this.logger.debug(`S2S 智能体调用日志已保存: ${session.conversationId}, agentId=${session.agentId}`);
+      } catch (e) {
+        this.logger.warn(`保存 S2S 智能体调用日志失败: ${(e as Error).message}`);
+      }
+    }
+
+    // 重置当前轮次文本，准备下一轮
+    session.currentUserText = '';
+    session.currentAssistantText = '';
+    session.startTime = Date.now();
+  }
+
+  /**
+   * 保存 S2S 对话错误日志
+   *
+   * @param session S2S 会话
+   * @param errorMessage 错误信息
+   */
+  private async saveErrorLog(session: S2sSession, errorMessage: string): Promise<void> {
+    const costMs = session.startTime ? Date.now() - session.startTime : 0;
+
+    // 记录 AiInvokeLog 错误日志
+    try {
+      await this.prisma.aiInvokeLog.create({
+        data: {
+          modelId: session.modelId as any,
+          modelCode: session.modelCode || 's2s',
+          modelType: 's2s',
+          request: JSON.stringify({ voice: session.voice, userText: session.currentUserText }),
+          response: '',
+          costMs,
+          success: false,
+          errorMessage,
+          clientIp: '',
+        },
+      });
+    } catch (e) {
+      this.logger.warn(`保存 S2S 错误日志失败: ${(e as Error).message}`);
+    }
+
+    // 智能体对话时，记录 AgentInvokeLog 错误日志
+    if (session.agentId) {
+      try {
+        await this.prisma.agentInvokeLog.create({
+          data: {
+            agentId: session.agentId as any,
+            conversationId: session.conversationId as any,
+            userMessage: session.currentUserText || '',
+            agentResponse: '',
+            totalCostMs: costMs,
+            success: false,
+            errorMessage,
+            reasoningMode: 'NONE',
+          },
+        });
+      } catch (e) {
+        this.logger.warn(`保存 S2S 智能体错误日志失败: ${(e as Error).message}`);
+      }
+    }
+
+    // 重置当前轮次文本
+    session.currentUserText = '';
+    session.currentAssistantText = '';
+    session.startTime = Date.now();
   }
 
   /**

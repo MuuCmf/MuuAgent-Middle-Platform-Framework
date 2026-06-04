@@ -84,11 +84,27 @@ export class VolcengineProtocolParser {
   }
 
   /**
+   * StartSession 配置参数
+   */
+  public static readonly StartSessionConfig = {
+    /** 音色标识 */
+    voice: 'zh_female_vv_jupiter_bigtts',
+    /** 机器人名称（智能体对话时使用智能体名称） */
+    botName: '豆包',
+    /** 系统角色提示词（智能体对话时使用智能体 systemPrompt） */
+    systemRole: '',
+  };
+
+  /**
    * 构建 StartSession 消息
+   *
+   * @param sessionId 会话ID
+   * @param config 会话配置（voice、botName、systemRole）
+   * @returns 二进制帧数据
    */
   public static buildStartSession(
     sessionId: string,
-    config?: { voice?: string },
+    config?: { voice?: string; botName?: string; systemRole?: string },
   ): Buffer {
     const header = this.buildHeader(
       this.MessageType.FULL_CLIENT_REQUEST,
@@ -101,11 +117,11 @@ export class VolcengineProtocolParser {
     const sessionIdSizeBuffer = Buffer.alloc(4);
     sessionIdSizeBuffer.writeInt32BE(sessionIdBuffer.length, 0);
 
-    // 使用默认配置，支持传入 voice (speaker)
+    // 使用默认配置，支持传入 voice、botName、systemRole
     const defaultConfig = {
       dialog: {
-        bot_name: '豆包',
-        system_role: '',
+        bot_name: config?.botName || '豆包',
+        system_role: config?.systemRole || '',
         speaking_style: '',
         dialog_id: '',
         character_manifest: '',
@@ -135,7 +151,7 @@ export class VolcengineProtocolParser {
       },
     };
 
-    this.logger.debug('StartSession config:', JSON.stringify(defaultConfig, null, 2));
+    //this.logger.debug('StartSession config:', JSON.stringify(defaultConfig, null, 2));
 
     const payload = Buffer.from(JSON.stringify(defaultConfig), 'utf8');
     const payloadSizeBuffer = Buffer.alloc(4);

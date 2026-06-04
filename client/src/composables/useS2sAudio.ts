@@ -12,6 +12,8 @@ export interface S2sAudioConfig {
   voiceId?: string
   /** S2S 模型编码 */
   modelCode?: string
+  /** 智能体ID（传入后服务端使用智能体名称和提示词） */
+  agentId?: string
   /** 音频格式（仅供兼容，固定为 pcm） */
   audioFormat?: 'pcm'
   /** 是否启用回音消除 */
@@ -32,8 +34,9 @@ export interface S2sAudioConfig {
  * - 提供 start()、stop()、pause()、resume() 方法
  *
  * @param config S2S 配置
+ * @param onTextCallback 文本回调（接收识别文本和角色，供外部消费）
  */
-export function useS2sAudio(config: S2sAudioConfig = {}) {
+export function useS2sAudio(config: S2sAudioConfig = {}, onTextCallback?: (text: string, role: 'user' | 'assistant') => void) {
   /** 当前状态 */
   const status = ref<S2sStatus>('idle')
 
@@ -86,8 +89,9 @@ export function useS2sAudio(config: S2sAudioConfig = {}) {
    * 启动 S2S 会话
    *
    * @param conversationId 会话ID（可选，默认使用配置中的值）
+   * @param agentId 智能体ID（可选，传入后服务端使用智能体名称和提示词）
    */
-  const startSession = async (conversationId?: string): Promise<void> => {
+  const startSession = async (conversationId?: string, agentId?: string): Promise<void> => {
     if (!checkSupport()) {
       error.value = '浏览器不支持实时语音对话'
       console.error('[S2S] 浏览器不支持:', error.value)
@@ -108,20 +112,11 @@ export function useS2sAudio(config: S2sAudioConfig = {}) {
       const voiceConfig = voiceService.getConfig()
       const voiceId = config.voiceId || voiceConfig.voiceId
       const modelCode = config.modelCode
+      const agentIdFinal = agentId || config.agentId
 
-      console.log('[S2S] 连接参数:', { voiceId, modelCode })
+      console.log('[S2S] 连接参数:', { voiceId, modelCode, agentId: agentIdFinal })
 
-      const connected = s2sStreamService.connect(convId, voiceId, modelCode)
-      if (!connected) {
-        error.value = 'WebSocket 连接失败'
-        console.error('[S2S] WebSocket 连接失败')
-        return
-      }
-
-      const wasAlreadyConnected = s2sStreamService.isConnected
-      console.log('[S2S] WebSocket 已连接, wasAlreadyConnected=', wasAlreadyConnected)
-
-      // 设置事件回调
+      // 先设置回调，再连接，避免 s2s_start 事件在 setCallbacks 之前到达
       s2sStreamService.setCallbacks({
         onStart: () => {
           console.log('[S2S] 会话已开始')
@@ -132,9 +127,13 @@ export function useS2sAudio(config: S2sAudioConfig = {}) {
           console.log('[S2S] 收到音频块:', chunk.sequence)
           // 音频块自动播放（由 S2sStreamService 处理）
         },
-        onText: (text: string) => {
-          console.log('[S2S] 识别文本:', text)
-          recognizedText.value += text
+        onText: (text: string, role: 'user' | 'assistant') => {
+          console.log('[S2S] 识别文本:', text, '角色:', role)
+          if (role === 'user') {
+            recognizedText.value += text
+          }
+          // 触发文本回调，供 useChat 消费
+          onTextCallback?.(text, role)
         },
         onEnd: () => {
           console.log('[S2S] 会话已结束')
@@ -153,14 +152,15 @@ export function useS2sAudio(config: S2sAudioConfig = {}) {
         },
       })
 
-      // 如果 WS 已连接（连续对话复用），直接启动录音
-      if (wasAlreadyConnected) {
-        console.log('[S2S] WS 已连接，直接启动录音')
-        status.value = 'streaming'
-        startRecording()
-      } else {
-        status.value = 'connecting'
+      const connected = s2sStreamService.connect(convId, voiceId, modelCode, agentIdFinal)
+      if (!connected) {
+        error.value = 'WebSocket 连接失败'
+        console.error('[S2S] WebSocket 连接失败')
+        return
       }
+
+      // 录音由 s2s_start 事件触发（onStart 回调），不再手动启动
+      status.value = 'connecting'
       console.log('[S2S] 状态: connecting')
     } catch (err) {
       error.value = (err as Error).message

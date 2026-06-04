@@ -31,7 +31,8 @@ export interface S2sEventCallbacks {
   /** 接收音频块 */
   onChunk?: (chunk: S2sChunkData) => void
   /** 接收识别文本 */
-  onText?: (text: string) => void
+  /** 文本回调（含角色区分） */
+  onText?: (text: string, role: 'user' | 'assistant') => void
   /** 会话结束 */
   onEnd?: () => void
   /** 错误 */
@@ -111,12 +112,14 @@ class S2sStreamService {
    * @param conversationId 会话ID
    * @param voiceId 语音标识（可选）
    * @param modelCode S2S模型编码（可选）
+   * @param agentId 智能体ID（可选，传入后服务端会使用智能体名称和提示词）
    * @returns 是否成功连接
    */
   connect(
     conversationId: string,
     voiceId?: string,
     modelCode?: string,
+    agentId?: string,
   ): boolean {
     if (this.socket?.connected) {
       if (this.conversationId === conversationId) {
@@ -137,6 +140,7 @@ class S2sStreamService {
         conversationId,
         voiceId: queryVoiceId,
         modelCode: modelCode || undefined,
+        agentId: agentId || undefined,
       },
       transports: ['websocket'],
       reconnection: true,
@@ -159,7 +163,7 @@ class S2sStreamService {
     this.socket.on('connect', () => {
       console.log('[S2sStreamService] WebSocket 已连接')
       this.updateStatus('connected')
-      this.callbacks.onStart?.()
+      // 注意：不在此处触发 onStart，等 s2s_start 事件表示服务端会话真正就绪后再触发
     })
 
     this.socket.on('connect_error', (error: Error) => {
@@ -176,6 +180,8 @@ class S2sStreamService {
       console.log('[S2sStreamService] S2S 会话已开始')
       this.updateStatus('streaming')
       this.initMsePlayback()
+      // 服务端会话已就绪，通知上层开始录音
+      this.callbacks.onStart?.()
     })
 
     this.socket.on('audio_chunk', (data: S2sChunkData) => {
@@ -183,9 +189,9 @@ class S2sStreamService {
       this.handleAudioChunk(data)
     })
 
-    this.socket.on('speech_text', (data: { text: string }) => {
-      console.log('[S2sStreamService] 识别文本:', data.text)
-      this.callbacks.onText?.(data.text)
+    this.socket.on('speech_text', (data: { text: string; role: 'user' | 'assistant' }) => {
+      console.log('[S2sStreamService] 识别文本:', data.text, '角色:', data.role)
+      this.callbacks.onText?.(data.text, data.role || 'user')
     })
 
     this.socket.on('s2s_end', () => {
