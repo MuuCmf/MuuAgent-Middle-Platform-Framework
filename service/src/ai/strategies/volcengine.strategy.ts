@@ -541,74 +541,55 @@ export class VolcengineStrategy extends BaseStrategy {
   // ===================== S2S 端到端语音 =====================
 
   /**
+   * S2S WebSocket API 基础地址
+   *
+   * 注意：火山引擎端到端实时语音大模型使用 WebSocket 协议，而非 HTTP POST。
+   * 正确的 endpoint 是：wss://openspeech.bytedance.com/api/v3/realtime/dialogue
+   *
+   * 参考：https://www.volcengine.com/docs/6561/1594356
+   */
+  private readonly s2sWebSocketURL = 'wss://openspeech.bytedance.com/api/v3/realtime/dialogue';
+
+  /**
    * S2S端到端语音（非流式）
    *
-   * 通过 HTTP POST 调用火山引擎 S2S API，收集所有音频块后返回完整结果。
+   * ⚠️ 注意：火山引擎 S2S API 仅支持 WebSocket 流式交互，不支持 HTTP POST。
+   * 此方法已废弃，请使用 executeS2SStream 或直接使用 WebSocket 连接。
    *
    * @param params S2S执行参数
    * @returns {Promise<S2SExecutionResult>} 语音结果
+   * @throws HttpException 始终抛出错误，提示使用 WebSocket
    */
   async executeS2S(params: S2SExecutionParams): Promise<S2SExecutionResult> {
-    const { model, audio, voice } = params;
-
-    this.logger.debug(
-      `Volcengine S2S: model=${model.code}, voice=${voice || 'default'}`,
+    throw new HttpException(
+      '火山引擎 S2S API 仅支持 WebSocket 流式交互，请使用 executeS2SStream 或建立 WebSocket 连接。' +
+      '参考文档：https://www.volcengine.com/docs/6561/1594356',
+      HttpStatus.BAD_REQUEST,
     );
-
-    const apiKey = this.resolveApiKey(model.apiKey);
-    this.validateApiKey(apiKey);
-
-    try {
-      const response = await fetch(`${this.baseURL}/api/v1/s2s`, {
-        method: 'POST',
-        headers: this.buildHeaders(apiKey, model.code, model.config),
-        body: JSON.stringify({
-          user: { uid: crypto.randomUUID() },
-          namespace: 'S2S',
-          req_params: {
-            audio: audio,
-            speaker: voice || this.defaultVoice,
-            audio_params: {
-              format: 'mp3',
-              sample_rate: this.defaultSampleRate,
-            },
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        throw new HttpException(
-          `火山引擎 S2S API 错误: ${response.status} ${errorText}`,
-          response.status,
-        );
-      }
-
-      const responseText = await response.text();
-      const lines = this.parseResponseLines(responseText);
-      const audioData = this.extractAudioFromLines(lines);
-
-      if (!audioData) {
-        throw new HttpException('火山引擎 S2S 未返回音频数据', HttpStatus.INTERNAL_SERVER_ERROR);
-      }
-
-      return {
-        audioData,
-        format: 'mp3',
-      };
-    } catch (error) {
-      if (error instanceof HttpException) throw error;
-      throw new HttpException(
-        `火山引擎 S2S 失败: ${(error as Error).message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
   }
 
   /**
-   * 流式S2S端到端语音
+   * 流式S2S端到端语音（WebSocket）
    *
-   * 通过 HTTP POST 调用火山引擎 S2S API，使用 ReadableStream 逐块 yield 音频数据。
+   * ⚠️ 注意：此方法需要实现 WebSocket 客户端连接。
+   * 火山引擎 S2S API 使用 WebSocket 协议进行双向音频流交互。
+   *
+   * **架构说明：**
+   * 1. 客户端 WebSocket → 服务端 Gateway → Session Manager
+   * 2. Session Manager → 火山引擎 WebSocket → 接收音频流
+   * 3. Session Manager → Gateway → 客户端 WebSocket
+   *
+   * **音频格式要求：**
+   * - 输入：PCM, 单声道, 16000Hz, int16, 小端序
+   * - 输出：OGG Opus（默认）或 PCM (24000Hz, 32bit/16bit)
+   *
+   * **WebSocket 事件：**
+   * - StartSession (100): 建立会话
+   * - TaskRequest (200): 发送音频数据
+   * - FinishSession (102): 结束会话
+   * - TTSResponse (352): 接收音频数据
+   *
+   * TODO: 实现 WebSocket 客户端连接和双向音频流管理
    *
    * @param params S2S执行参数
    * @returns 音频块异步迭代器
@@ -616,126 +597,21 @@ export class VolcengineStrategy extends BaseStrategy {
   async *executeS2SStream(params: S2SExecutionParams): AsyncIterable<S2SStreamChunk> {
     const { model, audio, voice } = params;
 
-    this.logger.debug(
-      `Volcengine S2S 流式: model=${model.code}, voice=${voice || 'default'}`,
+    this.logger.warn(
+      `火山引擎 S2S WebSocket 未实现，请参考文档：https://www.volcengine.com/docs/6561/1594356`,
     );
 
-    const apiKey = this.resolveApiKey(model.apiKey);
-    this.validateApiKey(apiKey);
+    // TODO: 实现 WebSocket 连接
+    // 1. 建立 WebSocket 连接：wss://openspeech.bytedance.com/api/v3/realtime/dialogue
+    // 2. 发送 StartSession 事件
+    // 3. 发送 TaskRequest 事件（音频数据）
+    // 4. 接收 TTSResponse 事件（音频流）
+    // 5. 发送 FinishSession 事件
 
-    const response = await fetch(`${this.baseURL}/api/v1/s2s`, {
-      method: 'POST',
-      headers: this.buildHeaders(apiKey, model.code, model.config),
-      body: JSON.stringify({
-        user: { uid: crypto.randomUUID() },
-        namespace: 'S2S',
-        req_params: {
-          audio: audio,
-          speaker: voice || this.defaultVoice,
-          audio_params: {
-            format: 'mp3',
-            sample_rate: this.defaultSampleRate,
-          },
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new HttpException(
-        `火山引擎 S2S API 错误: ${response.status} ${errorText}`,
-        response.status,
-      );
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new HttpException('火山引擎 S2S API 响应体不可读', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let seq = 0;
-    let hasError = false;
-    let errorMessage = '';
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-
-          let parsed: any;
-          try {
-            parsed = JSON.parse(trimmed);
-          } catch {
-            continue;
-          }
-
-          const successCodes = [0, 20000000];
-          if (parsed.event === 'error' || (parsed.code !== undefined && !successCodes.includes(parsed.code))) {
-            hasError = true;
-            errorMessage = parsed.message || parsed.error || `火山引擎错误码: ${parsed.code}`;
-            this.logger.error(`火山引擎 S2S API 错误: ${errorMessage}`);
-            continue;
-          }
-
-          const audioData = parsed.data || parsed.audio;
-          if (audioData) {
-            const isLast = parsed.is_last === true;
-            const textDelta = parsed.text || parsed.text_delta;
-
-            this.logger.debug(`收到S2S音频块, seq=${seq}, isLast=${isLast}`);
-
-            yield {
-              audioData,
-              format: 'mp3',
-              sequence: seq++,
-              isLast,
-              textDelta,
-              sampleRate: this.defaultSampleRate,
-            };
-
-            if (isLast) return;
-          }
-        }
-      }
-
-      if (buffer.trim()) {
-        try {
-          const parsed = JSON.parse(buffer.trim());
-          const audioData = parsed.data || parsed.audio;
-          if (audioData) {
-            yield {
-              audioData,
-              format: 'mp3',
-              sequence: seq++,
-              isLast: true,
-              textDelta: parsed.text,
-              sampleRate: this.defaultSampleRate,
-            };
-          }
-        } catch {
-          // ignore malformed final chunk
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
-
-    if (hasError) {
-      throw new HttpException(`火山引擎 S2S 错误: ${errorMessage}`, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    if (seq === 0) {
-      throw new HttpException('火山引擎 S2S 未返回音频数据', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    throw new HttpException(
+      '火山引擎 S2S WebSocket 实现待完成。' +
+      '正确的 API endpoint: wss://openspeech.bytedance.com/api/v3/realtime/dialogue',
+      HttpStatus.NOT_IMPLEMENTED,
+    );
   }
 }

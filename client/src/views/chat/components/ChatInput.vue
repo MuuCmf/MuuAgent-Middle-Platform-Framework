@@ -357,6 +357,12 @@ interface Props {
   workspaceDirName?: string | null
   /** 模型列表 */
   models?: any[]
+  /** 语音播报是否启用 */
+  voiceEnabled?: boolean
+  /** 视频对话是否启用 */
+  videoEnabled?: boolean
+  /** S2S 端到端语音是否启用 */
+  s2sEnabled?: boolean
   /** 当前选中的模型编码 */
   selectedLlmModel?: string
   /** 当前选中的模型类型筛选 */
@@ -371,6 +377,9 @@ const props = withDefaults(defineProps<Props>(), {
   models: () => [],
   selectedLlmModel: 'mcp-llm',
   selectedModelType: 'llm',
+  voiceEnabled: false,
+  videoEnabled: false,
+  s2sEnabled: false,
 })
 
 /**
@@ -412,6 +421,16 @@ const emit = defineEmits<{
   'model-type-change': [value: string]
   /** 文件上传 */
   'file-upload': [file: File, fileType: string]
+  /** 语音播报切换 */
+  'voice-toggle': []
+  /** 视频对话切换 */
+  'video-toggle': []
+  /** S2S 端到端语音切换 */
+  's2s-toggle': []
+  /** S2S 会话启动 */
+  's2s-start': []
+  /** S2S 会话停止 */
+  's2s-stop': []
 }>()
 
 /** 内部模型编码（用于本地响应式） */

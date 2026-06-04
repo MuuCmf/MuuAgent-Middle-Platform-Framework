@@ -28,6 +28,7 @@ import type {
 import type { ClientToolModulePolicy } from "../executor/types";
 import { ttsStreamService, type TtsPlaybackStatus } from "../services/TtsStreamService";
 import { voiceService } from "../services/VoiceService";
+import { useS2sAudio } from "./useS2sAudio";
 
 /**
  * 创建分段流式写入器
@@ -297,6 +298,14 @@ export function useChat() {
 
   /** 视频对话是否启用 */
   const videoEnabled = ref(false);
+
+  // ========== S2S 端到端语音状态 ==========
+
+  /** S2S 端到端语音是否启用 */
+  const s2sEnabled = ref(false);
+
+  /** S2S 音频 composable */
+  const s2sAudio = useS2sAudio();
 
   /** 工作目录 */
   const workspace = useWorkspace();
@@ -1226,6 +1235,70 @@ export function useChat() {
   }
 
   /**
+   * 切换 S2S 端到端语音模式
+   */
+  const handleS2sToggle = () => {
+    // 检查是否有对话
+    if (!currentConversationId.value) {
+      ElMessage.warning({
+        message: '请先发送一条消息创建对话，然后再启用实时语音',
+        duration: 5000,
+        showClose: true,
+      })
+      return
+    }
+
+    // 检查浏览器支持
+    if (!s2sAudio.isSupported.value) {
+      ElMessage.error('浏览器不支持实时语音对话')
+      return
+    }
+
+    s2sEnabled.value = !s2sEnabled.value
+
+    if (s2sEnabled.value) {
+      // 启用 S2S 时，禁用 TTS（避免冲突）
+      if (voiceEnabled.value) {
+        voiceEnabled.value = false
+        voiceService.updateConfig({ autoPlay: false })
+        ttsStreamService.disconnect()
+      }
+
+      // 启动 S2S 会话
+      s2sAudio.startSession(currentConversationId.value)
+      ElMessage.success('实时语音对话已启动，请开始说话')
+    } else {
+      // 禁用 S2S 时，停止会话
+      s2sAudio.stopSession()
+      ElMessage.info('实时语音对话已关闭')
+    }
+  }
+
+  /**
+   * 启动 S2S 会话
+   */
+  const handleS2sStart = async () => {
+    if (!currentConversationId.value) {
+      ElMessage.warning('请先创建对话')
+      return
+    }
+
+    if (!s2sAudio.isSupported.value) {
+      ElMessage.error('浏览器不支持实时语音对话')
+      return
+    }
+
+    await s2sAudio.startSession(currentConversationId.value)
+  }
+
+  /**
+   * 停止 S2S 会话
+   */
+  const handleS2sStop = () => {
+    s2sAudio.stopSession()
+  }
+
+  /**
    * 暂停语音播报
    */
   const handleTtsPause = () => {
@@ -1348,6 +1421,8 @@ export function useChat() {
     voiceEnabled,
     ttsStatus,
     videoEnabled,
+    s2sEnabled,
+    s2sAudio,
     handleModeChange,
     handleLlmModelChange,
     handleModelTypeChange,
@@ -1364,6 +1439,9 @@ export function useChat() {
     handleFileClick,
     handleTtsToggle,
     handleVideoToggle,
+    handleS2sToggle,
+    handleS2sStart,
+    handleS2sStop,
     handleTtsPause,
     handleTtsResume,
     handleTtsChangeVoice,

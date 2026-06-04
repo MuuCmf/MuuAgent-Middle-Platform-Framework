@@ -59,6 +59,11 @@
           </template>
           <template #actions>
             <div class="header-voice-video">
+              <!-- S2S 端到端语音对话开关 -->
+              <div class="av-trigger" :class="{ active: s2sEnabled }" @click="handleS2sToggle" title="实时语音对话（端到端）">
+                <el-icon :size="18"><Microphone /></el-icon>
+                <span class="av-trigger-badge" :class="{ active: s2sEnabled }" />
+              </div>
               <!-- 音视频对话主开关 -->
               <div class="av-trigger" :class="{ active: videoEnabled }" @click="handleVideoToggleFromHeader" title="音视频对话（点击开启/关闭）">
                 <el-icon :size="18"><VideoCamera /></el-icon>
@@ -138,7 +143,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Plus, ChatDotRound, Cpu, Star, User, ChatLineRound, FolderOpened, Headset, VideoCamera } from '@element-plus/icons-vue'
+import { Plus, ChatDotRound, Cpu, Star, User, ChatLineRound, FolderOpened, Headset, VideoCamera, Microphone } from '@element-plus/icons-vue'
 import AppShell from '../../components/layout/AppShell.vue'
 import AppHeader from '../../components/layout/AppHeader.vue'
 import ThemeToggle from '../../components/common/ThemeToggle.vue'
@@ -207,6 +212,7 @@ const {
   voiceEnabled,
   ttsStatus,
   videoEnabled,
+  s2sEnabled,
   handleModeChange,
   handleLlmModelChange,
   handleModelTypeChange,
@@ -222,8 +228,9 @@ const {
   handleWorkspaceRefresh,
   handleFileClick,
   handleTtsToggle,
-  handleFileUpload,
   handleVideoToggle,
+  handleS2sToggle,
+  handleFileUpload,
   getModelName,
   getAgentName,
   getKbName,
