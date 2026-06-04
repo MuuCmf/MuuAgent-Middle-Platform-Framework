@@ -29,8 +29,18 @@ import { TtsGateway } from './tts/tts.gateway';
 import { TtsService } from './tts/tts.service';
 import { TtsSessionManager } from './tts/tts-session.manager';
 
+import { S2sGateway } from './s2s/s2s.gateway';
+import { S2sSessionManager } from './s2s/s2s-session.manager';
+
 @Module({
-  imports: [ModelRoutingModule, ModelModule, ModelTemplateModule, ConversationModule, IntentModule, PrismaModule],
+  imports: [
+    ModelRoutingModule,
+    ModelModule,
+    ModelTemplateModule,
+    ConversationModule,
+    IntentModule,
+    PrismaModule,
+  ],
   controllers: [AiController, AdminAiController],
   providers: [
     LogService,
@@ -50,6 +60,8 @@ import { TtsSessionManager } from './tts/tts-session.manager';
     TtsGateway,
     TtsSessionManager,
     TtsService,
+    S2sGateway,
+    S2sSessionManager,
   ],
   exports: [AiService, TtsService],
 })
