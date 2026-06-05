@@ -1237,23 +1237,49 @@ export function useChat() {
   }
 
   /**
+   * 确保存在当前会话，如果不存在则自动创建
+   * @returns 是否成功获取到会话ID
+   */
+  const ensureConversationExists = async (): Promise<boolean> => {
+    if (currentConversationId.value) return true
+
+    try {
+      // 根据是否选中智能体决定会话类型
+      const conversationType = selectedAgent.value ? 'agent' : 'model'
+      const targetId = selectedAgent.value || selectedLlmModel.value || 'mcp-llm'
+
+      const res = await conversationService.create({
+        conversationType,
+        targetId,
+      })
+      currentConversationId.value = res.data.id
+      selectedType.value = conversationType as 'model' | 'agent'
+
+      // 刷新会话列表
+      await loadConversations()
+
+      return true
+    } catch (error) {
+      console.error('自动创建会话失败:', error)
+      ElMessage.error('创建会话失败，请重试')
+      return false
+    }
+  }
+
+  /**
    * 切换 S2S 端到端语音模式
    */
-  const handleS2sToggle = () => {
-    // 检查是否有对话
-    if (!currentConversationId.value) {
-      ElMessage.warning({
-        message: '请先发送一条消息创建对话，然后再启用实时语音',
-        duration: 5000,
-        showClose: true,
-      })
-      return
-    }
-
+  const handleS2sToggle = async () => {
     // 检查浏览器支持
     if (!s2sAudio.isSupported.value) {
       ElMessage.error('浏览器不支持实时语音对话')
       return
+    }
+
+    // 如果没有对话，自动创建一个
+    if (!currentConversationId.value) {
+      const created = await ensureConversationExists()
+      if (!created) return
     }
 
     s2sEnabled.value = !s2sEnabled.value
@@ -1267,7 +1293,7 @@ export function useChat() {
       }
 
       // 启动 S2S 会话
-      s2sAudio.startSession(currentConversationId.value, selectedAgent.value || undefined)
+      s2sAudio.startSession(currentConversationId.value ?? undefined, selectedAgent.value || undefined)
       ElMessage.success('实时语音对话已启动，请开始说话')
     } else {
       // 禁用 S2S 时，停止会话
@@ -1280,17 +1306,18 @@ export function useChat() {
    * 启动 S2S 会话
    */
   const handleS2sStart = async () => {
-    if (!currentConversationId.value) {
-      ElMessage.warning('请先创建对话')
-      return
-    }
-
     if (!s2sAudio.isSupported.value) {
       ElMessage.error('浏览器不支持实时语音对话')
       return
     }
 
-    await s2sAudio.startSession(currentConversationId.value, selectedAgent.value || undefined)
+    // 如果没有对话，自动创建一个
+    if (!currentConversationId.value) {
+      const created = await ensureConversationExists()
+      if (!created) return
+    }
+
+    await s2sAudio.startSession(currentConversationId.value ?? undefined, selectedAgent.value || undefined)
   }
 
   /**
