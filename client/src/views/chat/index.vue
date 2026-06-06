@@ -69,8 +69,8 @@
                 <el-icon :size="18"><VideoCamera /></el-icon>
                 <span class="av-trigger-badge" :class="{ active: videoEnabled }" />
               </div>
-              <!-- 语音播报开关 -->
-              <div class="av-trigger" :class="{ active: voiceEnabled }" @click="handleTtsToggle" @contextmenu.prevent="handleVoiceSettings" title="语音播报（点击切换，右键设置）">
+              <!-- 语音播报设置 -->
+              <div class="av-trigger" :class="{ active: voiceEnabled }" @click="handleVoiceSettings" title="语音播报设置（点击打开设置）">
                 <el-icon :size="18"><Headset /></el-icon>
                 <span class="av-trigger-badge" :class="{ active: voiceEnabled }" />
               </div>
@@ -227,7 +227,6 @@ const {
   handleWorkspaceClear,
   handleWorkspaceRefresh,
   handleFileClick,
-  handleTtsToggle,
   handleVideoToggle,
   handleS2sToggle,
   handleFileUpload,
