@@ -51,7 +51,7 @@ const props = withDefaults(defineProps<Props>(), {
   clearable: true,
   disabled: false,
   size: 'default',
-  width: '200px',
+  width: '100%',
 })
 
 const computedPlaceholder = computed(() => props.placeholder || t('component.selectApp'))
@@ -119,7 +119,7 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .app-selector {
-  display: inline-block;
+  width: 100%;
 }
 
 .app-option {

@@ -1,17 +1,8 @@
 <template>
-  <el-dialog
-    :model-value="visible"
-    :title="isEdit ? $t('knowledge.editDialog.editTitle') : $t('knowledge.editDialog.createTitle')"
-    width="600px"
-    @close="handleClose"
-  >
-    <el-form
-      ref="formRef"
-      :model="formData"
-      :rules="formRules"
-      label-width="100px"
-      label-position="top"
-    >
+  <el-drawer :model-value="visible"
+    :title="isEdit ? $t('knowledge.editDialog.editTitle') : $t('knowledge.editDialog.createTitle')" size="600px"
+    @close="handleClose">
+    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" label-position="top">
       <el-form-item :label="$t('knowledge.editDialog.form.kbName')" prop="kbName">
         <el-input v-model="formData.kbName" :placeholder="$t('knowledge.editDialog.form.kbNamePlaceholder')" />
       </el-form-item>
@@ -23,27 +14,23 @@
       <el-form-item :label="$t('knowledge.editDialog.form.appCode')">
         <el-select v-model="formData.appCode" :placeholder="$t('knowledge.editDialog.form.appCodePlaceholder')"
           clearable style="width: 100%">
-          <el-option v-for="app in appList" :key="app.appCode" :label="app.appName" :value="app.appCode" />
+          <el-option v-for="app in appList" :key="app.code" :label="app.name" :value="app.code" />
         </el-select>
       </el-form-item>
 
-      <el-row :gutter="20">
-        <el-col :span="12">
-          <el-form-item :label="$t('knowledge.editDialog.form.isPublic')">
-            <el-switch v-model="formData.isPublic" :active-text="$t('knowledge.filter.public')"
-              :inactive-text="$t('knowledge.filter.private')" />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item :label="$t('knowledge.editDialog.form.retrievalMethod')">
-            <el-select v-model="formData.retrievalMethod" :placeholder="$t('knowledge.editDialog.form.retrievalMethodPlaceholder')"
-              style="width: 100%" @change="handleRetrievalMethodChange">
-              <el-option :label="$t('knowledge.editDialog.form.vectorRetrieval')" value="vector" />
-              <el-option :label="$t('knowledge.editDialog.form.bm25Retrieval')" value="bm25" />
-            </el-select>
-          </el-form-item>
-        </el-col>
-      </el-row>
+      <el-form-item :label="$t('knowledge.editDialog.form.isPublic')">
+        <el-switch v-model="formData.isPublic" :active-text="$t('knowledge.filter.public')"
+          :inactive-text="$t('knowledge.filter.private')" />
+      </el-form-item>
+
+      <el-form-item :label="$t('knowledge.editDialog.form.retrievalMethod')">
+        <el-select v-model="formData.retrievalMethod"
+          :placeholder="$t('knowledge.editDialog.form.retrievalMethodPlaceholder')" style="width: 100%"
+          @change="handleRetrievalMethodChange">
+          <el-option :label="$t('knowledge.editDialog.form.vectorRetrieval')" value="vector" />
+          <el-option :label="$t('knowledge.editDialog.form.bm25Retrieval')" value="bm25" />
+        </el-select>
+      </el-form-item>
 
       <div class="retrieval-tip" v-if="formData.retrievalMethod === 'vector'">
         <el-alert type="info" show-icon :closable="false">
@@ -53,8 +40,9 @@
 
       <template v-if="formData.retrievalMethod === 'vector'">
         <el-form-item :label="$t('knowledge.editDialog.form.embeddingModel')" prop="embeddingModel">
-          <el-select v-model="formData.embeddingModel" :placeholder="$t('knowledge.editDialog.form.embeddingModelPlaceholder')"
-            style="width: 100%" :no-data-text="$t('knowledge.editDialog.form.noEmbeddingModelTip')">
+          <el-select v-model="formData.embeddingModel"
+            :placeholder="$t('knowledge.editDialog.form.embeddingModelPlaceholder')" style="width: 100%"
+            :no-data-text="$t('knowledge.editDialog.form.noEmbeddingModelTip')">
             <el-option v-for="model in embeddingModelList" :key="model.modelId" :label="model.modelName"
               :value="model.modelId" />
           </el-select>
@@ -103,12 +91,13 @@
     </el-form>
 
     <template #footer>
-      <div class="dialog-footer">
+      <div class="drawer-footer">
         <el-button @click="handleClose">{{ $t('knowledge.actions.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('knowledge.actions.confirm') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('knowledge.actions.confirm')
+          }}</el-button>
       </div>
     </template>
-  </el-dialog>
+  </el-drawer>
 </template>
 
 <script setup lang="ts">
@@ -284,9 +273,28 @@ const handleSubmit = async () => {
   margin-bottom: 16px;
 }
 
-.dialog-footer {
+.drawer-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  padding: 16px 0 0;
+  border-top: 1px solid #e4e7ed;
+}
+
+.el-drawer {
+  .el-drawer__body {
+    padding: 16px 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+
+    .el-form {
+      flex: 1;
+    }
+  }
+
+  .el-drawer__footer {
+    padding: 0 24px 24px;
+  }
 }
 </style>

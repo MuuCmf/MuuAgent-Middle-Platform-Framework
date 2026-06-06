@@ -3,6 +3,14 @@
     :title="mode === 'create' ? $t('mcp.editDrawer.createTitle') : $t('mcp.editDrawer.editTitle')" direction="rtl"
     size="550px" @close="handleClose">
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+      <el-form-item :label="$t('mcp.editDrawer.form.appCode')">
+        <AppSelector
+          v-model="form.appCode"
+          :placeholder="$t('mcp.editDrawer.form.appCodePlaceholder')"
+          clearable
+        />
+      </el-form-item>
+
       <el-form-item :label="$t('mcp.editDrawer.form.name')" prop="name">
         <el-input v-model="form.name" :placeholder="$t('mcp.editDrawer.form.namePlaceholder')"
           :disabled="mode === 'edit'" />
@@ -148,6 +156,7 @@ import { ElMessage } from 'element-plus'
 import { Connection, Search, InfoFilled, Plus, Delete } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { mcpServerApi, type McpServer, type ToolDescription, type McpTransport } from '@/api/mcp-server'
+import AppSelector from '@/components/AppSelector.vue'
 
 const { t } = useI18n()
 
@@ -182,6 +191,7 @@ const form = reactive({
   name: '',
   displayName: '',
   description: '',
+  appCode: '',
   transport: 'http' as McpTransport,
   url: '',
   command: '',
@@ -325,6 +335,7 @@ const resetForm = () => {
   form.name = ''
   form.displayName = ''
   form.description = ''
+  form.appCode = ''
   form.transport = 'http'
   form.url = ''
   form.command = ''
@@ -348,6 +359,7 @@ watch(
         form.name = props.server.name
         form.displayName = props.server.displayName || ''
         form.description = props.server.description || ''
+        form.appCode = props.server.appCode || ''
         form.transport = props.server.transport || 'http'
         form.url = props.server.url || ''
         form.command = props.server.command || ''
@@ -473,6 +485,7 @@ const handleSubmit = async () => {
         name: form.name,
         displayName: form.displayName || undefined,
         description: form.description || undefined,
+        appCode: form.appCode || undefined,
         transport: form.transport,
         url: form.url || undefined,
         command: form.command || undefined,

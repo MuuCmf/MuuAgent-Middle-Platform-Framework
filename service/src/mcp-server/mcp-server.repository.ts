@@ -62,6 +62,11 @@ export interface FindMcpServerParams {
 export interface FindMcpServerPageParams extends FindMcpServerParams {
   page?: number;
   pageSize?: number;
+  /**
+   * 额外的 Prisma where 条件（用于应用隔离等场景）
+   * 会与参数条件合并，PRISMA内部会处理 AND 逻辑
+   */
+  extraWhere?: Record<string, unknown>;
 }
 
 /**
@@ -121,7 +126,18 @@ export class McpServerRepository {
   }
 
   /**
-   * 根据名称查询 MCP Server
+   * 根据条件查询第一条 MCP Server 记录
+   * @param where 查询条件（Prisma where 子句）
+   * @returns {Promise<McpServer | null>} MCP Server 或 null
+   */
+  async findFirst(where: Record<string, unknown>): Promise<McpServer | null> {
+    return this.prisma.mcpServer.findFirst({
+      where: { ...where, isDeleted: false } as any,
+    });
+  }
+
+  /**
+   * 根据ID查询 MCP Server
    * @param name MCP Server 名称
    * @param appCode 应用标识（可选，用于租户隔离）
    * @returns {Promise<McpServer | null>} MCP Server 或 null
@@ -171,13 +187,18 @@ export class McpServerRepository {
     const pageSize = params?.pageSize || 10;
     const skip = (page - 1) * pageSize;
 
-    const where = {
+    const where: any = {
       isDeleted: false,
       ...(params?.enabled !== undefined && { enabled: params.enabled }),
       ...(params?.appCode && { appCode: params.appCode }),
       ...(params?.healthStatus && { healthStatus: params.healthStatus }),
       ...(params?.transport && { transport: params.transport }),
     };
+
+    // 合并额外的 where 条件（如应用隔离）
+    if (params?.extraWhere && Object.keys(params.extraWhere).length > 0) {
+      where.AND = [{ ...params.extraWhere }];
+    }
 
     const [list, total] = await Promise.all([
       this.prisma.mcpServer.findMany({

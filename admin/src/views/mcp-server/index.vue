@@ -66,6 +66,12 @@
 
       <el-table v-loading="loading" :data="serverList" stripe style="width: 100%">
         <el-table-column prop="name" :label="$t('mcp.table.name')" min-width="120" />
+        <el-table-column prop="appCode" :label="$t('mcp.table.appCode')" min-width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.appCode" type="info" size="small">{{ row.appCode }}</el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="displayName" :label="$t('mcp.table.displayName')" min-width="120">
           <template #default="{ row }">
             {{ row.displayName || '-' }}

@@ -138,7 +138,7 @@
       </div>
     </div>
 
-    <KbEditDialog v-model:visible="dialogVisible" :edit-data="editData" @success="fetchKbList" />
+    <KbEditDrawer v-model:visible="dialogVisible" :edit-data="editData" @success="fetchKbList" />
   </div>
 </template>
 
@@ -150,7 +150,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, FolderOpened, View, Edit, Delete } from '@element-plus/icons-vue'
 import { kbApi } from '@/api'
 import type { KbInfo } from '@/api/kb'
-import KbEditDialog from './components/KbEditDialog.vue'
+import KbEditDrawer from './components/KbEditDrawer.vue'
 
 const router = useRouter()
 const { t } = useI18n()

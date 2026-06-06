@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -31,8 +32,10 @@ import {
   ImportResultDto,
 } from './dto/mcp-server.dto';
 import { success, page } from '../common/response/api.response';
+import { extractIsolationContext, IsolationService } from '../common/services/base-isolated.service';
 import { McpServer } from '@prisma/client';
 import { McpTransport } from './types/mcp-server.types';
+import type { Request } from 'express';
 
 /**
  * MCP Server控制器
@@ -48,29 +51,33 @@ export class McpServerController {
    * @param mcpServerService MCP Server服务
    * @param repository MCP Server仓库
    * @param registry MCP Server注册表
+   * @param isolationService 应用隔离服务
    */
   constructor(
     private readonly mcpServerService: McpServerService,
     private readonly repository: McpServerRepository,
     private readonly registry: McpServerRegistry,
+    private readonly isolationService: IsolationService,
   ) {}
 
   /**
    * 创建 MCP Server
    * @param dto 创建请求DTO
+   * @param req 请求对象（用于应用隔离）
    * @returns {Promise<ApiResponseClass>} 创建的 MCP Server
    */
   @Post()
   @ApiOperation({ summary: '创建 MCP Server' })
   @ApiResponse({ status: 201, description: '创建成功' })
   @RequireScope(AdminScope.MCP_SERVER_WRITE)
-  async create(@Body() dto: CreateMcpServerDto): Promise<{ data: McpServerResponseDto }> {
+  async create(@Body() dto: CreateMcpServerDto, @Req() req: Request): Promise<{ data: McpServerResponseDto }> {
+    const context = extractIsolationContext(req);
     const exists = await this.repository.existsByName(dto.name);
     if (exists) {
       throw new Error(`MCP Server 名称 "${dto.name}" 已存在`);
     }
 
-    const server = await this.repository.create({
+    const createData = this.isolationService.buildCreateData({
       name: dto.name,
       displayName: dto.displayName,
       description: dto.description,
@@ -85,7 +92,9 @@ export class McpServerController {
       tools: dto.tools,
       metadata: dto.metadata,
       appCode: dto.appCode,
-    });
+    }, context);
+
+    const server = await this.repository.create(createData);
 
     await this.registry.refresh();
 
@@ -95,14 +104,16 @@ export class McpServerController {
   /**
    * 导入 MCP Server（支持 Claude Desktop 配置格式）
    * @param dto 导入请求DTO
+   * @param req 请求对象（用于应用隔离）
    * @returns {Promise<ImportResultDto>} 导入结果
    */
   @Post('import')
   @ApiOperation({ summary: '导入 MCP Server（支持 Claude Desktop 配置格式）' })
   @ApiResponse({ status: 200, description: '导入完成' })
   @RequireScope(AdminScope.MCP_SERVER_WRITE)
-  async importServers(@Body() dto: ImportMcpServersDto): Promise<{ data: ImportResultDto }> {
-    const result = await this.importMcpServers(dto);
+  async importServers(@Body() dto: ImportMcpServersDto, @Req() req: Request): Promise<{ data: ImportResultDto }> {
+    const context = extractIsolationContext(req);
+    const result = await this.importMcpServers(dto, context.appCode ?? undefined);
     await this.registry.refresh();
     return success(result);
   }
@@ -110,17 +121,22 @@ export class McpServerController {
   /**
    * 获取 MCP Server 列表（分页）
    * @param query 查询参数
+   * @param req 请求对象（用于应用隔离）
    * @returns {Promise<ApiResponseClass>} MCP Server 分页列表
    */
   @Get()
   @ApiOperation({ summary: '获取 MCP Server 列表（分页）' })
   @ApiResponse({ status: 200, description: '获取成功' })
   @RequireScope(AdminScope.MCP_SERVER_READ)
-  async findAll(@Query() query: QueryMcpServerDto): Promise<{ data: { list: McpServerResponseDto[]; total: number; page: number; pageSize: number } }> {
+  async findAll(@Query() query: QueryMcpServerDto, @Req() req: Request): Promise<{ data: { list: McpServerResponseDto[]; total: number; page: number; pageSize: number } }> {
+    const context = extractIsolationContext(req);
     const { page: pageNum = 1, pageSize = 10, ...filterParams } = query;
+
+    const isolationWhere = this.isolationService.buildIsolationWhere(context, { includePublic: false });
 
     const result = await this.repository.findWithPagination({
       ...filterParams,
+      extraWhere: isolationWhere,
       page: pageNum,
       pageSize,
     });
@@ -136,6 +152,7 @@ export class McpServerController {
   /**
    * 获取 MCP Server 详情
    * @param id MCP Server ID
+   * @param req 请求对象（用于应用隔离）
    * @returns {Promise<ApiResponseClass>} MCP Server 详情
    */
   @Get(':id')
@@ -143,12 +160,13 @@ export class McpServerController {
   @ApiParam({ name: 'id', description: 'MCP Server ID' })
   @ApiResponse({ status: 200, description: '获取成功' })
   @RequireScope(AdminScope.MCP_SERVER_READ)
-  async findById(@Param('id') id: string): Promise<{ data: McpServerResponseDto }> {
-    const server = await this.repository.findById(id);
+  async findById(@Param('id') id: string, @Req() req: Request): Promise<{ data: McpServerResponseDto }> {
+    const context = extractIsolationContext(req);
+    const where = this.isolationService.buildOwnerWhere(id, context);
+    const server = await this.repository.findFirst(where);
     if (!server) {
       throw new Error(`MCP Server "${id}" 未找到`);
     }
-
     return success(this.toResponseDto(server));
   }
 
@@ -156,6 +174,7 @@ export class McpServerController {
    * 更新 MCP Server
    * @param id MCP Server ID
    * @param dto 更新请求DTO
+   * @param req 请求对象（用于应用隔离）
    * @returns {Promise<ApiResponseClass>} 更新后的 MCP Server
    */
   @Put(':id')
@@ -166,8 +185,11 @@ export class McpServerController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateMcpServerDto,
+    @Req() req: Request,
   ): Promise<{ data: McpServerResponseDto }> {
-    const existing = await this.repository.findById(id);
+    const context = extractIsolationContext(req);
+    const where = this.isolationService.buildOwnerWhere(id, context);
+    const existing = await this.repository.findFirst(where);
     if (!existing) {
       throw new Error(`MCP Server "${id}" 未找到`);
     }
@@ -195,7 +217,8 @@ export class McpServerController {
   /**
    * 删除 MCP Server
    * @param id MCP Server ID
-   * @returns {Promise<ApiResponseClass>} 删除结果
+   * @param req 请求对象（用于应用隔离）
+   * @returns {Promise<void>} 删除结果
    */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -203,8 +226,10 @@ export class McpServerController {
   @ApiParam({ name: 'id', description: 'MCP Server ID' })
   @ApiResponse({ status: 204, description: '删除成功' })
   @RequireScope(AdminScope.MCP_SERVER_WRITE)
-  async remove(@Param('id') id: string): Promise<void> {
-    const existing = await this.repository.findById(id);
+  async remove(@Param('id') id: string, @Req() req: Request): Promise<void> {
+    const context = extractIsolationContext(req);
+    const where = this.isolationService.buildOwnerWhere(id, context);
+    const existing = await this.repository.findFirst(where);
     if (!existing) {
       throw new Error(`MCP Server "${id}" 未找到`);
     }
@@ -237,8 +262,10 @@ export class McpServerController {
   @ApiParam({ name: 'id', description: 'MCP Server ID' })
   @ApiResponse({ status: 200, description: '同步成功' })
   @RequireScope(AdminScope.MCP_SERVER_WRITE)
-  async syncTools(@Param('id') id: string): Promise<{ data: { toolCount: number; tools: ToolDescriptionDto[] } }> {
-    const server = await this.repository.findById(id);
+  async syncTools(@Param('id') id: string, @Req() req: Request): Promise<{ data: { toolCount: number; tools: ToolDescriptionDto[] } }> {
+    const context = extractIsolationContext(req);
+    const where = this.isolationService.buildOwnerWhere(id, context);
+    const server = await this.repository.findFirst(where);
     if (!server) {
       throw new Error(`MCP Server "${id}" 未找到`);
     }
@@ -275,8 +302,10 @@ export class McpServerController {
   @ApiParam({ name: 'id', description: 'MCP Server ID' })
   @ApiResponse({ status: 200, description: '测试完成' })
   @RequireScope(AdminScope.MCP_SERVER_WRITE)
-  async testConnectionById(@Param('id') id: string): Promise<{ data: { success: boolean; message: string; latency?: number } }> {
-    const server = await this.repository.findById(id);
+  async testConnectionById(@Param('id') id: string, @Req() req: Request): Promise<{ data: { success: boolean; message: string; latency?: number } }> {
+    const context = extractIsolationContext(req);
+    const where = this.isolationService.buildOwnerWhere(id, context);
+    const server = await this.repository.findFirst(where);
     if (!server) {
       throw new Error(`MCP Server "${id}" 未找到`);
     }
@@ -287,14 +316,16 @@ export class McpServerController {
 
   /**
    * 健康检查所有 MCP Server
+   * @param req 请求对象（用于应用隔离）
    * @returns {Promise<ApiResponseClass>} 健康状态
    */
   @Post('health-check')
   @ApiOperation({ summary: '健康检查所有 MCP Server' })
   @ApiResponse({ status: 200, description: '检查完成' })
   @RequireScope(AdminScope.MCP_SERVER_READ)
-  async healthCheckAll(): Promise<{ data: Record<string, { healthy: boolean; latency: number }> }> {
-    const results = await this.mcpServerService.healthCheckAll();
+  async healthCheckAll(@Req() req: Request): Promise<{ data: Record<string, { healthy: boolean; latency: number }> }> {
+    const context = extractIsolationContext(req);
+    const results = await this.mcpServerService.healthCheckAll(context.skipIsolation ? undefined : (context.appCode || undefined));
     return success(results);
   }
 
@@ -343,9 +374,10 @@ export class McpServerController {
   /**
    * 导入 MCP Servers（支持 Claude Desktop 配置格式）
    * @param dto 导入请求DTO
+   * @param appCode 应用标识（用于应用隔离）
    * @returns {Promise<ImportResultDto>} 导入结果
    */
-  private async importMcpServers(dto: ImportMcpServersDto): Promise<ImportResultDto> {
+  private async importMcpServers(dto: ImportMcpServersDto, appCode?: string): Promise<ImportResultDto> {
     const results: ImportResultDto['results'] = [];
     let successCount = 0;
     let failedCount = 0;
@@ -380,6 +412,7 @@ export class McpServerController {
           args: config.args,
           env: config.env,
           enabled: true,
+          appCode,
         });
 
         results.push({
