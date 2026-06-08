@@ -64,11 +64,11 @@
                 <el-icon :size="18"><Microphone /></el-icon>
                 <span class="av-trigger-badge" :class="{ active: s2sEnabled }" />
               </div>
-              <!-- 音视频对话主开关 -->
-              <div class="av-trigger" :class="{ active: videoEnabled }" @click="handleVideoToggleFromHeader" title="音视频对话（点击开启/关闭）">
-                <el-icon :size="18"><VideoCamera /></el-icon>
-                <span class="av-trigger-badge" :class="{ active: videoEnabled }" />
-              </div>
+              <CameraControlPanel
+                v-model="videoEnabled"
+                @update:camera-active="cameraActive = $event"
+                @frame-capture="onCameraFrameCapture"
+              />
               <!-- 语音播报设置 -->
               <div class="av-trigger" :class="{ active: voiceEnabled }" @click="handleVoiceSettings" title="语音播报设置（点击打开设置）">
                 <el-icon :size="18"><Headset /></el-icon>
@@ -105,7 +105,6 @@
         </div>
 
         <ChatInput
-          ref="chatInputRef"
           :is-loading="isLoading"
           :mode="chatMode"
           :agents="enabledAgents"
@@ -114,6 +113,8 @@
           :models="filteredModels"
           :selected-llm-model="selectedLlmModel"
           :selected-model-type="selectedModelType"
+          :camera-active="cameraActive"
+          :latest-frame="latestCameraFrame"
           @send="handleSendMessage"
           @stop="handleStopGeneration"
           @mode-change="handleModeChange"
@@ -143,7 +144,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Plus, ChatDotRound, Cpu, Star, User, ChatLineRound, FolderOpened, Headset, VideoCamera, Microphone } from '@element-plus/icons-vue'
+import { Plus, ChatDotRound, Cpu, Star, User, ChatLineRound, FolderOpened, Headset, Microphone } from '@element-plus/icons-vue'
 import AppShell from '../../components/layout/AppShell.vue'
 import AppHeader from '../../components/layout/AppHeader.vue'
 import ThemeToggle from '../../components/common/ThemeToggle.vue'
@@ -152,35 +153,27 @@ import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import WorkspaceSidebar from './components/WorkspaceSidebar.vue'
 import VoiceSettings from './components/VoiceSettings.vue'
+import CameraControlPanel from './components/CameraControlPanel.vue'
 import { useChat } from '../../composables/useChat'
 
-/** ChatInput 组件引用，用于控制摄像头面板 */
-const chatInputRef = ref<InstanceType<typeof ChatInput>>()
+/** 摄像头是否已开启 */
+const cameraActive = ref(false)
+/** 最新摄像头帧数据 */
+const latestCameraFrame = ref<{ dataUrl: string; mimeType: string } | null>(null)
+
+/**
+ * 处理摄像头帧捕获
+ * @param frame 帧数据
+ */
+const onCameraFrameCapture = (frame: { dataUrl: string; mimeType: string }) => {
+  latestCameraFrame.value = frame
+}
+
 /** 语音设置弹窗引用 */
 const voiceSettingsRef = ref<InstanceType<typeof VoiceSettings>>()
 
 /**
- * 从 AppHeader 触发音视频切换
- * 控制 ChatInput 内的摄像头面板开关
- */
-const handleVideoToggleFromHeader = () => {
-  if (videoEnabled.value) {
-    // 已经开启音视频模式：如果面板已显示则关闭，否则重新打开面板
-    if (chatInputRef.value?.isCameraPanelVisible()) {
-      chatInputRef.value?.closeCameraPanel()
-      handleVideoToggle()
-    } else {
-      chatInputRef.value?.openCameraPanel()
-    }
-  } else {
-    // 未开启音视频模式：开启并弹出面板
-    handleVideoToggle()
-    chatInputRef.value?.openCameraPanel()
-  }
-}
-
-/**
- * 打开语音设置弹窗（右键菜单）
+ * 打开语音设置弹窗
  */
 const handleVoiceSettings = () => {
   voiceSettingsRef.value?.open()
