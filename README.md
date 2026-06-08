@@ -12,7 +12,7 @@ MuuAgent 是一个基于 NestJS 和 Vue 3 构建的企业级中台服务，包�
 
 ### 核心价值
 
-- **统一接入**: 一套 API 接入多家模型厂商（OpenAI、Azure、阿里云、腾讯云、火山引擎、Deepseek、智谱AI、Ollama 等）
+- **统一接入**: 一套 API 接入多家模型厂商（阿里云、腾讯云、火山引擎、Deepseek、智谱AI、Ollama 等）
 - **智能调度**: 自动负载均衡、故障转移、限流熔断、模型权重调度、意图分类路由
 - **成本优化**: 模型权重调度，智能选择最优模型，意图分类自动路由
 - **快速集成**: 标准化 API，支持多语言调用
@@ -37,7 +37,7 @@ MuuAgent 是一个基于 NestJS 和 Vue 3 构建的企业级中台服务，包�
 ### 🤖 模型管理
 
 - 支持多厂商 AI 模型统一管理
-- 模型类型支持：LLM、Embedding、TTS、ASR、Image、LMM、S2S
+- 模型类型支持：LLM、LMM、OMNI、Embedding、TTS、ASR、Image、S2S
 - 模型权重配置与负载均衡
 - 模型健康检查与自动监控
 - 模型标签与分类管理
@@ -349,7 +349,7 @@ MuuAgent/
 │   │   │   ├── execution/  # 执行上下文与提示词构建
 │   │   │   └── tools/      # 内置工具（HTTP/DB/KB/代码执行）
 │   │   ├── ai/           # AI 调用模块（多厂商适配）
-│   │   │   ├── strategies/ # 多厂商策略（OpenAI/Azure/阿里云/Deepseek/Ollama/智谱/火山引擎）
+│   │   │   ├── strategies/ # 多厂商策略（阿里云/腾讯云/火山引擎/Deepseek/智谱AI/Ollama）
 │   │   │   └── tts/        # TTS 语音合成
 │   │   ├── app/          # 应用管理模块
 │   │   ├── auth/         # 认证模块
