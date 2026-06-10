@@ -200,11 +200,27 @@
               <VideoPause />
             </el-icon>
           </el-button>
-          <el-button v-else type="primary" :disabled="!inputText.trim()" @click="handleSend" circle>
+          <el-button v-else type="primary" :disabled="!inputText.trim() && pendingAttachments.length === 0" @click="handleSend" circle>
             <el-icon>
               <Promotion />
             </el-icon>
           </el-button>
+        </div>
+        <div v-if="pendingAttachments.length > 0" class="attachment-preview-bar">
+          <div v-for="(att, idx) in pendingAttachments" :key="idx" class="attachment-preview-item">
+            <div class="attachment-preview-icon">
+              <span v-if="att.fileType === 'image'">🖼️</span>
+              <span v-else-if="att.fileType === 'video'">🎬</span>
+              <span v-else>📄</span>
+            </div>
+            <div class="attachment-preview-info">
+              <span class="attachment-preview-name">{{ att.name }}</span>
+              <span class="attachment-preview-size">{{ att.fileSize }}MB</span>
+            </div>
+            <el-icon class="attachment-preview-remove" :size="14" @click="emit('remove-attachment', idx)">
+              <Close />
+            </el-icon>
+          </div>
         </div>
       </div>
     </div>
@@ -273,6 +289,17 @@ interface Props {
   cameraActive?: boolean
   /** 最新摄像头帧数据 */
   latestFrame?: { dataUrl: string; mimeType: string } | null
+  /** 待发送的附件列表 */
+  pendingAttachments?: Array<{
+    /** 文件名 */
+    name: string
+    /** 文件类型（image/video/file） */
+    fileType: string
+    /** 文件大小（MB） */
+    fileSize: string
+    /** 服务器返回的文件URL */
+    fileUrl: string
+  }>
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -288,6 +315,7 @@ const props = withDefaults(defineProps<Props>(), {
   s2sEnabled: false,
   cameraActive: false,
   latestFrame: null,
+  pendingAttachments: () => [],
 })
 
 /**
@@ -329,6 +357,8 @@ const emit = defineEmits<{
   'model-type-change': [value: string]
   /** 文件上传 */
   'file-upload': [file: File, fileType: string]
+  /** 移除待发送附件 */
+  'remove-attachment': [index: number]
   /** 语音播报切换 */
   'voice-toggle': []
   /** 视频对话切换 */
@@ -636,9 +666,11 @@ const selectCommand = (cmd: SlashCommand) => {
 /**
  * 发送消息
  * 如果摄像头已开启，自动附带当前摄像头帧（压缩后）
+ * 有附件时允许发送空文本
  */
 const handleSend = () => {
-  if (inputText.value.trim()) {
+  const hasContent = inputText.value.trim() || props.pendingAttachments.length > 0
+  if (hasContent) {
     let content = inputText.value
     // 摄像头已开启时，自动附带当前帧（压缩为 320px 宽以减少体积）
     if (props.cameraActive && props.latestFrame) {
@@ -830,6 +862,70 @@ defineExpose({})
 .command-desc {
   font-size: 13px;
   color: var(--text-tertiary);
+}
+
+/* ========== 附件预览区域 ========== */
+.attachment-preview-bar {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  right: 70px;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 8px;
+  border-radius: 6px;
+  max-width: calc(100% - 182px);
+  z-index: 1;
+}
+
+.attachment-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--white);
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 200px;
+}
+
+.attachment-preview-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.attachment-preview-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.attachment-preview-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-color, #333);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-preview-size {
+  font-size: 10px;
+  color: var(--text-tertiary, #999);
+}
+
+.attachment-preview-remove {
+  color: var(--text-tertiary, #999);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.attachment-preview-remove:hover {
+  color: var(--danger-color, #f56c6c);
 }
 
 .input-container {
@@ -1368,6 +1464,7 @@ html.dark .model-sheet-icon.mcp-icon {
   display: flex;
   gap: 8px;
   align-items: center;
+  z-index: 2;
 
   .el-button {
     padding: 0;
@@ -1390,6 +1487,11 @@ html.dark .model-sheet-icon.mcp-icon {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
   }
+}
+
+/* 有附件时增加底部 padding 给预览栏留空间 */
+.input-container:has(.attachment-preview-bar) :deep(.el-textarea__inner) {
+  padding-bottom: 52px;
 }
 
 :deep(.el-button--primary) {

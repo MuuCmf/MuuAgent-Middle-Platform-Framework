@@ -624,15 +624,20 @@ export function useChat() {
 
   /** 统一发送消息入口 */
   const handleSendMessage = async (content: string) => {
-    if (!content.trim() || isLoading.value) return;
+    /** 拼接附件内容 */
+    const fullContent = buildMessageWithAttachments(content);
+    if (!fullContent.trim() || isLoading.value) return;
+
+    /** 发送后清空附件列表 */
+    clearPendingAttachments();
 
     if (chatMode.value === "chat") {
       selectedType.value = selectedAgent.value ? "agent" : "model";
-      await sendChatMessage(content);
+      await sendChatMessage(fullContent);
     } else if (chatMode.value === "rag") {
-      await sendRagMessage(content);
+      await sendRagMessage(fullContent);
     } else if (chatMode.value === "retrieval") {
-      await sendRetrievalQuery(content);
+      await sendRetrievalQuery(fullContent);
     }
     scrollToBottom();
   };
@@ -1440,10 +1445,21 @@ export function useChat() {
 
   // ========== 文件上传 ==========
 
+  /** 待发送的附件列表 */
+  const pendingAttachments = ref<Array<{
+    /** 文件名 */
+    name: string
+    /** 文件类型（image/video/file） */
+    fileType: string
+    /** 文件大小（MB） */
+    fileSize: string
+    /** 服务器返回的文件URL */
+    fileUrl: string
+  }>>([])
+
   /**
    * 处理文件上传
-   * 将文件上传到服务器，添加用户消息并自动触发 AI 处理
-   * 消息内容使用服务器 URL（UI 显示和 DB 存储），服务端会自行下载图片转为多模态内容传给 AI
+   * 将文件上传到服务器，存储附件信息到待发送列表，等待用户配文字后一起发送
    * @param file 文件对象
    * @param fileType 文件类型（image/video/file）
    */
@@ -1452,23 +1468,55 @@ export function useChat() {
       const response = await chatService.uploadFile(file, fileType);
       const result = response.data || response;
       const fileUrl = result.fileUrl || '';
-
       const fileSize = (file.size / 1024 / 1024).toFixed(2);
 
-      if (fileType === 'image') {
-        const displayContent = `![${file.name}](${fileUrl})`;
-        await sendChatMessage(displayContent);
-      } else {
-        messages.value.push({
-          role: "user",
-          content: `[${fileType === 'video' ? '视频' : '文件'}] ${file.name}（${fileSize}MB）\n${fileUrl}`,
-          timestamp: Date.now(),
-        });
-      }
+      pendingAttachments.value.push({
+        name: file.name,
+        fileType,
+        fileSize,
+        fileUrl,
+      });
     } catch (error) {
       ElMessage.error("文件上传失败");
       console.error("文件上传错误:", error);
     }
+  };
+
+  /**
+   * 移除待发送的附件
+   * @param index 附件索引
+   */
+  const removePendingAttachment = (index: number) => {
+    pendingAttachments.value.splice(index, 1);
+  };
+
+  /**
+   * 清空待发送的附件列表
+   */
+  const clearPendingAttachments = () => {
+    pendingAttachments.value = [];
+  };
+
+  /**
+   * 将待发送附件拼接为消息内容
+   * @param textContent 用户输入的文字内容
+   * @returns 拼接后的完整消息内容
+   */
+  const buildMessageWithAttachments = (textContent: string): string => {
+    if (pendingAttachments.value.length === 0) return textContent;
+
+    const attachmentParts = pendingAttachments.value.map((att) => {
+      if (att.fileType === 'image') {
+        return `![${att.name}](${att.fileUrl})`;
+      }
+      return `[${att.fileType === 'video' ? '视频' : '文件'}] ${att.name}（${att.fileSize}MB）\n${att.fileUrl}`;
+    });
+
+    const attachmentContent = attachmentParts.join('\n');
+    if (textContent.trim()) {
+      return `${attachmentContent}\n${textContent.trim()}`;
+    }
+    return attachmentContent;
   };
 
   // ========== 初始化 ==========
@@ -1557,6 +1605,8 @@ export function useChat() {
     handleTtsChangeVoice,
     handleTtsChangeSpeed,
     handleFileUpload,
+    pendingAttachments,
+    removePendingAttachment,
     getModelName,
     getAgentName,
     getKbName,

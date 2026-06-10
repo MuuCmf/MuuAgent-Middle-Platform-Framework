@@ -115,6 +115,7 @@
           :selected-model-type="selectedModelType"
           :camera-active="cameraActive"
           :latest-frame="latestCameraFrame"
+          :pending-attachments="pendingAttachments"
           @send="handleSendMessage"
           @stop="handleStopGeneration"
           @mode-change="handleModeChange"
@@ -124,6 +125,7 @@
           @llm-model-change="handleLlmModelChange"
           @model-type-change="handleModelTypeChange"
           @file-upload="handleFileUpload"
+          @remove-attachment="removePendingAttachment"
         />
       </div>
     </template>
@@ -223,6 +225,8 @@ const {
   handleVideoToggle,
   handleS2sToggle,
   handleFileUpload,
+  pendingAttachments,
+  removePendingAttachment,
   getModelName,
   getAgentName,
   getKbName,

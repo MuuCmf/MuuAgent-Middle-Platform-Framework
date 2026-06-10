@@ -61,4 +61,14 @@
     position: relative !important;
     top: auto !important;
   }
+
+  /* 限制图片最大尺寸，避免撑开对话框 */
+  [data-stream-markdown="image-figure"] {
+    max-width: 280px;
+
+    img {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+  }
 }
