@@ -429,19 +429,22 @@ const commandIndex = ref(0)
 const voiceStatusText = ref('')
 /** 语音输入 Composable */
 const voiceInput = useVoiceInput(
-  // 识别成功：将文本填入输入框并自动发送
+  // 识别成功：将文本填入输入框并自动发送（空文本不发送）
   (result) => {
     voiceStatusText.value = ''
-    if (result.text.trim()) {
-      inputText.value = result.text.trim()
+    const text = result.text.trim()
+    if (text) {
+      inputText.value = text
       // 自动发送
       nextTick(() => handleSend())
+    } else {
+      ElMessage.warning('未识别到语音内容，请重试')
     }
   },
-  // 识别失败：显示错误提示
+  // 识别失败：显示错误提示，不提交
   (err) => {
     voiceStatusText.value = ''
-    ElMessage.error(`语音识别失败: ${err}`)
+    ElMessage.warning(`未识别到语音: ${err}`)
   },
 )
 /** 是否正在录音 */

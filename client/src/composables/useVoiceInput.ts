@@ -77,8 +77,12 @@ export function useVoiceInput(
     }
   }
 
+  /** 最短有效录音时长（毫秒），低于此值视为未说话 */
+  const MIN_RECORDING_DURATION = 800
+
   /**
    * 停止录音并发送到后端 ASR（鼠标松开时调用）
+   * 录音时长过短则跳过 ASR 请求，直接提示用户
    *
    * @returns 识别结果，失败返回 null
    */
@@ -93,8 +97,16 @@ export function useVoiceInput(
       if (!audioResult) {
         const msg = '未获取到音频数据'
         error.value = msg
-        status.value = 'error'
+        status.value = 'idle'
         onError?.(msg)
+        return null
+      }
+
+      // 录音时长过短，视为用户未说话，跳过 ASR 请求
+      if (audioResult.duration < MIN_RECORDING_DURATION) {
+        status.value = 'idle'
+        error.value = null
+        onResult?.({ text: '' })
         return null
       }
 
