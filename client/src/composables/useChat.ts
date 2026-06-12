@@ -1,4 +1,4 @@
-import { ref, computed, nextTick, watch } from "vue";
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { chatService } from "../services/ChatService";
 import { agentService } from "../services/AgentService";
@@ -393,44 +393,78 @@ export function useChat() {
 
   // ========== 工具方法 ==========
 
-  /** 滚动到底部 */
-  const scrollToBottom = () => {
+  /**
+   * 滚动到底部
+   * 使用 scrollTop 直接设置，避免 scrollIntoView 与 scrollTop 互相干扰
+   * @param smooth 是否使用平滑滚动（默认 false）
+   */
+  const scrollToBottom = (smooth = false) => {
     nextTick(() => {
       const container = messagesRef.value;
       if (!container) return;
-      container.scrollTop = container.scrollHeight;
-      const lastMsg = container.querySelector(".message:last-child");
-      if (lastMsg) {
-        lastMsg.scrollIntoView({ block: "end" });
-      }
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: smooth ? "smooth" : "instant",
+      });
     });
   };
 
   // ========== 自动滚动（流式输出时）==========
 
-  /** 监听用户滚动行为：离开底部则暂停自动滚动，回到底部则恢复 */
-  watch(messagesRef, (container) => {
+  /**
+   * 监听用户滚动行为：离开底部则暂停自动滚动，回到底部则恢复
+   * 使用 onMounted 确保在组件挂载后绑定，onBeforeUnmount 清理
+   */
+  let scrollHandler: (() => void) | null = null;
+
+  onMounted(() => {
+    const container = messagesRef.value;
     if (!container) return;
-    const onScroll = () => {
+    scrollHandler = () => {
       userScrolledAway.value = !isNearBottom();
     };
-    container.addEventListener("scroll", onScroll, { passive: true });
+    container.addEventListener("scroll", scrollHandler, { passive: true });
   });
 
+  onBeforeUnmount(() => {
+    if (scrollHandler && messagesRef.value) {
+      messagesRef.value.removeEventListener("scroll", scrollHandler);
+      scrollHandler = null;
+    }
+  });
+
+  /**
+   * 自动滚动 watcher
+   * 监听：1) 消息数量变化（用户发消息时触发）2) 最后一条消息内容变化（流式输出时触发）
+   * 条件：isLoading 且用户未手动滚动离开底部
+   */
   watch(
     () => {
       const msgs = messages.value;
-      if (!isLoading.value || msgs.length === 0) return "";
+      if (msgs.length === 0) return "";
+      // 包含消息数量，确保新增消息时也能触发
+      let key = `count:${msgs.length}:`;
+      // 包含最后一条消息的 role，区分用户消息和助手消息
       const last = msgs[msgs.length - 1];
-      const blocks = last.contentBlocks ?? [];
-      let key = "";
-      for (let i = 0; i < blocks.length; i++) {
-        key += blocks[i].content;
+      key += `role:${last.role}:`;
+      // 助手消息：拼接 contentBlocks 内容
+      if (last.role === "assistant") {
+        const blocks = last.contentBlocks ?? [];
+        for (let i = 0; i < blocks.length; i++) {
+          key += blocks[i].content;
+        }
+        // 兜底：无 contentBlocks 时使用 content
+        if (blocks.length === 0 && last.content) {
+          key += last.content;
+        }
+      } else {
+        // 用户消息：使用 content
+        key += last.content;
       }
       return key;
     },
     () => {
-      if (isLoading.value && !userScrolledAway.value) {
+      if (!userScrolledAway.value) {
         scrollToBottom();
       }
     },
@@ -720,6 +754,7 @@ export function useChat() {
     } catch {
       isLoading.value = false;
       abortController.value = null;
+      scrollToBottom();
     }
   };
 
@@ -763,6 +798,8 @@ export function useChat() {
             writer.flush();
             isLoading.value = false;
             abortController.value = null;
+            userScrolledAway.value = false;
+            scrollToBottom();
             loadConversations();
             resolve();
           },
@@ -828,6 +865,8 @@ export function useChat() {
             writer.flush();
             isLoading.value = false;
             abortController.value = null;
+            userScrolledAway.value = false;
+            scrollToBottom();
             loadConversations();
             resolve();
           },
@@ -979,6 +1018,8 @@ export function useChat() {
               messages.value[assistantIndex].sources = sources;
             }
             isLoading.value = false;
+            userScrolledAway.value = false;
+            scrollToBottom();
             loadConversations("kb-rag");
           },
           onConversationId: (conversationId: string) => {
@@ -998,6 +1039,7 @@ export function useChat() {
       messages.value[assistantIndex].content = "错误: " + error.message;
       ElMessage.error("RAG问答失败");
       isLoading.value = false;
+      scrollToBottom();
     }
   };
 
@@ -1044,6 +1086,7 @@ export function useChat() {
       ElMessage.error(errorMsg);
     } finally {
       isLoading.value = false;
+      scrollToBottom();
     }
   };
 
@@ -1076,6 +1119,7 @@ export function useChat() {
       abortController.value.abort();
       abortController.value = null;
       isLoading.value = false;
+      scrollToBottom();
     }
     disconnectTts();
   };

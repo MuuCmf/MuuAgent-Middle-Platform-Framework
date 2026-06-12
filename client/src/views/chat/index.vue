@@ -183,6 +183,7 @@ const handleVoiceSettings = () => {
 
 const {
   chatMode,
+  messagesRef,
   selectedAgent,
   selectedLlmModel,
   selectedModelType,
