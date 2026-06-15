@@ -57,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, nextTick, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { VideoCamera, VideoCameraFilled } from '@element-plus/icons-vue'
 import { useCamera } from '../../../composables/useCamera'

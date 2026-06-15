@@ -223,7 +223,6 @@ const {
   handleWorkspaceClear,
   handleWorkspaceRefresh,
   handleFileClick,
-  handleVideoToggle,
   handleS2sToggle,
   handleFileUpload,
   pendingAttachments,
@@ -235,6 +234,9 @@ const {
   getEmptyDescription,
   init,
 } = useChat()
+
+/** 模板引用：消息容器 DOM 元素，供 useChat 内部滚动逻辑使用 */
+void messagesRef
 
 onMounted(() => {
   init()
