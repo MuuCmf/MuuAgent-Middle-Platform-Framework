@@ -399,6 +399,23 @@ export class AiService {
 
       emitter.emit(StreamEvents.conversationId(conversation.id as any));
 
+      // ========== 图片生成意图：调用图片生成API并通过流式事件发送 ==========
+      if (intent === 'image') {
+        await this.handleImageIntent(
+          userContent,
+          model,
+          conversation,
+          context,
+          emitter,
+          clientIp,
+          userAgent,
+          uid,
+          appCode,
+        );
+        concurrencyAcquired = false; // handleImageIntent 内部已处理
+        return;
+      }
+
       await this.mcpService.checkCircuit(model.id as any);
       await this.mcpService.checkConcurrency(model.id as any);
       concurrencyAcquired = true;
@@ -1592,6 +1609,162 @@ export class AiService {
    */
   private getConversationTypeByModelType(_modelType: string): ConversationType {
     return ConversationType.MODEL;
+  }
+
+  /**
+   * 处理图片生成意图
+   * 在流式对话中，当意图为 image 时，调用图片生成API并通过流式事件发送图片URL
+   *
+   * @param prompt 图片生成提示词
+   * @param model 使用的模型
+   * @param conversation 会话信息
+   * @param context 执行上下文
+   * @param emitter 流式发射器
+   * @param clientIp 客户端IP
+   * @param userAgent 用户代理
+   * @param uid 用户唯一标识
+   * @param appCode 应用编码
+   */
+  private async handleImageIntent(
+    prompt: string,
+    model: Model,
+    conversation: any,
+    context: ExecutionContext,
+    emitter: StreamEmitter,
+    clientIp: string,
+    userAgent: string,
+    uid?: string,
+    appCode?: string,
+  ): Promise<void> {
+    try {
+      await this.mcpService.checkCircuit(model.id as any);
+      await this.mcpService.checkConcurrency(model.id as any);
+
+      this.logger.debug(`[Stream] 图片生成意图: model=${model.code}, prompt=${prompt.substring(0, 100)}`);
+
+      // 发送文本提示，告知用户正在生成图片
+      emitter.emitContentBlockStart('text', 0);
+      emitter.emitTextDelta('正在生成图片...');
+      emitter.emitContentBlockStop('text', 0);
+
+      // 直接使用策略执行图片生成
+      const strategy = this.strategyFactory.getStrategy(model.provider);
+      const execResult = await strategy.execute({
+        model,
+        messages: [{ role: 'user', content: prompt }] as any,
+        options: {
+          temperature: 1,
+        },
+        context,
+      });
+
+      const result = (execResult.raw || execResult) as Record<string, unknown>;
+
+      // 从结果中提取图片URL
+      const imageUrls = this.extractImageUrls(result);
+
+      if (imageUrls.length > 0) {
+        // 通过流式事件发送图片URL
+        emitter.emitImage(imageUrls);
+      } else {
+        // 没有提取到图片URL，将原始结果作为文本返回
+        emitter.emitContentBlockStart('text', 1);
+        emitter.emitTextDelta(JSON.stringify(result));
+        emitter.emitContentBlockStop('text', 1);
+      }
+
+      // 保存助手消息（包含图片的markdown格式）
+      const assistantContent = imageUrls.length > 0
+        ? imageUrls.map(url => `![生成的图片](${url})`).join('\n')
+        : '图片生成失败，未返回有效图片';
+
+      await this.conversationService.addMessage(
+        conversation.id as any,
+        'assistant',
+        assistantContent,
+      );
+
+      if (conversation.messageCount === 0) {
+        await this.conversationService.generateTitle(conversation.id as any);
+      }
+
+      await this.mcpService.reportSuccess(model.id as any);
+
+      // 记录日志
+      await this.logService.saveLog({
+        modelId: model.id as any,
+        modelCode: model.code,
+        modelType: 'image',
+        request: JSON.stringify({ prompt, modelCode: model.code }),
+        response: JSON.stringify(result),
+        costMs: this.contextManager.calculateDuration(context),
+        success: true,
+        clientIp,
+        userAgent,
+        uid,
+        appCode,
+      });
+
+      emitter.emitDone();
+    } catch (error) {
+      await this.mcpService.reportError(model.id as any);
+
+      const normalized = this.errorHandler.normalize(error);
+      emitter.emitError(`图片生成失败: ${normalized.message}`);
+    } finally {
+      await this.mcpService.releaseConcurrency(model.id as any);
+    }
+  }
+
+  /**
+   * 从图片生成结果中提取图片URL
+   * 兼容多种API返回格式：OpenAI DALL-E、通义万相等
+   *
+   * @param result 图片生成API返回的原始结果
+   * @returns 图片URL列表
+   */
+  private extractImageUrls(result: Record<string, unknown>): string[] {
+    const urls: string[] = [];
+
+    // 格式1: OpenAI DALL-E 格式 { data: [{ url: "..." }] }
+    const data = result.data as Array<Record<string, unknown>> | undefined;
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        if (typeof item.url === 'string') {
+          urls.push(item.url);
+        } else if (typeof item.b64_json === 'string') {
+          urls.push(`data:image/png;base64,${item.b64_json}`);
+        }
+      }
+    }
+
+    // 格式2: 直接包含 url 字段
+    if (urls.length === 0 && typeof result.url === 'string') {
+      urls.push(result.url as string);
+    }
+
+    // 格式3: 直接包含 images 数组
+    if (urls.length === 0 && Array.isArray(result.images)) {
+      for (const img of result.images as Array<Record<string, unknown>>) {
+        if (typeof img.url === 'string') {
+          urls.push(img.url);
+        } else if (img.image_url && typeof (img.image_url as any).url === 'string') {
+          urls.push((img.image_url as any).url);
+        }
+      }
+    }
+
+    // 格式4: Vercel AI SDK generateImage 格式 { image: { url: "data:..." } }
+    if (urls.length === 0 && result.image) {
+      const image = result.image as Record<string, unknown>;
+      if (typeof image.url === 'string') {
+        urls.push(image.url);
+      } else if (typeof image.base64 === 'string') {
+        urls.push(`data:image/png;base64,${image.base64}`);
+      }
+    }
+
+    return urls;
   }
 
 }

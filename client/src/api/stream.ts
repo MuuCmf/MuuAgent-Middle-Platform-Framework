@@ -18,7 +18,7 @@ export interface ClientToolCallPayload {
  */
 export interface ContentBlockStartPayload {
   /** 内容块类型 */
-  blockType: 'text' | 'tool_call' | 'thinking'
+  blockType: 'text' | 'tool_call' | 'thinking' | 'image'
   /** 块索引 */
   index: number
   /** 工具名称（tool_call 类型时） */
@@ -30,11 +30,21 @@ export interface ContentBlockStartPayload {
  */
 export interface ContentBlockStopPayload {
   /** 内容块类型 */
-  blockType: 'text' | 'tool_call' | 'thinking'
+  blockType: 'text' | 'tool_call' | 'thinking' | 'image'
   /** 块索引 */
   index: number
   /** 标记该块为最终回复（仅 thinking 块有效） */
   isFinalAnswer?: boolean
+}
+
+/**
+ * 图片生成载荷
+ */
+export interface ImagePayload {
+  /** 图片URL列表 */
+  urls: string[]
+  /** 图片描述 */
+  description?: string
 }
 
 /**
@@ -68,6 +78,8 @@ export interface StreamCallbacks {
   onContentBlockStart?: (payload: ContentBlockStartPayload) => void
   /** 内容块结束回调 */
   onContentBlockStop?: (payload: ContentBlockStopPayload) => void
+  /** 图片生成回调 */
+  onImage?: (payload: ImagePayload) => void
 }
 
 /**
@@ -216,6 +228,13 @@ function handleSSEData(data: string, callbacks: StreamCallbacks, state?: StreamS
           blockType: parsed.blockType,
           index: parsed.index ?? 0,
           isFinalAnswer: parsed.isFinalAnswer,
+        })
+      }
+    } else if (parsed.type === 'image' && parsed.urls) {
+      if (callbacks.onImage) {
+        callbacks.onImage({
+          urls: parsed.urls,
+          description: parsed.description,
         })
       }
     } else if (parsed.type === 'error' && parsed.content) {

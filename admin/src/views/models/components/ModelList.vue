@@ -176,6 +176,8 @@
             </template>
             <!-- Omni / LMM 类型能力 -->
             <template v-if="modelForm.type === 'omni' || modelForm.type === 'lmm'">
+              <el-checkbox value="llm:chat">{{ $t('model.capLlmChat') }}</el-checkbox>
+              <el-checkbox value="llm:reasoning">{{ $t('model.capLlmReasoning') }}</el-checkbox>
               <el-checkbox value="lmm:vision">{{ $t('model.capLmmVision') }}</el-checkbox>
             </template>
             <!-- Omni / Image 类型能力 -->

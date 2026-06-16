@@ -227,11 +227,32 @@ function createContentBlockManager(getMessage: () => Message) {
     }
   };
 
+  /**
+   * 处理图片生成事件
+   * 创建 image 类型内容块，将图片URL写入块中
+   * @param payload 图片生成载荷
+   */
+  const onImage = (payload: { urls: string[]; description?: string }) => {
+    const msg = getMessage();
+    if (!msg.contentBlocks) {
+      msg.contentBlocks = [];
+    }
+    const block: ContentBlock = {
+      type: "image",
+      index: msg.contentBlocks.length,
+      content: payload.description || "",
+      imageUrls: payload.urls,
+      toolStatus: "completed",
+    };
+    msg.contentBlocks.push(block);
+  };
+
   return {
     onContentBlockStart,
     onContentBlockStop,
     ensureActiveTextBlock,
     updateToolBlock,
+    onImage,
   };
 }
 
@@ -813,6 +834,10 @@ export function useChat() {
           onContentBlockStop: (payload) => {
             writer.flush();
             blockMgr.onContentBlockStop(payload);
+          },
+          onImage: (payload) => {
+            writer.flush();
+            blockMgr.onImage(payload);
           },
         },
         signal,

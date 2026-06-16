@@ -117,6 +117,18 @@ export class StreamEmitter {
   }
 
   /**
+   * 发射图片生成事件（便捷方法）
+   * @param urls 图片URL列表（base64 data URI 或远程URL）
+   * @param description 图片描述（可选）
+   */
+  emitImage(urls: string[], description?: string): void {
+    this.emit({
+      type: StreamEventType.IMAGE,
+      payload: { urls, description },
+    });
+  }
+
+  /**
    * 完成流（不再接受新事件）
    */
   complete(): void {
@@ -207,6 +219,15 @@ export class StreamEmitter {
           blockType: payload.blockType,
           index: payload.index,
           isFinalAnswer: payload.isFinalAnswer,
+        });
+      }
+
+      case StreamEventType.IMAGE: {
+        const payload = event.payload as { urls: string[]; description?: string };
+        return JSON.stringify({
+          type: 'image',
+          urls: payload.urls,
+          description: payload.description,
         });
       }
 

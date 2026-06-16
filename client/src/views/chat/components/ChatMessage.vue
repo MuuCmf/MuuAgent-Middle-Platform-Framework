@@ -1,5 +1,5 @@
 <template>
-  <div :class="['message', message.role, { 'message-grouped': isGrouped }]">
+  <div ref="messageRef" :class="['message', message.role, { 'message-grouped': isGrouped }]">
     <div v-if="showAvatar" class="message-avatar">
       <div v-if="message.role === 'user'" class="avatar user-avatar">
         <el-icon><User /></el-icon>
@@ -127,6 +127,26 @@
                 <div v-show="thinkingBlockExpanded[idx] !== false" class="thinking-block-content">
                   <pre>{{ block.content }}</pre>
                 </div>
+              </div>
+
+              <!-- 图片块 -->
+              <div v-else-if="block.type === 'image'" class="content-block-image">
+                <div v-if="block.imageUrls && block.imageUrls.length > 0" class="image-grid">
+                  <div
+                    v-for="(url, urlIdx) in block.imageUrls"
+                    :key="`img-${block.index}-${urlIdx}`"
+                    class="image-item"
+                  >
+                    <img
+                      :src="url"
+                      :alt="block.content || '生成的图片'"
+                      class="generated-image"
+                      referrerpolicy="no-referrer"
+                      @click="previewImage(url)"
+                    />
+                  </div>
+                </div>
+                <div v-if="block.content" class="image-description">{{ block.content }}</div>
               </div>
 
               <div v-if="isBlockStreaming(block)" class="block-cursor">
@@ -263,7 +283,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUpdated } from 'vue'
 import { User, Monitor } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { Message, ContentBlock } from '../../../api'
@@ -312,6 +332,27 @@ const toolBlockExpanded = ref<Record<number, boolean>>({})
 /** 语音播放状态 */
 const isPlaying = ref(false)
 const isSynthesizing = ref(false)
+
+/** 消息容器引用 */
+const messageRef = ref<HTMLElement | null>(null)
+
+/**
+ * 修复 Markdown 渲染的 img 标签防盗链问题
+ * CDN（如 byteimg.com）会检查 Referer 头，非白名单来源返回 403
+ * 添加 referrerpolicy="no-referrer" 阻止浏览器发送 Referer 头
+ */
+const fixImageReferrerPolicy = () => {
+  if (!messageRef.value) return
+  const images = messageRef.value.querySelectorAll('.markdown-body img')
+  images.forEach((img) => {
+    if (!img.getAttribute('referrerpolicy')) {
+      img.setAttribute('referrerpolicy', 'no-referrer')
+    }
+  })
+}
+
+onMounted(fixImageReferrerPolicy)
+onUpdated(fixImageReferrerPolicy)
 const voiceSpeed = ref(1.0)
 
 /**
@@ -377,6 +418,14 @@ const toggleThinkingBlock = (idx: number) => {
     ...thinkingBlockExpanded.value,
     [idx]: thinkingBlockExpanded.value[idx] !== false ? false : true,
   }
+}
+
+/**
+ * 预览图片（使用浏览器原生方式打开大图）
+ * @param url 图片URL
+ */
+const previewImage = (url: string) => {
+  window.open(url, '_blank')
 }
 
 /**
@@ -1189,6 +1238,55 @@ const toolStatusConfig: Record<string, { icon: string; label: string }> = {
       html.dark & {
         color: var(--text-secondary, #9ca3af);
       }
+    }
+  }
+}
+
+.content-block-image {
+  .image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  .image-item {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border-color, #e5e7eb);
+    background: var(--bg-secondary, #f9fafb);
+    transition: border-color 0.2s, box-shadow 0.2s;
+
+    &:hover {
+      border-color: var(--primary-color, #409eff);
+      box-shadow: 0 2px 12px rgba(64, 158, 255, 0.15);
+    }
+
+    html.dark & {
+      background: var(--bg-secondary, #1f2937);
+    }
+  }
+
+  .generated-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    cursor: pointer;
+    transition: transform 0.2s;
+
+    &:hover {
+      transform: scale(1.02);
+    }
+  }
+
+  .image-description {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text-secondary, #6b7280);
+    line-height: 1.5;
+
+    html.dark & {
+      color: var(--text-secondary, #9ca3af);
     }
   }
 }

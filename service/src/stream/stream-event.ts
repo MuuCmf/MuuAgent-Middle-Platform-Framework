@@ -27,6 +27,8 @@ export enum StreamEventType {
   CONTENT_BLOCK_START = 'content_block_start',
   /** 内容块结束事件 - 告知客户端当前内容块结束 */
   CONTENT_BLOCK_STOP = 'content_block_stop',
+  /** 图片生成事件 - 图片生成完成后发送图片URL */
+  IMAGE = 'image',
 }
 
 /**
@@ -61,7 +63,8 @@ export type StreamEventPayload =
   | ClientToolResultPayload
   | ClientToolPolicyPayload
   | ContentBlockStartPayload
-  | ContentBlockStopPayload;
+  | ContentBlockStopPayload
+  | ImagePayload;
 
 /** 会话ID载荷 */
 export interface ConversationIdPayload {
@@ -193,6 +196,14 @@ export interface ContentBlockStopPayload {
   isFinalAnswer?: boolean;
 }
 
+/** 图片生成载荷 */
+export interface ImagePayload {
+  /** 图片URL列表（base64 data URI 或远程URL） */
+  urls: string[];
+  /** 图片描述（可选） */
+  description?: string;
+}
+
 /**
  * StreamEvent 工厂函数 - 类型安全的创建事件
  */
@@ -255,5 +266,10 @@ export const StreamEvents = {
   contentBlockStop: (blockType: ContentBlockType, index: number, isFinalAnswer?: boolean): StreamEvent => ({
     type: StreamEventType.CONTENT_BLOCK_STOP,
     payload: { blockType, index, isFinalAnswer },
+  }),
+
+  image: (urls: string[], description?: string): StreamEvent => ({
+    type: StreamEventType.IMAGE,
+    payload: { urls, description },
   }),
 };

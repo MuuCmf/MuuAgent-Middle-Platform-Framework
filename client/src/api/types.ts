@@ -4,7 +4,7 @@ import type { ReasoningStep } from './reasoning'
  * 内容块类型
  * 对应服务端的 content_block 概念
  */
-export type ContentBlockType = 'text' | 'tool_call' | 'thinking'
+export type ContentBlockType = 'text' | 'tool_call' | 'thinking' | 'image'
 
 /**
  * 内容块状态
@@ -32,6 +32,8 @@ export interface ContentBlock {
   toolStatus?: ContentBlockStatus
   /** 推理步骤列表（thinking 类型使用） */
   reasoningSteps?: ReasoningStep[]
+  /** 图片URL列表（image 类型使用） */
+  imageUrls?: string[]
 }
 
 /**
