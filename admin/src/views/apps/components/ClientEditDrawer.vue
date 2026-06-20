@@ -67,16 +67,25 @@
       </div>
     </template>
   </el-drawer>
+
+  <!-- 客户端凭证展示弹窗 -->
+  <ClientSecretDialog
+    v-model="secretDialogVisible"
+    :client-id="createdClientId"
+    :client-secret="createdClientSecret"
+    @close="handleSecretDialogClose"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { oauthApi, type OAuthClient, type CreateClientDto, type UpdateClientDto } from '@/api/oauth'
 import { scopeApi } from '@/api/scope'
 import type { ScopeOption } from '@/constants/scope'
 import { useI18n } from 'vue-i18n'
+import ClientSecretDialog from './ClientSecretDialog.vue'
 
 const { t } = useI18n()
 
@@ -104,6 +113,13 @@ const isEdit = computed(() => !!props.client)
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const scopeGroups = ref<Array<{ label: string; scopes: ScopeOption[] }>>([])
+
+/** 凭证弹窗可见状态 */
+const secretDialogVisible = ref(false)
+/** 创建成功的客户端 ID */
+const createdClientId = ref('')
+/** 创建成功的客户端密钥 */
+const createdClientSecret = ref('')
 
 const formData = ref<CreateClientDto & { status?: number }>({
   name: '',
@@ -212,14 +228,10 @@ const handleSubmit = async () => {
         }
         const response = await oauthApi.createClient(createData)
         
-        await ElMessageBox.alert(
-          `${t('app.clientId')}：${response.data.data.clientId}\n${t('app.clientSecret')}：${response.data.data.clientSecret}`,
-          t('app.createClientSuccess'),
-          {
-            confirmButtonText: t('common.confirm'),
-            type: 'success',
-          }
-        )
+        createdClientId.value = response.data.data.clientId
+        createdClientSecret.value = response.data.data.clientSecret ?? ''
+        secretDialogVisible.value = true
+        return
       }
       
       emits('success')
@@ -230,6 +242,14 @@ const handleSubmit = async () => {
       submitting.value = false
     }
   })
+}
+
+/**
+ * 凭证弹窗关闭回调
+ */
+const handleSecretDialogClose = () => {
+  emits('success')
+  handleClose()
 }
 
 watch(

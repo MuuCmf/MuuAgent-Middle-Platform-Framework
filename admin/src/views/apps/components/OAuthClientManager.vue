@@ -67,6 +67,15 @@
       :app-code="app?.code"
       @success="loadClients"
     />
+
+    <!-- 重置密钥成功后的凭证展示弹窗 -->
+    <ClientSecretDialog
+      v-model="resetSecretDialogVisible"
+      :client-id="resetClientId"
+      :client-secret="resetClientSecret"
+      :title="$t('app.clientResetSecretSuccess')"
+      @close="handleResetSecretDialogClose"
+    />
   </div>
 </template>
 
@@ -77,6 +86,7 @@ import { Plus, CopyDocument } from '@element-plus/icons-vue'
 import { oauthApi, type OAuthClient } from '@/api/oauth'
 import type { App } from '@/api/app'
 import ClientEditDrawer from './ClientEditDrawer.vue'
+import ClientSecretDialog from './ClientSecretDialog.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -91,6 +101,13 @@ const loading = ref(false)
 const clients = ref<OAuthClient[]>([])
 const editDrawerVisible = ref(false)
 const currentClient = ref<OAuthClient | null>(null)
+
+/** 重置密钥后的凭证弹窗可见状态 */
+const resetSecretDialogVisible = ref(false)
+/** 重置密钥后的客户端 ID */
+const resetClientId = ref('')
+/** 重置密钥后的新密钥 */
+const resetClientSecret = ref('')
 
 /**
  * 加载客户端列表
@@ -149,21 +166,21 @@ const handleResetSecret = async (client: OAuthClient) => {
     const response = await oauthApi.resetClientSecret(client.id)
     ElMessage.success(t('app.clientResetSecretSuccess'))
     
-    await ElMessageBox.alert(
-      `${t('app.newClientSecret')}：${response.data.data.clientSecret}`,
-      t('app.clientResetSecretSuccess'),
-      {
-        confirmButtonText: t('common.confirm'),
-        type: 'success',
-      }
-    )
-    
-    loadClients()
+    resetClientId.value = client.clientId
+    resetClientSecret.value = response.data.data.clientSecret ?? ''
+    resetSecretDialogVisible.value = true
   } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error(error.response?.data?.message || t('app.clientResetSecretFailed'))
     }
   }
+}
+
+/**
+ * 重置密钥弹窗关闭回调
+ */
+const handleResetSecretDialogClose = () => {
+  loadClients()
 }
 
 /**

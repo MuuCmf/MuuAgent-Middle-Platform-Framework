@@ -263,7 +263,7 @@ export class OAuthService {
    */
   async createClient(data: {
     name: string;
-    redirectUris: string[];
+    redirectUris?: string[];
     scopes: string[];
     grants?: string[];
     appCode?: string;
@@ -276,7 +276,7 @@ export class OAuthService {
         clientId,
         clientSecret,
         name: data.name,
-        redirectUris: JSON.stringify(data.redirectUris),
+        redirectUris: JSON.stringify(data.redirectUris ?? []),
         scopes: JSON.stringify(data.scopes),
         grants: JSON.stringify(data.grants || ['client_credentials', 'refresh_token']),
         appCode: data.appCode || null,

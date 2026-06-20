@@ -24,6 +24,7 @@ export interface OAuthClient {
  */
 export interface CreateClientDto {
   name: string;
+  redirectUris?: string[];
   scopes: string[];
   grants?: string[];
   appCode?: string;

@@ -124,7 +124,7 @@ export class OAuthAdminController {
     @Body()
     body: {
       name: string;
-      redirectUris: string[];
+      redirectUris?: string[];
       scopes: string[];
       grants?: string[];
       appCode?: string;
