@@ -6,6 +6,7 @@ import { ScopeGuard } from '../common/guards/scope.guard';
 import { RequireScope } from '../common/decorators/scope.decorator';
 import { AdminScope } from '../common/constants/scope.constants';
 import { success } from '../common/response/api.response';
+import { OAuthTokenDto, OAuthRevokeDto } from './dto/oauth.dto';
 
 /**
  * OAuth认证控制器
@@ -27,14 +28,7 @@ export class OAuthController {
   @Post('token')
   @ApiOperation({ summary: '获取令牌', description: '支持客户端凭证和刷新令牌两种模式' })
   @ApiResponse({ status: 200, description: '获取成功' })
-  async token(
-    @Body() body: {
-      grant_type: string;
-      client_id: string;
-      client_secret: string;
-      refresh_token?: string;
-    },
-  ) {
+  async token(@Body() body: OAuthTokenDto) {
     if (body.grant_type === 'client_credentials') {
       return this.oauthService.generateClientCredentialsToken(
         body.client_id,
@@ -58,7 +52,7 @@ export class OAuthController {
    */
   @Post('revoke')
   @ApiOperation({ summary: '撤销令牌', description: '撤销访问令牌或刷新令牌' })
-  async revoke(@Body() body: { token: string }) {
+  async revoke(@Body() body: OAuthRevokeDto) {
     await this.oauthService.revokeToken(body.token);
     return { message: '令牌已撤销' };
   }

@@ -3,7 +3,7 @@ import { ValidationPipe, ConsoleLogger } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { IoAdapter } from "@nestjs/platform-socket.io";
-import { json } from "express";
+import { json, urlencoded } from "express";
 import { join } from "path";
 import { AppModule } from "./app.module";
 import { Request, Response, NextFunction } from "express";
@@ -106,6 +106,8 @@ async function bootstrap(): Promise<void> {
 
   /** 增大 Body Parser 限制，桌面自动化截图 Base64 数据较大 */
   app.use(json({ limit: "10mb" }));
+  /** 支持 OAuth 2.0 标准的 application/x-www-form-urlencoded 格式（token 端点等） */
+  app.use(urlencoded({ extended: true, limit: "10mb" }));
 
   // 全局验证管道
   app.useGlobalPipes(

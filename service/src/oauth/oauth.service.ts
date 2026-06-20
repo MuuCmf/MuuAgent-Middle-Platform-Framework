@@ -97,12 +97,13 @@ export class OAuthService {
   async generateClientCredentialsToken(clientId: string, clientSecret: string) {
     const client = await this.validateClient(clientId, clientSecret);
 
-    const grants = JSON.parse(client.grants as any);
+    // validateClient 已经解析了 grants 和 scopes，无需再次解析
+    const grants = client.grants as string[];
     if (!grants.includes('client_credentials')) {
       throw new BadRequestException('客户端不支持 client_credentials 授权类型');
     }
 
-    const scopes = JSON.parse(client.scopes as any);
+    const scopes = client.scopes as string[];
     const scopeString = scopes.join(' ');
 
     return this.generateTokens(clientId, '0', scopeString);
