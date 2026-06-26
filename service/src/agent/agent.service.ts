@@ -106,13 +106,25 @@ export class AgentService {
     return { ...agent, supportsWorkspace };
   }
 
+  /**
+   * 分页查询智能体列表
+   * @param query 查询条件
+   * @param context 隔离上下文
+   * @returns 分页结果
+   */
   async findAll(query: QueryAgentDto, context?: IsolationContext) {
-    const { status, page = 1, pageSize = 10 } = query;
+    const { status, page = 1, pageSize = 10, name, code, reasoningMode, isPublic, includeWorkspaceSupport = false } = query;
     const skip = (page - 1) * pageSize;
 
     const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false });
     const where: Record<string, unknown> = { ...isolationWhere };
+
+    // 添加筛选条件
     if (status !== undefined) where.status = status;
+    if (name) where.name = { contains: name };
+    if (code) where.code = { contains: code };
+    if (reasoningMode) where.reasoningMode = reasoningMode;
+    if (isPublic !== undefined) where.isPublic = isPublic;
 
     const [list, total] = await Promise.all([
       this.prisma.agent.findMany({
@@ -123,17 +135,38 @@ export class AgentService {
           { sort: 'desc' },
           { createdAt: 'desc' },
         ],
+        // 只选择需要的字段，减少数据传输
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          description: true,
+          status: true,
+          sort: true,
+          reasoningMode: true,
+          modelTemplateCode: true,
+          isPublic: true,
+          createdAt: true,
+          updatedAt: true,
+          appCode: true,
+          skills: includeWorkspaceSupport,
+          mcpServers: includeWorkspaceSupport,
+        },
       }),
       this.prisma.agent.count({ where }),
     ]);
 
-    const isoCtx: IsolationContext = context || { appCode: null, skipIsolation: false };
-    const enrichedList = await Promise.all(
-      list.map(async (agent) => {
-        const supportsWorkspace = await this.checkWorkspaceSupport(agent, isoCtx);
-        return { ...agent, supportsWorkspace };
-      }),
-    );
+    // 根据参数决定是否计算工作目录支持信息
+    let enrichedList = list;
+    if (includeWorkspaceSupport) {
+      const isoCtx: IsolationContext = context || { appCode: null, skipIsolation: false };
+      enrichedList = await Promise.all(
+        list.map(async (agent) => {
+          const supportsWorkspace = await this.checkWorkspaceSupport(agent, isoCtx);
+          return { ...agent, supportsWorkspace };
+        }),
+      );
+    }
 
     return { list: enrichedList, total, page, pageSize };
   }

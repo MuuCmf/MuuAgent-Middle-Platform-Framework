@@ -18,12 +18,71 @@
     </div>
 
     <div class="card">
-      <el-button type="primary" @click="handleAdd" style="margin-bottom: 16px;">
-        <el-icon>
-          <Plus />
-        </el-icon>
-        {{ $t('agent.createAgent') }}
-      </el-button>
+      <!-- 搜索筛选区域 -->
+      <div class="search-filter-area" style="margin-bottom: 16px;">
+        <el-input
+          v-model="searchForm.name"
+          :placeholder="$t('agent.searchName')"
+          clearable
+          style="width: 200px; margin-right: 8px;"
+          @clear="handleSearch"
+          @keyup.enter="handleSearch"
+        />
+        <el-input
+          v-model="searchForm.code"
+          :placeholder="$t('agent.searchCode')"
+          clearable
+          style="width: 200px; margin-right: 8px;"
+          @clear="handleSearch"
+          @keyup.enter="handleSearch"
+        />
+        <el-select
+          v-model="searchForm.status"
+          :placeholder="$t('common.status')"
+          clearable
+          style="width: 120px; margin-right: 8px;"
+          @change="handleSearch"
+        >
+          <el-option :label="$t('common.enable')" :value="true" />
+          <el-option :label="$t('common.disable')" :value="false" />
+        </el-select>
+        <el-select
+          v-model="searchForm.reasoningMode"
+          :placeholder="$t('agent.reasoningMode')"
+          clearable
+          style="width: 120px; margin-right: 8px;"
+          @change="handleSearch"
+        >
+          <el-option :label="$t('agent.defaultMode')" value="NONE" />
+          <el-option :label="$t('agent.reactMode')" value="REACT" />
+          <el-option :label="$t('agent.planMode')" value="PLAN" />
+          <el-option :label="$t('agent.reflectMode')" value="REFLECT" />
+        </el-select>
+        <el-select
+          v-model="searchForm.isPublic"
+          :placeholder="$t('agent.publicStatus')"
+          clearable
+          style="width: 120px; margin-right: 8px;"
+          @change="handleSearch"
+        >
+          <el-option :label="$t('agent.public')" :value="true" />
+          <el-option :label="$t('agent.private')" :value="false" />
+        </el-select>
+        <el-button type="primary" @click="handleSearch">
+          <el-icon><Search /></el-icon>
+          {{ $t('common.search') }}
+        </el-button>
+        <el-button @click="handleReset">
+          <el-icon><Refresh /></el-icon>
+          {{ $t('common.reset') }}
+        </el-button>
+        <el-button type="primary" @click="handleAdd" style="float: right;">
+          <el-icon>
+            <Plus />
+          </el-icon>
+          {{ $t('agent.createAgent') }}
+        </el-button>
+      </div>
 
       <el-table :data="agents" stripe v-loading="loading">
         <el-table-column prop="name" :label="$t('agent.agentName')" min-width="120" />
@@ -81,6 +140,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 分页器 -->
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="currentPageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        background
+        style="margin-top: 16px; justify-content: flex-end;"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+      />
     </div>
 
     <AgentEditDrawer v-model:visible="drawerVisible" :agent="editingAgent" :available-skills="skills"
@@ -91,9 +163,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { useAgentStore, useSkillStore } from '@/stores'
-import type { Agent, AgentForm } from '@/api/agent'
+import type { Agent, AgentForm, AgentQueryParams } from '@/api/agent'
 import AgentEditDrawer from './components/AgentEditDrawer.vue'
 import { useI18n } from 'vue-i18n'
 
@@ -103,12 +175,31 @@ const skillStore = useSkillStore()
 
 const agents = computed(() => agentStore.agents)
 const loading = computed(() => agentStore.loading)
-const { loadAgents, createAgent, updateAgent, deleteAgent } = agentStore
+const total = computed(() => agentStore.total)
+const currentPage = computed({
+  get: () => agentStore.page,
+  set: (val) => agentStore.page = val
+})
+const currentPageSize = computed({
+  get: () => agentStore.pageSize,
+  set: (val) => agentStore.pageSize = val
+})
+
+const { loadAgents, searchAgents, resetAndLoad, changePage, changePageSize, createAgent, updateAgent, deleteAgent } = agentStore
 const skills = computed(() => skillStore.standardSkills)
 const { loadStandardSkills } = skillStore
 
 const drawerVisible = ref(false)
 const editingAgent = ref<Agent | null>(null)
+
+// 搜索表单
+const searchForm = ref<AgentQueryParams>({
+  name: '',
+  code: '',
+  status: undefined,
+  reasoningMode: undefined,
+  isPublic: undefined
+})
 
 const parseJsonSafe = (str: string, defaultValue: any[] = []) => {
   if (!str) return defaultValue
@@ -172,6 +263,43 @@ const handleDelete = async (id: number) => {
   } catch (error) {
     console.error(t('agent.deleteFailed'), error)
   }
+}
+
+/**
+ * 搜索智能体
+ */
+const handleSearch = () => {
+  searchAgents(searchForm.value)
+}
+
+/**
+ * 重置搜索条件
+ */
+const handleReset = () => {
+  searchForm.value = {
+    name: '',
+    code: '',
+    status: undefined,
+    reasoningMode: undefined,
+    isPublic: undefined
+  }
+  resetAndLoad()
+}
+
+/**
+ * 页码改变
+ * @param page 新页码
+ */
+const handleCurrentChange = (page: number) => {
+  changePage(page)
+}
+
+/**
+ * 每页数量改变
+ * @param size 新的每页数量
+ */
+const handleSizeChange = (size: number) => {
+  changePageSize(size)
 }
 
 onMounted(() => {

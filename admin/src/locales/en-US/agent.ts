@@ -105,6 +105,7 @@ export default {
     sort: 'Sort',
     sortTip: 'Higher value means higher priority',
     searchName: 'Search Name',
+    searchCode: 'Search Code',
     displayName: 'Display Name',
     pleaseInputAgentName: 'Please input agent name',
     pleaseInputAgentCode: 'Please input agent code',

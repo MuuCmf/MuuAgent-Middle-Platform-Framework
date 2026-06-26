@@ -297,6 +297,16 @@ export class AgentChatDto {
  * 查询智能体列表DTO
  */
 export class QueryAgentDto {
+  @ApiPropertyOptional({ description: '智能体名称(模糊搜索)' })
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiPropertyOptional({ description: '智能体标识(模糊搜索)' })
+  @IsString()
+  @IsOptional()
+  code?: string;
+
   @ApiPropertyOptional({ description: '是否启用' })
   @Transform(({ value }) => {
     if (value === 'true') return true;
@@ -307,15 +317,51 @@ export class QueryAgentDto {
   @IsOptional()
   status?: boolean;
 
+  @ApiPropertyOptional({ description: '推理模式筛选', enum: ['NONE', 'REACT', 'PLAN', 'REFLECT'] })
+  @IsString()
+  @IsOptional()
+  reasoningMode?: string;
+
+  @ApiPropertyOptional({ description: '是否公开' })
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  @IsBoolean()
+  @IsOptional()
+  isPublic?: boolean;
+
   @ApiPropertyOptional({ description: '页码', default: 1 })
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    const num = Number(value);
+    return Number.isNaN(num) ? undefined : num;
+  })
   @IsNumber()
   @Min(1)
   @IsOptional()
   page?: number;
 
   @ApiPropertyOptional({ description: '每页数量', default: 10 })
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    const num = Number(value);
+    return Number.isNaN(num) ? undefined : num;
+  })
   @IsNumber()
   @Min(1)
+  @Max(100)
   @IsOptional()
   pageSize?: number;
+
+  @ApiPropertyOptional({ description: '是否包含工作目录支持信息(会影响性能)', default: false })
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  @IsBoolean()
+  @IsOptional()
+  includeWorkspaceSupport?: boolean;
 }

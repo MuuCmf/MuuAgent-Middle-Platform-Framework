@@ -90,6 +90,30 @@ export interface AgentForm {
 export interface AgentListResponse {
   list: Agent[]
   total: number
+  page: number
+  pageSize: number
+}
+
+/**
+ * 智能体查询参数
+ */
+export interface AgentQueryParams {
+  /** 智能体名称(模糊搜索) */
+  name?: string
+  /** 智能体标识(模糊搜索) */
+  code?: string
+  /** 是否启用 */
+  status?: boolean
+  /** 推理模式筛选 */
+  reasoningMode?: string
+  /** 是否公开 */
+  isPublic?: boolean
+  /** 页码 */
+  page?: number
+  /** 每页数量 */
+  pageSize?: number
+  /** 是否包含工作目录支持信息 */
+  includeWorkspaceSupport?: boolean
 }
 
 export interface ReasoningStep {
@@ -194,8 +218,12 @@ export interface CacheOverview {
 }
 
 export const agentApi = {
-  getList(): Promise<AxiosResponse<{ data: AgentListResponse }>> {
-    return adminRequest.get('api/admin/agent')
+  /**
+   * 获取智能体列表(分页)
+   * @param params 查询参数
+   */
+  getList(params?: AgentQueryParams): Promise<AxiosResponse<{ data: AgentListResponse }>> {
+    return adminRequest.get('api/admin/agent', { params })
   },
 
   create(data: AgentForm): Promise<AxiosResponse> {

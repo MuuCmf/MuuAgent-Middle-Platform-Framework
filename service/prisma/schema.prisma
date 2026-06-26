@@ -161,6 +161,9 @@ model Agent {
   @@index([isPublic])
   @@index([promptTemplateCode])
   @@index([modelTemplateCode])
+  @@index([reasoningMode]) /// 推理模式索引，用于筛选
+  @@index([sort, createdAt]) /// 排序复合索引
+  @@index([appCode, status]) /// 应用隔离+状态复合索引
   @@map("agents")
 }
 

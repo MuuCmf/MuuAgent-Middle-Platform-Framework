@@ -105,6 +105,7 @@ export default {
     sort: '排序',
     sortTip: '数值越大越靠前',
     searchName: '搜索名称',
+    searchCode: '搜索标识',
     displayName: '显示名称',
     pleaseInputAgentName: '请输入智能体名称',
     pleaseInputAgentCode: '请输入智能体标识',
