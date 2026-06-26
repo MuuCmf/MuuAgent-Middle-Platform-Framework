@@ -20,60 +20,37 @@
     <div class="card">
       <!-- 搜索筛选区域 -->
       <div class="search-filter-area" style="margin-bottom: 16px;">
-        <el-input
-          v-model="searchForm.name"
-          :placeholder="$t('agent.searchName')"
-          clearable
-          style="width: 200px; margin-right: 8px;"
-          @clear="handleSearch"
-          @keyup.enter="handleSearch"
-        />
-        <el-input
-          v-model="searchForm.code"
-          :placeholder="$t('agent.searchCode')"
-          clearable
-          style="width: 200px; margin-right: 8px;"
-          @clear="handleSearch"
-          @keyup.enter="handleSearch"
-        />
-        <el-select
-          v-model="searchForm.status"
-          :placeholder="$t('common.status')"
-          clearable
-          style="width: 120px; margin-right: 8px;"
-          @change="handleSearch"
-        >
+        <el-input v-model="searchForm.name" :placeholder="$t('agent.searchName')" clearable
+          style="width: 200px; margin-right: 8px;" @clear="handleSearch" @keyup.enter="handleSearch" />
+        <el-input v-model="searchForm.code" :placeholder="$t('agent.searchCode')" clearable
+          style="width: 200px; margin-right: 8px;" @clear="handleSearch" @keyup.enter="handleSearch" />
+        <el-select v-model="searchForm.status" :placeholder="$t('common.status')" clearable
+          style="width: 120px; margin-right: 8px;" @change="handleSearch">
           <el-option :label="$t('common.enable')" :value="true" />
           <el-option :label="$t('common.disable')" :value="false" />
         </el-select>
-        <el-select
-          v-model="searchForm.reasoningMode"
-          :placeholder="$t('agent.reasoningMode')"
-          clearable
-          style="width: 120px; margin-right: 8px;"
-          @change="handleSearch"
-        >
+        <el-select v-model="searchForm.reasoningMode" :placeholder="$t('agent.reasoningMode')" clearable
+          style="width: 120px; margin-right: 8px;" @change="handleSearch">
           <el-option :label="$t('agent.defaultMode')" value="NONE" />
           <el-option :label="$t('agent.reactMode')" value="REACT" />
           <el-option :label="$t('agent.planMode')" value="PLAN" />
           <el-option :label="$t('agent.reflectMode')" value="REFLECT" />
         </el-select>
-        <el-select
-          v-model="searchForm.isPublic"
-          :placeholder="$t('agent.publicStatus')"
-          clearable
-          style="width: 120px; margin-right: 8px;"
-          @change="handleSearch"
-        >
+        <el-select v-model="searchForm.isPublic" :placeholder="$t('agent.publicStatus')" clearable
+          style="width: 120px; margin-right: 8px;" @change="handleSearch">
           <el-option :label="$t('agent.public')" :value="true" />
           <el-option :label="$t('agent.private')" :value="false" />
         </el-select>
         <el-button type="primary" @click="handleSearch">
-          <el-icon><Search /></el-icon>
+          <el-icon>
+            <Search />
+          </el-icon>
           {{ $t('common.search') }}
         </el-button>
         <el-button @click="handleReset">
-          <el-icon><Refresh /></el-icon>
+          <el-icon>
+            <Refresh />
+          </el-icon>
           {{ $t('common.reset') }}
         </el-button>
         <el-button type="primary" @click="handleAdd" style="float: right;">
@@ -136,23 +113,24 @@
         <el-table-column :label="$t('common.actions')" width="150" align="right" fixed="right">
           <template #default="{ row }">
             <el-button link size="small" type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
-            <el-button link size="small" type="danger" @click="handleDelete(row.id)">{{ $t('common.delete') }}</el-button>
+            <el-button link size="small" type="danger" @click="handleDelete(row.id)">{{ $t('common.delete')
+              }}</el-button>
           </template>
         </el-table-column>
       </el-table>
 
       <!-- 分页器 -->
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="currentPageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="total"
-        layout="total, sizes, prev, pager, next, jumper"
-        background
-        style="margin-top: 16px; justify-content: flex-end;"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
+      <div class="pagination-section">
+        <el-pagination 
+          v-model:current-page="currentPage" 
+          v-model:page-size="currentPageSize"
+          :page-sizes="[10, 20, 50, 100]" 
+          :total="total" 
+          layout="total, sizes, prev, pager, next, jumper" 
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange" />
+      </div>
+
     </div>
 
     <AgentEditDrawer v-model:visible="drawerVisible" :agent="editingAgent" :available-skills="skills"
@@ -312,5 +290,10 @@ onMounted(() => {
 .card-title {
   display: flex;
   align-items: center;
+}
+.pagination-section {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

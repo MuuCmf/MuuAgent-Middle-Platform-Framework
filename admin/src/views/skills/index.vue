@@ -178,8 +178,7 @@
       </el-table>
 
       <!-- 分页组件 -->
-      <div class="pagination-container">
-        <span class="pagination-info">{{ t('skill.pagination.total', { total }) }}</span>
+      <div class="pagination-section">
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
@@ -428,17 +427,9 @@ watch(() => skillStore.sortOrder, (newVal) => {
   }
 }
 
-.pagination-container {
+.pagination-section {
+  margin-top: 20px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #ebeef5;
-
-  .pagination-info {
-    font-size: 13px;
-    color: #606266;
-  }
+  justify-content: flex-end;
 }
 </style>

@@ -11,7 +11,8 @@
         <li><strong>{{ $t('knowledge.list.identifier') }}</strong>：{{ $t('knowledge.helpTip.knowledgeBase') }}</li>
         <li><strong>{{ $t('knowledge.list.vectorModel') }}</strong>：{{ $t('knowledge.helpTip.vectorModel') }}</li>
         <li><strong>{{ $t('knowledge.detail.chunkSize') }}</strong>：{{ $t('knowledge.helpTip.chunkSize') }}</li>
-        <li><strong>{{ $t('knowledge.detail.similarityThreshold') }}</strong>：{{ $t('knowledge.helpTip.similarityThreshold') }}</li>
+        <li><strong>{{ $t('knowledge.detail.similarityThreshold') }}</strong>：{{
+          $t('knowledge.helpTip.similarityThreshold') }}</li>
         <li><strong>{{ $t('knowledge.detail.topN') }}</strong>：{{ $t('knowledge.helpTip.topN') }}</li>
       </ul>
     </div>
@@ -101,8 +102,9 @@
             <div class="info-item">
               <span class="label">{{ $t('knowledge.list.retrievalMethod') }}：</span>
               <span class="value">{{
-                kb.retrievalMethod === 'bm25' ? $t('knowledge.list.bm25Retrieval') : $t('knowledge.list.vectorRetrieval')
-              }}</span>
+                kb.retrievalMethod === 'bm25' ? $t('knowledge.list.bm25Retrieval') :
+                  $t('knowledge.list.vectorRetrieval')
+                }}</span>
             </div>
           </div>
 
@@ -131,10 +133,9 @@
         </el-card>
       </div>
 
-      <div class="pagination">
-        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize"
-          :page-sizes="[12, 24, 48, 96]" :total="total"
-          layout="total, sizes, prev, pager, next, jumper" />
+      <div class="pagination-section">
+        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[12, 24, 48, 96]"
+          :total="total" layout="total, sizes, prev, pager, next, jumper" />
       </div>
     </div>
 
@@ -344,9 +345,9 @@ onMounted(() => {
   }
 }
 
-.pagination {
-  display: flex;
-  justify-content: center;
+.pagination-section {
   margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>
