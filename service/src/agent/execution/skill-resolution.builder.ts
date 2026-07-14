@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SkillRegistry, SkillDescriptor } from '../../skill/skill-registry';
 import { IsolationContext } from '../../common/services/base-isolated.service';
 import { AgentSkills } from '../types/agent-skills';
+import { McpServerRegistry } from '../../mcp-server/mcp-server-registry';
 
 export interface SkillResolutionResult {
   boundSkills: SkillDescriptor[];
@@ -30,6 +31,7 @@ export class SkillResolutionBuilder {
 
   constructor(
     private readonly skillRegistry: SkillRegistry,
+    private readonly mcpServerRegistry: McpServerRegistry,
   ) {}
 
   async resolve(
@@ -45,24 +47,41 @@ export class SkillResolutionBuilder {
     const hasAgentMcpServers = agentMcpServers && agentMcpServers.length > 0;
 
     if (hasAgentMcpServers) {
+      // 验证 Agent 绑定的 MCP Server 是否属于当前应用
       for (const serverName of agentMcpServers) {
-        resolvedMcpServers.add(serverName);
+        const config = await this.mcpServerRegistry.getServer(serverName, isolationContext);
+        if (config) {
+          resolvedMcpServers.add(serverName);
+        } else {
+          this.logger.warn(
+            `MCP Server "${serverName}" 不存在或无权访问，已跳过`,
+          );
+        }
       }
 
+      // 检查技能依赖的 MCP Server 是否满足
       for (const skill of boundSkills) {
         const required = skill.frontmatter?.requires?.mcpServers || [];
         const missing = required.filter(s => !resolvedMcpServers.has(s));
         if (missing.length > 0) {
           this.logger.warn(
-            `技能 "${skill.metadata.name}" 需要 MCP Server [${missing.join(', ')}]，但 Agent 未绑定，将跳过该技能`,
+            `技能 "${skill.metadata.name}" 需要 MCP Server [${missing.join(', ')}]，但 Agent 未绑定或无权访问，将跳过该技能`,
           );
         }
       }
     } else {
+      // 从技能依赖中提取 MCP Server，并验证访问权限
       for (const skill of boundSkills) {
         if (skill.frontmatter?.requires?.mcpServers) {
           for (const serverName of skill.frontmatter.requires.mcpServers) {
-            resolvedMcpServers.add(serverName);
+            const config = await this.mcpServerRegistry.getServer(serverName, isolationContext);
+            if (config) {
+              resolvedMcpServers.add(serverName);
+            } else {
+              this.logger.warn(
+                `技能 "${skill.metadata.name}" 需要 MCP Server "${serverName}"，但不存在或无权访问`,
+              );
+            }
           }
         }
       }

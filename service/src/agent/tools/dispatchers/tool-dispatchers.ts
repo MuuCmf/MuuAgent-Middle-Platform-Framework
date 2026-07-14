@@ -64,7 +64,7 @@ export class McpToolDispatcher implements IToolDispatcher {
   async execute(
     name: string,
     args: Record<string, unknown>,
-    _context: ToolExecutionContext,
+    context: ToolExecutionContext,
   ): Promise<unknown> {
     const parts = name.split('__');
     if (parts.length < 3) {
@@ -76,12 +76,14 @@ export class McpToolDispatcher implements IToolDispatcher {
     const serverName = parts[1];
     const toolName = parts.slice(2).join('__');
 
-    const serverConfig = await this.mcpServerRegistry.getServer(serverName);
+    // 使用隔离上下文验证 MCP Server 访问权限
+    const isolationContext = context.isolationContext;
+    const serverConfig = await this.mcpServerRegistry.getServer(serverName, isolationContext);
     if (!serverConfig) {
-      throw new Error(`MCP server not found in registry: ${serverName}`);
+      throw new Error(`MCP server not found or access denied: ${serverName}`);
     }
 
-    return await this.mcpServerService.callToolByName(serverName, toolName, args);
+    return await this.mcpServerService.callToolByName(serverName, toolName, args, isolationContext);
   }
 }
 

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { McpClientService } from './mcp-client.service';
 import { McpServerRegistry, McpServerConfig } from './mcp-server-registry';
 import { McpServerRepository } from './mcp-server.repository';
+import { IsolationContext } from '../common/services/base-isolated.service';
 import {
   McpServerConfigDto,
   DiscoverToolsDto,
@@ -75,12 +76,13 @@ export class McpServerService {
   /**
    * 按服务器名称发现工具
    * @param serverName 服务器名称
+   * @param isolationContext 隔离上下文（用于应用隔离验证）
    * @returns {Promise<ToolDescriptionDto[]>} 工具描述列表
    */
-  async discoverToolsByName(serverName: string): Promise<ToolDescriptionDto[]> {
-    const config = await this.registry.get(serverName);
+  async discoverToolsByName(serverName: string, isolationContext?: IsolationContext): Promise<ToolDescriptionDto[]> {
+    const config = await this.registry.getServer(serverName, isolationContext);
     if (!config) {
-      throw new Error(`MCP Server "${serverName}" 未找到`);
+      throw new Error(`MCP Server "${serverName}" 未找到或无权访问`);
     }
 
     const tools = await this.discoverTools({
@@ -155,18 +157,19 @@ export class McpServerService {
   /**
    * 测试已注册的 MCP Server 连接
    * @param serverName 服务器名称
+   * @param isolationContext 隔离上下文（用于应用隔离验证）
    * @returns {Promise<{success: boolean; message: string; latency?: number}>} 测试结果
    */
-  async testConnectionByName(serverName: string): Promise<{
+  async testConnectionByName(serverName: string, isolationContext?: IsolationContext): Promise<{
     success: boolean;
     message: string;
     latency?: number;
   }> {
-    const config = await this.registry.get(serverName);
+    const config = await this.registry.getServer(serverName, isolationContext);
     if (!config) {
       return {
         success: false,
-        message: `MCP Server "${serverName}" 未找到`,
+        message: `MCP Server "${serverName}" 未找到或无权访问`,
       };
     }
 
@@ -368,16 +371,18 @@ export class McpServerService {
    * @param serverName 服务器名称
    * @param toolName 工具名称
    * @param args 参数
+   * @param isolationContext 隔离上下文（用于应用隔离验证）
    * @returns {Promise<unknown>} 执行结果
    */
   async callToolByName(
     serverName: string,
     toolName: string,
     args: Record<string, unknown> = {},
+    isolationContext?: IsolationContext,
   ): Promise<unknown> {
-    const config = await this.registry.get(serverName);
+    const config = await this.registry.getServer(serverName, isolationContext);
     if (!config) {
-      throw new Error(`MCP Server "${serverName}" 未找到`);
+      throw new Error(`MCP Server "${serverName}" 未找到或无权访问`);
     }
 
     if (!config.enabled) {

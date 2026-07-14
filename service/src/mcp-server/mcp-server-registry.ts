@@ -90,25 +90,47 @@ export class McpServerRegistry implements OnModuleInit {
   /**
    * 获取 MCP Server 配置
    * @param name 服务器名称
+   * @param appCode 应用标识（可选，用于应用隔离验证）
    * @returns {Promise<McpServerConfig | undefined>} 配置或 undefined
    */
-  async get(name: string): Promise<McpServerConfig | undefined> {
+  async get(name: string, appCode?: string): Promise<McpServerConfig | undefined> {
     await this.ensureCache();
     const item = this.cache.get(name.toLowerCase());
-    return item?.config;
+    if (!item) {
+      return undefined;
+    }
+
+    const config = item.config;
+
+    // 应用隔离验证：如果指定了 appCode，验证配置是否属于该应用或为公开资源
+    if (appCode) {
+      // 公开资源（appCode 为空）或属于当前应用的资源才能访问
+      if (config.appCode && config.appCode !== appCode) {
+        this.logger.warn(
+          `应用隔离拒绝访问: MCP Server "${name}" 属于应用 ${config.appCode}，当前应用 ${appCode}`,
+        );
+        return undefined;
+      }
+    }
+
+    return config;
   }
 
   /**
-   * 获取 MCP Server 配置（兼容旧接口）
+   * 获取 MCP Server 配置（带隔离上下文验证）
    * @param name 服务器名称
-   * @param _isolationContext 隔离上下文（保留参数以保持接口一致）
+   * @param isolationContext 隔离上下文（用于应用隔离验证）
    * @returns {Promise<McpServerConfig | undefined>} 配置或 undefined
    */
   async getServer(
     name: string,
-    _isolationContext?: IsolationContext,
+    isolationContext?: IsolationContext,
   ): Promise<McpServerConfig | undefined> {
-    return this.get(name);
+    // 跳过隔离时（管理后台），不验证 appCode
+    if (isolationContext?.skipIsolation) {
+      return this.get(name);
+    }
+    return this.get(name, isolationContext?.appCode ?? undefined);
   }
 
   /**

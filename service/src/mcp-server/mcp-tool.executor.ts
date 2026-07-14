@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { IExecutor } from '../skill/interfaces/executor.interface';
 import { McpClientService } from './mcp-client.service';
 import { McpServerRegistry } from './mcp-server-registry';
+import { IsolationContext } from '../common/services/base-isolated.service';
 
 /**
  * MCP 工具执行器（统一 IExecutor 接口）
@@ -34,10 +35,14 @@ export class McpToolExecutor implements IExecutor {
     const serverName = parts[1];
     const toolName = parts.slice(2).join('__');
 
+    // 从 args 中提取隔离上下文（如果有）
+    const isolationContext = args._isolationContext as IsolationContext | undefined;
+
     try {
-      const serverConfig = await this.registry.getServer(serverName);
+      // 使用隔离上下文验证 MCP Server 访问权限
+      const serverConfig = await this.registry.getServer(serverName, isolationContext);
       if (!serverConfig) {
-        return { success: false, error: `MCP server not found: ${serverName}` };
+        return { success: false, error: `MCP server not found or access denied: ${serverName}` };
       }
 
       const result = await this.mcpClient.callTool(
