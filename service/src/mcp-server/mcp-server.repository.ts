@@ -139,15 +139,15 @@ export class McpServerRepository {
   /**
    * 根据ID查询 MCP Server
    * @param name MCP Server 名称
-   * @param appCode 应用标识（可选，用于租户隔离）
+   * @param appCode 应用标识（可选，用于租户隔离，null 表示公开资源）
    * @returns {Promise<McpServer | null>} MCP Server 或 null
    */
-  async findByName(name: string, appCode?: string): Promise<McpServer | null> {
+  async findByName(name: string, appCode?: string | null): Promise<McpServer | null> {
     return this.prisma.mcpServer.findFirst({
       where: {
         name,
         isDeleted: false,
-        ...(appCode && { appCode }),
+        appCode: appCode ?? null,
       },
     });
   }
@@ -288,16 +288,18 @@ export class McpServerRepository {
   }
 
   /**
-   * 检查名称是否已存在
+   * 检查名称是否已存在（应用内唯一）
    * @param name MCP Server 名称
+   * @param appCode 应用标识（用于应用隔离）
    * @param excludeId 排除的 ID（用于更新时检查）
    * @returns {Promise<boolean>} 是否存在
    */
-  async existsByName(name: string, excludeId?: bigint | string): Promise<boolean> {
+  async existsByName(name: string, appCode?: string | null, excludeId?: bigint | string): Promise<boolean> {
     const count = await this.prisma.mcpServer.count({
       where: {
         name,
         isDeleted: false,
+        appCode: appCode ?? null,
         ...(excludeId && { id: { not: typeof excludeId === 'string' ? BigInt(excludeId) : excludeId } }),
       },
     });

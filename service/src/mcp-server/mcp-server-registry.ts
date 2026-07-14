@@ -21,6 +21,7 @@ interface CacheItem {
 /**
  * MCP Server 注册表
  * 支持数据库持久化、内存缓存、事件通知
+ * 支持应用隔离：不同应用可以有同名的 MCP Server
  */
 @Injectable()
 export class McpServerRegistry implements OnModuleInit {
@@ -59,6 +60,16 @@ export class McpServerRegistry implements OnModuleInit {
   }
 
   /**
+   * 生成缓存 Key
+   * @param name 服务器名称
+   * @param appCode 应用标识
+   * @returns {string} 缓存 Key
+   */
+  private getCacheKey(name: string, appCode?: string | null): string {
+    return `${name.toLowerCase()}:${appCode || 'public'}`;
+  }
+
+  /**
    * 刷新缓存
    */
   async refresh(): Promise<void> {
@@ -67,7 +78,8 @@ export class McpServerRegistry implements OnModuleInit {
 
     for (const server of servers) {
       const config = this.toConfig(server);
-      this.cache.set(config.name.toLowerCase(), {
+      const key = this.getCacheKey(config.name, config.appCode);
+      this.cache.set(key, {
         config,
         expireAt: Date.now() + this.CACHE_TTL,
       });
@@ -90,30 +102,14 @@ export class McpServerRegistry implements OnModuleInit {
   /**
    * 获取 MCP Server 配置
    * @param name 服务器名称
-   * @param appCode 应用标识（可选，用于应用隔离验证）
+   * @param appCode 应用标识（用于应用隔离）
    * @returns {Promise<McpServerConfig | undefined>} 配置或 undefined
    */
-  async get(name: string, appCode?: string): Promise<McpServerConfig | undefined> {
+  async get(name: string, appCode?: string | null): Promise<McpServerConfig | undefined> {
     await this.ensureCache();
-    const item = this.cache.get(name.toLowerCase());
-    if (!item) {
-      return undefined;
-    }
-
-    const config = item.config;
-
-    // 应用隔离验证：如果指定了 appCode，验证配置是否属于该应用或为公开资源
-    if (appCode) {
-      // 公开资源（appCode 为空）或属于当前应用的资源才能访问
-      if (config.appCode && config.appCode !== appCode) {
-        this.logger.warn(
-          `应用隔离拒绝访问: MCP Server "${name}" 属于应用 ${config.appCode}，当前应用 ${appCode}`,
-        );
-        return undefined;
-      }
-    }
-
-    return config;
+    const key = this.getCacheKey(name, appCode);
+    const item = this.cache.get(key);
+    return item?.config;
   }
 
   /**
@@ -126,11 +122,9 @@ export class McpServerRegistry implements OnModuleInit {
     name: string,
     isolationContext?: IsolationContext,
   ): Promise<McpServerConfig | undefined> {
-    // 跳过隔离时（管理后台），不验证 appCode
-    if (isolationContext?.skipIsolation) {
-      return this.get(name);
-    }
-    return this.get(name, isolationContext?.appCode ?? undefined);
+    // 使用隔离上下文中的 appCode 获取配置
+    const appCode = isolationContext?.appCode ?? null;
+    return this.get(name, appCode);
   }
 
   /**
@@ -150,13 +144,15 @@ export class McpServerRegistry implements OnModuleInit {
   }
 
   /**
-   * 检查是否存在指定名称的 MCP Server
+   * 检查是否存在指定名称的 MCP Server（指定应用）
    * @param name 服务器名称
+   * @param appCode 应用标识
    * @returns {Promise<boolean>} 是否存在
    */
-  async has(name: string): Promise<boolean> {
+  async has(name: string, appCode?: string | null): Promise<boolean> {
     await this.ensureCache();
-    return this.cache.has(name.toLowerCase());
+    const key = this.getCacheKey(name, appCode);
+    return this.cache.has(key);
   }
 
   /**
@@ -176,8 +172,7 @@ export class McpServerRegistry implements OnModuleInit {
   async register(config: Omit<McpServerConfig, 'id'>): Promise<McpServerConfig> {
     this.validateConfig(config);
 
-    const name = config.name.toLowerCase();
-    const existing = await this.repository.findByName(config.name);
+    const existing = await this.repository.findByName(config.name, config.appCode);
 
     let server: McpServer;
 
@@ -197,8 +192,8 @@ export class McpServerRegistry implements OnModuleInit {
         metadata: config.metadata,
       });
 
-      this.eventEmitter.emit('mcp.server.updated', { name: config.name, config });
-      this.logger.debug(`MCP Server 已更新: ${config.name}`);
+      this.eventEmitter.emit('mcp.server.updated', { name: config.name, appCode: config.appCode, config });
+      this.logger.debug(`MCP Server 已更新: ${config.name} (appCode: ${config.appCode || 'public'})`);
     } else {
       server = await this.repository.create({
         name: config.name,
@@ -217,12 +212,13 @@ export class McpServerRegistry implements OnModuleInit {
         appCode: config.appCode,
       });
 
-      this.eventEmitter.emit('mcp.server.registered', { name: config.name, config });
-      this.logger.debug(`MCP Server 已注册: ${config.name}`);
+      this.eventEmitter.emit('mcp.server.registered', { name: config.name, appCode: config.appCode, config });
+      this.logger.debug(`MCP Server 已注册: ${config.name} (appCode: ${config.appCode || 'public'})`);
     }
 
     const newConfig = this.toConfig(server);
-    this.cache.set(name, {
+    const key = this.getCacheKey(newConfig.name, newConfig.appCode);
+    this.cache.set(key, {
       config: newConfig,
       expireAt: Date.now() + this.CACHE_TTL,
     });
@@ -233,14 +229,16 @@ export class McpServerRegistry implements OnModuleInit {
   /**
    * 移除 MCP Server
    * @param name 服务器名称
+   * @param appCode 应用标识
    */
-  async remove(name: string): Promise<void> {
-    const existing = await this.repository.findByName(name);
+  async remove(name: string, appCode?: string | null): Promise<void> {
+    const existing = await this.repository.findByName(name, appCode);
     if (existing) {
       await this.repository.softDelete(existing.id);
-      this.cache.delete(name.toLowerCase());
-      this.eventEmitter.emit('mcp.server.removed', { name });
-      this.logger.debug(`MCP Server 已移除: ${name}`);
+      const key = this.getCacheKey(name, appCode);
+      this.cache.delete(key);
+      this.eventEmitter.emit('mcp.server.removed', { name, appCode });
+      this.logger.debug(`MCP Server 已移除: ${name} (appCode: ${appCode || 'public'})`);
     }
   }
 
@@ -248,13 +246,15 @@ export class McpServerRegistry implements OnModuleInit {
    * 更新健康状态
    * @param name 服务器名称
    * @param healthStatus 健康状态
+   * @param appCode 应用标识
    */
-  async updateHealthStatus(name: string, healthStatus: string): Promise<void> {
-    const existing = await this.repository.findByName(name);
+  async updateHealthStatus(name: string, healthStatus: string, appCode?: string | null): Promise<void> {
+    const existing = await this.repository.findByName(name, appCode);
     if (existing) {
       await this.repository.updateHealthStatus(existing.id, healthStatus);
 
-      const cached = this.cache.get(name.toLowerCase());
+      const key = this.getCacheKey(name, appCode);
+      const cached = this.cache.get(key);
       if (cached) {
         cached.config.healthStatus = healthStatus;
       }

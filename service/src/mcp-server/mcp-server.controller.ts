@@ -72,9 +72,12 @@ export class McpServerController {
   @RequireScope(AdminScope.MCP_SERVER_WRITE)
   async create(@Body() dto: CreateMcpServerDto, @Req() req: Request): Promise<{ data: McpServerResponseDto }> {
     const context = extractIsolationContext(req);
-    const exists = await this.repository.existsByName(dto.name);
+
+    // 使用应用隔离上下文中的 appCode 检查名称冲突（应用内唯一）
+    const appCode = context.skipIsolation ? (dto.appCode ?? null) : (context.appCode ?? null);
+    const exists = await this.repository.existsByName(dto.name, appCode);
     if (exists) {
-      throw new Error(`MCP Server 名称 "${dto.name}" 已存在`);
+      throw new Error(`MCP Server 名称 "${dto.name}" 在当前应用下已存在`);
     }
 
     const createData = this.isolationService.buildCreateData({
@@ -386,12 +389,13 @@ export class McpServerController {
 
     for (const [name, config] of Object.entries(mcpServers)) {
       try {
-        const exists = await this.repository.existsByName(name);
+        // 检查名称在当前应用下是否已存在（应用内唯一）
+        const exists = await this.repository.existsByName(name, appCode ?? null);
         if (exists) {
           results.push({
             name,
             success: false,
-            error: `MCP Server "${name}" 已存在`,
+            error: `MCP Server "${name}" 在当前应用下已存在`,
           });
           failedCount++;
           continue;
