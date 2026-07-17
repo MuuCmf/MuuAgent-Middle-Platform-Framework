@@ -62,7 +62,6 @@ export interface Agent {
   knowledgeBases?: string
   kbRetrievalConfig?: KbRetrievalConfig | string
   appCode?: string
-  isPublic?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -84,7 +83,6 @@ export interface AgentForm {
   knowledgeBases?: string
   kbRetrievalConfig?: string
   appCode?: string
-  isPublic?: boolean
 }
 
 export interface AgentListResponse {
@@ -106,8 +104,6 @@ export interface AgentQueryParams {
   status?: boolean
   /** 推理模式筛选 */
   reasoningMode?: string
-  /** 是否公开 */
-  isPublic?: boolean
   /** 页码 */
   page?: number
   /** 每页数量 */

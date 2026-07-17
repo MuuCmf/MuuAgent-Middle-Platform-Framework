@@ -142,12 +142,19 @@ export class AgentService {
           status: true,
           sort: true,
           reasoningMode: true,
+          reasoningPrompt: true,  // 编辑时需要
           modelTemplateCode: true,
+          customModelParams: true,  // 编辑时需要
+          systemPrompt: true,  // 编辑时需要
+          maxSteps: true,  // 编辑时需要
+          knowledgeBases: true,  // 编辑时需要
+          kbRetrievalConfig: true,  // 编辑时需要
           createdAt: true,
           updatedAt: true,
           appCode: true,
-          skills: includeWorkspaceSupport,
-          mcpServers: includeWorkspaceSupport,
+          skills: true,  // 始终返回,因为编辑时需要
+          mcpServers: true,  // 始终返回,因为编辑时需要
+          allowedBuiltinTools: true,  // 编辑时需要
         },
       }),
       this.prisma.agent.count({ where }),

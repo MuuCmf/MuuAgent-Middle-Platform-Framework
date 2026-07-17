@@ -417,7 +417,7 @@
       </el-table>
       <div class="pagination-wrapper">
         <el-pagination v-model:current-page="mcpServerSearchForm.page" v-model:page-size="mcpServerSearchForm.pageSize"
-          :page-sizes="[10, 20, 50]" :total="mcpServerTotal" layout="total, sizes, prev, pager, next" small
+          :page-sizes="[10, 20, 50]" :total="mcpServerTotal" layout="total, sizes, prev, pager, next" size="small"
           @size-change="loadMcpServers" @current-change="loadMcpServers" />
       </div>
       <template #footer>
@@ -652,12 +652,43 @@ const rules: FormRules = {
 watch(() => props.visible, (newVal) => {
   if (newVal) {
     if (editingAgent.value) {
+      // 处理技能字段 - 确保始终是有效的JSON字符串
+      let skillsStr = '[]';
+      if (editingAgent.value.skills) {
+        if (Array.isArray(editingAgent.value.skills)) {
+          skillsStr = JSON.stringify(editingAgent.value.skills);
+        } else if (typeof editingAgent.value.skills === 'string') {
+          // 验证是否是有效的JSON
+          try {
+            JSON.parse(editingAgent.value.skills);
+            skillsStr = editingAgent.value.skills;
+          } catch {
+            console.warn('技能字段JSON格式无效,使用空数组');
+            skillsStr = '[]';
+          }
+        }
+      }
+
+      // 处理MCP服务器字段
+      let mcpServersStr = '[]';
+      if (editingAgent.value.mcpServers) {
+        if (Array.isArray(editingAgent.value.mcpServers)) {
+          mcpServersStr = JSON.stringify(editingAgent.value.mcpServers);
+        } else if (typeof editingAgent.value.mcpServers === 'string') {
+          try {
+            JSON.parse(editingAgent.value.mcpServers);
+            mcpServersStr = editingAgent.value.mcpServers;
+          } catch {
+            console.warn('MCP服务器字段JSON格式无效,使用空数组');
+            mcpServersStr = '[]';
+          }
+        }
+      }
+
       form.value = {
         ...editingAgent.value,
-        skills: Array.isArray(editingAgent.value.skills)
-          ? JSON.stringify(editingAgent.value.skills)
-          : editingAgent.value.skills,
-        mcpServers: editingAgent.value.mcpServers || '[]',
+        skills: skillsStr,
+        mcpServers: mcpServersStr,
         appCode: editingAgent.value.appCode || '',
         sort: editingAgent.value.sort ?? 0,
         knowledgeBases: (editingAgent.value as any).knowledgeBases || '[]',
@@ -674,8 +705,8 @@ watch(() => props.visible, (newVal) => {
           },
         },
       }
-      selectedSkillCodes.value = parseJsonSafe(editingAgent.value.skills || '[]')
-      selectedMcpServerNames.value = parseJsonSafe(editingAgent.value.mcpServers || '[]')
+      selectedSkillCodes.value = parseJsonSafe(skillsStr)
+      selectedMcpServerNames.value = parseJsonSafe(mcpServersStr)
 
       // 解析 kbRetrievalConfig
       const rawKbConfig = (editingAgent.value as any).kbRetrievalConfig
