@@ -125,15 +125,10 @@ export class CreateAgentDto {
   @IsOptional()
   allowedBuiltinTools?: string;
 
-  @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用)' })
+  @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用,NULL=公共智能体)' })
   @IsString()
   @IsOptional()
   appCode?: string;
-
-  @ApiPropertyOptional({ description: '是否公开(公开=所有应用可用)', default: false })
-  @IsBoolean()
-  @IsOptional()
-  isPublic?: boolean;
 }
 
 /**
@@ -234,15 +229,10 @@ export class UpdateAgentDto {
   @IsOptional()
   allowedBuiltinTools?: string;
 
-  @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用)' })
+  @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用,NULL=公共智能体)' })
   @IsString()
   @IsOptional()
   appCode?: string;
-
-  @ApiPropertyOptional({ description: '是否公开(公开=所有应用可用)' })
-  @IsBoolean()
-  @IsOptional()
-  isPublic?: boolean;
 }
 
 /**
@@ -321,16 +311,6 @@ export class QueryAgentDto {
   @IsString()
   @IsOptional()
   reasoningMode?: string;
-
-  @ApiPropertyOptional({ description: '是否公开' })
-  @Transform(({ value }) => {
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-    return value;
-  })
-  @IsBoolean()
-  @IsOptional()
-  isPublic?: boolean;
 
   @ApiPropertyOptional({ description: '页码', default: 1 })
   @Transform(({ value }) => {

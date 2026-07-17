@@ -73,8 +73,8 @@
         </el-table-column>
         <el-table-column prop="isPublic" :label="$t('prompt.list.visibility')" width="90">
           <template #default="{ row }">
-            <el-tag :type="row.isPublic ? 'success' : 'info'" size="small">
-              {{ row.isPublic ? $t('prompt.list.public') : $t('prompt.list.private') }}
+            <el-tag :type="!row.appCode ? 'success' : 'info'" size="small">
+              {{ !row.appCode ? $t('prompt.list.public') : $t('prompt.list.private') }}
             </el-tag>
           </template>
         </el-table-column>

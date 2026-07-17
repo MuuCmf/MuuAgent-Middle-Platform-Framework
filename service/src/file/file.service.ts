@@ -118,7 +118,6 @@ export class FileService {
         storageType: options.storageType || 'local',
         businessType: options.businessType || 'temp',
         businessId: options.businessId as any,
-        isPublic: options.isPublic || false,
         appCode: options.appCode,
         createdBy: options.uid,
       },
@@ -235,14 +234,14 @@ export class FileService {
       where.appCode = appCode;
     }
     if (uid) {
-      // 用户数据隔离：自己的文件全部可见 + 他人的公开文件也可见
+      // 用户数据隔离：自己的文件全部可见 + 公共文件也可见
       where.OR = [
         { uid },
-        { isPublic: true },
+        { appCode: null },
       ];
     } else {
-      // 未登录只可见公开文件
-      where.isPublic = true;
+      // 未登录只可见公共文件
+      where.appCode = null;
     }
     if (businessType) {
       where.businessType = businessType;

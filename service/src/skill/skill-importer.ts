@@ -308,10 +308,8 @@ export class SkillImporter {
     let skillDir: string;
     if (options.appCode) {
       skillDir = path.join(targetDir, `app-${options.appCode}`, parsed.frontmatter.name);
-    } else if (options.isPublic) {
-      skillDir = path.join(targetDir, '_public', parsed.frontmatter.name);
     } else {
-      skillDir = path.join(targetDir, parsed.frontmatter.name);
+      skillDir = path.join(targetDir, '_public', parsed.frontmatter.name);
     }
 
     // 使用临时目录写入，成功后再重命名（原子性导入）

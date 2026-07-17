@@ -124,7 +124,6 @@ export class FileSkillProvider implements ISkillProvider {
       source: 'filesystem',
       type: undefined,
       appCode: entry.appCode,
-      isPublic: entry.isPublic,
       hasReferences: entry.hasReferences,
       hasScripts: entry.hasScripts,
     };
@@ -132,8 +131,12 @@ export class FileSkillProvider implements ISkillProvider {
 
   private matchesAppContext(entry: SkillIndexEntry, context?: IsolationContext): boolean {
     if (!context || context.skipIsolation) return true;
-    if (entry.isPublic) return true;
-    if (!context.appCode) return entry.isPublic;
+
+    // 公共技能 (appCode为空)
+    if (!entry.appCode) return true;
+
+    // 检查应用隔离
+    if (!context.appCode) return false;
     return entry.appCode === context.appCode;
   }
 }

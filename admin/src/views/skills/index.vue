@@ -164,8 +164,8 @@
         </el-table-column>
         <el-table-column prop="isPublic" :label="t('skill.table.isPublic')" width="70">
           <template #default="{ row }">
-            <el-tag :type="row.isPublic ? 'success' : 'info'" size="small">
-              {{ row.isPublic ? t('skill.table.hasTags.publicYes') : t('skill.table.hasTags.publicNo') }}
+            <el-tag :type="!row.appCode ? 'success' : 'info'" size="small">
+              {{ !row.appCode ? t('skill.table.hasTags.publicYes') : t('skill.table.hasTags.publicNo') }}
             </el-tag>
           </template>
         </el-table-column>

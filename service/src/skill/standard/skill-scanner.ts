@@ -22,7 +22,6 @@ export interface SkillIndexEntry {
   hasAssets: boolean;
   appCode: string | null;
   uid: string | null;
-  isPublic: boolean;
 }
 
 /**
@@ -102,7 +101,7 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
   getIndex(appCode?: string): SkillIndexEntry[] {
     const all = Array.from(this.index.values());
     if (!appCode) return all;
-    return all.filter(e => e.appCode === appCode || e.isPublic);
+    return all.filter(e => e.appCode === appCode || !e.appCode);
   }
 
   /**
@@ -117,7 +116,7 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
    */
   findByAppCode(appCode: string): SkillIndexEntry[] {
     return this.getIndex().filter(
-      e => e.appCode === appCode || e.isPublic,
+      e => e.appCode === appCode || !e.appCode,
     );
   }
 
@@ -221,7 +220,7 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
     fileSize: number,
     dirPath: string,
   ): SkillIndexEntry {
-    const { appCode, uid, isPublic } = this.resolveTenantInfo(dirPath);
+    const { appCode, uid } = this.resolveTenantInfo(dirPath);
 
     return {
       name: parsed.frontmatter.name,
@@ -237,7 +236,6 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
       hasAssets: inspection.hasAssets,
       appCode,
       uid,
-      isPublic,
     };
   }
 
@@ -251,7 +249,7 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
    *   skills/standard/app-{code}/ → 应用级公共技能（appCode={code}, uid=null, isPublic=false）
    *   其他 → 公开技能（默认）
    */
-  private resolveTenantInfo(dirPath: string): { appCode: string | null; uid: string | null; isPublic: boolean } {
+  private resolveTenantInfo(dirPath: string): { appCode: string | null; uid: string | null } {
     // 找到技能目录相对于最近的 rootDir 的路径段
     for (const rootDir of this.config.rootDirs) {
       const normalizedRoot = path.resolve(rootDir);
@@ -268,7 +266,7 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
         const parentSegments = path.relative(normalizedRoot, parentDir).split(path.sep).filter(Boolean);
 
         if (parentSegments.length === 1 && parentSegments[0] === '_public') {
-          return { appCode: null, uid: null, isPublic: true };
+          return { appCode: null, uid: null };
         }
 
         // app-{code}/_public/ 模式（应用级公共技能）
@@ -276,7 +274,7 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
           const appDir = parentSegments[0];
           const match = appDir.match(/^app-(.+)$/);
           if (match) {
-            return { appCode: match[1], uid: null, isPublic: false };
+            return { appCode: match[1], uid: null };
           }
         }
 
@@ -287,7 +285,7 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
           const appMatch = appDir.match(/^app-(.+)$/);
           const userMatch = userDir.match(/^user-(.+)$/);
           if (appMatch && userMatch) {
-            return { appCode: appMatch[1], uid: userMatch[1], isPublic: false };
+            return { appCode: appMatch[1], uid: userMatch[1] };
           }
         }
 
@@ -296,16 +294,16 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
           const appDir = parentSegments[0];
           const match = appDir.match(/^app-(.+)$/);
           if (match) {
-            return { appCode: match[1], uid: null, isPublic: false };
+            return { appCode: match[1], uid: null };
           }
         }
 
         // 默认公开
-        return { appCode: null, uid: null, isPublic: true };
+        return { appCode: null, uid: null };
       }
     }
 
-    return { appCode: null, uid: null, isPublic: true };
+    return { appCode: null, uid: null };
   }
 
   /**
@@ -400,7 +398,6 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
     hasAssets: boolean;
     appCode: string | null;
     uid: string | null;
-    isPublic: boolean;
     instructions: string;
     allowedTools?: string[];
     references?: Array<{ filePath: string; content: string }>;
@@ -416,7 +413,6 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
       hasAssets: boolean;
       appCode: string | null;
       uid: string | null;
-      isPublic: boolean;
       instructions: string;
       allowedTools?: string[];
       references?: Array<{ filePath: string; content: string }>;
@@ -444,7 +440,6 @@ export class SkillScanner implements OnModuleInit, OnModuleDestroy {
           hasAssets: indexEntry.hasAssets,
           appCode: indexEntry.appCode,
           uid: indexEntry.uid,
-          isPublic: indexEntry.isPublic,
           instructions: parsed.body,
           allowedTools: parsed.frontmatter.allowedTools
             ? parsed.frontmatter.allowedTools.split(/\s+/).filter(Boolean)

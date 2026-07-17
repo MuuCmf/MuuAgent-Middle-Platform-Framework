@@ -77,8 +77,8 @@
             </div>
             <div class="info-item">
               <span class="label">{{ $t('knowledge.list.visibility') }}：</span>
-              <el-tag :type="kb.isPublic ? 'success' : 'info'" size="small">
-                {{ kb.isPublic ? $t('knowledge.filter.public') : $t('knowledge.filter.private') }}
+              <el-tag :type="!kb.appCode ? 'success' : 'info'" size="small">
+                {{ !kb.appCode ? $t('knowledge.filter.public') : $t('knowledge.filter.private') }}
               </el-tag>
             </div>
             <div class="info-item" v-if="kb.description">

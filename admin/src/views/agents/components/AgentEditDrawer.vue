@@ -19,11 +19,7 @@
 
         <el-form-item :label="$t('agent.belongApp')">
           <AppSelector v-model="form.appCode" :placeholder="$t('component.selectApp')" clearable />
-        </el-form-item>
-
-        <el-form-item :label="$t('agent.publicStatus')">
-          <el-switch v-model="form.isPublic" :active-text="$t('agent.public')" :inactive-text="$t('agent.private')" />
-          <div class="field-tip">{{ $t('agent.publicTip') }}</div>
+          <div class="field-tip">{{ $t('agent.appCodeTip') }}</div>
         </el-form-item>
 
         <el-form-item :label="$t('agent.systemPrompt')" prop="systemPrompt" required>
@@ -470,7 +466,6 @@ interface InternalAgentForm {
   knowledgeBases: string
   kbRetrievalConfig: KbRetrievalConfigType
   appCode?: string
-  isPublic?: boolean
 }
 import type { StandardSkill } from '@/api/skill'
 import type { PromptTemplate } from '@/api/prompt-template'
@@ -532,7 +527,6 @@ const form = ref<InternalAgentForm>({
     },
   },
   appCode: '',
-  isPublic: false,
 })
 
 const editingAgent = computed(() => props.agent)
@@ -665,7 +659,6 @@ watch(() => props.visible, (newVal) => {
           : editingAgent.value.skills,
         mcpServers: editingAgent.value.mcpServers || '[]',
         appCode: editingAgent.value.appCode || '',
-        isPublic: editingAgent.value.isPublic ?? false,
         sort: editingAgent.value.sort ?? 0,
         knowledgeBases: (editingAgent.value as any).knowledgeBases || '[]',
         kbRetrievalConfig: {
@@ -782,7 +775,6 @@ const resetForm = () => {
       },
     },
     appCode: '',
-    isPublic: false,
   }
   enableCustomParams.value = false
   currentPreset.value = ''

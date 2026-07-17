@@ -36,26 +36,14 @@
           </el-select>
         </el-form-item>
 
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item :label="$t('prompt.form.appCode')">
-              <AppSelector
-                v-model="form.appCode"
-                :placeholder="$t('prompt.form.appCodePlaceholder')"
-                clearable
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item :label="$t('prompt.form.visibility')">
-              <el-switch
-                v-model="form.isPublic"
-                :active-text="$t('prompt.list.public')"
-                :inactive-text="$t('prompt.list.private')"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
+        <el-form-item :label="$t('prompt.form.appCode')">
+          <AppSelector
+            v-model="form.appCode"
+            :placeholder="$t('prompt.form.appCodePlaceholder')"
+            :disabled="!!editingTemplate"
+            clearable
+          />
+        </el-form-item>
 
         <el-form-item :label="$t('prompt.form.description')">
           <el-input
@@ -250,8 +238,7 @@ const form = reactive<PromptTemplateForm>({
   description: '',
   tags: [],
   metadata: {},
-  appCode: '',
-  isPublic: false
+  appCode: ''
 })
 
 const rules: FormRules = {
@@ -300,7 +287,6 @@ const resetForm = () => {
   form.tags = []
   form.metadata = {}
   form.appCode = ''
-  form.isPublic = false
 }
 
 watch(() => props.template, (newTemplate) => {
@@ -316,7 +302,6 @@ watch(() => props.template, (newTemplate) => {
     form.tags = newTemplate.tags ? JSON.parse(newTemplate.tags) : []
     form.metadata = newTemplate.metadata ? JSON.parse(newTemplate.metadata) : {}
     form.appCode = newTemplate.appCode || ''
-    form.isPublic = newTemplate.isPublic ?? false
   } else {
     resetForm()
   }

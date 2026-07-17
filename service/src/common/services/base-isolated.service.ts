@@ -22,8 +22,6 @@ export interface IsolationContext {
 export interface IsolationServiceConfig {
   /** 应用隔离字段名，默认 'appCode' */
   appCodeField?: string;
-  /** 公开标识字段名，默认 'isPublic' */
-  isPublicField?: string;
 }
 
 /**
@@ -31,8 +29,13 @@ export interface IsolationServiceConfig {
  *
  * 提供统一的应用隔离逻辑，支持：
  * - 自动过滤应用数据
- * - 支持公开资源访问
+ * - 支持公共资源访问（appCode=NULL）
  * - 管理后台跳过隔离（skipIsolation）
+ *
+ * 隔离规则：
+ * - 管理后台（skipIsolation=true）: 全数据可见
+ * - 无应用上下文（appCode=null）: 仅访问公共资源（appCode=NULL）
+ * - 有应用上下文（appCode='xxx'）: 该应用专属数据 + 公共数据
  *
  * @example
  * ```typescript
@@ -54,12 +57,9 @@ export interface IsolationServiceConfig {
 export class IsolationService {
   /** 默认应用隔离字段名 */
   private readonly appCodeField: string;
-  /** 默认公开标识字段名 */
-  private readonly isPublicField: string;
 
   constructor(@Optional() config?: IsolationServiceConfig) {
     this.appCodeField = config?.appCodeField || 'appCode';
-    this.isPublicField = config?.isPublicField || 'isPublic';
   }
 
   /**
@@ -73,7 +73,6 @@ export class IsolationService {
     options?: {
       appCodeField?: string;
       uidField?: string;
-      isPublicField?: string;
       includePublic?: boolean;
       useUserIsolation?: boolean;
     },
@@ -81,38 +80,40 @@ export class IsolationService {
     const { appCode, uid, skipIsolation } = context;
     const appCodeField = options?.appCodeField || this.appCodeField;
     const uidField = options?.uidField || 'uid';
-    const isPublicField = options?.isPublicField || this.isPublicField;
     const includePublic = options?.includePublic ?? true;
     const useUserIsolation = options?.useUserIsolation ?? false;
 
+    // 管理后台：跳过隔离，全数据可见
     if (skipIsolation) {
       return {};
     }
 
+    // 无应用上下文：仅访问公共资源
     if (!appCode) {
-      if (includePublic) {
-        return { [isPublicField]: true };
-      }
       return { [appCodeField]: null };
     }
 
+    // 用户级隔离
     if (useUserIsolation && uid) {
       const conditions: any[] = [
         { [appCodeField]: appCode, [uidField]: uid },
         { [appCodeField]: appCode, [uidField]: null },
       ];
 
+      // 包含公共资源
       if (includePublic) {
-        conditions.push({ [isPublicField]: true });
+        conditions.push({ [appCodeField]: null });
       }
 
       return { OR: conditions };
     }
 
+    // 应用级隔离：应用专属数据 + 公共数据
     const conditions: any[] = [{ [appCodeField]: appCode }];
 
+    // 包含公共资源
     if (includePublic) {
-      conditions.push({ [isPublicField]: true });
+      conditions.push({ [appCodeField]: null });
     }
 
     return { OR: conditions };

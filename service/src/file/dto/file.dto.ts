@@ -21,11 +21,6 @@ export class UploadFileDto {
   @IsOptional()
   storageType?: string;
 
-  @ApiPropertyOptional({ description: '是否公开', default: false })
-  @IsBoolean()
-  @IsOptional()
-  isPublic?: boolean;
-
   @ApiPropertyOptional({ description: '是否启用去重', default: false })
   @IsBoolean()
   @IsOptional()

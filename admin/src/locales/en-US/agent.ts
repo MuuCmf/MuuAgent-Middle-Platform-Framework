@@ -21,6 +21,7 @@ export default {
     agentCodePlaceholder: 'e.g., weather_assistant',
     belongApp: 'Belong to Application',
     global: 'Global',
+    appCodeTip: 'No app selected=Public agent(available to all apps), App selected=App-specific(available to that app only)',
     publicStatus: 'Public Status',
     public: 'Public',
     private: 'Private',

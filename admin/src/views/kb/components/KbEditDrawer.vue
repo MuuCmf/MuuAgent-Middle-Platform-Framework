@@ -18,11 +18,6 @@
         </el-select>
       </el-form-item>
 
-      <el-form-item :label="$t('knowledge.editDialog.form.isPublic')">
-        <el-switch v-model="formData.isPublic" :active-text="$t('knowledge.filter.public')"
-          :inactive-text="$t('knowledge.filter.private')" />
-      </el-form-item>
-
       <el-form-item :label="$t('knowledge.editDialog.form.retrievalMethod')">
         <el-select v-model="formData.retrievalMethod"
           :placeholder="$t('knowledge.editDialog.form.retrievalMethodPlaceholder')" style="width: 100%"
@@ -131,7 +126,6 @@ const formData = ref({
   kbName: '',
   kbCode: '',
   appCode: '',
-  isPublic: false,
   retrievalMethod: 'vector',
   embeddingModel: '',
   chunkSize: 500,
@@ -158,7 +152,6 @@ watch(
         kbName: props.editData.kbName || '',
         kbCode: props.editData.kbCode || '',
         appCode: props.editData.appCode || '',
-        isPublic: props.editData.isPublic || false,
         retrievalMethod: props.editData.retrievalMethod || 'vector',
         embeddingModel: props.editData.embeddingModel || '',
         chunkSize: props.editData.chunkSize || 500,
@@ -172,7 +165,6 @@ watch(
         kbName: '',
         kbCode: '',
         appCode: '',
-        isPublic: false,
         retrievalMethod: 'vector',
         embeddingModel: '',
         chunkSize: 500,

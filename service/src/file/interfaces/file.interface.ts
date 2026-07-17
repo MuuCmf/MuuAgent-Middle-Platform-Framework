@@ -139,7 +139,6 @@ export interface FileRecord {
   storageType: string;
   businessType: string;
   businessId?: string;
-  isPublic: boolean;
   accessCount: number;
   appCode?: string;
   createdBy?: string;

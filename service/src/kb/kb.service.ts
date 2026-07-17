@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateKbDto } from './dto/create-kb.dto';
 import { UpdateKbDto } from './dto/update-kb.dto';
@@ -60,7 +60,6 @@ export class KbService {
       description: dto.description,
       createdBy: dto.uid,
       appCode: dto.appCode,
-      isPublic: dto.isPublic ?? false,
     }, context || { appCode: null, skipIsolation: false });
 
     const kb = await this.prisma.kbInfo.create({ data });
@@ -129,7 +128,6 @@ export class KbService {
           topN: true,
           retrievalMethod: true,
           status: true,
-          isPublic: true,
           description: true,
           createdAt: true,
           createdBy: true,
@@ -157,7 +155,6 @@ export class KbService {
         topN: item.topN,
         retrievalMethod: item.retrievalMethod,
         status: item.status,
-        isPublic: item.isPublic,
         description: item.description,
         createdTime: item.createdAt,
         createdBy: item.createdBy,
@@ -205,7 +202,7 @@ export class KbService {
       topN: kb.topN,
       retrievalMethod: kb.retrievalMethod,
       status: kb.status,
-      isPublic: kb.isPublic,
+      isPublic: !kb.appCode,
       description: kb.description,
       createdTime: kb.createdAt,
       updatedTime: kb.updatedAt,

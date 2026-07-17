@@ -145,8 +145,7 @@ model Agent {
   allowedBuiltinTools String? @map("allowed_builtin_tools") @db.Text /// 允许使用的内置工具列表(JSON数组): ["http_request", "kb_search"]
 
   // ===== 应用隔离 =====
-  appCode         String?  @map("app_code") /// 所属应用标识
-  isPublic        Boolean  @default(false) @map("is_public") /// 是否公开（公开=所有应用可用）
+  appCode         String?  @map("app_code") /// 所属应用标识（NULL=公共智能体，非空=应用专属）
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -158,7 +157,6 @@ model Agent {
   @@unique([code, appCode]) /// 同一应用下code唯一
   @@index([status])
   @@index([appCode])
-  @@index([isPublic])
   @@index([promptTemplateCode])
   @@index([modelTemplateCode])
   @@index([reasoningMode]) /// 推理模式索引，用于筛选
@@ -452,13 +450,12 @@ model KbInfo {
   topN            Int      @default(5) /// 召回条数
   retrievalMethod String   @default("vector") @map("retrieval_method") /// 检索方式: vector=向量检索, bm25=BM25检索
 
-  // ===== 权限与状态 =====
-  isPublic        Boolean  @default(false) @map("is_public") /// 是否公开（公开=所有应用可检索）
+  // ===== 状态 =====
   status          Boolean  @default(true) /// 状态：true=启用，false=禁用
   description     String?  @db.Text /// 描述
 
   // ===== 应用隔离 =====
-  appCode         String?  @map("app_code") /// 所属应用标识
+  appCode         String?  @map("app_code") /// 所属应用标识（NULL=公共知识库，非空=应用专属）
 
   // ===== 创建者信息 =====
   createdBy       String?  /// 创建者uid
@@ -477,7 +474,7 @@ model KbInfo {
   @@unique([kbCode, appCode]) /// 同一应用下kbCode唯一
   @@index([kbCode])
   @@index([appCode])
-  @@index([isPublic, status])
+  @@index([status])
   @@index([createdBy])
   @@map("kb_infos")
 }
@@ -795,8 +792,7 @@ model PromptTemplate {
   createdBy   String?  @map("created_by") /// 创建者
 
   // ===== 应用隔离 =====
-  appCode     String?  @map("app_code") /// 所属应用标识
-  isPublic    Boolean  @default(false) @map("is_public") /// 是否公开
+  appCode     String?  @map("app_code") /// 所属应用标识（NULL=公共模板，非空=应用专属）
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -809,7 +805,6 @@ model PromptTemplate {
   @@unique([code, appCode]) /// 同一应用下code唯一
   @@index([category, status])
   @@index([appCode])
-  @@index([isPublic])
   @@index([isDefault])
   @@index([createdAt])
   @@map("prompt_templates")
@@ -901,11 +896,10 @@ model File {
   isProcessed     Boolean  @default(false) @map("is_processed") /// 是否已处理
   processConfig   String?  @map("process_config") @db.Text /// 处理配置(JSON)
   processResult   String?  @map("process_result") @db.Text /// 处理结果(JSON)
-  
-  isPublic        Boolean  @default(false) @map("is_public") /// 是否公开
+
   accessCount     Int      @default(0) @map("access_count") /// 访问次数
-  
-  appCode         String?  @map("app_code") /// 应用标识
+
+  appCode         String?  @map("app_code") /// 应用标识（NULL=公共文件，非空=应用专属）
   createdBy       String?  @map("created_by") /// 创建人
   
   createdAt       DateTime @default(now())
@@ -1004,9 +998,8 @@ model Skill {
   description     String   /// 技能描述
   source          String   /// 技能来源: filesystem / database / import
   type            String?  /// 技能类型
-  appCode         String?  @map("app_code") /// 所属应用标识
+  appCode         String?  @map("app_code") /// 所属应用标识（NULL=公共技能，非空=应用专属）
   uid             String?  /// 所属用户标识（为空表示应用级公共技能）
-  isPublic        Boolean  @default(true) @map("is_public") /// 是否公开
   hasReferences   Boolean  @default(false) @map("has_references") /// 是否有参考文档
   hasScripts      Boolean  @default(false) @map("has_scripts") /// 是否有脚本
   hasAssets       Boolean  @default(false) @map("has_assets") /// 是否有资源文件
@@ -1023,7 +1016,6 @@ model Skill {
 
   @@index([appCode])
   @@index([name])
-  @@index([isPublic])
   @@index([source])
   @@map("skills")
 }

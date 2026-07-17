@@ -68,7 +68,7 @@ export class SkillController {
     const skills = await this.skillRegistry.listAll(context);
     
     let filtered = query.appCode
-      ? skills.filter(s => s.appCode === query.appCode || s.isPublic)
+      ? skills.filter(s => s.appCode === query.appCode || !s.appCode)
       : skills;
 
     const { page = 1, pageSize = 20, sortBy = 'name', sortOrder = 'asc' } = query;
@@ -91,7 +91,7 @@ export class SkillController {
         description: s.description,
         source: s.source,
         appCode: s.appCode,
-        isPublic: s.isPublic,
+        isPublic: !s.appCode,
         hasReferences: s.hasReferences,
         hasScripts: s.hasScripts,
         hasAssets: s.hasAssets,
@@ -139,7 +139,7 @@ export class SkillController {
       description: descriptor.metadata.description,
       source: descriptor.metadata.source,
       appCode: descriptor.metadata.appCode,
-      isPublic: descriptor.metadata.isPublic,
+      isPublic: !descriptor.metadata.appCode,
       hasReferences: descriptor.metadata.hasReferences,
       hasScripts: descriptor.metadata.hasScripts,
       frontmatter: descriptor.frontmatter,
@@ -163,7 +163,7 @@ export class SkillController {
   @RequireScope(AdminScope.SKILL_WRITE)
   async importSkill(
     @UploadedFile() file: Express.Multer.File,
-    @Body() body: { appCode?: string; isPublic?: boolean; overwrite?: boolean },
+    @Body() body: { appCode?: string; overwrite?: boolean },
     @Req() req: Request,
   ) {
     if (!file) {
@@ -175,7 +175,6 @@ export class SkillController {
       files,
       {
         appCode: body.appCode,
-        isPublic: body.isPublic,
         overwrite: body.overwrite,
       },
       context,

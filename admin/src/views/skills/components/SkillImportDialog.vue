@@ -522,7 +522,6 @@ const handleImport = async () => {
   try {
     const result = await skillStore.importSkill(uploadFile.value, {
       appCode: targetAppCode.value || undefined,
-      isPublic: targetAppCode.value ? false : true,
       overwrite: overwrite.value,
     })
     if (result) {

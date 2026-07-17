@@ -36,11 +36,6 @@
           <el-option :label="$t('agent.planMode')" value="PLAN" />
           <el-option :label="$t('agent.reflectMode')" value="REFLECT" />
         </el-select>
-        <el-select v-model="searchForm.isPublic" :placeholder="$t('agent.publicStatus')" clearable
-          style="width: 120px; margin-right: 8px;" @change="handleSearch">
-          <el-option :label="$t('agent.public')" :value="true" />
-          <el-option :label="$t('agent.private')" :value="false" />
-        </el-select>
         <el-button type="primary" @click="handleSearch">
           <el-icon>
             <Search />
@@ -68,17 +63,10 @@
             <el-tag type="info">{{ row.code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="appCode" :label="$t('agent.belongApp')" width="120">
+        <el-table-column prop="appCode" :label="$t('agent.belongApp')" width="150">
           <template #default="{ row }">
             <el-tag v-if="row.appCode" type="warning" size="small">{{ row.appCode }}</el-tag>
-            <span v-else style="color: #999">{{ $t('agent.global') }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="isPublic" :label="$t('agent.publicStatus')" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.isPublic ? 'success' : 'info'" size="small">
-              {{ row.isPublic ? $t('agent.public') : $t('agent.private') }}
-            </el-tag>
+            <el-tag v-else type="success" size="small">{{ $t('agent.global') }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="skills" :label="$t('agent.bindSkills')" width="180">
@@ -176,7 +164,6 @@ const searchForm = ref<AgentQueryParams>({
   code: '',
   status: undefined,
   reasoningMode: undefined,
-  isPublic: undefined
 })
 
 const parseJsonSafe = (str: string, defaultValue: any[] = []) => {
@@ -259,7 +246,6 @@ const handleReset = () => {
     code: '',
     status: undefined,
     reasoningMode: undefined,
-    isPublic: undefined
   }
   resetAndLoad()
 }

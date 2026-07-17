@@ -68,7 +68,7 @@ export class ConversationService {
     this.logger.log(`getOrCreate: conversationType=${conversationType}, targetId=${targetId}, conversationId=${conversationId}, uid=${uid}`);
 
     if (conversationId) {
-      const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
+      const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false }, { appCodeField: 'appCode', includePublic: false });
       const existing = await this.prisma.conversation.findFirst({
         where: { id: conversationId, ...isolationWhere, status: { not: 'deleted' } },
       });
@@ -157,7 +157,7 @@ export class ConversationService {
    * @returns 会话详情（包含消息）
    */
   async findOne(id: string, messageLimit?: number, context?: IsolationContext) {
-    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false }, { appCodeField: 'appCode', includePublic: false });
     if (context?.uid && !context.skipIsolation) {
       isolationWhere.uid = context.uid;
     }
@@ -207,7 +207,7 @@ export class ConversationService {
     const { conversationType, targetId, uid, status, keyword, page = 1, pageSize = 20 } = query;
     const skip = (page - 1) * pageSize;
 
-    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false }, { appCodeField: 'appCode', isPublicField: 'isPublic', includePublic: false });
+    const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false }, { appCodeField: 'appCode', includePublic: false });
     const where: any = { ...isolationWhere };
 
     if (conversationType) where.conversationType = conversationType;

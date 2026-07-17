@@ -36,7 +36,6 @@ export class DatabaseSkillProvider implements ISkillProvider {
         type: true,
         appCode: true,
         uid: true,
-        isPublic: true,
         hasReferences: true,
         hasScripts: true,
       },
@@ -49,7 +48,6 @@ export class DatabaseSkillProvider implements ISkillProvider {
       type: skill.type || undefined,
       appCode: skill.appCode || null,
       uid: skill.uid || undefined,
-      isPublic: skill.isPublic,
       hasReferences: skill.hasReferences,
       hasScripts: skill.hasScripts,
     }));
@@ -78,7 +76,6 @@ export class DatabaseSkillProvider implements ISkillProvider {
         type: skill.type || undefined,
         appCode: skill.appCode || null,
         uid: skill.uid || undefined,
-        isPublic: skill.isPublic,
         hasReferences: skill.hasReferences,
         hasScripts: skill.hasScripts,
       },
@@ -153,22 +150,22 @@ export class DatabaseSkillProvider implements ISkillProvider {
    * 将文件系统技能同步到数据库
    * @param entries 技能条目数组
    */
-  async syncFromFilesystem(entries: Array<{
-    name: string;
-    description: string;
-    directoryPath: string;
-    skillMdPath: string;
-    frontmatter: SkillFrontmatter;
-    hasScripts: boolean;
-    hasReferences: boolean;
-    hasAssets: boolean;
-    appCode: string | null;
-    uid: string | null;
-    isPublic: boolean;
-    instructions: string;
-    allowedTools?: string[];
-    references?: Array<{ filePath: string; content: string }>;
-  }>): Promise<void> {
+  async syncFromFilesystem(
+    entries: Array<{
+      name: string;
+      description: string;
+      directoryPath: string;
+      skillMdPath: string;
+      frontmatter: SkillFrontmatter;
+      hasScripts: boolean;
+      hasReferences: boolean;
+      hasAssets: boolean;
+      appCode: string | null;
+      uid: string | null;
+      instructions: string;
+      allowedTools?: string[];
+      references?: Array<{ filePath: string; content: string }>;
+    }>): Promise<void> {
     for (const entry of entries) {
       // 使用事务确保完整性
       await this.prisma.$transaction(async (tx) => {
@@ -180,7 +177,6 @@ export class DatabaseSkillProvider implements ISkillProvider {
             source: 'filesystem',
             appCode: entry.appCode,
             uid: entry.uid,
-            isPublic: entry.isPublic,
             hasReferences: entry.hasReferences,
             hasScripts: entry.hasScripts,
             hasAssets: entry.hasAssets,
@@ -195,7 +191,6 @@ export class DatabaseSkillProvider implements ISkillProvider {
             source: 'filesystem',
             appCode: entry.appCode,
             uid: entry.uid,
-            isPublic: entry.isPublic,
             hasReferences: entry.hasReferences,
             hasScripts: entry.hasScripts,
             hasAssets: entry.hasAssets,
@@ -288,21 +283,24 @@ export class DatabaseSkillProvider implements ISkillProvider {
    * 检查技能是否匹配应用上下文（支持用户级隔离）
    */
   private matchesAppContext(
-    skill: { appCode: string | null; uid: string | null; isPublic: boolean },
+    skill: { appCode: string | null; uid: string | null },
     context?: IsolationContext,
   ): boolean {
     if (!context || context.skipIsolation) return true;
-    if (skill.isPublic) return true;
-    
-    if (!context.appCode) return skill.isPublic;
+
+    // 公共技能 (appCode为空)
+    if (!skill.appCode) return true;
+
+    // 检查应用隔离
+    if (!context.appCode) return false;
     if (skill.appCode !== context.appCode) return false;
-    
+
     // 用户级隔离检查
     if (context.uid) {
       // 自己的私有技能或应用级公共技能
       return skill.uid === context.uid || skill.uid === null;
     }
-    
+
     return true;
   }
 

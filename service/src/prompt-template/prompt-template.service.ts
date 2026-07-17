@@ -68,7 +68,6 @@ export class PromptTemplateService {
       metadata: dto.metadata ? JSON.stringify(dto.metadata) : null,
       createdBy: dto.createdBy,
       appCode: dto.appCode,
-      isPublic: dto.isPublic ?? false,
     }, context || { appCode: null, skipIsolation: false });
 
     const template = await this.prisma.promptTemplate.create({ data });

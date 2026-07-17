@@ -63,13 +63,8 @@ export class CreateKbDto {
   @IsOptional()
   retrievalMethod?: string;
 
-  @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用)' })
+  @ApiPropertyOptional({ description: '所属应用标识(超级管理员专用,NULL=公共知识库)' })
   @IsString()
   @IsOptional()
   appCode?: string;
-
-  @ApiPropertyOptional({ description: '是否公开(公开=所有应用可用)', default: false })
-  @IsBoolean()
-  @IsOptional()
-  isPublic?: boolean;
 }

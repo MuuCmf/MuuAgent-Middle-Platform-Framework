@@ -31,8 +31,8 @@ export class AgentService {
   /**
    * 创建智能体
    * @param dto 创建智能体DTO
-   * @param context 
-   * @returns 
+   * @param context 隔离上下文
+   * @returns 创建的智能体
    */
   async create(dto: CreateAgentDto, context?: IsolationContext) {
     const data = this.isolationService.buildCreateData({
@@ -51,7 +51,6 @@ export class AgentService {
       reasoningPrompt: dto.reasoningPrompt,
       kbRetrievalConfig: dto.kbRetrievalConfig || JSON.stringify({ strategy: 'TOOL' }),
       appCode: dto.appCode,
-      isPublic: dto.isPublic ?? false,
     }, context || { appCode: null, skipIsolation: false });
 
     return this.prisma.agent.create({ data });
@@ -113,7 +112,7 @@ export class AgentService {
    * @returns 分页结果
    */
   async findAll(query: QueryAgentDto, context?: IsolationContext) {
-    const { status, page = 1, pageSize = 10, name, code, reasoningMode, isPublic, includeWorkspaceSupport = false } = query;
+    const { status, page = 1, pageSize = 10, name, code, reasoningMode, includeWorkspaceSupport = false } = query;
     const skip = (page - 1) * pageSize;
 
     const isolationWhere = this.isolationService.buildIsolationWhere(context || { appCode: null, skipIsolation: false });
@@ -124,7 +123,6 @@ export class AgentService {
     if (name) where.name = { contains: name };
     if (code) where.code = { contains: code };
     if (reasoningMode) where.reasoningMode = reasoningMode;
-    if (isPublic !== undefined) where.isPublic = isPublic;
 
     const [list, total] = await Promise.all([
       this.prisma.agent.findMany({
@@ -145,7 +143,6 @@ export class AgentService {
           sort: true,
           reasoningMode: true,
           modelTemplateCode: true,
-          isPublic: true,
           createdAt: true,
           updatedAt: true,
           appCode: true,
