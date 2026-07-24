@@ -116,7 +116,15 @@ export class McpServerController {
   @RequireScope(AdminScope.MCP_SERVER_WRITE)
   async importServers(@Body() dto: ImportMcpServersDto, @Req() req: Request): Promise<{ data: ImportResultDto }> {
     const context = extractIsolationContext(req);
-    const result = await this.importMcpServers(dto, context.appCode ?? undefined);
+
+    // 根据隔离权限决定 appCode：
+    // - 管理后台（skipIsolation=true）：可指定 appCode，不指定则导入为公共资源
+    // - 租户端（skipIsolation=false）：只能导入到当前应用，忽略 dto.appCode
+    const targetAppCode = context.skipIsolation
+      ? (dto.appCode ?? null)
+      : (context.appCode ?? null);
+
+    const result = await this.importMcpServers(dto, targetAppCode, context);
     await this.registry.refresh();
     return success(result);
   }
@@ -135,7 +143,8 @@ export class McpServerController {
     const context = extractIsolationContext(req);
     const { page: pageNum = 1, pageSize = 10, ...filterParams } = query;
 
-    const isolationWhere = this.isolationService.buildIsolationWhere(context, { includePublic: false });
+    // 默认包含公共资源（appCode=null），应用可访问：应用专属 + 公共 MCP servers
+    const isolationWhere = this.isolationService.buildIsolationWhere(context);
 
     const result = await this.repository.findWithPagination({
       ...filterParams,
@@ -378,9 +387,14 @@ export class McpServerController {
    * 导入 MCP Servers（支持 Claude Desktop 配置格式）
    * @param dto 导入请求DTO
    * @param appCode 应用标识（用于应用隔离）
+   * @param context 隔离上下文
    * @returns {Promise<ImportResultDto>} 导入结果
    */
-  private async importMcpServers(dto: ImportMcpServersDto, appCode?: string): Promise<ImportResultDto> {
+  private async importMcpServers(
+    dto: ImportMcpServersDto,
+    appCode: string | null,
+    context: { appCode: string | null; skipIsolation: boolean; uid?: string },
+  ): Promise<ImportResultDto> {
     const results: ImportResultDto['results'] = [];
     let successCount = 0;
     let failedCount = 0;
@@ -390,7 +404,7 @@ export class McpServerController {
     for (const [name, config] of Object.entries(mcpServers)) {
       try {
         // 检查名称在当前应用下是否已存在（应用内唯一）
-        const exists = await this.repository.existsByName(name, appCode ?? null);
+        const exists = await this.repository.existsByName(name, appCode);
         if (exists) {
           results.push({
             name,
@@ -408,7 +422,8 @@ export class McpServerController {
           transport = 'http';
         }
 
-        const server = await this.repository.create({
+        // 使用隔离服务构建创建数据
+        const createData = this.isolationService.buildCreateData({
           name,
           transport,
           url: config.url,
@@ -417,7 +432,9 @@ export class McpServerController {
           env: config.env,
           enabled: true,
           appCode,
-        });
+        }, context);
+
+        const server = await this.repository.create(createData);
 
         results.push({
           name,

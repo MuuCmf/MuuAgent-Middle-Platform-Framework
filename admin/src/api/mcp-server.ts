@@ -185,6 +185,7 @@ export interface ClaudeMcpServerConfig {
  */
 export interface ImportMcpServersRequest {
   mcpServers: Record<string, ClaudeMcpServerConfig>
+  appCode?: string
 }
 
 /**

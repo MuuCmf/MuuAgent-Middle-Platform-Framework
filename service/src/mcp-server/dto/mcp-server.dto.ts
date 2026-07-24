@@ -480,6 +480,11 @@ export class ImportMcpServersDto {
   })
   @IsOptional()
   mcpServers?: Record<string, ClaudeMcpServerConfig>;
+
+  @ApiPropertyOptional({ description: '导入到的应用标识（管理后台可指定，租户端自动使用当前应用）' })
+  @IsString()
+  @IsOptional()
+  appCode?: string;
 }
 
 /**

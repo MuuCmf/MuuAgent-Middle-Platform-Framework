@@ -122,9 +122,22 @@ export class McpServerRegistry implements OnModuleInit {
     name: string,
     isolationContext?: IsolationContext,
   ): Promise<McpServerConfig | undefined> {
-    // 使用隔离上下文中的 appCode 获取配置
+    await this.ensureCache();
     const appCode = isolationContext?.appCode ?? null;
-    return this.get(name, appCode);
+
+    // 先尝试查询应用专属资源
+    const key = this.getCacheKey(name, appCode);
+    const item = this.cache.get(key);
+    if (item) return item.config;
+
+    // 如果是应用上下文，再尝试查询公共资源（appCode=null）
+    if (appCode) {
+      const publicKey = this.getCacheKey(name, null);
+      const publicItem = this.cache.get(publicKey);
+      if (publicItem) return publicItem.config;
+    }
+
+    return undefined;
   }
 
   /**

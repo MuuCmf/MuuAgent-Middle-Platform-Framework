@@ -20,7 +20,7 @@ export interface CreateMcpServerParams {
   enabled?: boolean;
   tools?: string[];
   metadata?: Record<string, unknown>;
-  appCode?: string;
+  appCode?: string | null;
   createdBy?: string;
 }
 

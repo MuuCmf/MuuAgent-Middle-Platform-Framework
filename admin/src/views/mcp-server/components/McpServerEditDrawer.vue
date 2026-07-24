@@ -7,6 +7,7 @@
         <AppSelector
           v-model="form.appCode"
           :placeholder="$t('mcp.editDrawer.form.appCodePlaceholder')"
+          :disabled="mode === 'edit'"
           clearable
         />
       </el-form-item>

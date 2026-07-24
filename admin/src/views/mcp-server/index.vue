@@ -69,7 +69,7 @@
         <el-table-column prop="appCode" :label="$t('mcp.table.appCode')" min-width="100">
           <template #default="{ row }">
             <el-tag v-if="row.appCode" type="info" size="small">{{ row.appCode }}</el-tag>
-            <span v-else>-</span>
+            <el-tag v-else type="success" size="small">公共</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="displayName" :label="$t('mcp.table.displayName')" min-width="120">
@@ -173,6 +173,15 @@
 }
     </pre>
       </div>
+      <el-form label-width="100px">
+        <el-form-item :label="$t('mcp.editDrawer.form.appCode')">
+          <AppSelector
+            v-model="importAppCode"
+            :placeholder="$t('mcp.editDrawer.form.appCodePlaceholder')"
+            clearable
+          />
+        </el-form-item>
+      </el-form>
       <el-input v-model="importJsonText" type="textarea" :rows="12" :placeholder="$t('mcp.importDialog.placeholder')" />
       <template #footer>
         <el-button @click="importDialogVisible = false">{{ $t('mcp.actions.cancel') }}</el-button>
@@ -219,6 +228,7 @@ import {
 import { mcpServerApi, type McpServer, type McpTransport, type ImportResult } from '@/api/mcp-server'
 import { formatDate } from '@/utils/format'
 import McpServerEditDrawer from './components/McpServerEditDrawer.vue'
+import AppSelector from '@/components/AppSelector.vue'
 
 const { t } = useI18n()
 
@@ -231,6 +241,7 @@ const currentServer = ref<McpServer | null>(null)
 const editMode = ref<'create' | 'edit'>('create')
 const importDialogVisible = ref(false)
 const importJsonText = ref('')
+const importAppCode = ref('')
 const importLoading = ref(false)
 const importResultVisible = ref(false)
 const importResult = ref<ImportResult | null>(null)
@@ -332,6 +343,7 @@ const handleEditSuccess = () => {
 
 const handleImport = () => {
   importJsonText.value = ''
+  importAppCode.value = ''
   importDialogVisible.value = true
 }
 
@@ -349,7 +361,10 @@ const handleImportSubmit = async () => {
     }
 
     importLoading.value = true
-    const { data } = await mcpServerApi.importServers(parsed)
+    const { data } = await mcpServerApi.importServers({
+      mcpServers: parsed.mcpServers,
+      appCode: importAppCode.value || undefined,
+    })
     importResult.value = data.data
     importDialogVisible.value = false
     importResultVisible.value = true
