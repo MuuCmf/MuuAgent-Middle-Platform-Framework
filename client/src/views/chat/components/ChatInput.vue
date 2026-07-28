@@ -504,13 +504,12 @@ const filteredCommands = computed(() => {
 
 /**
  * 处理工作目录触发器点击
+ * 无论工作目录是否激活，都触发选择事件
+ * - 未激活时：选择工作目录
+ * - 已激活时：重新选择工作目录（切换目录）
  */
 const handleWorkspaceTrigger = () => {
-  if (props.workspaceIsActive) {
-    emit('workspace-select')
-  } else {
-    emit('workspace-select')
-  }
+  emit('workspace-select')
 }
 
 watch(() => props.mode, (newMode) => {

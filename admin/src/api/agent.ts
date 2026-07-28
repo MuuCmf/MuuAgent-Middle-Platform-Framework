@@ -62,6 +62,8 @@ export interface Agent {
   knowledgeBases?: string
   kbRetrievalConfig?: KbRetrievalConfig | string
   appCode?: string
+  /** 是否支持工作目录（仅当 includeWorkspaceSupport=true 时返回） */
+  supportsWorkspace?: boolean
   createdAt: string
   updatedAt: string
 }

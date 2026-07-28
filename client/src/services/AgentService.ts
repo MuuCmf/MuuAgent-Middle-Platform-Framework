@@ -76,10 +76,18 @@ export type AgentStreamChatCallbacks = StreamCallbacks & {
 export class AgentService {
   /**
    * 获取智能体列表
+   * @param params 查询参数
    * @returns 智能体列表
    */
-  async getList() {
-    const response = await httpClient.getInstance().get(API_ENDPOINTS.agents)
+  async getList(params?: {
+    /** 是否包含工作目录支持信息 */
+    includeWorkspaceSupport?: boolean
+    /** 页码 */
+    page?: number
+    /** 每页数量 */
+    pageSize?: number
+  }) {
+    const response = await httpClient.getInstance().get(API_ENDPOINTS.agents, { params })
     return response.data
   }
 

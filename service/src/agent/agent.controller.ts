@@ -243,18 +243,22 @@ export class AgentController {
 
   /**
    * 获取启用的智能体列表
+   * 业务端默认返回 supportsWorkspace 字段，无需前端显式传参
+   * @param query 查询参数（可选 includeWorkspaceSupport 覆盖默认行为）
+   * @param req 请求对象
    * @returns {Promise<Object>} 启用的智能体列表
    */
   @Get()
   @ApiOperation({ summary: "获取启用的智能体列表" })
-  async getEnabledAgents(@Req() req: Request) {
+  async getEnabledAgents(@Query() query: QueryAgentDto, @Req() req: Request) {
     // 仅返回当前应用的智能体
     const context = extractIsolationContext(req);
-    // 仅返回当前应用的智能体
     const agents = await this.agentService.findAll({
       status: true,
       page: 1,
       pageSize: 100,
+      // 业务端默认返回 supportsWorkspace，前端无需传参
+      includeWorkspaceSupport: query.includeWorkspaceSupport ?? true,
     }, context);
     const safeAgents = agents.list.map((agent) =>
       this.filterSensitiveData(agent),
