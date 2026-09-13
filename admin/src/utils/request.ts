@@ -125,6 +125,12 @@ async function handle401Error(
 ): Promise<any> {
   const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
+  // 登录接口自身的 401 属于账号或密码错误，不走令牌刷新流程，直接抛出由登录页提示
+  const requestUrl: string = originalRequest?.url || ''
+  if (requestUrl.includes('admin/login')) {
+    return Promise.reject(error)
+  }
+
   // 不是 401 或已经重试过，继续抛出
   if (error.response?.status !== 401 || originalRequest._retry) {
     if (error.response?.status === 401) {

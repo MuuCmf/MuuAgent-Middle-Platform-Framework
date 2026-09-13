@@ -105,8 +105,12 @@ const handleLogin = async () => {
 
         ElMessage.success(t('user.loginSuccess'))
         router.push('/')
-      } catch (error) {
+      } catch (error: any) {
         console.error('登录失败:', error)
+        // 登录接口的 401（账号或密码错误/账号禁用）由本页提示；其他错误由请求拦截器统一提示
+        if (error?.response?.status === 401) {
+          ElMessage.error(error?.response?.data?.message || t('user.loginFailed'))
+        }
       } finally {
         loading.value = false
       }
