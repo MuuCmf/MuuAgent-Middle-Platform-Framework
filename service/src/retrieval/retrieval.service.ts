@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { VectorService } from '../vector/vector.service';
 import { AiService } from '../ai/ai.service';
@@ -371,10 +371,10 @@ export class RetrievalService {
     const similarityThresh = kb.similarityThresh;
     const retrievalMethod = kb.retrievalMethod || 'vector';
 
-    // 提取最近 7 天 top-20 高频查询
+    // 提取最近 7 天 top-20 高频查询（表名需与 schema.prisma 的 @@map 保持一致）
     const logs = await this.prisma.$queryRaw<Array<{ query: string; cnt: bigint }>>`
       SELECT query, COUNT(*) as cnt
-      FROM kb_retrieval_log
+      FROM muuagent_kb_retrieval_logs
       WHERE kb_id = ${kbId}
         AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
       GROUP BY query

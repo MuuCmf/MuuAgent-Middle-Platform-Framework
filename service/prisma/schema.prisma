@@ -36,7 +36,7 @@ model Model {
   @@index([type, status])
   @@index([provider])
   @@index([category])
-  @@map("models")
+  @@map("muuagent_models")
 }
 
 /// 模型参数模板表 - 预设模型调用参数
@@ -60,7 +60,7 @@ model ModelTemplate {
   @@index([modelType, status])
   @@index([sceneTag])
   @@index([isDefault])
-  @@map("model_templates")
+  @@map("muuagent_model_templates")
 }
 
 /// 模型路由调度策略表 - 模型控制平面配置
@@ -77,7 +77,7 @@ model ModelRoutingStrategy {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  @@map("model_routing_strategies")
+  @@map("muuagent_model_routing_strategies")
 }
 
 /// 模型路由限流熔断规则表 - 单模型级别的限流配置
@@ -97,7 +97,7 @@ model ModelRoutingRule {
   model Model @relation(fields: [modelId], references: [id], onDelete: Cascade)
 
   @@index([modelId])
-  @@map("model_routing_rules")
+  @@map("muuagent_model_routing_rules")
 }
 
 /// 意图分类缓存表 - 缓存用户消息的意图分类结果
@@ -112,7 +112,7 @@ model IntentCache {
   updatedAt   DateTime @updatedAt
 
   @@index([messageHash])
-  @@map("intent_cache")
+  @@map("muuagent_intent_cache")
 }
 
 /// 智能体表 - AI Agent配置
@@ -162,7 +162,7 @@ model Agent {
   @@index([reasoningMode]) /// 推理模式索引，用于筛选
   @@index([sort, createdAt]) /// 排序复合索引
   @@index([appCode, status]) /// 应用隔离+状态复合索引
-  @@map("agents")
+  @@map("muuagent_agents")
 }
 
 /// AI调用日志表 - 记录所有AI模型调用
@@ -195,7 +195,7 @@ model AiInvokeLog {
   @@index([success, createdAt])
   @@index([uid, createdAt])
   @@index([appCode, createdAt])
-  @@map("ai_invoke_logs")
+  @@map("muuagent_ai_invoke_logs")
 }
 
 /// 技能调用日志表 - 记录技能调用情况
@@ -221,7 +221,7 @@ model SkillInvokeLog {
   @@index([skillCode, createdAt])
   @@index([uid, createdAt])
   @@index([appCode, createdAt])
-  @@map("skill_invoke_logs")
+  @@map("muuagent_skill_invoke_logs")
 }
 
 /// 智能体调用日志表 - 记录Agent对话
@@ -256,7 +256,7 @@ model AgentInvokeLog {
   @@index([conversationId])
   @@index([uid, createdAt])
   @@index([appCode, createdAt])
-  @@map("agent_invoke_logs")
+  @@map("muuagent_agent_invoke_logs")
 }
 
 /// 模型健康检查记录表
@@ -271,7 +271,7 @@ model ModelHealth {
   model Model @relation(fields: [modelId], references: [id], onDelete: Cascade)
 
   @@index([modelId, checkedAt])
-  @@map("model_health_records")
+  @@map("muuagent_model_health_records")
 }
 
 /// 应用/租户表 - 多租户支持
@@ -315,7 +315,7 @@ model AppTenant {
   @@index([code])
   @@index([apiKey])
   @@index([status])
-  @@map("app_tenants")
+  @@map("muuagent_app_tenants")
 }
 
 /// 应用每日使用量统计表
@@ -333,7 +333,7 @@ model AppUsage {
   @@unique([appCode, date])
   @@index([appCode])
   @@index([date])
-  @@map("app_usage")
+  @@map("muuagent_app_usage")
 }
 
 /// 限流规则表 - 支持多级别限流配置
@@ -357,7 +357,7 @@ model RateLimitRule {
 
   @@unique([level, target])
   @@index([level, status])
-  @@map("rate_limit_rules")
+  @@map("muuagent_rate_limit_rules")
 }
 
 /// 限流计数器表 - 实时统计限流数据
@@ -378,7 +378,7 @@ model RateLimitCounter {
   rateLimitRule RateLimitRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
   @@index([ruleId])
-  @@map("rate_limit_counters")
+  @@map("muuagent_rate_limit_counters")
 }
 
 /// 限流黑名单表 - 记录被限流的请求
@@ -392,7 +392,7 @@ model RateLimitBlacklist {
 
   @@index([clientIp, blockUntil])
   @@index([appId, blockUntil])
-  @@map("rate_limit_blacklists")
+  @@map("muuagent_rate_limit_blacklists")
 }
 
 /// 管理员表 - 中台管理后台用户
@@ -416,7 +416,7 @@ model AdminUser {
   @@index([username])
   @@index([status])
   @@index([isSuperAdmin])
-  @@map("admin_users")
+  @@map("muuagent_admin_users")
 }
 
 /// 管理员刷新令牌表 - 用于Token刷新机制
@@ -433,7 +433,7 @@ model AdminRefreshToken {
   @@index([adminId])
   @@index([token])
   @@index([expiresAt])
-  @@map("admin_refresh_tokens")
+  @@map("muuagent_admin_refresh_tokens")
 }
 
 /// 知识库表 - 应用级隔离
@@ -476,7 +476,7 @@ model KbInfo {
   @@index([appCode])
   @@index([status])
   @@index([createdBy])
-  @@map("kb_infos")
+  @@map("muuagent_kb_infos")
 }
 
 /// 文档表 - 知识库下的文档
@@ -507,7 +507,7 @@ model KbDocument {
   @@index([kbId, status])
   @@index([fileId])
   @@index([createdBy])
-  @@map("kb_documents")
+  @@map("muuagent_kb_documents")
 }
 
 /// 切片表 - 文档切片元数据
@@ -530,7 +530,7 @@ model KbChunk {
   @@index([kbId, docId])
   @@index([kbId, status])
   @@index([vectorId])
-  @@map("kb_chunks")
+  @@map("muuagent_kb_chunks")
 }
 
 /// 检索日志表 - 记录检索历史
@@ -559,7 +559,7 @@ model KbRetrievalLog {
   @@index([uid, createdAt])
   @@index([requestId])
   @@index([appCode, createdAt])
-  @@map("kb_retrieval_logs")
+  @@map("muuagent_kb_retrieval_logs")
 }
 
 /// MCP Server 配置表 - 存储第三方 MCP Server 连接配置
@@ -607,7 +607,7 @@ model McpServer {
   @@index([enabled])
   @@index([healthStatus])
   @@index([transport])
-  @@map("mcp_servers")
+  @@map("muuagent_mcp_servers")
 }
 
 /// OAuth客户端
@@ -634,7 +634,7 @@ model OAuthClient {
 
   @@index([clientId])
   @@index([appCode])
-  @@map("oauth_clients")
+  @@map("muuagent_oauth_clients")
 }
 
 /// 授权码
@@ -653,7 +653,7 @@ model OAuthCode {
 
   @@index([code])
   @@index([expiresAt])
-  @@map("oauth_codes")
+  @@map("muuagent_oauth_codes")
 }
 
 /// 访问令牌
@@ -673,7 +673,7 @@ model OAuthToken {
   @@index([accessToken])
   @@index([refreshToken])
   @@index([expiresAt])
-  @@map("oauth_tokens")
+  @@map("muuagent_oauth_tokens")
 }
 
 /// 推理步骤记录表 - 记录ReAct推理过程
@@ -692,7 +692,7 @@ model ReasoningStep {
   agentLog    AgentInvokeLog @relation(fields: [agentLogId], references: [id], onDelete: Cascade)
 
   @@index([agentLogId])
-  @@map("reasoning_steps")
+  @@map("muuagent_reasoning_steps")
 }
 
 /// 会话表 - 管理对话会话（支持多种对话类型）
@@ -720,7 +720,7 @@ model Conversation {
   @@index([uid, createdAt])
   @@index([appCode])
   @@index([status])
-  @@map("conversations")
+  @@map("muuagent_conversations")
 }
 
 /// 消息表 - 存储对话消息
@@ -749,7 +749,7 @@ model Message {
 
   @@index([conversationId, createdAt])
   @@index([audioUrl])
-  @@map("messages")
+  @@map("muuagent_messages")
 }
 
 /// 语音配置表 - 存储语音合成配置
@@ -772,7 +772,7 @@ model VoiceProfile {
   
   @@index([provider, language, modelCode])
   @@index([isDefault])
-  @@map("voice_profiles")
+  @@map("muuagent_voice_profiles")
 }
 
 /// Prompt模板表 - 存储提示词模板
@@ -807,7 +807,7 @@ model PromptTemplate {
   @@index([appCode])
   @@index([isDefault])
   @@index([createdAt])
-  @@map("prompt_templates")
+  @@map("muuagent_prompt_templates")
 }
 
 /// Prompt版本历史表 - 记录模板版本变更
@@ -827,7 +827,7 @@ model PromptVersion {
   @@unique([templateId, version])
   @@index([templateId])
   @@index([createdAt])
-  @@map("prompt_versions")
+  @@map("muuagent_prompt_versions")
 }
 
 /// Prompt调用日志表 - 记录模板调用情况
@@ -852,7 +852,7 @@ model PromptInvokeLog {
   @@index([templateId])
   @@index([templateCode])
   @@index([createdAt])
-  @@map("prompt_invoke_logs")
+  @@map("muuagent_prompt_invoke_logs")
 }
 
 /// 插件表 - 存储自定义函数插件
@@ -870,7 +870,7 @@ model Plugin {
 
   @@index([name])
   @@index([status])
-  @@map("plugins")
+  @@map("muuagent_plugins")
 }
 
 /// 文件表 - 通用文件管理
@@ -914,7 +914,7 @@ model File {
   @@index([createdBy, createdAt])
   @@index([appCode, createdAt])
   @@index([storageType])
-  @@map("files")
+  @@map("muuagent_files")
 }
 
 /// 文件处理任务表 - 异步文件处理
@@ -944,7 +944,7 @@ model FileProcessTask {
 
   @@index([status, priority])
   @@index([fileId])
-  @@map("file_process_tasks")
+  @@map("muuagent_file_process_tasks")
 }
 
 /// 意图关键词配置表 - 管理意图识别的关键词规则
@@ -961,7 +961,7 @@ model IntentKeyword {
 
   @@index([intent, status])
   @@index([keyword])
-  @@map("intent_keywords")
+  @@map("muuagent_intent_keywords")
 }
 
 /// 意图路由调度日志表 - 记录意图路由决策过程
@@ -988,7 +988,7 @@ model IntentRoutingLog {
   @@index([selectedModelCode, createdAt])
   @@index([isDegraded, createdAt])
   @@index([appCode, createdAt])
-  @@map("intent_routing_logs")
+  @@map("muuagent_intent_routing_logs")
 }
 
 /// 技能表 - 存储技能元数据和完整描述符
@@ -1017,7 +1017,7 @@ model Skill {
   @@index([appCode])
   @@index([name])
   @@index([source])
-  @@map("skills")
+  @@map("muuagent_skills")
 }
 
 /// 技能参考文档缓存表 - 缓存技能的参考文档内容
@@ -1033,7 +1033,7 @@ model SkillReference {
 
   @@unique([skillId, filePath])
   @@index([skillId])
-  @@map("skill_references")
+  @@map("muuagent_skill_references")
 }
 
 /// 动态客户端工具定义表
@@ -1074,5 +1074,5 @@ model DynamicClientTool {
   @@index([appCode])
   @@index([uid])
   @@index([appCode, uid])
-  @@map("dynamic_client_tools")
+  @@map("muuagent_dynamic_client_tools")
 }

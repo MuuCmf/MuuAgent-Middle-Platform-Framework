@@ -1,0 +1,43 @@
+-- 为中台框架全部数据表增加 muuagent_ 前缀
+-- 与 schema.prisma 中 @@map("muuagent_*") 同步变更
+
+RENAME TABLE `admin_refresh_tokens` TO `muuagent_admin_refresh_tokens`;
+RENAME TABLE `admin_users` TO `muuagent_admin_users`;
+RENAME TABLE `agent_invoke_logs` TO `muuagent_agent_invoke_logs`;
+RENAME TABLE `agents` TO `muuagent_agents`;
+RENAME TABLE `ai_invoke_logs` TO `muuagent_ai_invoke_logs`;
+RENAME TABLE `app_tenants` TO `muuagent_app_tenants`;
+RENAME TABLE `app_usage` TO `muuagent_app_usage`;
+RENAME TABLE `conversations` TO `muuagent_conversations`;
+RENAME TABLE `dynamic_client_tools` TO `muuagent_dynamic_client_tools`;
+RENAME TABLE `file_process_tasks` TO `muuagent_file_process_tasks`;
+RENAME TABLE `files` TO `muuagent_files`;
+RENAME TABLE `intent_cache` TO `muuagent_intent_cache`;
+RENAME TABLE `intent_keywords` TO `muuagent_intent_keywords`;
+RENAME TABLE `intent_routing_logs` TO `muuagent_intent_routing_logs`;
+RENAME TABLE `kb_chunks` TO `muuagent_kb_chunks`;
+RENAME TABLE `kb_documents` TO `muuagent_kb_documents`;
+RENAME TABLE `kb_infos` TO `muuagent_kb_infos`;
+RENAME TABLE `kb_retrieval_logs` TO `muuagent_kb_retrieval_logs`;
+RENAME TABLE `mcp_servers` TO `muuagent_mcp_servers`;
+RENAME TABLE `messages` TO `muuagent_messages`;
+RENAME TABLE `model_health_records` TO `muuagent_model_health_records`;
+RENAME TABLE `model_routing_rules` TO `muuagent_model_routing_rules`;
+RENAME TABLE `model_routing_strategies` TO `muuagent_model_routing_strategies`;
+RENAME TABLE `model_templates` TO `muuagent_model_templates`;
+RENAME TABLE `models` TO `muuagent_models`;
+RENAME TABLE `oauth_clients` TO `muuagent_oauth_clients`;
+RENAME TABLE `oauth_codes` TO `muuagent_oauth_codes`;
+RENAME TABLE `oauth_tokens` TO `muuagent_oauth_tokens`;
+RENAME TABLE `plugins` TO `muuagent_plugins`;
+RENAME TABLE `prompt_invoke_logs` TO `muuagent_prompt_invoke_logs`;
+RENAME TABLE `prompt_templates` TO `muuagent_prompt_templates`;
+RENAME TABLE `prompt_versions` TO `muuagent_prompt_versions`;
+RENAME TABLE `rate_limit_blacklists` TO `muuagent_rate_limit_blacklists`;
+RENAME TABLE `rate_limit_counters` TO `muuagent_rate_limit_counters`;
+RENAME TABLE `rate_limit_rules` TO `muuagent_rate_limit_rules`;
+RENAME TABLE `reasoning_steps` TO `muuagent_reasoning_steps`;
+RENAME TABLE `skill_invoke_logs` TO `muuagent_skill_invoke_logs`;
+RENAME TABLE `skill_references` TO `muuagent_skill_references`;
+RENAME TABLE `skills` TO `muuagent_skills`;
+RENAME TABLE `voice_profiles` TO `muuagent_voice_profiles`;
