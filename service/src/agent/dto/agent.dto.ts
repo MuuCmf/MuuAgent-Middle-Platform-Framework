@@ -56,9 +56,9 @@ export class CreateAgentDto {
   @IsOptional()
   mcpServers?: string;
 
-  @ApiPropertyOptional({ description: '最大执行步数', default: 5 })
+  @ApiPropertyOptional({ description: '最大执行步数，0 表示不限制', default: 5 })
   @IsNumber()
-  @Min(1)
+  @Min(0)
   @Max(200)
   @IsOptional()
   maxSteps?: number;
@@ -160,9 +160,9 @@ export class UpdateAgentDto {
   @IsOptional()
   mcpServers?: string;
 
-  @ApiPropertyOptional({ description: '最大执行步数' })
+  @ApiPropertyOptional({ description: '最大执行步数，0 表示不限制' })
   @IsNumber()
-  @Min(1)
+  @Min(0)
   @Max(200)
   @IsOptional()
   maxSteps?: number;

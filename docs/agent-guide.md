@@ -36,7 +36,7 @@
 | skills | string | 否 | 绑定技能列表（JSON数组） |
 | mcpServers | string | 否 | MCP Server配置（JSON数组） |
 | knowledgeBases | string | 否 | 绑定知识库列表（JSON数组） |
-| maxSteps | number | 否 | 最大执行步数（1-20），默认5 |
+| maxSteps | number | 否 | 最大执行步数（0 表示不限制），默认5 |
 | temperature | number | 否 | 温度参数（0-2），默认0.7 |
 | status | boolean | 否 | 是否启用，默认true |
 | reasoningMode | string | 否 | 推理模式：NONE/REACT/PLAN/REFLECT |
@@ -328,7 +328,7 @@ async function streamChat(agentId: string, message: string, onChunk: (chunk: str
 ### 3. 性能优化
 
 - 使用流式输出提升用户体验
-- 合理设置 `maxSteps` 避免无限循环
+- 合理设置 `maxSteps` 避免无限循环（设置为 0 表示不限制步数，请谨慎使用）
 - 根据知识库大小调整检索阈值
 - 启用缓存机制减少重复检索
 

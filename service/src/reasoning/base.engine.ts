@@ -81,8 +81,8 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
     try {
       await this.beforeSyncLoop(context, messages, steps);
 
-      for (let i = 0; i < context.maxSteps; i++) {
-        this.logger.debug(`[${this.mode}] Step ${i + 1}/${context.maxSteps}`);
+      for (let i = 0; context.maxSteps === 0 || i < context.maxSteps; i++) {
+        this.logger.debug(`[${this.mode}] Step ${i + 1}/${context.maxSteps === 0 ? '∞' : context.maxSteps}`);
 
         const result = await this.aiService.generateText({
           model: context.model,
@@ -165,8 +165,8 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
 
       let blockIndex = 0;
 
-      for (let i = 0; i < context.maxSteps; i++) {
-        this.logger.debug(`[${this.mode} Stream] Step ${i + 1}/${context.maxSteps}`);
+      for (let i = 0; context.maxSteps === 0 || i < context.maxSteps; i++) {
+        this.logger.debug(`[${this.mode} Stream] Step ${i + 1}/${context.maxSteps === 0 ? '∞' : context.maxSteps}`);
 
         let stepText = '';
         let hasToolCall = false;

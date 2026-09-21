@@ -143,7 +143,7 @@ export class ContextBuilder {
     context.userMessage = userMessage;
     context.systemPrompt = finalSystemPrompt;
     context.tools = tools;
-    context.maxSteps = agent.maxSteps || 5;
+    context.maxSteps = agent.maxSteps == null ? 5 : agent.maxSteps;
     context.temperature = mergedParams.temperature!;
     context.topP = mergedParams.topP!;
     context.maxTokens = mergedParams.maxTokens!;

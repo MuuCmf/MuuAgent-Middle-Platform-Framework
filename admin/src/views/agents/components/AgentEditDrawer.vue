@@ -365,7 +365,8 @@
         <div class="section-title">{{ $t('agent.advancedSettings') }}</div>
 
         <el-form-item :label="$t('agent.maxSteps')">
-          <el-input-number v-model="form.maxSteps" :min="1" :max="999" class="w-full" />
+          <el-input-number v-model="form.maxSteps" :min="0" :max="999" class="w-full" />
+          <div class="field-tip">{{ $t('agent.maxStepsTip') }}</div>
         </el-form-item>
 
         <el-form-item :label="$t('agent.sort')">
