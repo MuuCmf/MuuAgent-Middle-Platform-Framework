@@ -29,6 +29,7 @@ const DEFAULT_CACHE_CONFIG: ToolCacheConfig = {
     'run_code',
     'http_request',
     'db_query',
+    'call_agent', // 子代理结果不可缓存：每次执行结果不同且可能含敏感信息
   ],
 };
 

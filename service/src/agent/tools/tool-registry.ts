@@ -90,6 +90,7 @@ export class ToolRegistry {
       kb_search: '知识库搜索',
       db_query: '数据库查询',
       run_code: '代码执行',
+      call_agent: '子代理调用',
     };
     return displayNames[name] || name;
   }
@@ -105,6 +106,7 @@ export class ToolRegistry {
       kb_search: '检索',
       db_query: '数据',
       run_code: '计算',
+      call_agent: '协作',
     };
     return categories[name] || '通用';
   }

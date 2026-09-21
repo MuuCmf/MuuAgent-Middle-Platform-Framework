@@ -61,6 +61,8 @@ export interface Agent {
   reasoningPrompt?: string
   knowledgeBases?: string
   kbRetrievalConfig?: KbRetrievalConfig | string
+  /** 可被调用的智能体白名单(JSON数组code列表)；null=不限制，[]=禁止被调用 */
+  callableByAgents?: string | null
   appCode?: string
   /** 是否支持工作目录（仅当 includeWorkspaceSupport=true 时返回） */
   supportsWorkspace?: boolean
@@ -84,6 +86,8 @@ export interface AgentForm {
   reasoningPrompt?: string
   knowledgeBases?: string
   kbRetrievalConfig?: string
+  /** 可被调用的智能体白名单(JSON数组code列表)；null=不限制，[]=禁止被调用 */
+  callableByAgents?: string | null
   appCode?: string
 }
 

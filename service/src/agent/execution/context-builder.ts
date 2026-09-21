@@ -39,6 +39,16 @@ export class ContextBuilder {
     agent: any,
     uid?: string,
     isolationContext?: IsolationContext,
+    options?: {
+      /** 调用链追踪ID（子代理继承父级） */
+      traceId?: string;
+      /** 直接父智能体ID */
+      parentAgentId?: bigint;
+      /** 直接父会话ID */
+      parentConversationId?: string;
+      /** 子代理祖先调用链（不含当前 agent 自身） */
+      subAgentChain?: string[];
+    },
   ): Promise<ExecutionContext> {
     this.logger.debug(`buildExecutionContext: agentId=${dto.agentId}, uid=${uid}`);
 
@@ -156,6 +166,10 @@ export class ContextBuilder {
     context.kbRetrievalConfig = kbRetrievalConfig;
     context.autoRetrievalResult = autoRetrievalResult;
     context.resolvedKbCodes = resolvedKbCodes;
+    context.traceId = options?.traceId;
+    context.parentAgentId = options?.parentAgentId;
+    context.parentConversationId = options?.parentConversationId;
+    context.subAgentChain = options?.subAgentChain || [];
 
     return context;
   }

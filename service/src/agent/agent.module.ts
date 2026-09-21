@@ -48,7 +48,7 @@ import { ReasoningModule } from '../reasoning/reasoning.module';
     WorkspaceModule,
     DesktopModule,
     CommonModule,
-    ToolModule,
+    forwardRef(() => ToolModule),
     forwardRef(() => ReasoningModule),
   ],
   controllers: [AgentController, AgentAdminController],

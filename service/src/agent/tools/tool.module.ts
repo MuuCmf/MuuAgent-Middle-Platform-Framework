@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { DiscoveryModule } from '@nestjs/core';
 
@@ -8,8 +8,9 @@ import { ToolDiscoveryService } from './core/tool-discovery.service';
 import { DispatcherCollectorService } from './core/dispatcher-collector.service';
 import { ToolController } from './tool.controller';
 
-import { HttpRequestTool, DbQueryTool, RunCodeTool, KbSearchTool } from './builtin';
+import { HttpRequestTool, DbQueryTool, RunCodeTool, KbSearchTool, CallAgentTool } from './builtin';
 import { UseSkillTool, LoadReferenceTool, RunScriptTool } from './skill-meta';
+import { SubAgentService } from './sub-agent.service';
 
 import {
   RegisteredToolDispatcher,
@@ -23,6 +24,7 @@ import { SkillModule } from '../../skill/skill.module';
 import { McpServerModule } from '../../mcp-server/mcp-server.module';
 import { RetrievalModule } from '../../retrieval/retrieval.module';
 import { ClientToolModule } from '../../client-tool';
+import { AgentModule } from '../agent.module';
 
 /**
  * 内置工具 providers 列表
@@ -34,6 +36,7 @@ export const BUILTIN_TOOL_PROVIDERS = [
   DbQueryTool,
   RunCodeTool,
   KbSearchTool,
+  CallAgentTool,
 ];
 
 /**
@@ -70,13 +73,22 @@ export const DISPATCHER_PROVIDERS = [
  */
 @Global()
 @Module({
-  imports: [DiscoveryModule, ConfigModule, SkillModule, McpServerModule, RetrievalModule, ClientToolModule],
+  imports: [
+    DiscoveryModule,
+    ConfigModule,
+    SkillModule,
+    McpServerModule,
+    RetrievalModule,
+    ClientToolModule,
+    forwardRef(() => AgentModule),
+  ],
   controllers: [ToolController],
   providers: [
     ToolRegistry,
     ToolExecutor,
     ToolDiscoveryService,
     DispatcherCollectorService,
+    SubAgentService,
 
     ...BUILTIN_TOOL_PROVIDERS,
     ...SKILL_META_TOOL_PROVIDERS,

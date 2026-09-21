@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { IsolationService, IsolationContext } from '../common/services/base-isolated.service';
 import { ContextBuilder } from './execution/context-builder';
@@ -14,6 +15,20 @@ import {
 } from './dto/agent.dto';
 import { StreamEmitter, StreamEventType, StreamEvents } from '../stream';
 import { ClientToolPolicyService } from '../client-tool';
+
+/**
+ * 智能体执行选项（子代理调用时传递调用链信息）
+ */
+export interface AgentExecutionOptions {
+  /** 调用链追踪ID（缺省时自动生成） */
+  traceId?: string;
+  /** 直接父智能体ID */
+  parentAgentId?: bigint;
+  /** 直接父会话ID */
+  parentConversationId?: string;
+  /** 子代理祖先调用链（不含当前 agent 自身） */
+  subAgentChain?: string[];
+}
 
 @Injectable()
 export class AgentService {
@@ -45,6 +60,7 @@ export class AgentService {
       maxSteps: dto.maxSteps ?? 5,
       status: dto.status ?? true,
       sort: dto.sort ?? 0,
+      callableByAgents: dto.callableByAgents,
       modelTemplateCode: dto.modelTemplateCode,
       customModelParams: dto.customModelParams,
       reasoningMode: dto.reasoningMode || 'NONE',
@@ -155,6 +171,7 @@ export class AgentService {
           skills: true,  // 始终返回,因为编辑时需要
           mcpServers: true,  // 始终返回,因为编辑时需要
           allowedBuiltinTools: true,  // 编辑时需要
+          callableByAgents: true,  // 编辑时需要
         },
       }),
       this.prisma.agent.count({ where }),
@@ -175,11 +192,23 @@ export class AgentService {
     return { list: enrichedList, total, page, pageSize };
   }
 
-  async syncChat(dto: AgentChatDto, clientIp: string, uid?: string, appCode?: string): Promise<Record<string, unknown>> {
+  async syncChat(
+    dto: AgentChatDto,
+    clientIp: string,
+    uid?: string,
+    appCode?: string,
+    options?: AgentExecutionOptions,
+  ): Promise<Record<string, unknown>> {
     const startTime = Date.now();
     const isolationContext: IsolationContext = { appCode: appCode || null, skipIsolation: false };
     const agent = await this.getAgent(dto.agentId, isolationContext);
-    const context = await this.contextBuilder.build(dto, agent, uid, isolationContext);
+    const traceId = options?.traceId || randomUUID();
+    const context = await this.contextBuilder.build(dto, agent, uid, isolationContext, {
+      traceId,
+      parentAgentId: options?.parentAgentId,
+      parentConversationId: options?.parentConversationId,
+      subAgentChain: options?.subAgentChain,
+    });
     context.clientIp = clientIp;
     context.appCode = appCode;
     context.startTime = startTime;
@@ -210,7 +239,9 @@ export class AgentService {
     const agent = await this.getAgent(dto.agentId, isolationContext);
     this.logger.log(`[AgentStream] 获取到智能体, id: ${agent.id}`);
 
-    const context = await this.contextBuilder.build(dto, agent, uid, isolationContext);
+    const context = await this.contextBuilder.build(dto, agent, uid, isolationContext, {
+      traceId: randomUUID(),
+    });
     context.clientIp = clientIp;
     context.appCode = appCode;
     context.startTime = startTime;

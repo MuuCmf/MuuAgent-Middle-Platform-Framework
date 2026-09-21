@@ -63,6 +63,13 @@ export class CreateAgentDto {
   @IsOptional()
   maxSteps?: number;
 
+  @ApiPropertyOptional({
+    description: '可被调用的智能体白名单（JSON数组，元素为智能体code）；null/不传=不限制，[]=禁止被任何智能体调用，有值=仅允许这些智能体调用',
+  })
+  @IsString()
+  @IsOptional()
+  callableByAgents?: string;
+
   @ApiPropertyOptional({ description: '是否启用', default: true })
   @IsBoolean()
   @IsOptional()
@@ -166,6 +173,13 @@ export class UpdateAgentDto {
   @Max(200)
   @IsOptional()
   maxSteps?: number;
+
+  @ApiPropertyOptional({
+    description: '可被调用的智能体白名单（JSON数组，元素为智能体code）；null/不传=不限制，[]=禁止被任何智能体调用，有值=仅允许这些智能体调用',
+  })
+  @IsString()
+  @IsOptional()
+  callableByAgents?: string;
 
   @ApiPropertyOptional({ description: '是否启用' })
   @IsBoolean()

@@ -144,6 +144,9 @@ model Agent {
   // ===== 内置工具配置 =====
   allowedBuiltinTools String? @map("allowed_builtin_tools") @db.Text /// 允许使用的内置工具列表(JSON数组): ["http_request", "kb_search"]
 
+  // ===== 子代理调用白名单 =====
+  callableByAgents String? @map("callable_by_agents") @db.Text /// 可被调用的智能体白名单(JSON数组code列表); null=不限制, []="禁止被任何智能体调用", 有值=仅允许这些智能体调用
+
   // ===== 应用隔离 =====
   appCode         String?  @map("app_code") /// 所属应用标识（NULL=公共智能体，非空=应用专属）
 
@@ -241,6 +244,11 @@ model AgentInvokeLog {
   // ===== 推理模式 =====
   reasoningMode String? @map("reasoning_mode") /// 推理模式: NONE/REACT/PLAN/REFLECT
 
+  // ===== 子代理调用链追踪 =====
+  traceId              String? @map("trace_id") /// 调用链追踪ID（父子调用链共享）
+  parentAgentId        BigInt? @map("parent_agent_id") /// 直接父智能体ID（子代理调用时记录）
+  parentConversationId String? @map("parent_conversation_id") /// 直接父会话ID
+
   // ===== 应用隔离 =====
   appCode      String?  @map("app_code") /// 应用标识
 
@@ -256,6 +264,7 @@ model AgentInvokeLog {
   @@index([conversationId])
   @@index([uid, createdAt])
   @@index([appCode, createdAt])
+  @@index([traceId])
   @@map("muuagent_agent_invoke_logs")
 }
 

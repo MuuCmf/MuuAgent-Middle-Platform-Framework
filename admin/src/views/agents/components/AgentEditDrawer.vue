@@ -369,6 +369,27 @@
           <div class="field-tip">{{ $t('agent.maxStepsTip') }}</div>
         </el-form-item>
 
+        <el-form-item :label="$t('agent.callableBy')">
+          <el-radio-group v-model="callableMode">
+            <el-radio-button value="all">{{ $t('agent.callableByAll') }}</el-radio-button>
+            <el-radio-button value="whitelist">{{ $t('agent.callableByWhitelist') }}</el-radio-button>
+            <el-radio-button value="deny">{{ $t('agent.callableByDeny') }}</el-radio-button>
+          </el-radio-group>
+          <el-select
+            v-if="callableMode === 'whitelist'"
+            v-model="whitelistAgentCodes"
+            multiple
+            filterable
+            clearable
+            class="w-full callable-select"
+            :loading="agentsLoading"
+            :placeholder="$t('agent.callableBySelectPlaceholder')"
+          >
+            <el-option v-for="a in availableAgents" :key="a.code" :label="`${a.name} (${a.code})`" :value="a.code" />
+          </el-select>
+          <div class="field-tip">{{ $t('agent.callableByTip') }}</div>
+        </el-form-item>
+
         <el-form-item :label="$t('agent.sort')">
           <el-input-number v-model="form.sort" :min="0" :max="9999" class="w-full" />
           <div class="field-tip">{{ $t('agent.sortTip') }}</div>
@@ -437,6 +458,7 @@ import { ElMessage } from 'element-plus'
 import { Plus, InfoFilled, Warning } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { Agent, AgentForm, KbRetrievalConfig as KbRetrievalConfigType } from '@/api/agent'
+import { agentApi } from '@/api/agent'
 import { useI18n } from 'vue-i18n'
 import BuiltinToolSelector from './BuiltinToolSelector.vue'
 
@@ -466,6 +488,8 @@ interface InternalAgentForm {
   reasoningPrompt?: string
   knowledgeBases: string
   kbRetrievalConfig: KbRetrievalConfigType
+  /** 可被调用的智能体白名单(JSON数组code列表)；null=不限制，[]=禁止被调用 */
+  callableByAgents?: string | null
   appCode?: string
 }
 import type { StandardSkill } from '@/api/skill'
@@ -527,6 +551,7 @@ const form = ref<InternalAgentForm>({
       allowSpecifyKb: true,
     },
   },
+  callableByAgents: null,
   appCode: '',
 })
 
@@ -562,6 +587,31 @@ const mcpServerSearchForm = reactive({
 })
 
 const promptMode = ref<'template' | 'custom'>('template')
+
+// 可被调用白名单：all=不限制 / whitelist=仅白名单 / deny=禁止被调用
+const callableMode = ref<'all' | 'whitelist' | 'deny'>('all')
+const whitelistAgentCodes = ref<string[]>([])
+const availableAgents = ref<Agent[]>([])
+const agentsLoading = ref(false)
+
+const loadAgents = async () => {
+  agentsLoading.value = true
+  try {
+    const response = await agentApi.getList({ status: true, pageSize: 100 })
+    const body = response.data.data
+    if (body && body.list) {
+      const list = body.list || []
+      // 过滤掉正在编辑的智能体自身（不能把自己加进白名单）
+      availableAgents.value = editingAgent.value
+        ? list.filter(a => a.code !== editingAgent.value!.code)
+        : list
+    }
+  } catch (error) {
+    console.error('加载智能体列表失败', error)
+  } finally {
+    agentsLoading.value = false
+  }
+}
 
 const modelTemplates = ref<ModelTemplate[]>([])
 const selectedModelTemplate = ref<ModelTemplate | null>(null)
@@ -709,6 +759,27 @@ watch(() => props.visible, (newVal) => {
       selectedSkillCodes.value = parseJsonSafe(skillsStr)
       selectedMcpServerNames.value = parseJsonSafe(mcpServersStr)
 
+      // 解析可被调用白名单：null/空=不限制，[]=禁止，数组=仅白名单
+      const rawCallable = editingAgent.value.callableByAgents
+      if (rawCallable === null || rawCallable === undefined || rawCallable === '') {
+        callableMode.value = 'all'
+        whitelistAgentCodes.value = []
+      } else {
+        try {
+          const parsed = JSON.parse(rawCallable)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            callableMode.value = 'whitelist'
+            whitelistAgentCodes.value = parsed
+          } else {
+            callableMode.value = 'deny'
+            whitelistAgentCodes.value = []
+          }
+        } catch {
+          callableMode.value = 'all'
+          whitelistAgentCodes.value = []
+        }
+      }
+
       // 解析 kbRetrievalConfig
       const rawKbConfig = (editingAgent.value as any).kbRetrievalConfig
       if (rawKbConfig) {
@@ -768,6 +839,7 @@ watch(() => props.visible, (newVal) => {
     }
     loadPromptTemplates()
     loadModelTemplates()
+    loadAgents()
   }
 })
 
@@ -806,8 +878,12 @@ const resetForm = () => {
         allowSpecifyKb: true,
       },
     },
+    callableByAgents: null,
     appCode: '',
   }
+  callableMode.value = 'all'
+  whitelistAgentCodes.value = []
+  availableAgents.value = []
   enableCustomParams.value = false
   currentPreset.value = ''
   customParams.value = {
@@ -976,6 +1052,12 @@ const handleSave = async () => {
       const submitData = {
         ...form.value,
         kbRetrievalConfig: JSON.stringify(form.value.kbRetrievalConfig),
+        // 序列化可被调用白名单：all=null(不限制)，deny=[](禁止)，whitelist=数组
+        callableByAgents: callableMode.value === 'all'
+          ? null
+          : callableMode.value === 'deny'
+            ? '[]'
+            : JSON.stringify(whitelistAgentCodes.value),
       }
 
       saving.value = true
@@ -1227,6 +1309,10 @@ const handleClose = () => {
   font-size: 12px;
   color: #909399;
   margin-top: 4px;
+}
+
+.callable-select {
+  margin-top: 8px;
 }
 
 .mcp-list {

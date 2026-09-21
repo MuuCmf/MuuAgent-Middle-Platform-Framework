@@ -587,6 +587,9 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
         uid: context.uid,
         isolationContext: context.isolationContext,
         clientIp: context.clientIp,
+        subAgentChain: context.subAgentChain,
+        traceId: context.traceId,
+        parentConversationId: context.conversationId,
       },
     );
     if (!toolResult.success) {
@@ -629,6 +632,9 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
           uid: context.uid,
           reasoningMode: this.mode,
           appCode: context.appCode,
+          traceId: context.traceId,
+          parentAgentId: context.parentAgentId,
+          parentConversationId: context.parentConversationId,
         },
       });
     } catch (e) {
@@ -656,6 +662,9 @@ export abstract class BaseReasoningEngine implements IReasoningEngine {
           uid: context.uid,
           reasoningMode: this.mode,
           appCode: context.appCode,
+          traceId: context.traceId,
+          parentAgentId: context.parentAgentId,
+          parentConversationId: context.parentConversationId,
         },
       });
     } catch (e) {
