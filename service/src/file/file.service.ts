@@ -118,7 +118,8 @@ export class FileService {
         storageType: options.storageType || 'local',
         businessType: options.businessType || 'temp',
         businessId: options.businessId as any,
-        appCode: options.appCode,
+        // 空字符串 appCode 归一化为不设置（'' 不是合法应用 code，写入会触发外键 P2003；语义等同 NULL=公共文件）
+        appCode: options.appCode || undefined,
         createdBy: options.uid,
       },
     });

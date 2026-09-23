@@ -81,6 +81,12 @@ export class AgentService {
 
     const updateData: any = { ...dto };
 
+    // 空字符串 appCode 归一化为「不设置」：'' 不是合法应用 code，写入会触发外键 P2003，
+    // 语义应等同于 NULL=公共资源；如需清空请显式传 null
+    if (updateData.appCode === '') {
+      delete updateData.appCode;
+    }
+
     return this.prisma.agent.update({
       where: { id: id as any },
       data: updateData,

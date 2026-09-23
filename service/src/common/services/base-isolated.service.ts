@@ -140,6 +140,13 @@ export class IsolationService {
     const uidField = options?.uidField || 'uid';
     const useUserIsolation = options?.useUserIsolation ?? false;
 
+    // 空字符串 appCode 归一化为「不设置」：'' 不是合法应用 code，写入会触发外键 P2003，
+    // 语义应等同于 NULL=公共资源。置于 skipIsolation 分支之前，对所有认证方式生效（含管理后台 JWT）。
+    if (data[appCodeField] === '') {
+      const { [appCodeField]: _omit, ...rest } = data as any;
+      data = rest as T;
+    }
+
     if (skipIsolation) {
       return data;
     }

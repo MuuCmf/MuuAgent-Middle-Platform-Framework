@@ -36,21 +36,6 @@ export class LogController {
   }
 
   /**
-   * 查询单个检索日志详情
-   * @param id 日志ID
-   * @returns {Promise<Object>} 日志详情
-   */
-  @Get('retrieval/:id')
-  @ApiOperation({ summary: '查询单个检索日志详情', description: '根据日志ID查询检索日志的详细信息' })
-  @ApiResponse({ status: 200, description: '查询成功' })
-  @ApiResponse({ status: 404, description: '日志不存在' })
-  @RequireScope(AdminScope.LOG_READ)
-  async getRetrievalLogById(@Param('id') id: string) {
-    const result = await this.logService.getRetrievalLogById(id);
-    return success(result);
-  }
-
-  /**
    * 获取检索统计
    * @param kbId 知识库ID（可选）
    * @param startTime 开始时间
@@ -68,6 +53,21 @@ export class LogController {
   ) {
     const stats = await this.logService.getRetrievalStatistics(kbId, startTime, endTime);
     return success(stats);
+  }
+
+  /**
+   * 查询单个检索日志详情
+   * @param id 日志ID
+   * @returns {Promise<Object>} 日志详情
+   */
+  @Get('retrieval/:id')
+  @ApiOperation({ summary: '查询单个检索日志详情', description: '根据日志ID查询检索日志的详细信息' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 404, description: '日志不存在' })
+  @RequireScope(AdminScope.LOG_READ)
+  async getRetrievalLogById(@Param('id') id: string) {
+    const result = await this.logService.getRetrievalLogById(id);
+    return success(result);
   }
 
   /**
