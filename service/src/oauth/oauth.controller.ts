@@ -1,6 +1,9 @@
-import { Controller, Post, Get, Put, Delete, Body, Query, Param, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, Query, Param, UseGuards, UseInterceptors, Req, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
 import { OAuthService } from './oauth.service';
+import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
+import { RateLimitInterceptor } from '../rate-limit/rate-limit.interceptor';
 import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { RequireScope } from '../common/decorators/scope.decorator';
@@ -10,9 +13,12 @@ import { OAuthTokenDto, OAuthRevokeDto } from './dto/oauth.dto';
 
 /**
  * OAuth认证控制器
+ * token/revoke 为公开端点（认证信息在请求体中），挂载限流防止暴力破解
  */
 @ApiTags('OAuth（业务端）')
 @Controller('oauth')
+@UseGuards(RateLimitGuard)
+@UseInterceptors(RateLimitInterceptor)
 export class OAuthController {
   /**
    * 构造函数
@@ -23,22 +29,26 @@ export class OAuthController {
   /**
    * 令牌端点
    * @param body 请求体
+   * @param req 请求对象
    * @returns {Promise<any>} 令牌信息
    */
   @Post('token')
   @ApiOperation({ summary: '获取令牌', description: '支持客户端凭证和刷新令牌两种模式' })
   @ApiResponse({ status: 200, description: '获取成功' })
-  async token(@Body() body: OAuthTokenDto) {
+  async token(@Body() body: OAuthTokenDto, @Req() req: Request) {
+    const clientIp = req.ip || 'unknown';
     if (body.grant_type === 'client_credentials') {
       return this.oauthService.generateClientCredentialsToken(
         body.client_id,
         body.client_secret,
+        clientIp,
       );
     } else if (body.grant_type === 'refresh_token') {
       return this.oauthService.refreshAccessToken(
         body.refresh_token!,
         body.client_id,
         body.client_secret,
+        clientIp,
       );
     }
 
@@ -46,14 +56,16 @@ export class OAuthController {
   }
 
   /**
-   * 撤销令牌
+   * 撤销令牌（需客户端认证，仅能吊销本客户端的令牌）
    * @param body 请求体
+   * @param req 请求对象
    * @returns {Promise<void>}
    */
   @Post('revoke')
-  @ApiOperation({ summary: '撤销令牌', description: '撤销访问令牌或刷新令牌' })
-  async revoke(@Body() body: OAuthRevokeDto) {
-    await this.oauthService.revokeToken(body.token);
+  @ApiOperation({ summary: '撤销令牌', description: '撤销访问令牌或刷新令牌，需携带客户端凭证' })
+  @ApiResponse({ status: 200, description: '撤销成功' })
+  async revoke(@Body() body: OAuthRevokeDto, @Req() req: Request) {
+    await this.oauthService.revokeToken(body.token, body.client_id, body.client_secret, req.ip || 'unknown');
     return { message: '令牌已撤销' };
   }
 }

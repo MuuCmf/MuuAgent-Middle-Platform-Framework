@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Request } from 'express';
+import { hashSecret } from '../utils/hash.util';
 
 /**
  * 租户鉴权守卫
@@ -34,7 +35,7 @@ export class TenantGuard implements CanActivate {
     }
 
     const tenant = await this.prisma.appTenant.findUnique({
-      where: { apiKey },
+      where: { apiKeyHash: hashSecret(apiKey) },
     });
 
     if (!tenant) {

@@ -100,16 +100,6 @@ export class QueryAppDto {
 }
 
 /**
- * 重置应用密钥DTO
- */
-export class ResetSecretDto {
-  @ApiPropertyOptional({ description: '是否同时重置API Key', default: false })
-  @IsOptional()
-  @IsBoolean()
-  resetApiKey?: boolean;
-}
-
-/**
  * 更新租户权限DTO
  */
 export class UpdatePermissionsDto {

@@ -288,8 +288,7 @@ model AppTenant {
   id          BigInt  @id @default(0)
   name        String   /// 应用名称
   code        String   @unique /// 应用标识
-  apiKey      String   @unique /// API密钥
-  secretKey   String   /// 密钥
+  apiKeyHash  String   @unique @map("api_key_hash") /// API密钥哈希(SHA-256，明文仅在创建/重置接口响应中返回一次)
 
   // ===== 配额限制 =====
   qpsLimit      Int      @default(100) @map("qps_limit") /// QPS限制
@@ -322,7 +321,6 @@ model AppTenant {
   dynamicClientTools DynamicClientTool[]
 
   @@index([code])
-  @@index([apiKey])
   @@index([status])
   @@map("muuagent_app_tenants")
 }
@@ -623,7 +621,7 @@ model McpServer {
 model OAuthClient {
   id                BigInt  @id @default(0)
   clientId String  @unique @default(uuid()) @map("client_id") /// 客户端ID
-  clientSecret      String   @map("client_secret") /// 客户端密钥
+  clientSecretHash  String   @map("client_secret_hash") /// 客户端密钥哈希(SHA-256，明文仅在创建/重置接口响应中返回一次)
   name              String   /// 客户端名称
   redirectUris      String   @map("redirect_uris") @db.Text /// 回调地址列表(JSON数组)
   scopes            String   @map("scopes") @db.Text /// 权限范围(JSON数组)

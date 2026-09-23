@@ -16,7 +16,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { AppService } from './app.service';
-import { CreateAppDto, UpdateAppDto, QueryAppDto, ResetSecretDto, UpdatePermissionsDto } from './dto/app.dto';
+import { CreateAppDto, UpdateAppDto, QueryAppDto, UpdatePermissionsDto } from './dto/app.dto';
 import { CombinedAuthGuard } from '../common/guards/combined-auth.guard';
 import { ScopeGuard } from '../common/guards/scope.guard';
 import { RequireScope } from '../common/decorators/scope.decorator';
@@ -118,16 +118,15 @@ export class AppController {
   /**
    * 重置应用密钥
    * @param id 应用ID
-   * @param dto 重置DTO
    * @returns {Promise<object>} 新的密钥信息
    */
   @Post('/:id/reset-secret')
   @ApiOperation({ summary: '重置应用密钥' })
   @ApiParam({ name: 'id', description: '应用ID' })
   @RequireScope(AdminScope.APP_WRITE)
-  async resetSecret(@Param('id') id: string, @Body() dto: ResetSecretDto) {
-    const result = await this.appService.resetSecret(id, dto);
-    return success(result, '重置密钥成功');
+  async resetSecret(@Param('id') id: string) {
+    const result = await this.appService.resetSecret(id);
+    return success(result, 'API Key 重置成功');
   }
 
   /**

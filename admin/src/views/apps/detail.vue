@@ -21,6 +21,10 @@
         </div>
       </div>
       <div class="header-actions">
+        <el-button type="warning" plain @click="handleResetSecret" class="reset-btn">
+          <el-icon><Key /></el-icon>
+          {{ $t('app.resetSecret') }}
+        </el-button>
         <el-button type="primary" @click="handleEdit" class="edit-btn">
           <el-icon><Edit /></el-icon>
           {{ $t('app.editApp') }}
@@ -50,18 +54,9 @@
           </el-descriptions-item>
           <el-descriptions-item :label="$t('app.apiKey')">
             <div class="key-value">
-              <code>{{ app.apiKey }}</code>
-              <el-button link type="primary" @click="copyToClipboard(app.apiKey)" class="copy-btn">
-                {{ $t('app.copy') }}
-              </el-button>
-            </div>
-          </el-descriptions-item>
-          <el-descriptions-item :label="$t('app.secretKey')">
-            <div class="key-value">
-              <code>{{ app.secretKey }}</code>
-              <el-button link type="primary" @click="copyToClipboard(app.secretKey)" class="copy-btn">
-                {{ $t('app.copy') }}
-              </el-button>
+              <el-tooltip :content="$t('app.apiKeyOnceTip')" placement="top">
+                <code>{{ app.apiKey }}</code>
+              </el-tooltip>
             </div>
           </el-descriptions-item>
           <el-descriptions-item :label="$t('app.expireTime')">
@@ -285,6 +280,8 @@
       mode="edit"
       @success="handleEditSuccess"
     />
+
+    <ResetSecretDialog v-model="resetDialogVisible" :app="app" />
   </div>
 </template>
 
@@ -292,9 +289,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Edit, Monitor, SetUp, Collection, TrendCharts, Coin } from '@element-plus/icons-vue'
+import { ArrowLeft, Edit, Key, Monitor, SetUp, Collection, TrendCharts, Coin } from '@element-plus/icons-vue'
 import { appApi, type App, type AppUsage } from '@/api/app'
 import AppEditDrawer from './components/AppEditDrawer.vue'
+import ResetSecretDialog from './components/ResetSecretDialog.vue'
 import OAuthClientManager from './components/OAuthClientManager.vue'
 import PermissionConfig from './components/PermissionConfig.vue'
 import { useI18n } from 'vue-i18n'
@@ -314,6 +312,7 @@ const app = ref<App | null>(null)
 const usage = ref<AppUsage | null>(null)
 /** 编辑抽屉可见状态 */
 const editDrawerVisible = ref(false)
+const resetDialogVisible = ref(false)
 
 /** 今日调用占每日限制百分比 */
 const dailyUsagePercent = computed(() => {
@@ -409,19 +408,17 @@ const handleEdit = () => {
 }
 
 /**
+ * 打开重置 API Key 对话框
+ */
+const handleResetSecret = () => {
+  resetDialogVisible.value = true
+}
+
+/**
  * 编辑成功回调
  */
 const handleEditSuccess = () => {
   loadApp()
-}
-
-/**
- * 复制到剪贴板
- * @param text 文本内容
- */
-const copyToClipboard = (text: string) => {
-  navigator.clipboard.writeText(text)
-  ElMessage.success(t('app.copiedToClipboard'))
 }
 
 /**

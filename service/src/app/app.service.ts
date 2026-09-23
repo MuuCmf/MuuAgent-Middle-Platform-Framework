@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AppUsageService } from '../common/services/app-usage.service';
-import { CreateAppDto, UpdateAppDto, QueryAppDto, ResetSecretDto } from './dto/app.dto';
+import { CreateAppDto, UpdateAppDto, QueryAppDto } from './dto/app.dto';
 import { randomUUID } from 'crypto';
 import { SkillRegistry } from '../skill/skill-registry';
 import { IsolationContext } from '../common/services/base-isolated.service';
+import { hashSecret } from '../common/utils/hash.util';
 import {
   TenantPermissions,
   parseTenantPermissions,
@@ -50,14 +51,12 @@ export class AppService {
     }
 
     const apiKey = `ak_${randomUUID().replace(/-/g, '')}`;
-    const secretKey = `sk_${randomUUID().replace(/-/g, '')}`;
 
     const app = await this.prisma.appTenant.create({
       data: {
         name: dto.name,
         code: dto.code,
-        apiKey,
-        secretKey,
+        apiKeyHash: hashSecret(apiKey),
         qpsLimit: dto.qpsLimit || 100,
         dailyLimit: dto.dailyLimit || 10000,
         tokenLimit: dto.tokenLimit || 1000000,
@@ -67,7 +66,11 @@ export class AppService {
       },
     });
 
-    return this.formatApp(app);
+    // 明文 apiKey 仅在创建响应中返回一次，此后不可查询
+    return {
+      ...this.formatApp(app),
+      apiKey,
+    };
   }
 
   /**
@@ -183,7 +186,7 @@ export class AppService {
       throw new NotFoundException('应用不存在');
     }
 
-    return this.formatApp(app, true);
+    return this.formatApp(app);
   }
 
   /**
@@ -200,16 +203,15 @@ export class AppService {
       throw new NotFoundException('应用不存在');
     }
 
-    return this.formatApp(app, true);
+    return this.formatApp(app);
   }
 
   /**
-   * 重置应用密钥
+   * 重置应用密钥（轮换 API Key，明文仅在本次响应中返回一次）
    * @param id 应用ID
-   * @param dto 重置DTO
    * @returns {Promise<object>} 新的密钥信息
    */
-  async resetSecret(id: string, dto: ResetSecretDto) {
+  async resetSecret(id: string) {
     const existing = await this.prisma.appTenant.findUnique({
       where: { id: id as any },
     });
@@ -218,25 +220,19 @@ export class AppService {
       throw new NotFoundException('应用不存在');
     }
 
-    const secretKey = `sk_${randomUUID().replace(/-/g, '')}`;
-    let apiKey = existing.apiKey;
-
-    if (dto.resetApiKey) {
-      apiKey = `ak_${randomUUID().replace(/-/g, '')}`;
-    }
+    const plainApiKey = `ak_${randomUUID().replace(/-/g, '')}`;
 
     const app = await this.prisma.appTenant.update({
       where: { id: id as any },
       data: {
-        apiKey,
-        secretKey,
+        apiKeyHash: hashSecret(plainApiKey),
       },
     });
 
+    // 明文 apiKey 仅在重置响应中返回一次，此后不可查询
     return {
       id: app.id,
-      apiKey: app.apiKey,
-      secretKey: app.secretKey,
+      apiKey: plainApiKey,
     };
   }
 
@@ -339,16 +335,14 @@ export class AppService {
   /**
    * 格式化应用数据
    * @param app 应用数据
-   * @param showSecret 是否显示密钥
    * @returns {object} 格式化后的数据
    */
-  private formatApp(app: any, showSecret: boolean = false) {
+  private formatApp(app: any) {
     return {
       id: app.id,
       name: app.name,
       code: app.code,
-      apiKey: app.apiKey,
-      secretKey: showSecret ? app.secretKey : '******',
+      apiKey: '******',
       qpsLimit: app.qpsLimit,
       dailyLimit: app.dailyLimit,
       tokenLimit: app.tokenLimit,

@@ -9,7 +9,6 @@ export interface App {
   name: string
   code: string
   apiKey: string
-  secretKey: string
   qpsLimit: number
   dailyLimit: number
   tokenLimit: number
@@ -188,11 +187,11 @@ export interface AppUsage {
 
 /**
  * 重置密钥响应
+ * apiKey 为新明文密钥（仅此一次）
  */
 export interface ResetSecretResponse {
   id: string
   apiKey: string
-  secretKey: string
 }
 
 /**
@@ -246,13 +245,12 @@ export const appApi = {
   },
 
   /**
-   * 重置应用密钥
+   * 重置应用密钥（轮换 API Key）
    * @param id 应用ID
-   * @param resetApiKey 是否同时重置API Key
    * @returns {Promise<AxiosResponse<ApiResponse<ResetSecretResponse>>>} 新密钥
    */
-  resetSecret(id: string, resetApiKey?: boolean): Promise<AxiosResponse<ApiResponse<ResetSecretResponse>>> {
-    return adminRequest.post(`api/admin/apps/${id}/reset-secret`, { resetApiKey })
+  resetSecret(id: string): Promise<AxiosResponse<ApiResponse<ResetSecretResponse>>> {
+    return adminRequest.post(`api/admin/apps/${id}/reset-secret`)
   },
 
   /**

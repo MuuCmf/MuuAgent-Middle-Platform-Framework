@@ -39,14 +39,9 @@
         <el-table-column prop="code" :label="$t('app.appCode')" min-width="120" />
         <el-table-column :label="$t('app.apiKey')" min-width="200">
           <template #default="{ row }">
-            <div class="key-cell">
+            <el-tooltip :content="$t('app.apiKeyOnceTip')" placement="top">
               <span class="key-text">{{ row.apiKey }}</span>
-              <el-button link type="primary" size="small" @click="copyToClipboard(row.apiKey)">
-                <el-icon>
-                  <CopyDocument />
-                </el-icon>
-              </el-button>
-            </div>
+            </el-tooltip>
           </template>
         </el-table-column>
         <el-table-column :label="$t('app.quota')" min-width="120">
@@ -102,6 +97,8 @@
     </div>
 
     <AppEditDrawer v-model="editDrawerVisible" :app="currentApp" :mode="editMode" @success="handleEditSuccess" />
+
+    <ResetSecretDialog v-model="resetDialogVisible" :app="resetDialogApp" @success="fetchApps" />
   </div>
 </template>
 
@@ -111,10 +108,10 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
-  CopyDocument,
 } from '@element-plus/icons-vue'
 import { appApi, type App, type AppQuery } from '@/api/app'
 import AppEditDrawer from './components/AppEditDrawer.vue'
+import ResetSecretDialog from './components/ResetSecretDialog.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -230,38 +227,15 @@ const handleView = (app: App) => {
 }
 
 /**
- * 重置密钥
+ * 重置密钥（打开专用对话框）
  * @param app 应用数据
  */
-const handleResetSecret = async (app: App) => {
-  try {
-    await ElMessageBox.confirm(
-      t('app.resetSecretConfirm'),
-      t('app.resetSecretTitle'),
-      {
-        confirmButtonText: t('common.confirm'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning',
-      }
-    )
+const resetDialogVisible = ref(false)
+const resetDialogApp = ref<App | null>(null)
 
-    const { data } = await appApi.resetSecret(app.id, false)
-    ElMessage.success(t('app.resetSecretSuccess'))
-    ElMessageBox.alert(
-      `${t('app.newSecretKey')}: ${data.data.secretKey}`,
-      t('app.saveNewKey'),
-      {
-        confirmButtonText: t('app.saved'),
-        type: 'warning',
-      }
-    )
-    fetchApps()
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('重置密钥失败:', error)
-      ElMessage.error(t('app.resetSecretFailed'))
-    }
-  }
+const handleResetSecret = (app: App) => {
+  resetDialogApp.value = app
+  resetDialogVisible.value = true
 }
 
 /**
@@ -296,15 +270,6 @@ const handleDelete = async (app: App) => {
  */
 const handleEditSuccess = () => {
   fetchApps()
-}
-
-/**
- * 复制到剪贴板
- * @param text 要复制的文本
- */
-const copyToClipboard = (text: string) => {
-  navigator.clipboard.writeText(text)
-  ElMessage.success(t('app.copiedToClipboard'))
 }
 
 /**

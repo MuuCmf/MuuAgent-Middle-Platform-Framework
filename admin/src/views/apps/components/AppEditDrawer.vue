@@ -93,7 +93,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { appApi, type App, type AppForm } from '@/api/app'
 import { useI18n } from 'vue-i18n'
@@ -206,8 +206,22 @@ const handleSubmit = async () => {
     }
 
     if (props.mode === 'create') {
-      await appApi.create(data)
+      const response = await appApi.create(data)
       ElMessage.success(t('app.createAppSuccess'))
+
+      // 明文 apiKey 仅在创建响应中返回一次，必须立即提示用户保存
+      const apiKey = response.data.data.apiKey
+      if (apiKey) {
+        await ElMessageBox.alert(
+          apiKey,
+          t('app.saveApiKeyOnce'),
+          {
+            confirmButtonText: t('app.saved'),
+            type: 'warning',
+            showCancelButton: false,
+          }
+        )
+      }
     } else if (props.app) {
       await appApi.update(props.app.id, data)
       ElMessage.success(t('app.updateAppSuccess'))

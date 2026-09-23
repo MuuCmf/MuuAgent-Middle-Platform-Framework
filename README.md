@@ -63,6 +63,7 @@ MuuAgent 是一个基于 NestJS 和 Vue 3 构建的企业级中台服务，包�
 - 基于 LLM 的智能对话
 - 多种推理模式（ReAct、Plan、Reflect、None）
 - 自动决策调用技能
+- 子代理调用（call_agent）：智能体互调、可被调用白名单控制、调用链追踪、嵌套深度与超时保护
 - 知识库检索集成
 - MCP Server 集成
 - 自定义推理提示词
@@ -144,7 +145,7 @@ MuuAgent 是一个基于 NestJS 和 Vue 3 构建的企业级中台服务，包�
 - 熔断降级与自动恢复
 - 黑名单管理
 
-### � 会话管理
+### 🗨️ 会话管理
 
 - 会话创建、编辑、删除
 - 按类型筛选（智能体对话、模型对话、知识库对话）
@@ -157,8 +158,10 @@ MuuAgent 是一个基于 NestJS 和 Vue 3 构建的企业级中台服务，包�
 - 多客户端管理
 - 客户端凭证 + 刷新令牌
 - Token 生命周期管理
+- 令牌端点限流与认证失败锁定（防暴力破解）
+- 密钥哈希存储（SHA-256），明文仅在创建/重置时返回一次
 
-### � 管理员认证
+### 🔑 管理员认证
 
 - JWT Token 认证
 - 刷新令牌机制
@@ -259,8 +262,6 @@ docker-compose exec app npx ts-node prisma/init-admin.ts
 ```
 
 > **说明**: 容器启动时会通过 `entrypoint.sh` 自动执行 `prisma migrate deploy`，无需手动运行数据库迁移。如需 SSL/HTTPS，请先运行 `bash deploy/scripts/generate-ssl.sh` 生成自签名证书。
->
-> 更多 Docker 部署详情请查看 [快速部署指南](docs/quick-start.md) 和 [完整部署文档](docs/production-deployment.md)。
 
 ### 本地开发
 
@@ -282,11 +283,6 @@ cd client
 npm install
 npm run dev          # 启动开发服务器
 ```
-
-详细部署说明请查看：
-
-- [快速部署指南](docs/quick-start.md)
-- [完整部署文档](docs/production-deployment.md)
 
 ## 📁 项目结构
 
@@ -387,22 +383,7 @@ MuuAgent/
 │   ├── mysql/           # MySQL 配置
 │   ├── nginx/           # Nginx 配置
 │   └── scripts/         # 部署脚本
-├── docs/                # 文档
-│   ├── quick-start.md            # 快速开始
-│   ├── production-deployment.md  # 生产部署
-│   ├── panel-deployment.md       # 面板部署
-│   ├── prompt-template-guide.md  # 提示词模板指南
-│   ├── model-management-guide.md # 模型管理指南
-│   ├── agent-guide.md            # 智能体指南
-│   ├── builtin-tool-registration-guide.md # 内置工具注册指南
-│   ├── custom-skill-guide.md      # 自定义技能指南
-│   ├── knowledge-base-retrieval.md # 知识库检索
-│   ├── qdrant-configuration.md   # Qdrant 配置
-│   ├── smart-routing.md          # 智能路由
-│   ├── agent-model-routing.md    # 智能体模型路由
-│   ├── oauth-token-guide.md      # OAuth 令牌管理
-│   ├── user-pass-through.md      # 用户透传
-│   └── admin-authentication.md   # 管理员认证
+├── docs/                # 文档（部署指南、功能指南、技术文档，详见下方「文档」章节）
 ├── docker-compose.yml   # Docker 编排
 ├── Dockerfile          # 应用镜像
 ├── scripts/            # 工具脚本
@@ -427,7 +408,7 @@ MuuAgent/
 - [提示词模板指南](docs/prompt-template-guide.md) - 提示词模板的创建与使用
 - [智能体指南](docs/agent-guide.md) - 智能体配置与推理模式
 - [内置工具注册指南](docs/builtin-tool-registration-guide.md) - 内置工具的注册与使用
-- [自定义工具指南](docs/custom_tool-guide.md) - 自定义工具的开发与集成
+- [自定义技能指南](docs/custom-skill-guide.md) - 自定义技能的开发与集成
 - [知识库检索文档](docs/knowledge-base-retrieval.md) - 知识库管理与 RAG 检索
 
 ### 高级功能
@@ -444,30 +425,6 @@ MuuAgent/
 - [服务 README](service/README.md) - 后端服务详细说明
 
 ## 🔧 开发指南
-
-### 后端开发
-
-```bash
-cd service
-npm install
-npm run start:dev
-```
-
-### 管理后台开发
-
-```bash
-cd admin
-npm install
-npm run dev
-```
-
-### 用户端开发
-
-```bash
-cd client
-npm install
-npm run dev
-```
 
 ### 数据库操作
 
@@ -550,15 +507,16 @@ npm run version:major
 
 ## 🛡️ 安全特性
 
-- API Key 鉴权
+- API Key 鉴权（密钥 SHA-256 哈希存储，支持密钥重置）
 - JWT Token 认证
-- OAuth 2.0 认证
+- OAuth 2.0 认证（客户端认证 + 失败锁定）
 - 请求限流保护
 - 熔断降级机制
 - SQL 注入防护
 - XSS 攻击防护
 - HTTPS 加密传输
 - 细粒度权限控制
+- 多租户资源隔离
 
 ## 🎯 使用场景
 

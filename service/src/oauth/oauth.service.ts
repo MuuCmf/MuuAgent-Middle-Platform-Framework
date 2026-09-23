@@ -1,5 +1,6 @@
-import { Injectable, BadRequestException, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { hashSecret } from '../common/utils/hash.util';
 import * as crypto from 'crypto';
 
 /**
@@ -7,6 +8,15 @@ import * as crypto from 'crypto';
  */
 @Injectable()
 export class OAuthService {
+  /** 客户端认证最大失败次数（超过后锁定） */
+  private static readonly MAX_AUTH_FAILURES = 5;
+
+  /** 认证失败锁定时长（毫秒） */
+  private static readonly LOCK_DURATION_MS = 15 * 60 * 1000;
+
+  /** 客户端认证失败计数（内存级，防暴力破解，key = clientId:ip） */
+  private authFailures = new Map<string, { count: number; lockedUntil: number }>();
+
   /**
    * 构造函数
    * @param prisma Prisma服务
@@ -22,18 +32,28 @@ export class OAuthService {
    * @param clientId 客户端ID
    * @param clientSecret 客户端密钥
    * @param redirectUri 回调地址
+   * @param clientIp 客户端IP（用于失败锁定）
    * @returns {Promise<any>} 客户端信息
    */
-  async validateClient(clientId: string, clientSecret?: string, redirectUri?: string) {
+  async validateClient(clientId: string, clientSecret?: string, redirectUri?: string, clientIp?: string) {
+    const lockKey = clientSecret ? `${clientId}:${clientIp || 'unknown'}` : '';
+    if (lockKey) {
+      this.assertNotLocked(lockKey);
+    }
+
     const client = await this.prisma.oAuthClient.findUnique({
       where: { clientId },
     });
 
     if (!client || client.status !== 1) {
+      if (lockKey) {
+        this.recordAuthFailure(lockKey);
+      }
       throw new UnauthorizedException('客户端不存在或已禁用');
     }
 
-    if (clientSecret && client.clientSecret !== clientSecret) {
+    if (clientSecret && !this.timingSafeEqual(client.clientSecretHash, hashSecret(clientSecret))) {
+      this.recordAuthFailure(lockKey);
       throw new UnauthorizedException('客户端密钥错误');
     }
 
@@ -44,12 +64,65 @@ export class OAuthService {
       }
     }
 
+    if (lockKey) {
+      this.clearAuthFailure(lockKey);
+    }
+
     return {
       ...client,
       redirectUris: JSON.parse(client.redirectUris),
       scopes: JSON.parse(client.scopes),
       grants: JSON.parse(client.grants),
     };
+  }
+
+  /**
+   * 时序安全的字符串比较（避免逐字符比较的时间侧信道）
+   */
+  private timingSafeEqual(a: string, b: string): boolean {
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+    if (bufA.length !== bufB.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(bufA, bufB);
+  }
+
+  /**
+   * 检查客户端是否处于认证失败锁定状态
+   */
+  private assertNotLocked(lockKey: string): void {
+    const record = this.authFailures.get(lockKey);
+    if (record && record.lockedUntil > Date.now()) {
+      const remainingSec = Math.ceil((record.lockedUntil - Date.now()) / 1000);
+      throw new HttpException(
+        `认证失败次数过多，请 ${remainingSec} 秒后重试`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  /**
+   * 记录一次认证失败（连续失败达到上限后锁定）
+   */
+  private recordAuthFailure(lockKey: string): void {
+    const record = this.authFailures.get(lockKey);
+    if (!record || record.lockedUntil <= Date.now()) {
+      this.authFailures.set(lockKey, { count: 1, lockedUntil: 0 });
+      return;
+    }
+    record.count += 1;
+    if (record.count >= OAuthService.MAX_AUTH_FAILURES) {
+      record.lockedUntil = Date.now() + OAuthService.LOCK_DURATION_MS;
+      record.count = 0;
+    }
+  }
+
+  /**
+   * 认证成功后清除失败计数
+   */
+  private clearAuthFailure(lockKey: string): void {
+    this.authFailures.delete(lockKey);
   }
 
   /**
@@ -92,10 +165,11 @@ export class OAuthService {
    * 适用于后端服务之间的直接调用，无需用户交互授权
    * @param clientId 客户端ID
    * @param clientSecret 客户端密钥
+   * @param clientIp 客户端IP（用于失败锁定）
    * @returns {Promise<any>} 令牌信息
    */
-  async generateClientCredentialsToken(clientId: string, clientSecret: string) {
-    const client = await this.validateClient(clientId, clientSecret);
+  async generateClientCredentialsToken(clientId: string, clientSecret: string, clientIp?: string) {
+    const client = await this.validateClient(clientId, clientSecret, undefined, clientIp);
 
     // validateClient 已经解析了 grants 和 scopes，无需再次解析
     const grants = client.grants as string[];
@@ -116,8 +190,8 @@ export class OAuthService {
    * @param clientSecret 客户端密钥
    * @returns {Promise<any>} 新令牌信息
    */
-  async refreshAccessToken(refreshToken: string, clientId: string, clientSecret: string) {
-    await this.validateClient(clientId, clientSecret);
+  async refreshAccessToken(refreshToken: string, clientId: string, clientSecret: string, clientIp?: string) {
+    await this.validateClient(clientId, clientSecret, undefined, clientIp);
 
     const token = await this.prisma.oAuthToken.findUnique({
       where: { refreshToken },
@@ -170,13 +244,19 @@ export class OAuthService {
   }
 
   /**
-   * 撤销令牌
-   * @param token 令牌
-   * @returns {Promise<void>}
+   * 吊销令牌
+   * 按 RFC 7009 要求：必须先通过客户端认证，且仅能吊销本客户端（clientId）名下的令牌
+   * @param token 要撤销的访问令牌或刷新令牌
+   * @param clientId 客户端ID
+   * @param clientSecret 客户端密钥
+   * @param clientIp 客户端IP（用于失败锁定）
    */
-  async revokeToken(token: string): Promise<void> {
+  async revokeToken(token: string, clientId: string, clientSecret: string, clientIp?: string): Promise<void> {
+    await this.validateClient(clientId, clientSecret, undefined, clientIp);
+
     await this.prisma.oAuthToken.deleteMany({
       where: {
+        clientId,
         OR: [
           { accessToken: token },
           { refreshToken: token },
@@ -221,12 +301,7 @@ export class OAuthService {
       total,
       page,
       pageSize,
-      data: clients.map(client => ({
-        ...client,
-        redirectUris: JSON.parse(client.redirectUris),
-        scopes: JSON.parse(client.scopes),
-        grants: JSON.parse(client.grants),
-      })),
+      data: clients.map(client => this.formatClient(client)),
     };
   }
 
@@ -249,11 +324,28 @@ export class OAuthService {
     });
 
     return {
-      ...client,
+      ...this.formatClient(client),
+      tokenCount,
+    };
+  }
+
+  /**
+   * 格式化客户端数据（不含密钥哈希，哈希不对外返回）
+   * @param client 客户端数据
+   * @returns {object} 格式化后的数据
+   */
+  private formatClient(client: any) {
+    return {
+      id: client.id,
+      clientId: client.clientId,
+      name: client.name,
       redirectUris: JSON.parse(client.redirectUris),
       scopes: JSON.parse(client.scopes),
       grants: JSON.parse(client.grants),
-      tokenCount,
+      appCode: client.appCode,
+      status: client.status,
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt,
     };
   }
 
@@ -275,7 +367,7 @@ export class OAuthService {
     const client = await this.prisma.oAuthClient.create({
       data: {
         clientId,
-        clientSecret,
+        clientSecretHash: hashSecret(clientSecret),
         name: data.name,
         redirectUris: JSON.stringify(data.redirectUris ?? []),
         scopes: JSON.stringify(data.scopes),
@@ -285,11 +377,10 @@ export class OAuthService {
       },
     });
 
+    // 明文 clientSecret 仅在创建响应中返回一次，此后不可查询
     return {
-      ...client,
-      redirectUris: JSON.parse(client.redirectUris),
-      scopes: JSON.parse(client.scopes),
-      grants: JSON.parse(client.grants),
+      ...this.formatClient(client),
+      clientSecret,
     };
   }
 
@@ -329,12 +420,7 @@ export class OAuthService {
       data: updateData,
     });
 
-    return {
-      ...updated,
-      redirectUris: JSON.parse(updated.redirectUris),
-      scopes: JSON.parse(updated.scopes),
-      grants: JSON.parse(updated.grants),
-    };
+    return this.formatClient(updated);
   }
 
   /**
@@ -374,9 +460,10 @@ export class OAuthService {
 
     await this.prisma.oAuthClient.update({
       where: { id: id as any },
-      data: { clientSecret: newSecret },
+      data: { clientSecretHash: hashSecret(newSecret) },
     });
 
+    // 明文密钥仅在重置响应中返回一次，此后不可查询
     return {
       clientId: client.clientId,
       clientSecret: newSecret,

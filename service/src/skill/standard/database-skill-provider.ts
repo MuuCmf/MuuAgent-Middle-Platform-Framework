@@ -254,26 +254,27 @@ export class DatabaseSkillProvider implements ISkillProvider {
     if (!context || context.skipIsolation) {
       return {};
     }
-    
+
     if (!context.appCode) {
-      return { isPublic: true };
+      // appCode 为 NULL 表示公共技能
+      return { appCode: null };
     }
 
-    // 用户级隔离：可见范围 = 自己的私有技能 + 应用级公共技能(uid为空) + 公开技能
+    // 用户级隔离：可见范围 = 自己的私有技能 + 应用级公共技能(uid为空) + 公共技能(appCode为空)
     if (context.uid) {
       return {
         OR: [
-          { isPublic: true },
+          { appCode: null },
           { appCode: context.appCode, uid: context.uid },
           { appCode: context.appCode, uid: null },
         ],
       };
     }
 
-    // 应用级隔离：可见范围 = 应用技能 + 公开技能
+    // 应用级隔离：可见范围 = 应用技能 + 公共技能(appCode为空)
     return {
       OR: [
-        { isPublic: true },
+        { appCode: null },
         { appCode: context.appCode },
       ],
     };
