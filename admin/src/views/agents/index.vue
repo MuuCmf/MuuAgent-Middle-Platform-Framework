@@ -90,6 +90,16 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="callableByAgents" :label="$t('agent.callableBy')" width="120">
+          <template #default="{ row }">
+            <el-tooltip :disabled="getCallableMode(row.callableByAgents) !== 'whitelist'"
+              :content="getCallableWhitelistNames(row.callableByAgents)" placement="top">
+              <el-tag :type="getCallableTagType(row.callableByAgents)" size="small">
+                {{ getCallableLabel(row.callableByAgents) }}
+              </el-tag>
+            </el-tooltip>
+          </template>
+        </el-table-column>
         <el-table-column prop="sort" :label="$t('agent.sort')" width="80" />
         <el-table-column prop="status" :label="$t('common.status')" width="80">
           <template #default="{ row }">
@@ -193,6 +203,44 @@ const getReasoningTagType = (mode: string) => {
     REFLECT: 'danger',
   }
   return types[mode] || 'info'
+}
+
+// 可被调用状态解析：null/空=不限制，[]=禁止，数组=仅白名单
+type CallableMode = 'all' | 'whitelist' | 'deny'
+
+const getCallableMode = (value: string | null | undefined): CallableMode => {
+  if (value === null || value === undefined || value === '') return 'all'
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) && parsed.length > 0 ? 'whitelist' : 'deny'
+  } catch {
+    return 'all'
+  }
+}
+
+const getCallableLabel = (value: string | null | undefined) => {
+  const labels: Record<CallableMode, string> = {
+    all: t('agent.callableByAll'),
+    whitelist: t('agent.callableByWhitelist'),
+    deny: t('agent.callableByDeny'),
+  }
+  if (getCallableMode(value) === 'whitelist') {
+    return `${labels.whitelist}(${parseJsonSafe(value || '').length})`
+  }
+  return labels[getCallableMode(value)]
+}
+
+const getCallableTagType = (value: string | null | undefined): 'success' | 'warning' | 'danger' => {
+  const types: Record<CallableMode, 'success' | 'warning' | 'danger'> = {
+    all: 'success',
+    whitelist: 'warning',
+    deny: 'danger',
+  }
+  return types[getCallableMode(value)]
+}
+
+const getCallableWhitelistNames = (value: string | null | undefined) => {
+  return parseJsonSafe(value || '').join('、')
 }
 
 const handleAdd = () => {
